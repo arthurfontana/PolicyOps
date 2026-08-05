@@ -1,0 +1,381 @@
+# Modelo do Documento
+
+> Normativo e literal. O arquivo `.json` é o banco de dados do produto: ele precisa ser legível por um humano, validável por Zod e estável entre versões da aplicação.
+
+## 1. Estrutura de topo
+
+```ts
+type PolicyOpsDocument = {
+  schemaVersion: 1;
+  meta: DocumentMeta;
+  variables: Variable[];
+  compatibility: CompatibilityRule[];
+  catalog: CatalogItem[];
+  projects: Project[];
+  matrices: Matrix[];
+  templates: Template[];
+  events: DocEvent[];
+};
+
+type DocumentMeta = {
+  id: string;               // nanoid do workspace, imutável
+  name: string;             // "Políticas de Crédito — Cartões"
+  description?: string;
+  revision: number;         // incrementa a cada salvamento; base da detecção de conflito
+  savedAt: string | null;   // ISO 8601 UTC
+  savedBy: string | null;   // nome informado pelo usuário
+  appVersion: string;       // versão do PolicyOps.html que salvou
+  createdAt: string;
+};
+```
+
+Convenções gerais:
+
+- **Todo id** é `nanoid(12)`.
+- **Toda data** é string ISO 8601 em UTC (`2026-08-05T14:32:00.000Z`).
+- **Todo decimal** é string (`"2000.00"`). Nunca `number`.
+- **Todo código** (`code`) casa `^[A-Z0-9_]+$`, é único no seu escopo e **imutável após a criação**.
+- Campos opcionais são **omitidos** quando vazios, não gravados como `null`. Isso mantém o arquivo pequeno e legível.
+- Arrays de entidades são ordenados por `position` quando a ordem importa; senão, por `createdAt`.
+
+## 2. Biblioteca de Variáveis
+
+```ts
+type Variable = {
+  id: string;
+  code: string;                    // SCORE_HVI3
+  name: string;                    // "Score HVI3"
+  description?: string;
+  type: 'ORDINAL' | 'CATEGORICAL' | 'RANGE' | 'BOOLEAN';
+  archivedAt?: string;
+  createdAt: string;
+  versions: VariableVersion[];     // ordenadas por number
+};
+
+type VariableVersion = {
+  id: string;
+  number: number;                  // 1, 2, 3…
+  state: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';
+  notes?: string;
+  createdAt: string;
+  createdBy: string;
+  publishedAt?: string;
+  publishedBy?: string;
+  domains: Domain[];               // ordenados por position
+};
+
+type Domain = {
+  code: string;                    // R1
+  label: string;                   // "R1 — Risco muito baixo"
+  shortLabel?: string;             // "R1" — usado no cabeçalho do grid
+  position: number;                // 0-based, sem buracos
+  color?: string;                  // #RRGGBB
+  // apenas quando type = RANGE
+  rangeMin?: string;               // decimal como string
+  rangeMax?: string;
+  minInclusive?: boolean;          // default true
+  maxInclusive?: boolean;          // default false
+  isCatchAll?: boolean;            // "acima de X" / "demais casos"
+};
+```
+
+## 3. Biblioteca de Compatibilidade
+
+Declara, para um par ordenado de variáveis, quais domínios do filho existem sob cada domínio do pai.
+
+```ts
+type CompatibilityRule = {
+  id: string;
+  code: string;                    // SEG_X_FATURAMENTO
+  name: string;                    // "Segmento × Faixa de Faturamento"
+  description?: string;
+  parentVariableId: string;
+  childVariableId: string;
+  archivedAt?: string;
+  createdAt: string;
+  versions: CompatibilityVersion[];
+};
+
+type CompatibilityVersion = {
+  id: string;
+  number: number;
+  state: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';
+  notes?: string;
+  createdAt: string;
+  createdBy: string;
+  publishedAt?: string;
+  publishedBy?: string;
+  // versões de variável usadas para escrever o mapa (rastreabilidade)
+  parentVariableVersionId: string;
+  childVariableVersionId: string;
+  // domínio do pai → domínios permitidos do filho
+  allow: Record<string, string[]>;
+  // o que fazer com domínios do pai ausentes de `allow`
+  defaultForUnlisted: 'ALL' | 'NONE';   // default 'ALL'
+};
+```
+
+Exemplo:
+
+```json
+{
+  "code": "SEG_X_FATURAMENTO",
+  "parentVariableId": "…SEGMENTO",
+  "childVariableId": "…FAT",
+  "versions": [{
+    "number": 1, "state": "PUBLISHED",
+    "allow": {
+      "VAREJO":    ["ATE_100K", "100K_500K", "500K_1M"],
+      "ATACADO":   ["500K_1M", "1M_10M", "ACIMA_10M"],
+      "CORPORATE": ["1M_10M", "ACIMA_10M"]
+    },
+    "defaultForUnlisted": "NONE"
+  }]
+}
+```
+
+**Só existe uma regra publicada por par (parent, child)** — invariante I12. Criar uma segunda para o mesmo par é erro `COMPATIBILITY_PAIR_DUPLICATE`.
+
+## 4. Biblioteca de Conteúdo
+
+```ts
+type CatalogItem = {
+  id: string;
+  kind: 'DECISION' | 'OFFER' | 'LIMIT' | 'TAG';
+  code: string;                    // APROVADO / OFERTA_8 / LIM_2000
+  label: string;
+  description?: string;
+  color?: string;
+  numericValue?: string;           // obrigatório quando kind = LIMIT
+  position: number;
+  archivedAt?: string;
+  createdAt: string;
+};
+```
+
+`code` é único **dentro do `kind`**; o mesmo código em kinds diferentes é permitido.
+
+## 5. Projetos e Matrizes
+
+```ts
+type Project = {
+  id: string;
+  code: string;                    // POLITICA_PJ
+  name: string;
+  description?: string;
+  position: number;
+  archivedAt?: string;
+  createdAt: string;
+};
+
+type Matrix = {
+  id: string;
+  projectId: string;
+  code: string;                    // MTZ_LIMITE_PJ — único dentro do projeto
+  name: string;
+  description?: string;
+  archivedAt?: string;
+  createdAt: string;
+  versions: MatrixVersion[];       // ordenadas por number
+};
+```
+
+## 6. Versão de matriz — o coração
+
+```ts
+type MatrixVersion = {
+  id: string;
+  number: number;
+  state: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED' | 'ARCHIVED';
+  notes?: string;
+  baseVersionId?: string;          // de qual versão este rascunho derivou
+  createdAt: string;
+  createdBy: string;
+  publishedAt?: string;
+  publishedBy?: string;
+  effectiveFrom?: string;          // definido na publicação
+  effectiveTo?: string;            // preenchido quando uma versão mais nova publica
+  archivedAt?: string;
+
+  axes: { x: Axis; y: Axis };
+  cells: Record<string, Cell>;     // chave = `${xPath}::${yPath}`
+};
+```
+
+### 6.1 Eixo
+
+```ts
+type Axis = {
+  role: 'X' | 'Y';
+  levels: AxisLevel[];             // do mais externo (0) ao mais interno; 1 a 3
+  tuples: string[];                // SNAPSHOT: combinações válidas, já ordenadas
+  manualSuppressions?: string[];   // caminhos removidos manualmente nesta versão
+  derivedFrom: {
+    compatibilityVersionIds: string[];   // regras usadas para gerar `tuples`
+  };
+};
+
+type AxisLevel = {
+  id: string;
+  variableId: string;
+  variableVersionId: string;       // o pin
+  label: string;                   // rótulo exibido; default = Variable.name
+  domains: Domain[];               // SNAPSHOT congelado, cópia de VariableVersion.domains
+};
+```
+
+**`tuples` é o snapshot definitivo da estrutura do eixo.** É uma lista de caminhos, cada um com tantos códigos quantos forem os níveis, separados por `|`:
+
+```json
+"tuples": [
+  "VAREJO|ATE_100K", "VAREJO|100K_500K", "VAREJO|500K_1M",
+  "ATACADO|500K_1M", "ATACADO|1M_10M", "ATACADO|ACIMA_10M",
+  "CORPORATE|1M_10M", "CORPORATE|ACIMA_10M"
+]
+```
+
+Gerado a partir dos domínios e das regras de compatibilidade no momento em que o rascunho é criado — e **nunca regenerado sozinho depois**. Regenerar é uma ação explícita do usuário (reconciliação, `06-regras-de-negocio.md` §5).
+
+Um eixo de 1 nível tem tuplas de um código só (`"R1"`, `"R2"`, …) — o caso simples é o caso geral com `levels.length === 1`.
+
+### 6.2 Célula
+
+```ts
+type Cell = {
+  decision?: string;               // CatalogItem.code de kind DECISION
+  offer?: string;                  // code de kind OFFER
+  limit?: string;                  // code de kind LIMIT
+  limitOverride?: string;          // decimal; sobrepõe numericValue do catálogo
+  color?: string;                  // #RRGGBB; sobrepõe a cor da decisão
+  note?: string;
+  attrs?: Record<string, string | number | boolean>;
+};
+```
+
+**Células vazias não são gravadas.** Uma chave ausente de `cells` significa "não preenchida" (`isUnset`). O conjunto de células possíveis é sempre derivado de `axes.x.tuples × axes.y.tuples` — nunca materializado no arquivo.
+
+Consequências: o arquivo fica pequeno, uma matriz recém-criada tem `"cells": {}`, e o cálculo de pendências é `xTuples.length * yTuples.length - Object.keys(cells).filter(temDecisão).length`.
+
+Referências ao catálogo são por **`code`**, não por id — o código é imutável, e isso mantém o arquivo legível.
+
+## 7. Templates
+
+```ts
+type Template = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  axes: {
+    x: { levels: Array<{ variableId: string; label?: string }> };
+    y: { levels: Array<{ variableId: string; label?: string }> };
+  };
+  defaults?: { decision?: string; offer?: string; limit?: string };
+  seedRules: SeedRule[];
+  archivedAt?: string;
+  createdAt: string;
+};
+
+type SeedRule = {
+  when: { x?: PathMatcher; y?: PathMatcher };
+  set: { decision?: string; offer?: string; limit?: string; color?: string };
+};
+
+// Casa caminhos por prefixo de nível. `null` em um nível = qualquer valor.
+// Ex.: ["VAREJO", null] casa todas as faixas de faturamento do Varejo.
+type PathMatcher = Array<string | null>;
+```
+
+Templates referenciam **variáveis**, não versões: ao instanciar, usam as versões publicadas do momento.
+
+## 8. Auditoria
+
+```ts
+type DocEvent = {
+  id: string;
+  at: string;
+  actor: string;
+  type: DocEventType;
+  scope: {
+    projectId?: string; matrixId?: string; versionId?: string;
+    variableId?: string; compatibilityId?: string;
+  };
+  summary: string;                 // frase pronta em pt-BR para a timeline
+  payload?: Record<string, unknown>;
+};
+
+type DocEventType =
+  | 'DOCUMENT_CREATED' | 'DOCUMENT_MERGED'
+  | 'MATRIX_CREATED'   | 'DRAFT_CREATED' | 'DRAFT_DISCARDED'
+  | 'CELLS_UPDATED'    | 'AXIS_LEVEL_ADDED' | 'AXIS_LEVEL_REMOVED'
+  | 'AXIS_LEVEL_REORDERED' | 'AXIS_RESNAPSHOTTED' | 'TUPLES_SUPPRESSED'
+  | 'VERSION_PUBLISHED' | 'VERSION_SUPERSEDED' | 'NOTE_ADDED'
+  | 'VARIABLE_PUBLISHED' | 'COMPATIBILITY_PUBLISHED'
+  | 'CATALOG_CHANGED';
+```
+
+`events` é append-only e ordenado por `at`. Teto de **5.000 eventos**; ao ultrapassar, os mais antigos são consolidados num único evento de resumo (sessão S16).
+
+## 9. Invariantes
+
+Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas **na leitura do arquivo** e **antes de todo salvamento**.
+
+| # | Invariante |
+|---|---|
+| I1 | No máximo uma `MatrixVersion` em `DRAFT` por matriz |
+| I2 | No máximo uma `MatrixVersion` em `PUBLISHED` por matriz |
+| I3 | Versão `PUBLISHED`, `SUPERSEDED` ou `ARCHIVED` é imutável — nenhum comando pode alterá-la |
+| I4 | Intervalos `[effectiveFrom, effectiveTo)` de uma matriz não se sobrepõem nem deixam buracos |
+| I5 | Toda chave de `cells` decompõe em `xPath::yPath` presentes em `axes.x.tuples` e `axes.y.tuples` |
+| I6 | Publicar exige zero combinações sem `decision` |
+| I7 | `CatalogItem` de kind `LIMIT` tem `numericValue` |
+| I8 | `BOOLEAN` tem exatamente 2 domínios; demais tipos, ao menos 2 |
+| I9 | `RANGE`: faixas contíguas, sem sobreposição, ordenadas por `position`; no máximo um `isCatchAll`, e ele é o último |
+| I10 | `VariableVersion` / `CompatibilityVersion` publicada é imutável |
+| I11 | No máximo uma versão `DRAFT` e uma `PUBLISHED` por variável e por regra de compatibilidade |
+| I12 | Uma única regra de compatibilidade publicada por par (parent, child) |
+| I13 | `axes.*.levels` tem de 1 a 3 elementos, sem variável repetida no mesmo eixo |
+| I14 | Nenhuma variável aparece nos dois eixos da mesma versão |
+| I15 | `tuples` não tem duplicatas, e todo código de cada caminho existe nos domínios do nível correspondente |
+| I16 | `xTuples.length * yTuples.length ≤ 6.000` |
+| I17 | Toda referência a catálogo em `cells` aponta para um `code` existente do kind correto |
+| I18 | Todo `code` é único no seu escopo |
+
+Falha de invariante na leitura **não descarta o arquivo**: a aplicação abre em modo de recuperação, lista os problemas em português e oferece as correções possíveis (§10).
+
+## 10. Versionamento do schema e migração
+
+`schemaVersion` no topo. `src/core/document/migrate.ts` aplica migrações em cadeia (`1 → 2 → 3`) ao abrir um arquivo mais antigo, e recusa arquivos mais novos que a aplicação, com a mensagem: *"Este arquivo foi salvo por uma versão mais nova do PolicyOps. Atualize o PolicyOps.html."*
+
+Migrações são funções puras, testadas com fixtures reais em `tests/fixtures/`.
+
+## 11. Documento de exemplo
+
+`src/core/document/create.ts` exporta `createSampleDocument()`, usado no botão "Explorar com dados de exemplo" da tela inicial e nos testes. Conteúdo:
+
+**Variáveis** (todas com v1 `PUBLISHED`)
+
+| code | name | type | domínios |
+|---|---|---|---|
+| `SCORE_HVI3` | Score HVI3 | ORDINAL | R1…R6 |
+| `RESTRITIVO` | Restritivo Externo | CATEGORICAL | `SEM` · `BAIXO` · `MEDIO` · `ALTO` |
+| `SEGMENTO` | Segmento | CATEGORICAL | `VAREJO` · `ATACADO` · `CORPORATE` |
+| `FAT` | Faixa de Faturamento | RANGE | `ATE_100K` · `100K_500K` · `500K_1M` · `1M_10M` · `ACIMA_10M` (catchAll) |
+| `FAIXA_RENDA` | Faixa de Renda | RANGE | `ATE_2K` · `2K_4K` · `4K_6K` · `ACIMA_6K` (catchAll) |
+| `TEMPO_EMPRESA` | Tempo de Empresa | RANGE | `ATE_6M` · `6M_12M` · `1A_3A` · `ACIMA_3A` (catchAll) |
+
+**Compatibilidade**: `SEG_X_FATURAMENTO` v1 `PUBLISHED`, com o mapa do §3.
+
+**Catálogo**: 4 decisões (`APROVADO` #16A34A, `REPROVADO` #DC2626, `ANALISE_MANUAL` #F59E0B, `EXCECAO` #7C3AED), 6 ofertas, 4 limites com valor.
+
+**Projetos**: `POLITICA_PF`, `POLITICA_PJ`.
+
+**Matrizes**:
+
+1. `MTZ_LIMITE_PF` (Política PF) — eixo X = `SCORE_HVI3` (1 nível), eixo Y = `RESTRITIVO` (1 nível). 24 combinações, todas preenchidas. **v1 `PUBLISHED`** com `effectiveFrom` há 90 dias, e **v2 `DRAFT`** derivada com exatamente 3 células alteradas — para exercitar o diff desde o primeiro uso.
+
+2. `MTZ_LIMITE_PJ` (Política PJ) — eixo X = `SCORE_HVI3` (1 nível), **eixo Y = `SEGMENTO` › `FAT` (2 níveis)**, com a compatibilidade aplicada: 8 tuplas em Y (não 15) × 6 em X = 48 combinações, todas preenchidas. **v1 `PUBLISHED`**. É o caso que valida o aninhamento ponta a ponta.
+
+**Templates**: "Matriz padrão PF" e "Limite PJ segmentado".
+
+O documento de exemplo é gerado por código, não é um JSON fixo — assim ele nunca fica desatualizado em relação ao schema.
