@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { countPending } from '@/core/axes/combinations';
+import { collectPublishedCompatibility, generateTuples } from '@/core/axes/tuples';
 import { createEmptyDocument, createSampleDocument } from '@/core/document/create';
 import { validateDocument } from '@/core/document/validate';
 
@@ -60,5 +62,41 @@ describe('createSampleDocument', () => {
     expect(v1.axes.y.tuples).toHaveLength(8);
     expect(v1.axes.x.tuples.length * v1.axes.y.tuples.length).toBe(48);
     expect(Object.keys(v1.cells)).toHaveLength(48);
+  });
+
+  it('gera o eixo Y aninhado com `generateTuples`, na ordem do motor de eixos', () => {
+    const doc = createSampleDocument();
+    const pj = doc.matrices.find((m) => m.code === 'MTZ_LIMITE_PJ')!;
+    const v1 = pj.versions[0]!;
+    const compatV1 = doc.compatibility[0]!.versions[0]!;
+
+    // Mesmo eixo, gerado de novo pelo motor: precisa bater tupla a tupla.
+    const regenerated = generateTuples({
+      levels: v1.axes.y.levels,
+      compatibility: collectPublishedCompatibility(doc.compatibility),
+    });
+    expect(v1.axes.y.tuples).toEqual(regenerated.tuples);
+    expect(v1.axes.y.tuples).toEqual([
+      'VAREJO|ATE_100K',
+      'VAREJO|100K_500K',
+      'VAREJO|500K_1M',
+      'ATACADO|500K_1M',
+      'ATACADO|1M_10M',
+      'ATACADO|ACIMA_10M',
+      'CORPORATE|1M_10M',
+      'CORPORATE|ACIMA_10M',
+    ]);
+    // O pin da regra usada vem do motor, não escrito à mão.
+    expect(v1.axes.y.derivedFrom.compatibilityVersionIds).toEqual([compatV1.id]);
+    expect(v1.axes.x.derivedFrom.compatibilityVersionIds).toEqual([]);
+  });
+
+  it('não tem nenhuma combinação pendente nas matrizes do exemplo', () => {
+    const doc = createSampleDocument();
+    for (const matrix of doc.matrices) {
+      for (const version of matrix.versions) {
+        expect(countPending(version)).toBe(0);
+      }
+    }
   });
 });
