@@ -40,6 +40,32 @@ export function resolveCellColor(cell: Cell | undefined, catalog: EditorCatalog)
   return NEUTRAL_CELL_COLOR;
 }
 
+// ---------------------------------------------------------------------------
+// Cores da seleção — docs/07-ux-e-editor.md §5
+// ---------------------------------------------------------------------------
+
+/** Borda azul de 2px da seleção. */
+export const SELECTION_COLOR = '#2563EB';
+/** Âncora: borda distinta, mais escura e mais grossa que a da seleção. */
+export const ANCHOR_COLOR = '#1E3A8A';
+/** Anel de foco da célula focada — âmbar para não se confundir com a seleção. */
+export const FOCUS_RING_COLOR = '#F59E0B';
+/** Retângulo translúcido do marquee durante o arrasto. */
+export const MARQUEE_FILL_COLOR = 'rgb(37 99 235 / 0.16)';
+export const MARQUEE_BORDER_COLOR = SELECTION_COLOR;
+/** Realce do cabeçalho cujas combinações estão todas selecionadas. */
+export const HEADER_SELECTED_FILL_COLOR = 'rgb(37 99 235 / 0.18)';
+
+/**
+ * Anel interno da célula. `inset` em vez de borda para não deslocar o layout
+ * do grid quando a seleção muda.
+ */
+export function cellRingShadow(state: { selected: boolean; isAnchor: boolean }): string | undefined {
+  if (state.isAnchor) return `inset 0 0 0 3px ${ANCHOR_COLOR}`;
+  if (state.selected) return `inset 0 0 0 2px ${SELECTION_COLOR}`;
+  return undefined;
+}
+
 /** Um canal sRGB (0–255) para o espaço linear usado na luminância relativa (WCAG). */
 function linearChannel(channel: number): number {
   const normalized = channel / 255;
