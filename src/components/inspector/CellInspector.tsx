@@ -10,6 +10,9 @@ import type { CatalogItem, Cell } from '@/core/document/schema';
 import { getEditorView, type EditorAxisView, type EditorView } from '@/core/queries';
 import { CELL_FIELDS, applyCellPatch, type CellField, type PatchCoord } from '@/core/versioning/cells';
 import { buildPatchFromForm, computeFieldState, type CellFormValues, type TouchedFieldKey } from '@/core/versioning/cell-form';
+import { useToast } from '@/components/ui/use-toast';
+import type { AxisRole } from '@/core/document/schema';
+import { suppressTuplesCommand } from '@/core/versioning/axis-commands';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
 
@@ -82,6 +85,8 @@ export function CellInspector({ selection }: { selection: ReadonlySet<string> })
   const dispatch = useDocumentStore((s) => s.dispatch);
   const currentVersionId = useEditorStore((s) => s.currentVersionId);
   const isEditable = useEditorStore((s) => s.isEditable);
+  const clearSelection = useEditorStore((s) => s.clear);
+  const { toast } = useToast();
 
   const [touched, setTouched] = useState<Set<TouchedFieldKey>>(new Set());
   const [values, setValues] = useState<CellFormValues>({});
@@ -145,6 +150,45 @@ export function CellInspector({ selection }: { selection: ReadonlySet<string> })
       setTouched(new Set());
       setValues({});
     }
+  }
+
+  // Supressão manual (docs/07 §8): só faz sentido para uma tupla **inteira** —
+  // uma linha ou uma coluna do grid selecionada por completo. Meia linha não é
+  // "esta combinação não existe", é uma seleção qualquer.
+  function fullySelectedTuples(role: AxisRole): string[] {
+    const own = role === 'X' ? view!.x.axis.tuples : view!.y.axis.tuples;
+    const other = role === 'X' ? view!.y.axis.tuples : view!.x.axis.tuples;
+    return own.filter((path) =>
+      other.every((otherPath) =>
+        selection.has(role === 'X' ? encodeCellKey(path, otherPath) : encodeCellKey(otherPath, path)),
+      ),
+    );
+  }
+
+  const suppressableY = fullySelectedTuples('Y');
+  const suppressableX = suppressableY.length > 0 ? [] : fullySelectedTuples('X');
+  const suppressRole: AxisRole = suppressableY.length > 0 ? 'Y' : 'X';
+  const suppressPaths = suppressableY.length > 0 ? suppressableY : suppressableX;
+
+  function suppressSelected() {
+    const result = dispatch(suppressTuplesCommand({ versionId, role: suppressRole, paths: suppressPaths }));
+    if (!result.ok) {
+      toast({
+        variant: 'destructive',
+        title: 'Não foi possível marcar como inexistente',
+        description: result.error.message,
+      });
+      return;
+    }
+    clearSelection();
+    toast({
+      title:
+        suppressPaths.length === 1
+          ? '1 combinação marcada como inexistente'
+          : `${suppressPaths.length} combinações marcadas como inexistentes`,
+      description:
+        'Elas somem do grid e deixam de contar como pendentes. Se o padrão se repetir, considere criar uma regra de compatibilidade na biblioteca.',
+    });
   }
 
   const decisionOptions = catalogOptions(view.catalog.decisions);
@@ -244,6 +288,24 @@ export function CellInspector({ selection }: { selection: ReadonlySet<string> })
               </Button>
             ))}
           </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Estrutura</span>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={disabled || suppressPaths.length === 0}
+          onClick={suppressSelected}
+        >
+          Marcar como inexistente
+        </Button>
+        {suppressPaths.length === 0 && (
+          <span className="text-[11px] text-neutral-400">
+            Selecione linhas ou colunas inteiras para marcá-las como inexistentes.
+          </span>
         )}
       </div>
 

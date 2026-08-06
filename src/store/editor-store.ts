@@ -117,6 +117,8 @@ interface EditorState {
   reset: () => void;
 
   selectSingle: (coord: Coord) => void;
+  /** Seleção explícita de um conjunto de coordenadas — é o que uma operação de eixo faz com as combinações novas (S12). */
+  selectCoords: (coords: Coord[]) => void;
   extendTo: (view: SelectionView, coord: Coord) => void;
   toggle: (coord: Coord) => void;
   selectRect: (view: SelectionView, from: Coord, to: Coord, additive?: boolean) => void;
@@ -184,6 +186,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       headerAnchor: null,
       marquee: null,
     }),
+
+  // Não passa pela geometria: as coordenadas já vêm calculadas pelo comando
+  // que acabou de rodar (as combinações que nasceram da operação de eixo).
+  selectCoords: (coords) => {
+    const first = coords[0] ?? null;
+    set({
+      selection: keysOf(coords),
+      anchor: first,
+      focus: coords[coords.length - 1] ?? first,
+      headerAnchor: null,
+      marquee: null,
+    });
+  },
 
   // `Shift + clique` parte da **âncora**, não da última célula clicada. Sem
   // âncora (primeiro clique da sessão) o alvo vira seleção única.
