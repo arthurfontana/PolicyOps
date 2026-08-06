@@ -8,6 +8,9 @@ dist/*
 *.tsbuildinfo
 .DS_Store
 
+# Worktrees used by background agents
+.claude/
+
 # Playwright / Vitest
 test-results/
 playwright-report/
