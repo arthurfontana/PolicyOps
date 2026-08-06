@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 0,
+  "nota": "Fixture fictícia usada só para testar a infraestrutura de encadeamento de migrate.ts (Migration 0 → 1 fictícia). Nunca existiu de verdade — hoje schemaVersion só tem a versão 1."
+}

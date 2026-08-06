@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "id": "bbbbbbbbbbbb",
+    "name": "Fixture — referência de catálogo inexistente (I17)",
+    "revision": 0,
+    "savedAt": null,
+    "savedBy": null,
+    "appVersion": "0.1.0",
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  "variables": [
+    {
+      "id": "var000000001",
+      "code": "RISCO",
+      "name": "Risco",
+      "type": "ORDINAL",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "varv00000001",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-01-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "domains": [
+            { "code": "A", "label": "A", "position": 0 },
+            { "code": "B", "label": "B", "position": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "var000000002",
+      "code": "STATUS",
+      "name": "Status",
+      "type": "CATEGORICAL",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "varv00000002",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-01-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "domains": [
+            { "code": "S1", "label": "S1", "position": 0 },
+            { "code": "S2", "label": "S2", "position": 1 }
+          ]
+        }
+      ]
+    }
+  ],
+  "compatibility": [],
+  "catalog": [
+    {
+      "id": "cat000000001",
+      "kind": "DECISION",
+      "code": "APROVADO",
+      "label": "Aprovado",
+      "position": 0,
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "projects": [
+    { "id": "proj00000001", "code": "PROJ", "name": "Projeto", "position": 0, "createdAt": "2026-01-01T00:00:00.000Z" }
+  ],
+  "matrices": [
+    {
+      "id": "mtx000000001",
+      "projectId": "proj00000001",
+      "code": "MTZ",
+      "name": "Matriz",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "mtxv00000001",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-01-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "effectiveFrom": "2026-01-01T00:00:00.000Z",
+          "axes": {
+            "x": {
+              "role": "X",
+              "levels": [
+                {
+                  "id": "lvlx00000001",
+                  "variableId": "var000000001",
+                  "variableVersionId": "varv00000001",
+                  "label": "Risco",
+                  "domains": [
+                    { "code": "A", "label": "A", "position": 0 },
+                    { "code": "B", "label": "B", "position": 1 }
+                  ]
+                }
+              ],
+              "tuples": ["A", "B"],
+              "derivedFrom": { "compatibilityVersionIds": [] }
+            },
+            "y": {
+              "role": "Y",
+              "levels": [
+                {
+                  "id": "lvly00000001",
+                  "variableId": "var000000002",
+                  "variableVersionId": "varv00000002",
+                  "label": "Status",
+                  "domains": [
+                    { "code": "S1", "label": "S1", "position": 0 },
+                    { "code": "S2", "label": "S2", "position": 1 }
+                  ]
+                }
+              ],
+              "tuples": ["S1", "S2"],
+              "derivedFrom": { "compatibilityVersionIds": [] }
+            }
+          },
+          "cells": {
+            "A::S1": { "decision": "NAO_EXISTE" },
+            "A::S2": { "decision": "APROVADO" },
+            "B::S1": { "decision": "APROVADO" },
+            "B::S2": { "decision": "APROVADO" }
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [],
+  "events": []
+}
