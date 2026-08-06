@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { collectPublishedCompatibility, generateTuples } from '../axes/tuples';
 import type {
   Axis,
   AxisLevel,
@@ -325,37 +326,38 @@ export function createSampleDocument(): PolicyOpsDocument {
     return byIndex[scoreIndex]!;
   }
 
-  const pfXLevelId = genId();
-  const pfXAxis: Axis = {
-    role: 'X',
-    levels: [
-      {
-        id: pfXLevelId,
-        variableId: scoreId,
-        variableVersionId: scoreV1Id,
-        label: scoreVariable.name,
-        domains: scoreDomains,
-      },
-    ],
-    tuples: scoreDomains.map((d) => d.code),
-    derivedFrom: { compatibilityVersionIds: [] },
-  };
+  // Todas as tuplas — inclusive as dos eixos de 1 nível — saem do motor de
+  // eixos (src/core/axes/tuples.ts). O caso simples é o caso geral com
+  // `levels.length === 1` (docs/03 §6.1).
+  const publishedCompatibility = collectPublishedCompatibility([compatibilityRule]);
 
-  const pfYLevelId = genId();
-  const pfYAxis: Axis = {
-    role: 'Y',
-    levels: [
-      {
-        id: pfYLevelId,
-        variableId: restritivoId,
-        variableVersionId: restritivoV1Id,
-        label: restritivoVariable.name,
-        domains: restritivoDomains,
-      },
-    ],
-    tuples: restritivoDomains.map((d) => d.code),
-    derivedFrom: { compatibilityVersionIds: [] },
-  };
+  function buildAxis(role: Axis['role'], levels: AxisLevel[]): Axis {
+    const { tuples, usedRuleIds } = generateTuples({
+      levels,
+      compatibility: publishedCompatibility,
+    });
+    return { role, levels, tuples, derivedFrom: { compatibilityVersionIds: usedRuleIds } };
+  }
+
+  const pfXAxis = buildAxis('X', [
+    {
+      id: genId(),
+      variableId: scoreId,
+      variableVersionId: scoreV1Id,
+      label: scoreVariable.name,
+      domains: scoreDomains,
+    },
+  ]);
+
+  const pfYAxis = buildAxis('Y', [
+    {
+      id: genId(),
+      variableId: restritivoId,
+      variableVersionId: restritivoV1Id,
+      label: restritivoVariable.name,
+      domains: restritivoDomains,
+    },
+  ]);
 
   function buildPFCells(): Record<string, Cell> {
     const cells: Record<string, Cell> = {};
@@ -427,21 +429,15 @@ export function createSampleDocument(): PolicyOpsDocument {
 
   // --- Matriz 2: MTZ_LIMITE_PJ (eixo Y com 2 níveis) ----------------------
 
-  const pjXLevelId = genId();
-  const pjXAxis: Axis = {
-    role: 'X',
-    levels: [
-      {
-        id: pjXLevelId,
-        variableId: scoreId,
-        variableVersionId: scoreV1Id,
-        label: scoreVariable.name,
-        domains: scoreDomains,
-      },
-    ],
-    tuples: scoreDomains.map((d) => d.code),
-    derivedFrom: { compatibilityVersionIds: [] },
-  };
+  const pjXAxis = buildAxis('X', [
+    {
+      id: genId(),
+      variableId: scoreId,
+      variableVersionId: scoreV1Id,
+      label: scoreVariable.name,
+      domains: scoreDomains,
+    },
+  ]);
 
   const segmentoLevel: AxisLevel = {
     id: genId(),
@@ -458,26 +454,10 @@ export function createSampleDocument(): PolicyOpsDocument {
     domains: fatDomains,
   };
 
-  // Expansão inline das tuplas do eixo Y (SEGMENTO › FAT) aplicando o mapa
-  // de compatibilidade SEG_X_FATURAMENTO acima. A Sessão 03 substitui isto
-  // por `generateTuples` (src/core/axes/tuples.ts) — não antecipar o motor
-  // de eixos aqui, só o resultado que ele vai produzir.
-  const pjYTuples: string[] = [];
-  for (const segmentoDomain of segmentoDomains) {
-    const allowedFatCodes = compatibilityRule.versions[0]!.allow[segmentoDomain.code] ?? [];
-    for (const fatDomain of fatDomains) {
-      if (allowedFatCodes.includes(fatDomain.code)) {
-        pjYTuples.push(`${segmentoDomain.code}|${fatDomain.code}`);
-      }
-    }
-  }
-
-  const pjYAxis: Axis = {
-    role: 'Y',
-    levels: [segmentoLevel, fatLevel],
-    tuples: pjYTuples,
-    derivedFrom: { compatibilityVersionIds: [compatV1Id] },
-  };
+  // Eixo Y aninhado: SEGMENTO › FAT com SEG_X_FATURAMENTO aplicada. São 8
+  // tuplas (não 15) — o caso que valida o aninhamento ponta a ponta.
+  const pjYAxis = buildAxis('Y', [segmentoLevel, fatLevel]);
+  const pjYTuples = pjYAxis.tuples;
 
   function decisionForPJ(scoreIndex: number, yPath: string): CatalogItem {
     const [segmentoCode] = yPath.split('|');

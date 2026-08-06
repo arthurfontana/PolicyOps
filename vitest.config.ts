@@ -14,6 +14,24 @@ export default mergeConfig(
       setupFiles: ['./tests/unit/setup.ts'],
       include: ['tests/unit/**/*.test.{ts,tsx}'],
       css: false,
+      coverage: {
+        provider: 'v8',
+        include: ['src/core/**/*.ts'],
+        reporter: ['text', 'text-summary'],
+        // docs/02-arquitetura.md §9: 85% em src/core/, 100% em axes/.
+        thresholds: {
+          lines: 85,
+          branches: 85,
+          functions: 85,
+          statements: 85,
+          'src/core/axes/**/*.ts': {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
+        },
+      },
     },
   }),
 );
