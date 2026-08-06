@@ -5,14 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Grid, MAX_ZOOM, MIN_ZOOM } from '@/components/grid/Grid';
 import { getEditorView, listMatrixVersions } from '@/core/queries';
+import { useGridSelection } from '@/hooks/useGridSelection';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
 import { useUiStore } from '@/store/ui-store';
 
+/** Grid vazio: mantém a ordem dos hooks estável quando não há versão aberta. */
+const EMPTY_SELECTION_VIEW = { x: { axis: { tuples: [] } }, y: { axis: { tuples: [] } } };
+
 /**
- * Tela de matriz — docs/07-ux-e-editor.md §2, §4; docs/prompts/S09. Navegação
- * de versão + o grid, ainda somente leitura (seleção e edição chegam na S10).
+ * Tela de matriz — docs/07-ux-e-editor.md §2, §4, §5; docs/prompts/S09 e S10.
+ * Navegação de versão + o grid selecionável. A edição de valores (e o
+ * inspector) chega na S11: a seleção funciona em qualquer estado de versão,
+ * inclusive publicada, porque selecionar é leitura.
  */
 export function MatrixScreen() {
   const document = useDocumentStore((s) => s.document);
@@ -25,6 +31,7 @@ export function MatrixScreen() {
   const resetZoom = useEditorStore((s) => s.resetZoom);
   const setVersion = useEditorStore((s) => s.setVersion);
   const setSelectedProject = useEditorStore((s) => s.setSelectedProject);
+  const setEditable = useEditorStore((s) => s.setEditable);
   const setView = useUiStore((s) => s.setView);
 
   useEffect(() => {
@@ -47,6 +54,16 @@ export function MatrixScreen() {
     () => (document === null || currentVersionId === null ? null : getEditorView(document, currentVersionId)),
     [document, currentVersionId],
   );
+
+  // `isEditable` é só um marcador para a S11 — a seleção funciona igual em
+  // versão publicada, que é como se inspeciona uma matriz histórica (§5).
+  useEffect(() => {
+    setEditable(view?.editable ?? false);
+  }, [setEditable, view]);
+
+  // Hooks não podem ficar depois dos retornos antecipados: sem versão aberta a
+  // engine recebe um grid vazio e simplesmente não tem o que selecionar.
+  const selectionApi = useGridSelection(view ?? EMPTY_SELECTION_VIEW);
 
   if (document === null || matrix === null) {
     return (
@@ -120,7 +137,7 @@ export function MatrixScreen() {
       </div>
 
       <div className="min-h-0 flex-1">
-        <Grid view={view} zoom={zoom} onZoomChange={setZoom} />
+        <Grid view={view} zoom={zoom} onZoomChange={setZoom} selection={selectionApi} />
       </div>
     </div>
   );

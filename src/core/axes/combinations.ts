@@ -49,8 +49,11 @@ export function listPending(version: MatrixVersion, limit?: number): Combination
 /**
  * Tuplas cobertas por um prefixo de cabeçalho. Clicar em "Varejo" pega as 3
  * linhas do Varejo; clicar em "Varejo › 100k–500k" pega 1.
+ *
+ * Recebe `Pick<Axis, 'tuples'>` e não `Axis` porque a engine de seleção (S10)
+ * opera sobre a view do grid, que só carrega as tuplas do eixo.
  */
-export function tuplesUnder(axis: Axis, prefixPath: string): string[] {
+export function tuplesUnder(axis: Pick<Axis, 'tuples'>, prefixPath: string): string[] {
   return axis.tuples.filter((tuple) => isDescendantOf(tuple, prefixPath));
 }
 
