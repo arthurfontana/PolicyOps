@@ -1,0 +1,1341 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "id": "gMQISQsjs46p",
+    "name": "Documento de exemplo — Políticas de Crédito",
+    "description": "Gerado por createSampleDocument() para exploração sem arquivo.",
+    "revision": 0,
+    "savedAt": null,
+    "savedBy": null,
+    "appVersion": "0.1.0",
+    "createdAt": "2026-05-08T10:54:18.804Z"
+  },
+  "variables": [
+    {
+      "id": "yNlL-Y637bMb",
+      "code": "SCORE_HVI3",
+      "name": "Score HVI3",
+      "type": "ORDINAL",
+      "createdAt": "2026-05-08T10:54:18.804Z",
+      "versions": [
+        {
+          "id": "D1B5dEduPdDT",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-05-08T10:54:18.804Z",
+          "createdBy": "Equipe de Políticas",
+          "publishedAt": "2026-05-08T10:54:18.804Z",
+          "publishedBy": "Equipe de Políticas",
+          "domains": [
+            {
+              "code": "R1",
+              "label": "R1 — Risco muito baixo",
+              "position": 0
+            },
+            {
+              "code": "R2",
+              "label": "R2 — Risco baixo",
+              "position": 1
+            },
+            {
+              "code": "R3",
+              "label": "R3 — Risco moderado-baixo",
+              "position": 2
+            },
+            {
+              "code": "R4",
+              "label": "R4 — Risco moderado-alto",
+              "position": 3
+            },
+            {
+              "code": "R5",
+              "label": "R5 — Risco alto",
+              "position": 4
+            },
+            {
+              "code": "R6",
+              "label": "R6 — Risco muito alto",
+              "position": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "KtbgvnV6oI_s",
+      "code": "RESTRITIVO",
+      "name": "Restritivo Externo",
+      "type": "CATEGORICAL",
+      "createdAt": "2026-05-08T10:54:18.804Z",
+      "versions": [
+        {
+          "id": "MZg0sr4zFOJ_",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-05-08T10:54:18.804Z",
+          "createdBy": "Equipe de Políticas",
+          "publishedAt": "2026-05-08T10:54:18.804Z",
+          "publishedBy": "Equipe de Políticas",
+          "domains": [
+            {
+              "code": "SEM",
+              "label": "Sem restritivo",
+              "position": 0
+            },
+            {
+              "code": "BAIXO",
+              "label": "Restritivo baixo",
+              "position": 1
+            },
+            {
+              "code": "MEDIO",
+              "label": "Restritivo médio",
+              "position": 2
+            },
+            {
+              "code": "ALTO",
+              "label": "Restritivo alto",
+              "position": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "_nIEqjp3Ia-j",
+      "code": "SEGMENTO",
+      "name": "Segmento",
+      "type": "CATEGORICAL",
+      "createdAt": "2026-05-08T10:54:18.804Z",
+      "versions": [
+        {
+          "id": "ic7YoO1QpffV",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-05-08T10:54:18.804Z",
+          "createdBy": "Equipe de Políticas",
+          "publishedAt": "2026-05-08T10:54:18.804Z",
+          "publishedBy": "Equipe de Políticas",
+          "domains": [
+            {
+              "code": "VAREJO",
+              "label": "Varejo",
+              "position": 0
+            },
+            {
+              "code": "ATACADO",
+              "label": "Atacado",
+              "position": 1
+            },
+            {
+              "code": "CORPORATE",
+              "label": "Corporate",
+              "position": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mFQsRMSHwag2",
+      "code": "FAT",
+      "name": "Faixa de Faturamento",
+      "type": "RANGE",
+      "createdAt": "2026-05-08T10:54:18.804Z",
+      "versions": [
+        {
+          "id": "i0NUQ5e2pZMb",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-05-08T10:54:18.804Z",
+          "createdBy": "Equipe de Políticas",
+          "publishedAt": "2026-05-08T10:54:18.804Z",
+          "publishedBy": "Equipe de Políticas",
+          "domains": [
+            {
+              "code": "ATE_100K",
+              "label": "Até R$ 100 mil",
+              "position": 0,
+              "rangeMin": "0",
+              "rangeMax": "100000",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "100K_500K",
+              "label": "R$ 100 mil a R$ 500 mil",
+              "position": 1,
+              "rangeMin": "100000",
+              "rangeMax": "500000",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "500K_1M",
+              "label": "R$ 500 mil a R$ 1 milhão",
+              "position": 2,
+              "rangeMin": "500000",
+              "rangeMax": "1000000",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "1M_10M",
+              "label": "R$ 1 milhão a R$ 10 milhões",
+              "position": 3,
+              "rangeMin": "1000000",
+              "rangeMax": "10000000",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "ACIMA_10M",
+              "label": "Acima de R$ 10 milhões",
+              "position": 4,
+              "rangeMin": "10000000",
+              "minInclusive": true,
+              "isCatchAll": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mj1mPkwBWv8o",
+      "code": "FAIXA_RENDA",
+      "name": "Faixa de Renda",
+      "type": "RANGE",
+      "createdAt": "2026-05-08T10:54:18.804Z",
+      "versions": [
+        {
+          "id": "eAj_iH2AvYvM",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-05-08T10:54:18.804Z",
+          "createdBy": "Equipe de Políticas",
+          "publishedAt": "2026-05-08T10:54:18.804Z",
+          "publishedBy": "Equipe de Políticas",
+          "domains": [
+            {
+              "code": "ATE_2K",
+              "label": "Até R$ 2 mil",
+              "position": 0,
+              "rangeMin": "0",
+              "rangeMax": "2000",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "2K_4K",
+              "label": "R$ 2 mil a R$ 4 mil",
+              "position": 1,
+              "rangeMin": "2000",
+              "rangeMax": "4000",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "4K_6K",
+              "label": "R$ 4 mil a R$ 6 mil",
+              "position": 2,
+              "rangeMin": "4000",
+              "rangeMax": "6000",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "ACIMA_6K",
+              "label": "Acima de R$ 6 mil",
+              "position": 3,
+              "rangeMin": "6000",
+              "minInclusive": true,
+              "isCatchAll": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "hT6w12mc4NBS",
+      "code": "TEMPO_EMPRESA",
+      "name": "Tempo de Empresa",
+      "type": "RANGE",
+      "createdAt": "2026-05-08T10:54:18.804Z",
+      "versions": [
+        {
+          "id": "khqw8eDUKSiF",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-05-08T10:54:18.804Z",
+          "createdBy": "Equipe de Políticas",
+          "publishedAt": "2026-05-08T10:54:18.804Z",
+          "publishedBy": "Equipe de Políticas",
+          "domains": [
+            {
+              "code": "ATE_6M",
+              "label": "Até 6 meses",
+              "position": 0,
+              "rangeMin": "0",
+              "rangeMax": "6",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "6M_12M",
+              "label": "6 a 12 meses",
+              "position": 1,
+              "rangeMin": "6",
+              "rangeMax": "12",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "1A_3A",
+              "label": "1 a 3 anos",
+              "position": 2,
+              "rangeMin": "12",
+              "rangeMax": "36",
+              "minInclusive": true,
+              "maxInclusive": false
+            },
+            {
+              "code": "ACIMA_3A",
+              "label": "Acima de 3 anos",
+              "position": 3,
+              "rangeMin": "36",
+              "minInclusive": true,
+              "isCatchAll": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "compatibility": [
+    {
+      "id": "hcpdZFeththU",
+      "code": "SEG_X_FATURAMENTO",
+      "name": "Segmento × Faixa de Faturamento",
+      "parentVariableId": "_nIEqjp3Ia-j",
+      "childVariableId": "mFQsRMSHwag2",
+      "createdAt": "2026-05-08T10:54:18.804Z",
+      "versions": [
+        {
+          "id": "N28O3wASIUvn",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-05-08T10:54:18.804Z",
+          "createdBy": "Equipe de Políticas",
+          "publishedAt": "2026-05-08T10:54:18.804Z",
+          "publishedBy": "Equipe de Políticas",
+          "parentVariableVersionId": "ic7YoO1QpffV",
+          "childVariableVersionId": "i0NUQ5e2pZMb",
+          "allow": {
+            "ATACADO": [
+              "500K_1M",
+              "1M_10M",
+              "ACIMA_10M"
+            ],
+            "CORPORATE": [
+              "1M_10M",
+              "ACIMA_10M"
+            ],
+            "VAREJO": [
+              "ATE_100K",
+              "100K_500K",
+              "500K_1M"
+            ]
+          },
+          "defaultForUnlisted": "NONE"
+        }
+      ]
+    }
+  ],
+  "catalog": [
+    {
+      "id": "VlN5JyZRv0Ep",
+      "kind": "DECISION",
+      "code": "APROVADO",
+      "label": "Aprovado",
+      "color": "#16A34A",
+      "position": 0,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "izeovAb333Qm",
+      "kind": "DECISION",
+      "code": "REPROVADO",
+      "label": "Reprovado",
+      "color": "#DC2626",
+      "position": 1,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "bRFAeOGNCuFr",
+      "kind": "DECISION",
+      "code": "ANALISE_MANUAL",
+      "label": "Análise manual",
+      "color": "#F59E0B",
+      "position": 2,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "QZzxQr9JGqCD",
+      "kind": "DECISION",
+      "code": "EXCECAO",
+      "label": "Exceção",
+      "color": "#7C3AED",
+      "position": 3,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "uzQkZll3O3vd",
+      "kind": "OFFER",
+      "code": "OFERTA_BASICA",
+      "label": "Oferta Básica",
+      "position": 4,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "1w3CSJ386LPi",
+      "kind": "OFFER",
+      "code": "OFERTA_INTERMEDIARIA",
+      "label": "Oferta Intermediária",
+      "position": 5,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "6sT0UtHcBfqB",
+      "kind": "OFFER",
+      "code": "OFERTA_PREMIUM",
+      "label": "Oferta Premium",
+      "position": 6,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "ApQwQJRz4lju",
+      "kind": "OFFER",
+      "code": "OFERTA_GOLD",
+      "label": "Oferta Gold",
+      "position": 7,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "ssqcQYdmw9te",
+      "kind": "OFFER",
+      "code": "OFERTA_PLATINUM",
+      "label": "Oferta Platinum",
+      "position": 8,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "yDSEoh_Px1pD",
+      "kind": "OFFER",
+      "code": "OFERTA_BLACK",
+      "label": "Oferta Black",
+      "position": 9,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "sp0fbf5EFCk4",
+      "kind": "LIMIT",
+      "code": "LIM_500",
+      "label": "Limite R$ 500",
+      "numericValue": "500",
+      "position": 10,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "KqXkpKGjoQSw",
+      "kind": "LIMIT",
+      "code": "LIM_1000",
+      "label": "Limite R$ 1.000",
+      "numericValue": "1000",
+      "position": 11,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "h28Uxtm15czf",
+      "kind": "LIMIT",
+      "code": "LIM_2000",
+      "label": "Limite R$ 2.000",
+      "numericValue": "2000",
+      "position": 12,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "_FzPTWcwlqqA",
+      "kind": "LIMIT",
+      "code": "LIM_5000",
+      "label": "Limite R$ 5.000",
+      "numericValue": "5000",
+      "position": 13,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    }
+  ],
+  "projects": [
+    {
+      "id": "iiniFHwGZDcy",
+      "code": "POLITICA_PF",
+      "name": "Política PF",
+      "position": 0,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "tIOVnvhUB5Ap",
+      "code": "POLITICA_PJ",
+      "name": "Política PJ",
+      "position": 1,
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    }
+  ],
+  "matrices": [
+    {
+      "id": "AawxBqMiUUVA",
+      "projectId": "iiniFHwGZDcy",
+      "code": "MTZ_LIMITE_PF",
+      "name": "Limite de Crédito — Pessoa Física",
+      "createdAt": "2026-05-08T10:54:18.804Z",
+      "versions": [
+        {
+          "id": "TTaRRFq-E2-M",
+          "number": 1,
+          "state": "PUBLISHED",
+          "notes": "Publicação inicial da política de limite PF.",
+          "createdAt": "2026-05-08T10:54:18.804Z",
+          "createdBy": "Equipe de Políticas",
+          "publishedAt": "2026-05-08T10:54:18.804Z",
+          "publishedBy": "Equipe de Políticas",
+          "effectiveFrom": "2026-05-08T10:54:18.804Z",
+          "axes": {
+            "x": {
+              "role": "X",
+              "levels": [
+                {
+                  "id": "7n37mPSzu2bi",
+                  "variableId": "yNlL-Y637bMb",
+                  "variableVersionId": "D1B5dEduPdDT",
+                  "label": "Score HVI3",
+                  "domains": [
+                    {
+                      "code": "R1",
+                      "label": "R1 — Risco muito baixo",
+                      "position": 0
+                    },
+                    {
+                      "code": "R2",
+                      "label": "R2 — Risco baixo",
+                      "position": 1
+                    },
+                    {
+                      "code": "R3",
+                      "label": "R3 — Risco moderado-baixo",
+                      "position": 2
+                    },
+                    {
+                      "code": "R4",
+                      "label": "R4 — Risco moderado-alto",
+                      "position": 3
+                    },
+                    {
+                      "code": "R5",
+                      "label": "R5 — Risco alto",
+                      "position": 4
+                    },
+                    {
+                      "code": "R6",
+                      "label": "R6 — Risco muito alto",
+                      "position": 5
+                    }
+                  ]
+                }
+              ],
+              "tuples": [
+                "R1",
+                "R2",
+                "R3",
+                "R4",
+                "R5",
+                "R6"
+              ],
+              "derivedFrom": {
+                "compatibilityVersionIds": []
+              }
+            },
+            "y": {
+              "role": "Y",
+              "levels": [
+                {
+                  "id": "FwiOA_t2zdM4",
+                  "variableId": "KtbgvnV6oI_s",
+                  "variableVersionId": "MZg0sr4zFOJ_",
+                  "label": "Restritivo Externo",
+                  "domains": [
+                    {
+                      "code": "SEM",
+                      "label": "Sem restritivo",
+                      "position": 0
+                    },
+                    {
+                      "code": "BAIXO",
+                      "label": "Restritivo baixo",
+                      "position": 1
+                    },
+                    {
+                      "code": "MEDIO",
+                      "label": "Restritivo médio",
+                      "position": 2
+                    },
+                    {
+                      "code": "ALTO",
+                      "label": "Restritivo alto",
+                      "position": 3
+                    }
+                  ]
+                }
+              ],
+              "tuples": [
+                "SEM",
+                "BAIXO",
+                "MEDIO",
+                "ALTO"
+              ],
+              "derivedFrom": {
+                "compatibilityVersionIds": []
+              }
+            }
+          },
+          "cells": {
+            "R1::ALTO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R1::BAIXO": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R1::MEDIO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R1::SEM": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R2::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R2::BAIXO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R2::MEDIO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R2::SEM": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R3::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R3::BAIXO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::MEDIO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::SEM": {
+              "decision": "APROVADO",
+              "limit": "LIM_2000"
+            },
+            "R4::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R4::BAIXO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::MEDIO": {
+              "decision": "REPROVADO"
+            },
+            "R4::SEM": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R5::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R5::BAIXO": {
+              "decision": "REPROVADO"
+            },
+            "R5::MEDIO": {
+              "decision": "REPROVADO"
+            },
+            "R5::SEM": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R6::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R6::BAIXO": {
+              "decision": "REPROVADO"
+            },
+            "R6::MEDIO": {
+              "decision": "REPROVADO"
+            },
+            "R6::SEM": {
+              "decision": "ANALISE_MANUAL"
+            }
+          }
+        },
+        {
+          "id": "9TBpO07pmV6Z",
+          "number": 2,
+          "state": "DRAFT",
+          "baseVersionId": "TTaRRFq-E2-M",
+          "createdAt": "2026-08-06T10:54:18.805Z",
+          "createdBy": "Equipe de Políticas",
+          "axes": {
+            "x": {
+              "role": "X",
+              "levels": [
+                {
+                  "id": "3FnNnomql8vN",
+                  "variableId": "yNlL-Y637bMb",
+                  "variableVersionId": "D1B5dEduPdDT",
+                  "label": "Score HVI3",
+                  "domains": [
+                    {
+                      "code": "R1",
+                      "label": "R1 — Risco muito baixo",
+                      "position": 0
+                    },
+                    {
+                      "code": "R2",
+                      "label": "R2 — Risco baixo",
+                      "position": 1
+                    },
+                    {
+                      "code": "R3",
+                      "label": "R3 — Risco moderado-baixo",
+                      "position": 2
+                    },
+                    {
+                      "code": "R4",
+                      "label": "R4 — Risco moderado-alto",
+                      "position": 3
+                    },
+                    {
+                      "code": "R5",
+                      "label": "R5 — Risco alto",
+                      "position": 4
+                    },
+                    {
+                      "code": "R6",
+                      "label": "R6 — Risco muito alto",
+                      "position": 5
+                    }
+                  ]
+                }
+              ],
+              "tuples": [
+                "R1",
+                "R2",
+                "R3",
+                "R4",
+                "R5",
+                "R6"
+              ],
+              "derivedFrom": {
+                "compatibilityVersionIds": []
+              }
+            },
+            "y": {
+              "role": "Y",
+              "levels": [
+                {
+                  "id": "xJS9B7EHcXNS",
+                  "variableId": "KtbgvnV6oI_s",
+                  "variableVersionId": "MZg0sr4zFOJ_",
+                  "label": "Restritivo Externo",
+                  "domains": [
+                    {
+                      "code": "SEM",
+                      "label": "Sem restritivo",
+                      "position": 0
+                    },
+                    {
+                      "code": "BAIXO",
+                      "label": "Restritivo baixo",
+                      "position": 1
+                    },
+                    {
+                      "code": "MEDIO",
+                      "label": "Restritivo médio",
+                      "position": 2
+                    },
+                    {
+                      "code": "ALTO",
+                      "label": "Restritivo alto",
+                      "position": 3
+                    }
+                  ]
+                }
+              ],
+              "tuples": [
+                "SEM",
+                "BAIXO",
+                "MEDIO",
+                "ALTO"
+              ],
+              "derivedFrom": {
+                "compatibilityVersionIds": []
+              }
+            }
+          },
+          "cells": {
+            "R1::ALTO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R1::BAIXO": {
+              "decision": "REPROVADO"
+            },
+            "R1::MEDIO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R1::SEM": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R2::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R2::BAIXO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R2::MEDIO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R2::SEM": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R3::BAIXO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::MEDIO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::SEM": {
+              "decision": "APROVADO",
+              "limit": "LIM_2000"
+            },
+            "R4::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R4::BAIXO": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::MEDIO": {
+              "decision": "REPROVADO"
+            },
+            "R4::SEM": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R5::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R5::BAIXO": {
+              "decision": "REPROVADO"
+            },
+            "R5::MEDIO": {
+              "decision": "REPROVADO"
+            },
+            "R5::SEM": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R6::ALTO": {
+              "decision": "REPROVADO"
+            },
+            "R6::BAIXO": {
+              "decision": "REPROVADO"
+            },
+            "R6::MEDIO": {
+              "decision": "REPROVADO"
+            },
+            "R6::SEM": {
+              "decision": "ANALISE_MANUAL"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "IdYTebzmOAyt",
+      "projectId": "tIOVnvhUB5Ap",
+      "code": "MTZ_LIMITE_PJ",
+      "name": "Limite de Crédito — Pessoa Jurídica",
+      "createdAt": "2026-08-06T10:54:18.805Z",
+      "versions": [
+        {
+          "id": "vFMhi3_nsHNd",
+          "number": 1,
+          "state": "PUBLISHED",
+          "notes": "Publicação inicial da política de limite PJ, com faturamento segmentado.",
+          "createdAt": "2026-08-06T10:54:18.805Z",
+          "createdBy": "Equipe de Políticas",
+          "publishedAt": "2026-08-06T10:54:18.805Z",
+          "publishedBy": "Equipe de Políticas",
+          "effectiveFrom": "2026-08-06T10:54:18.805Z",
+          "axes": {
+            "x": {
+              "role": "X",
+              "levels": [
+                {
+                  "id": "ETTfwG1G8Z4E",
+                  "variableId": "yNlL-Y637bMb",
+                  "variableVersionId": "D1B5dEduPdDT",
+                  "label": "Score HVI3",
+                  "domains": [
+                    {
+                      "code": "R1",
+                      "label": "R1 — Risco muito baixo",
+                      "position": 0
+                    },
+                    {
+                      "code": "R2",
+                      "label": "R2 — Risco baixo",
+                      "position": 1
+                    },
+                    {
+                      "code": "R3",
+                      "label": "R3 — Risco moderado-baixo",
+                      "position": 2
+                    },
+                    {
+                      "code": "R4",
+                      "label": "R4 — Risco moderado-alto",
+                      "position": 3
+                    },
+                    {
+                      "code": "R5",
+                      "label": "R5 — Risco alto",
+                      "position": 4
+                    },
+                    {
+                      "code": "R6",
+                      "label": "R6 — Risco muito alto",
+                      "position": 5
+                    }
+                  ]
+                }
+              ],
+              "tuples": [
+                "R1",
+                "R2",
+                "R3",
+                "R4",
+                "R5",
+                "R6"
+              ],
+              "derivedFrom": {
+                "compatibilityVersionIds": []
+              }
+            },
+            "y": {
+              "role": "Y",
+              "levels": [
+                {
+                  "id": "6wJRE-jHtGv9",
+                  "variableId": "_nIEqjp3Ia-j",
+                  "variableVersionId": "ic7YoO1QpffV",
+                  "label": "Segmento",
+                  "domains": [
+                    {
+                      "code": "VAREJO",
+                      "label": "Varejo",
+                      "position": 0
+                    },
+                    {
+                      "code": "ATACADO",
+                      "label": "Atacado",
+                      "position": 1
+                    },
+                    {
+                      "code": "CORPORATE",
+                      "label": "Corporate",
+                      "position": 2
+                    }
+                  ]
+                },
+                {
+                  "id": "bNi2cIhT3hBp",
+                  "variableId": "mFQsRMSHwag2",
+                  "variableVersionId": "i0NUQ5e2pZMb",
+                  "label": "Faixa de Faturamento",
+                  "domains": [
+                    {
+                      "code": "ATE_100K",
+                      "label": "Até R$ 100 mil",
+                      "position": 0,
+                      "rangeMin": "0",
+                      "rangeMax": "100000",
+                      "minInclusive": true,
+                      "maxInclusive": false
+                    },
+                    {
+                      "code": "100K_500K",
+                      "label": "R$ 100 mil a R$ 500 mil",
+                      "position": 1,
+                      "rangeMin": "100000",
+                      "rangeMax": "500000",
+                      "minInclusive": true,
+                      "maxInclusive": false
+                    },
+                    {
+                      "code": "500K_1M",
+                      "label": "R$ 500 mil a R$ 1 milhão",
+                      "position": 2,
+                      "rangeMin": "500000",
+                      "rangeMax": "1000000",
+                      "minInclusive": true,
+                      "maxInclusive": false
+                    },
+                    {
+                      "code": "1M_10M",
+                      "label": "R$ 1 milhão a R$ 10 milhões",
+                      "position": 3,
+                      "rangeMin": "1000000",
+                      "rangeMax": "10000000",
+                      "minInclusive": true,
+                      "maxInclusive": false
+                    },
+                    {
+                      "code": "ACIMA_10M",
+                      "label": "Acima de R$ 10 milhões",
+                      "position": 4,
+                      "rangeMin": "10000000",
+                      "minInclusive": true,
+                      "isCatchAll": true
+                    }
+                  ]
+                }
+              ],
+              "tuples": [
+                "VAREJO|ATE_100K",
+                "VAREJO|100K_500K",
+                "VAREJO|500K_1M",
+                "ATACADO|500K_1M",
+                "ATACADO|1M_10M",
+                "ATACADO|ACIMA_10M",
+                "CORPORATE|1M_10M",
+                "CORPORATE|ACIMA_10M"
+              ],
+              "derivedFrom": {
+                "compatibilityVersionIds": [
+                  "N28O3wASIUvn"
+                ]
+              }
+            }
+          },
+          "cells": {
+            "R1::ATACADO|1M_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R1::ATACADO|500K_1M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R1::ATACADO|ACIMA_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R1::CORPORATE|1M_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R1::CORPORATE|ACIMA_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R1::VAREJO|100K_500K": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R1::VAREJO|500K_1M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R1::VAREJO|ATE_100K": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R2::ATACADO|1M_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R2::ATACADO|500K_1M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R2::ATACADO|ACIMA_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R2::CORPORATE|1M_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R2::CORPORATE|ACIMA_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_5000"
+            },
+            "R2::VAREJO|100K_500K": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R2::VAREJO|500K_1M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R2::VAREJO|ATE_100K": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::ATACADO|1M_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::ATACADO|500K_1M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::ATACADO|ACIMA_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::CORPORATE|1M_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_2000"
+            },
+            "R3::CORPORATE|ACIMA_10M": {
+              "decision": "APROVADO",
+              "limit": "LIM_2000"
+            },
+            "R3::VAREJO|100K_500K": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::VAREJO|500K_1M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R3::VAREJO|ATE_100K": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::ATACADO|1M_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::ATACADO|500K_1M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::ATACADO|ACIMA_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::CORPORATE|1M_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::CORPORATE|ACIMA_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::VAREJO|100K_500K": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::VAREJO|500K_1M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R4::VAREJO|ATE_100K": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R5::ATACADO|1M_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R5::ATACADO|500K_1M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R5::ATACADO|ACIMA_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R5::CORPORATE|1M_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R5::CORPORATE|ACIMA_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R5::VAREJO|100K_500K": {
+              "decision": "REPROVADO"
+            },
+            "R5::VAREJO|500K_1M": {
+              "decision": "REPROVADO"
+            },
+            "R5::VAREJO|ATE_100K": {
+              "decision": "REPROVADO"
+            },
+            "R6::ATACADO|1M_10M": {
+              "decision": "REPROVADO"
+            },
+            "R6::ATACADO|500K_1M": {
+              "decision": "REPROVADO"
+            },
+            "R6::ATACADO|ACIMA_10M": {
+              "decision": "REPROVADO"
+            },
+            "R6::CORPORATE|1M_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R6::CORPORATE|ACIMA_10M": {
+              "decision": "ANALISE_MANUAL"
+            },
+            "R6::VAREJO|100K_500K": {
+              "decision": "REPROVADO"
+            },
+            "R6::VAREJO|500K_1M": {
+              "decision": "REPROVADO"
+            },
+            "R6::VAREJO|ATE_100K": {
+              "decision": "REPROVADO"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "GYElSl1yBvh-",
+      "code": "TPL_PF_PADRAO",
+      "name": "Matriz padrão PF",
+      "description": "Score HVI3 × Restritivo Externo, sem compatibilidade entre eixos.",
+      "axes": {
+        "x": {
+          "levels": [
+            {
+              "variableId": "yNlL-Y637bMb"
+            }
+          ]
+        },
+        "y": {
+          "levels": [
+            {
+              "variableId": "KtbgvnV6oI_s"
+            }
+          ]
+        }
+      },
+      "seedRules": [],
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    },
+    {
+      "id": "VXTKyH6RchiG",
+      "code": "TPL_PJ_SEGMENTADO",
+      "name": "Limite PJ segmentado",
+      "description": "Score HVI3 × Segmento aninhado com Faixa de Faturamento.",
+      "axes": {
+        "x": {
+          "levels": [
+            {
+              "variableId": "yNlL-Y637bMb"
+            }
+          ]
+        },
+        "y": {
+          "levels": [
+            {
+              "variableId": "_nIEqjp3Ia-j"
+            },
+            {
+              "variableId": "mFQsRMSHwag2"
+            }
+          ]
+        }
+      },
+      "seedRules": [],
+      "createdAt": "2026-05-08T10:54:18.804Z"
+    }
+  ],
+  "events": [
+    {
+      "id": "IS3rtf_czQrA",
+      "at": "2026-05-08T10:54:18.804Z",
+      "actor": "Equipe de Políticas",
+      "type": "DOCUMENT_CREATED",
+      "scope": {},
+      "summary": "Equipe de Políticas criou o documento de exemplo."
+    },
+    {
+      "id": "GNk4nG4Sxpmz",
+      "at": "2026-05-08T10:54:18.804Z",
+      "actor": "Equipe de Políticas",
+      "type": "MATRIX_CREATED",
+      "scope": {
+        "projectId": "iiniFHwGZDcy",
+        "matrixId": "AawxBqMiUUVA"
+      },
+      "summary": "Equipe de Políticas criou a matriz \"MTZ_LIMITE_PF\".",
+      "payload": {
+        "code": "MTZ_LIMITE_PF",
+        "combinations": 24
+      }
+    },
+    {
+      "id": "zr9B0jHPz_F3",
+      "at": "2026-05-08T10:54:18.804Z",
+      "actor": "Equipe de Políticas",
+      "type": "VERSION_PUBLISHED",
+      "scope": {
+        "projectId": "iiniFHwGZDcy",
+        "matrixId": "AawxBqMiUUVA",
+        "versionId": "TTaRRFq-E2-M"
+      },
+      "summary": "Equipe de Políticas publicou a versão 1 de \"MTZ_LIMITE_PF\".",
+      "payload": {
+        "effectiveFrom": "2026-05-08T10:54:18.804Z"
+      }
+    },
+    {
+      "id": "2UD8Y1y4qX49",
+      "at": "2026-08-06T10:54:18.805Z",
+      "actor": "Equipe de Políticas",
+      "type": "DRAFT_CREATED",
+      "scope": {
+        "projectId": "iiniFHwGZDcy",
+        "matrixId": "AawxBqMiUUVA",
+        "versionId": "9TBpO07pmV6Z"
+      },
+      "summary": "Equipe de Políticas criou um rascunho a partir da versão 1 de \"MTZ_LIMITE_PF\".",
+      "payload": {
+        "baseVersionNumber": 1
+      }
+    },
+    {
+      "id": "R5QEBU_4uyfR",
+      "at": "2026-08-06T10:54:18.805Z",
+      "actor": "Equipe de Políticas",
+      "type": "MATRIX_CREATED",
+      "scope": {
+        "projectId": "tIOVnvhUB5Ap",
+        "matrixId": "IdYTebzmOAyt"
+      },
+      "summary": "Equipe de Políticas criou a matriz \"MTZ_LIMITE_PJ\".",
+      "payload": {
+        "code": "MTZ_LIMITE_PJ",
+        "combinations": 48
+      }
+    },
+    {
+      "id": "qJXun0qyMudq",
+      "at": "2026-08-06T10:54:18.805Z",
+      "actor": "Equipe de Políticas",
+      "type": "VERSION_PUBLISHED",
+      "scope": {
+        "projectId": "tIOVnvhUB5Ap",
+        "matrixId": "IdYTebzmOAyt",
+        "versionId": "vFMhi3_nsHNd"
+      },
+      "summary": "Equipe de Políticas publicou a versão 1 de \"MTZ_LIMITE_PJ\".",
+      "payload": {
+        "effectiveFrom": "2026-08-06T10:54:18.805Z"
+      }
+    }
+  ]
+}

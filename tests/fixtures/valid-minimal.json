@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "id": "aaaaaaaaaaaa",
+    "name": "Documento mínimo",
+    "revision": 0,
+    "savedAt": null,
+    "savedBy": null,
+    "appVersion": "0.1.0",
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  "variables": [],
+  "compatibility": [],
+  "catalog": [],
+  "projects": [],
+  "matrices": [],
+  "templates": [],
+  "events": []
+}

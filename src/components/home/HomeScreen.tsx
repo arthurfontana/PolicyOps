@@ -2,8 +2,11 @@ import { FilePlus2, FolderOpen, History, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useUiStore } from '@/store/ui-store';
 
 export function HomeScreen() {
+  const setView = useUiStore((s) => s.setView);
+
   return (
     <div className="flex h-full flex-col items-center justify-center gap-8 p-8">
       <div className="flex flex-col items-center gap-2 text-center">
@@ -67,7 +70,11 @@ export function HomeScreen() {
             <CardDescription>Carrega dados de exemplo em memória, sem arquivo.</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-2">
-            <Button disabled variant="secondary" className="w-full">
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={() => setView('sample-explorer')}
+            >
               Exemplo
             </Button>
           </CardContent>
