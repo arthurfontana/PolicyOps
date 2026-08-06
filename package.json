@@ -26,6 +26,7 @@
     "@radix-ui/react-toast": "^1.2.6",
     "@radix-ui/react-tooltip": "^1.1.8",
     "decimal.js-light": "^2.5.1",
+    "immer": "^11.1.16",
     "lucide-react": "^0.475.0",
     "nanoid": "^5.0.9",
     "react": "^19.0.0",

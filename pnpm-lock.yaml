@@ -38,6 +38,9 @@ importers:
       decimal.js-light:
         specifier: ^2.5.1
         version: 2.5.1
+      immer:
+        specifier: ^11.1.16
+        version: 11.1.16
       lucide-react:
         specifier: ^0.475.0
         version: 0.475.0(react@19.2.8)
@@ -55,7 +58,7 @@ importers:
         version: 3.25.76
       zustand:
         specifier: ^5.0.3
-        version: 5.0.14(@types/react@19.2.18)(react@19.2.8)
+        version: 5.0.14(@types/react@19.2.18)(immer@11.1.16)(react@19.2.8)
     devDependencies:
       '@eslint/js':
         specifier: ^9.20.0
@@ -1712,6 +1715,9 @@ packages:
   ignore@7.0.6:
     resolution: {integrity: sha512-BAg6QkE8W+TuQLrrw0Ugr7HegXduRuuj8/ti2kSOc+jz1dmx8/WNcjr6XGnq5YpDWxFwwaavqD0+jIUOKelTsw==}
     engines: {node: '>= 4'}
+
+  immer@11.1.16:
+    resolution: {integrity: sha512-Xs7H9rBc+kti1J6RueUvbEBkmOz7jqj11XYgf+YMXAYzu8EeE7hwZ9poLXdVfVnGmJu7QAf41T7H2KuF6QoK6Q==}
 
   import-fresh@3.3.1:
     resolution: {integrity: sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==}
@@ -3986,6 +3992,8 @@ snapshots:
 
   ignore@7.0.6: {}
 
+  immer@11.1.16: {}
+
   import-fresh@3.3.1:
     dependencies:
       parent-module: 1.0.1
@@ -4656,7 +4664,8 @@ snapshots:
 
   zod@3.25.76: {}
 
-  zustand@5.0.14(@types/react@19.2.18)(react@19.2.8):
+  zustand@5.0.14(@types/react@19.2.18)(immer@11.1.16)(react@19.2.8):
     optionalDependencies:
       '@types/react': 19.2.18
+      immer: 11.1.16
       react: 19.2.8
