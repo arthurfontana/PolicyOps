@@ -1,8 +1,11 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToast } from '@/components/ui/use-toast';
+import { AxisEditor } from '@/components/editor/AxisEditor';
 import type { AxisRole } from '@/core/document/schema';
 import { getEditorView, type EditorAxisView } from '@/core/queries';
+import { createDraft } from '@/core/versioning/lifecycle';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
@@ -62,7 +65,10 @@ function LifecycleButton({ label }: { label: string }) {
 
 export function VersionInspector() {
   const document = useDocumentStore((s) => s.document);
+  const dispatch = useDocumentStore((s) => s.dispatch);
   const currentVersionId = useEditorStore((s) => s.currentVersionId);
+  const setVersion = useEditorStore((s) => s.setVersion);
+  const { toast } = useToast();
 
   if (document === null || currentVersionId === null) return null;
 
@@ -93,9 +99,31 @@ export function VersionInspector() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <AxisSection role="X" axisView={view.x} stale={view.staleness?.x.stale ?? false} />
-        <AxisSection role="Y" axisView={view.y} stale={view.staleness?.y.stale ?? false} />
+        {view.editable ? (
+          <>
+            <AxisEditor role="X" view={view} stale={view.staleness?.x.stale ?? false} />
+            <AxisEditor role="Y" view={view} stale={view.staleness?.y.stale ?? false} />
+          </>
+        ) : (
+          <>
+            <AxisSection role="X" axisView={view.x} stale={view.staleness?.x.stale ?? false} />
+            <AxisSection role="Y" axisView={view.y} stale={view.staleness?.y.stale ?? false} />
+          </>
+        )}
       </div>
+
+      {/* Barra de pendências: depois de uma operação de nível é ela que diz
+          quanto trabalho a operação criou (docs/prompts/S12, item 4). */}
+      {view.editable && stats.pendingCells > 0 && (
+        <div
+          data-testid="pending-bar"
+          className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+        >
+          {stats.pendingCells === 1
+            ? '1 combinação precisa ser preenchida antes de publicar.'
+            : `${stats.pendingCells} combinações precisam ser preenchidas antes de publicar.`}
+        </div>
+      )}
 
       <div className="flex flex-col gap-1 rounded-md border border-neutral-200 p-2 text-xs dark:border-neutral-800">
         <span className="font-semibold text-neutral-700 dark:text-neutral-300">Estatísticas</span>
@@ -138,7 +166,26 @@ export function VersionInspector() {
 
       <div className="mt-auto flex flex-col gap-1.5 border-t border-neutral-100 pt-2 dark:border-neutral-800">
         <LifecycleButton label="Publicar" />
-        <LifecycleButton label="Criar rascunho" />
+        {view.editable ? (
+          <LifecycleButton label="Criar rascunho" />
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              const result = dispatch(createDraft({ matrixId: matrix.id }));
+              if (!result.ok) {
+                toast({ variant: 'destructive', title: 'Não foi possível criar o rascunho', description: result.error.message });
+                return;
+              }
+              setVersion((result.data as { versionId: string }).versionId);
+            }}
+          >
+            Criar rascunho
+          </Button>
+        )}
         <LifecycleButton label="Descartar rascunho" />
       </div>
     </div>

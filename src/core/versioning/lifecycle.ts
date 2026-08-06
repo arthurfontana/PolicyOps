@@ -155,8 +155,19 @@ function assertText(value: string, what: string): string {
   return trimmed;
 }
 
-/** Resolve a `VariableVersion` PUBLISHED e congela os domínios no nível (§1.1.2). */
-function resolveLevel(doc: PolicyOpsDocument, ref: AxisLevelRef, ctx: Ctx): AxisLevel {
+/**
+ * Resolve a `VariableVersion` PUBLISHED e congela os domínios no nível (§1.1.2).
+ * Exportada porque `axis/addLevel` (S12) precisa exatamente do mesmo pin e do
+ * mesmo snapshot que a criação da matriz — duas resoluções diferentes seriam
+ * duas verdades sobre o que é um nível de eixo.
+ */
+export function resolveLevel(
+  doc: PolicyOpsDocument,
+  ref: AxisLevelRef,
+  // Só o gerador de ids é usado: é o que permite o preview de `axis/addLevel`
+  // resolver um nível sem inventar um `Ctx` inteiro.
+  ctx: Pick<Ctx, 'newId'>,
+): AxisLevel {
   const variable = doc.variables.find((candidate) => candidate.id === ref.variableId);
   if (variable === undefined) {
     throw new DomainError('NOT_FOUND', 'A variável informada não existe neste documento.', {
