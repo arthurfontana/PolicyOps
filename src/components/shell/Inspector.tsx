@@ -1,3 +1,4 @@
+import { CellInspector } from '@/components/inspector/CellInspector';
 import { VersionInspector } from '@/components/inspector/VersionInspector';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
@@ -5,6 +6,11 @@ import { useEditorStore } from '@/store/editor-store';
 export function Inspector() {
   const hasDocument = useDocumentStore((s) => s.document !== null);
   const currentVersionId = useEditorStore((s) => s.currentVersionId);
+  const selection = useEditorStore((s) => s.selection);
+
+  if (hasDocument && currentVersionId !== null && selection.size > 0) {
+    return <CellInspector selection={selection} />;
+  }
 
   if (hasDocument && currentVersionId !== null) return <VersionInspector />;
 
