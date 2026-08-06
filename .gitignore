@@ -1,0 +1,15 @@
+node_modules
+
+# dist/ é commitado — dist/PolicyOps.html é o artefato final (docs/02-arquitetura.md §5).
+# Só o que o próprio build de outras pastas eventualmente deixaria para trás fica ignorado.
+dist/*
+!dist/PolicyOps.html
+
+*.tsbuildinfo
+.DS_Store
+
+# Playwright / Vitest
+test-results/
+playwright-report/
+blob-report/
+coverage/
