@@ -7,6 +7,9 @@ import type {
   CatalogItemKind,
   Cell,
   CompatibilityRule,
+  CompatibilityVersion,
+  DefaultForUnlisted,
+  Domain,
   DocEvent,
   Matrix,
   MatrixVersion,
@@ -352,6 +355,176 @@ export function listVariables(
         ).size,
       };
     });
+}
+
+// ---------------------------------------------------------------------------
+// Biblioteca de compatibilidade — docs/08 §4, docs/07 §11
+// ---------------------------------------------------------------------------
+
+function variableVersionDomains(
+  doc: PolicyOpsDocument,
+  variableId: string,
+  variableVersionId: string,
+): Domain[] {
+  const variable = doc.variables.find((candidate) => candidate.id === variableId);
+  const version = variable?.versions.find((candidate) => candidate.id === variableVersionId);
+  return version?.domains ?? [];
+}
+
+/** O que `countAllowedCombinations` precisa de uma `CompatibilityVersion` — nada além do mapa em si. */
+export type CompatibilityMapLike = {
+  allow: Record<string, string[]>;
+  defaultForUnlisted: DefaultForUnlisted;
+};
+
+/** Quantas combinações do produto pai×filho o mapa desta versão libera, sobre o total. */
+export function countAllowedCombinations(
+  version: CompatibilityMapLike,
+  parentDomains: Domain[],
+  childDomains: Domain[],
+): { valid: number; total: number } {
+  const childCodes = new Set(childDomains.map((domain) => domain.code));
+  let valid = 0;
+  for (const parentDomain of parentDomains) {
+    const allowed = version.allow[parentDomain.code];
+    if (allowed === undefined) {
+      valid += version.defaultForUnlisted === 'ALL' ? childDomains.length : 0;
+    } else {
+      valid += allowed.filter((code) => childCodes.has(code)).length;
+    }
+  }
+  return { valid, total: parentDomains.length * childDomains.length };
+}
+
+export type CompatibilityUsageEntry = {
+  matrixId: string;
+  matrixCode: string;
+  versionId: string;
+  versionNumber: number;
+  versionState: MatrixVersionState;
+  role: AxisRole;
+  compatibilityVersionId: string;
+  compatibilityVersionNumber: number | null;
+};
+
+/** Quantos eixos de quantas matrizes derivaram tuplas a partir desta regra (qualquer versão dela). */
+export function getCompatibilityUsage(
+  doc: PolicyOpsDocument,
+  ruleId: string,
+): CompatibilityUsageEntry[] {
+  const rule = doc.compatibility.find((candidate) => candidate.id === ruleId);
+  if (rule === undefined) return [];
+  const ownVersionIds = new Map(rule.versions.map((version) => [version.id, version.number]));
+
+  const entries: CompatibilityUsageEntry[] = [];
+  for (const matrix of doc.matrices) {
+    for (const version of matrix.versions) {
+      for (const axis of [version.axes.x, version.axes.y]) {
+        for (const compatibilityVersionId of axis.derivedFrom.compatibilityVersionIds) {
+          if (!ownVersionIds.has(compatibilityVersionId)) continue;
+          entries.push({
+            matrixId: matrix.id,
+            matrixCode: matrix.code,
+            versionId: version.id,
+            versionNumber: version.number,
+            versionState: version.state,
+            role: axis.role,
+            compatibilityVersionId,
+            compatibilityVersionNumber: ownVersionIds.get(compatibilityVersionId) ?? null,
+          });
+        }
+      }
+    }
+  }
+  return entries;
+}
+
+export type CompatibilityFilter = { search?: string; includeArchived?: boolean };
+
+export type CompatibilitySummary = {
+  rule: CompatibilityRule;
+  parentVariable: Variable | null;
+  childVariable: Variable | null;
+  publishedVersion: CompatibilityVersion | null;
+  draftVersion: CompatibilityVersion | null;
+  /** Combinações válidas / total, da versão publicada (ou do rascunho, na ausência dela). */
+  validCombinations: number;
+  totalCombinations: number;
+  /** Eixos de matrizes que derivaram tuplas desta regra. */
+  usageCount: number;
+};
+
+/** Lista de regras de compatibilidade com contagem de combinações e de uso (docs/07 §11). */
+export function listCompatibilityRules(
+  doc: PolicyOpsDocument,
+  filter: CompatibilityFilter = {},
+): CompatibilitySummary[] {
+  const search = filter.search?.trim().toLowerCase();
+  return doc.compatibility
+    .filter((rule) => {
+      if (rule.archivedAt !== undefined && filter.includeArchived !== true) return false;
+      if (search === undefined || search.length === 0) return true;
+      return rule.code.toLowerCase().includes(search) || rule.name.toLowerCase().includes(search);
+    })
+    .map((rule) => {
+      const parentVariable = doc.variables.find((candidate) => candidate.id === rule.parentVariableId) ?? null;
+      const childVariable = doc.variables.find((candidate) => candidate.id === rule.childVariableId) ?? null;
+      const publishedVersion = rule.versions.find((version) => version.state === 'PUBLISHED') ?? null;
+      const draftVersion = rule.versions.find((version) => version.state === 'DRAFT') ?? null;
+      const displayed = publishedVersion ?? draftVersion;
+
+      let validCombinations = 0;
+      let totalCombinations = 0;
+      if (displayed !== null) {
+        const parentDomains = variableVersionDomains(
+          doc,
+          rule.parentVariableId,
+          displayed.parentVariableVersionId,
+        );
+        const childDomains = variableVersionDomains(
+          doc,
+          rule.childVariableId,
+          displayed.childVariableVersionId,
+        );
+        const counted = countAllowedCombinations(displayed, parentDomains, childDomains);
+        validCombinations = counted.valid;
+        totalCombinations = counted.total;
+      }
+
+      return {
+        rule,
+        parentVariable,
+        childVariable,
+        publishedVersion,
+        draftVersion,
+        validCombinations,
+        totalCombinations,
+        usageCount: getCompatibilityUsage(doc, rule.id).length,
+      };
+    });
+}
+
+export type ApplicableRule = { rule: CompatibilityRule; version: CompatibilityVersion };
+
+/**
+ * A regra publicada do par `(parentVariableId, childVariableId)`, ou `null`.
+ * I12 garante no máximo uma — expõe para o construtor de eixos (S09) mostrar
+ * "Regra X aplicada — 8 de 15 combinações válidas" ao lado de cada par
+ * adjacente de níveis.
+ */
+export function getApplicableRule(
+  doc: PolicyOpsDocument,
+  parentVariableId: string,
+  childVariableId: string,
+): ApplicableRule | null {
+  for (const rule of doc.compatibility) {
+    if (rule.archivedAt !== undefined) continue;
+    if (rule.parentVariableId !== parentVariableId) continue;
+    if (rule.childVariableId !== childVariableId) continue;
+    const version = rule.versions.find((candidate) => candidate.state === 'PUBLISHED');
+    if (version !== undefined) return { rule, version };
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
