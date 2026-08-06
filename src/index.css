@@ -21,3 +21,24 @@ body {
     Arial,
     sans-serif;
 }
+
+/* Célula pendente do grid (docs/07-ux-e-editor.md §4.1): hachura diagonal por
+   cima da cor de fundo resolvida, para nunca depender só de cor. */
+.policy-grid-pending {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(0 0 0 / 0.06),
+    rgb(0 0 0 / 0.06) 4px,
+    transparent 4px,
+    transparent 10px
+  );
+}
+html.dark .policy-grid-pending {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(255 255 255 / 0.08),
+    rgb(255 255 255 / 0.08) 4px,
+    transparent 4px,
+    transparent 10px
+  );
+}

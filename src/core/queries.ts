@@ -263,6 +263,89 @@ export function getStaleAxes(doc: PolicyOpsDocument): StaleAxisEntry[] {
 }
 
 // ---------------------------------------------------------------------------
+// Navegação de projeto → matriz → versão — docs/09 S09
+// ---------------------------------------------------------------------------
+
+/**
+ * A versão que "abrir uma matriz" deve mostrar: a vigente; se não houver, o
+ * rascunho; se não houver nenhuma das duas, `null` (estado vazio). I2
+ * garante no máximo uma `PUBLISHED` e no máximo um `DRAFT` por matriz.
+ */
+export function resolveOpenVersion(matrix: Matrix): MatrixVersion | null {
+  return (
+    matrix.versions.find((version) => version.state === 'PUBLISHED') ??
+    matrix.versions.find((version) => version.state === 'DRAFT') ??
+    null
+  );
+}
+
+/** Versão mais recente (maior `number`) — usada para exibir a estrutura de eixos na lista de matrizes. */
+export function latestVersionOf(matrix: Matrix): MatrixVersion | null {
+  if (matrix.versions.length === 0) return null;
+  return [...matrix.versions].sort((a, b) => b.number - a.number)[0]!;
+}
+
+/** `"Score HVI3" × "Segmento › Faturamento"` — docs/07 §1, lista de matrizes do projeto. */
+export function axisStructureLabel(axis: Axis): string {
+  return axis.levels.map((level) => level.label).join(' › ');
+}
+
+export type ProjectMatrixSummary = {
+  matrix: Matrix;
+  version: MatrixVersion | null;
+  xLabel: string;
+  yLabel: string;
+  publishedVersion: MatrixVersion | null;
+  draftVersion: MatrixVersion | null;
+};
+
+export type ProjectSummary = {
+  project: Project;
+  matrixCount: number;
+  openDraftCount: number;
+};
+
+/** Lista de projetos com contagens para a tela `/projects` (docs/07-ux-e-editor.md §1). */
+export function listProjects(
+  doc: PolicyOpsDocument,
+  filter: { includeArchived?: boolean } = {},
+): ProjectSummary[] {
+  return doc.projects
+    .filter((project) => filter.includeArchived === true || project.archivedAt === undefined)
+    .sort((a, b) => a.position - b.position)
+    .map((project) => {
+      const matrices = doc.matrices.filter((matrix) => matrix.projectId === project.id);
+      return {
+        project,
+        matrixCount: matrices.length,
+        openDraftCount: matrices.filter((matrix) =>
+          matrix.versions.some((version) => version.state === 'DRAFT'),
+        ).length,
+      };
+    });
+}
+
+/** Matrizes de um projeto, com a estrutura de eixos e os badges de versão da lista de detalhe. */
+export function listProjectMatrices(
+  doc: PolicyOpsDocument,
+  projectId: string,
+): ProjectMatrixSummary[] {
+  return doc.matrices
+    .filter((matrix) => matrix.projectId === projectId && matrix.archivedAt === undefined)
+    .map((matrix) => {
+      const latest = latestVersionOf(matrix);
+      return {
+        matrix,
+        version: latest,
+        xLabel: latest === null ? '' : axisStructureLabel(latest.axes.x),
+        yLabel: latest === null ? '' : axisStructureLabel(latest.axes.y),
+        publishedVersion: matrix.versions.find((version) => version.state === 'PUBLISHED') ?? null,
+        draftVersion: matrix.versions.find((version) => version.state === 'DRAFT') ?? null,
+      };
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Biblioteca de variáveis
 // ---------------------------------------------------------------------------
 

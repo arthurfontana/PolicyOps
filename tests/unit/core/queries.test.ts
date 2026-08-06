@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { PolicyOpsDocument } from '@/core/document/schema';
 import {
+  axisStructureLabel,
   countPending,
   getAxisStaleness,
   getEditorView,
@@ -10,9 +11,13 @@ import {
   getStaleAxes,
   getVariableUsage,
   getVersionEvents,
+  latestVersionOf,
   listMatrixVersions,
+  listProjectMatrices,
+  listProjects,
   listVariables,
   resetEditorViewComputations,
+  resolveOpenVersion,
 } from '@/core/queries';
 import { applyCellPatch } from '@/core/versioning/cells';
 import { createDraft, createMatrix, locateVersion, publishVersion } from '@/core/versioning/lifecycle';
@@ -448,5 +453,88 @@ describe('listVariables e getVariableUsage', () => {
     const semVariavel: PolicyOpsDocument = structuredClone(document);
     semVariavel.variables = semVariavel.variables.filter((variable) => variable.id !== IDS.fat);
     expect(getVariableUsage(semVariavel, IDS.fat)[0]!.variableVersionNumber).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Navegação de projeto → matriz → versão — docs/09 S09
+// ---------------------------------------------------------------------------
+
+describe('resolveOpenVersion — vigente; senão rascunho; senão nulo', () => {
+  it('devolve o rascunho quando não há versão publicada', () => {
+    const { document, versionId } = nestedMatrix();
+    const { matrix } = locateVersion(document, versionId);
+    expect(resolveOpenVersion(matrix)?.id).toBe(versionId);
+  });
+
+  it('devolve a vigente quando ela existe, mesmo com um rascunho mais novo', () => {
+    const { ctx, document, versionId } = nestedMatrix();
+    const filled = fillAllCells(document, ctx, versionId);
+    const published = apply(filled, ctx, publishVersion({ versionId, notes: 'Publicação inicial.' }));
+    const matrixId = locateVersion(published.document, versionId).matrix.id;
+    const draft = apply(published.document, ctx, createDraft({ matrixId }));
+    const { matrix } = locateVersion(draft.document, versionId);
+    expect(resolveOpenVersion(matrix)?.id).toBe(versionId);
+  });
+
+  it('devolve nulo quando a matriz não tem nenhuma versão aberta', () => {
+    const matrixSemVersao = { ...nestedMatrix().document.matrices[0]!, versions: [] };
+    expect(resolveOpenVersion(matrixSemVersao)).toBeNull();
+  });
+});
+
+describe('latestVersionOf e axisStructureLabel', () => {
+  it('latestVersionOf devolve a versão de maior número', () => {
+    const { ctx, document, versionId } = nestedMatrix();
+    const filled = fillAllCells(document, ctx, versionId);
+    const published = apply(filled, ctx, publishVersion({ versionId, notes: 'Publicação inicial.' }));
+    const { matrix } = locateVersion(published.document, versionId);
+    const draft = apply(published.document, ctx, createDraft({ matrixId: matrix.id }));
+    const { matrix: matrixWithDraft } = locateVersion(draft.document, draft.data.versionId);
+    expect(latestVersionOf(matrixWithDraft)?.number).toBe(2);
+  });
+
+  it('latestVersionOf devolve nulo para matriz sem versões', () => {
+    const semVersao = { ...nestedMatrix().document.matrices[0]!, versions: [] };
+    expect(latestVersionOf(semVersao)).toBeNull();
+  });
+
+  it('axisStructureLabel junta os rótulos de nível com "›"', () => {
+    const { document, versionId } = nestedMatrix();
+    const { version } = locateVersion(document, versionId);
+    expect(axisStructureLabel(version.axes.x)).toBe('Score');
+    expect(axisStructureLabel(version.axes.y)).toBe('Segmento › Faturamento');
+  });
+});
+
+describe('listProjects e listProjectMatrices', () => {
+  it('lista projetos ativos, ordenados por position, com contagem de matrizes e rascunhos abertos', () => {
+    const { document } = nestedMatrix();
+    const summaries = listProjects(document);
+    expect(summaries.map((s) => s.project.id)).toEqual([IDS.projectA, IDS.projectB]);
+    const projectA = summaries.find((s) => s.project.id === IDS.projectA)!;
+    expect(projectA.matrixCount).toBe(1);
+    expect(projectA.openDraftCount).toBe(1);
+    const projectB = summaries.find((s) => s.project.id === IDS.projectB)!;
+    expect(projectB.matrixCount).toBe(0);
+    expect(projectB.openDraftCount).toBe(0);
+  });
+
+  it('lista as matrizes do projeto com a estrutura de eixos e os badges de versão', () => {
+    const { ctx, document, versionId } = nestedMatrix();
+    const filled = fillAllCells(document, ctx, versionId);
+    const published = apply(filled, ctx, publishVersion({ versionId, notes: 'Publicação inicial.' }));
+
+    const matrices = listProjectMatrices(published.document, IDS.projectA);
+    expect(matrices).toHaveLength(1);
+    expect(matrices[0]!.xLabel).toBe('Score');
+    expect(matrices[0]!.yLabel).toBe('Segmento › Faturamento');
+    expect(matrices[0]!.publishedVersion?.id).toBe(versionId);
+    expect(matrices[0]!.draftVersion).toBeNull();
+  });
+
+  it('projeto sem nenhuma matriz devolve lista vazia', () => {
+    const { document } = nestedMatrix();
+    expect(listProjectMatrices(document, IDS.projectB)).toEqual([]);
   });
 });
