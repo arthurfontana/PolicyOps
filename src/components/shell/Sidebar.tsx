@@ -16,12 +16,14 @@ interface NavItem {
   view: View;
   label: string;
   icon: ComponentType<{ className?: string }>;
+  /** Sessões ainda não implementadas mostram o badge "em construção". */
+  implemented?: boolean;
 }
 
 const TOP_ITEMS: NavItem[] = [{ view: 'projects', label: 'Projetos', icon: FolderKanban }];
 
 const LIBRARY_ITEMS: NavItem[] = [
-  { view: 'library-variables', label: 'Variáveis', icon: ListTree },
+  { view: 'library-variables', label: 'Variáveis', icon: ListTree, implemented: true },
   { view: 'library-compatibility', label: 'Compatibilidade', icon: Shuffle },
   { view: 'library-content', label: 'Conteúdo', icon: Library },
 ];
@@ -52,9 +54,11 @@ function NavButton({ item }: { item: NavItem }) {
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span className="flex-1 truncate">{item.label}</span>
-      <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] font-normal">
-        em construção
-      </Badge>
+      {item.implemented !== true && (
+        <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] font-normal">
+          em construção
+        </Badge>
+      )}
     </button>
   );
 }

@@ -14,6 +14,7 @@ import type {
   PolicyOpsDocument,
   Project,
   Variable,
+  VariableType,
   VariableVersion,
 } from './document/schema';
 import { locateMatrix, locateVersion } from './versioning/lifecycle';
@@ -262,7 +263,7 @@ export function getStaleAxes(doc: PolicyOpsDocument): StaleAxisEntry[] {
 // Biblioteca de variáveis
 // ---------------------------------------------------------------------------
 
-export type VariableFilter = { search?: string; includeArchived?: boolean };
+export type VariableFilter = { search?: string; type?: VariableType; includeArchived?: boolean };
 
 export type VariableSummary = {
   variable: Variable;
@@ -270,6 +271,10 @@ export type VariableSummary = {
   draftVersion: VariableVersion | null;
   /** Níveis de eixo que pinam alguma versão desta variável. */
   usageCount: number;
+  /** Matrizes distintas em que o pino está numa versão vigente (PUBLISHED). */
+  publishedMatrixCount: number;
+  /** Matrizes distintas em que o pino está num rascunho (DRAFT). */
+  draftMatrixCount: number;
 };
 
 export type VariableUsageEntry = {
@@ -325,18 +330,28 @@ export function listVariables(
   return doc.variables
     .filter((variable) => {
       if (variable.archivedAt !== undefined && filter.includeArchived !== true) return false;
+      if (filter.type !== undefined && variable.type !== filter.type) return false;
       if (search === undefined || search.length === 0) return true;
       return (
         variable.code.toLowerCase().includes(search) || variable.name.toLowerCase().includes(search)
       );
     })
-    .map((variable) => ({
-      variable,
-      publishedVersion:
-        variable.versions.find((version) => version.state === 'PUBLISHED') ?? null,
-      draftVersion: variable.versions.find((version) => version.state === 'DRAFT') ?? null,
-      usageCount: getVariableUsage(doc, variable.id).length,
-    }));
+    .map((variable) => {
+      const usage = getVariableUsage(doc, variable.id);
+      return {
+        variable,
+        publishedVersion:
+          variable.versions.find((version) => version.state === 'PUBLISHED') ?? null,
+        draftVersion: variable.versions.find((version) => version.state === 'DRAFT') ?? null,
+        usageCount: usage.length,
+        publishedMatrixCount: new Set(
+          usage.filter((entry) => entry.versionState === 'PUBLISHED').map((entry) => entry.matrixId),
+        ).size,
+        draftMatrixCount: new Set(
+          usage.filter((entry) => entry.versionState === 'DRAFT').map((entry) => entry.matrixId),
+        ).size,
+      };
+    });
 }
 
 // ---------------------------------------------------------------------------

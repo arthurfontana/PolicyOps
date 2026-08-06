@@ -49,6 +49,7 @@ export default tseslint.config(
       'src/core/queries.ts',
       'src/core/versioning/**/*.ts',
       'src/core/document/commands.ts',
+      'src/core/library/**/*.ts',
     ],
     rules: {
       'no-restricted-properties': [

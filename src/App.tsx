@@ -6,6 +6,7 @@ import { UnderConstruction } from '@/components/shell/UnderConstruction';
 import { DropTarget } from '@/components/shell/DropTarget';
 import { HomeScreen } from '@/components/home/HomeScreen';
 import { DocumentScreen } from '@/components/document/DocumentScreen';
+import { VariablesScreen } from '@/components/library/VariablesScreen';
 import { IdentityDialog } from '@/components/dialogs/IdentityDialog';
 import { ConflictDialog } from '@/components/dialogs/ConflictDialog';
 import { RecoveryDialog } from '@/components/dialogs/RecoveryDialog';
@@ -42,6 +43,7 @@ function CurrentView() {
   const view = useUiStore((s) => s.view);
   if (view === 'home') return <HomeScreen />;
   if (view === 'document') return <DocumentScreen />;
+  if (view === 'library-variables') return <VariablesScreen />;
   return <UnderConstruction view={view} />;
 }
 
