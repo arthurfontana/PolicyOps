@@ -7,7 +7,7 @@ import { create } from 'zustand';
  */
 export type View =
   | 'home'
-  | 'sample-explorer'
+  | 'document'
   | 'projects'
   | 'library-variables'
   | 'library-compatibility'
@@ -24,7 +24,7 @@ const ACTOR_STORAGE_KEY = 'policyops.actor';
 
 export const HASH_BY_VIEW: Record<View, string> = {
   home: '#/',
-  'sample-explorer': '#/exemplo',
+  document: '#/documento',
   projects: '#/projects',
   'library-variables': '#/library/variables',
   'library-compatibility': '#/library/compatibility',

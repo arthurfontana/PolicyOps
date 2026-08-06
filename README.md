@@ -4,7 +4,7 @@ Fonte oficial das matrizes de política de crédito — os "cineminhas" — com 
 
 **Um único arquivo `.html`.** Sem instalar nada, sem servidor, sem banco de dados. Você coloca `PolicyOps.html` numa biblioteca do SharePoint, o time abre no navegador, edita e salva.
 
-> **Status: em implementação.** Sessão 01 concluída — scaffold, build de arquivo único e shell da aplicação. As telas de domínio chegam nas próximas sessões (veja o roadmap abaixo).
+> **Status: em implementação — marco M1 alcançado.** Sessões 01 a 05 concluídas: scaffold e shell, modelo do documento, eixos aninhados, camada de comandos com undo/redo e a camada de persistência (abrir, salvar, detecção de conflito, bloqueio consultivo, autosave e recuperação). A partir daqui o arquivo já pode ir para o SharePoint e ser testado pelo time. As telas de biblioteca e de matriz chegam nas próximas sessões (veja o roadmap abaixo).
 
 ## O problema
 
@@ -42,10 +42,24 @@ Matrizes de política vivem hoje em Excel, PowerPoint e imagens. Ninguém sabe a
 
 1. Baixe `dist/PolicyOps.html` direto deste repositório (botão "Download raw file" no GitHub, ou `git clone` + copiar o arquivo). Não é preciso instalar Node nem rodar nenhum build — o arquivo já está pronto.
 2. Coloque `PolicyOps.html` numa biblioteca de documentos do SharePoint, junto de onde o `politicas.json` vai morar.
-3. Cada pessoa do time abre o `.html` por duplo clique (ou "Abrir no navegador" pelo SharePoint). Não há servidor, não há instalação — o navegador basta.
+3. Cada pessoa do time abre o `.html` **pelo endereço do SharePoint** ("Abrir no navegador"), no Microsoft Edge ou no Google Chrome. Não há servidor, não há instalação — o navegador basta.
 4. Na primeira abertura, a aplicação pede um nome para identificar as edições no histórico (não é login).
+5. Em seguida, escolha o `politicas.json` — ou comece um documento novo, ou explore com dados de exemplo, sem arquivo nenhum.
 
-A partir da Sessão 05 (persistência), a aplicação também vai pedir o arquivo `politicas.json` para abrir/salvar os dados. Até lá, o arquivo mostra apenas o shell.
+### Os dois modos, e por que a diferença importa
+
+A aplicação detecta o que o navegador oferece e informa o modo ativo na tela inicial:
+
+| | **Modo completo** | **Modo somente download** |
+|---|---|---|
+| Quando | Aberta pelo endereço da biblioteca (https), em Edge ou Chrome | Aberta por duplo clique (`file://`), ou em Firefox/Safari |
+| Salvar | Grava direto no arquivo escolhido | Baixa um arquivo novo, que você repõe na pasta |
+| Conflito | Detectado: se outra pessoa salvar antes, nada é sobrescrito | **Não detectado** — combine com o time quem está editando |
+| Bloqueio consultivo e backups | Disponíveis | Indisponíveis |
+
+Abrir o arquivo por duplo clique funciona, mas cai no modo somente download: o navegador trata a página como origem opaca e não permite gravar em arquivo. Para o ciclo completo, abra pelo endereço da biblioteca.
+
+O autosave local (IndexedDB, a cada 3 segundos) vale nos dois modos: se o navegador cair antes de você salvar, a aplicação oferece recuperar o trabalho na próxima abertura.
 
 ## Como desenvolver
 

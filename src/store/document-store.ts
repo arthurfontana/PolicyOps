@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { isIrreversible, type Command, type CommandResult, type Ctx } from '@/core/command';
 import type { PolicyOpsDocument } from '@/core/document/schema';
 import { DomainError } from '@/core/errors';
+import type { SaveStamp } from '@/storage/document-io';
 
 /**
  * Documento em memória e pilha de comandos — docs/08-camada-de-comandos.md §2.
@@ -60,8 +61,14 @@ export interface DocumentStoreState {
    * Marca o documento como salvo. **Não** limpa as pilhas: o undo continua
    * disponível depois de salvar; o que muda é que desfazer volta a sujar
    * (docs/08 §2).
+   *
+   * O `stamp` opcional é o que a camada de persistência acabou de gravar no
+   * arquivo (`revision`, `savedAt`, `savedBy`, `appVersion` —
+   * docs/06-persistencia-e-concorrencia.md §4). Aplicá-lo aqui mantém o
+   * documento em memória idêntico ao que está em disco, que é a premissa da
+   * detecção de conflito por hash.
    */
-  markSaved: () => void;
+  markSaved: (stamp?: SaveStamp) => void;
 
   dispatch: <O>(command: Command<unknown, O>) => CommandResult<O>;
   undo: () => CommandResult<unknown> | null;
@@ -117,7 +124,14 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
         canRedo: false,
       }),
 
-    markSaved: () => set({ dirty: false }),
+    markSaved: (stamp) =>
+      set((state) => {
+        if (stamp === undefined || state.document === null) return { dirty: false };
+        return {
+          dirty: false,
+          document: { ...state.document, meta: { ...state.document.meta, ...stamp } },
+        };
+      }),
 
     dispatch: (command) => {
       const result = execute(command);
