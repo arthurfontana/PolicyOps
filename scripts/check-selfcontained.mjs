@@ -46,12 +46,24 @@ for (const { name, regex } of TAG_PATTERNS) {
   }
 }
 
+// A quarta família, desde a Sessão 05: o Immer (usado por src/core/command.ts)
+// embute no build de produção o texto "[Immer] minified error nr: N. Full
+// error at: https://bit.ly/3cXEKWf", dentro da mensagem de um erro que só é
+// construído quando um comando quebra uma invariante do próprio Immer. É
+// texto de mensagem, como o decodificador do React — a página não busca esse
+// endereço. Por ser um encurtador, o allowlist traz a URL **exata**, e não um
+// prefixo de domínio: qualquer outro link bit.ly reprova o build.
+const INERT_URLS = ['https://bit.ly/3cXEKWf'];
 const INERT_URL_PREFIXES = ['http://www.w3.org/', 'https://react.dev/errors/', 'https://tailwindcss.com'];
 
-const urlMatches = html.matchAll(/https?:\/\/[^\s"'()<>]+/g);
+// A crase entra na classe negada junto de aspas e parênteses: URL nenhuma a
+// contém, e sem isso o delimitador do template literal em que a string está
+// embutida gruda no fim do endereço capturado.
+const urlMatches = html.matchAll(/https?:\/\/[^\s"'()<>`]+/g);
 const offendingUrls = new Set();
 for (const [url] of urlMatches) {
-  const isInert = INERT_URL_PREFIXES.some((prefix) => url.startsWith(prefix));
+  const isInert =
+    INERT_URLS.includes(url) || INERT_URL_PREFIXES.some((prefix) => url.startsWith(prefix));
   if (!isInert) {
     offendingUrls.add(url);
   }

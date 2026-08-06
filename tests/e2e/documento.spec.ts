@@ -4,10 +4,13 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /**
- * Critério de aceite da Sessão 02 (docs/prompts/S02-documento.md): abrir
- * dist/PolicyOps.html e clicar em "Explorar com exemplo" mostra 6 variáveis,
- * 1 regra de compatibilidade, 2 projetos, 2 matrizes, e a matriz PJ com 48
- * combinações.
+ * Critério de aceite da Sessão 02 (docs/prompts/S02-documento.md): "Explorar
+ * com exemplo" carrega 6 variáveis, 1 regra de compatibilidade, 2 projetos, 2
+ * matrizes, e a matriz PJ com 48 combinações.
+ *
+ * Desde a Sessão 05 o exemplo não abre mais numa tela própria: ele é
+ * carregado como documento em memória, na mesma tela de documento em que um
+ * arquivo aberto do disco aparece.
  */
 const DIST_PATH = path.resolve(import.meta.dirname, '..', '..', 'dist', 'PolicyOps.html');
 const FILE_URL = pathToFileURL(DIST_PATH).href;
@@ -28,7 +31,10 @@ test('Explorar com dados de exemplo mostra as contagens do documento de exemplo'
 
   await page.getByRole('button', { name: 'Exemplo' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Documento de exemplo' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Documento de exemplo — Políticas de Crédito' }),
+  ).toBeVisible();
+  await expect(page.getByText('em memória, sem arquivo')).toBeVisible();
 
   const summaryTiles = page.locator('div.grid.grid-cols-2 > div');
   await expect(summaryTiles).toHaveCount(4);

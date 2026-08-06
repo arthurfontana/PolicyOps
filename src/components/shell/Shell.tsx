@@ -5,6 +5,7 @@ import { useUiStore } from '@/store/ui-store';
 import { Sidebar } from './Sidebar';
 import { Inspector } from './Inspector';
 import { StatusBar } from './StatusBar';
+import { PersistenceBanners } from './PersistenceBanners';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from '@/components/ui/button';
 
@@ -75,6 +76,8 @@ export function Shell({ children }: { children: ReactNode }) {
           </Button>
         </div>
       </header>
+
+      <PersistenceBanners />
 
       <div className="flex min-h-0 flex-1">
         {!sidebarCollapsed && (
