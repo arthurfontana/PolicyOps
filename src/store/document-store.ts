@@ -1,0 +1,193 @@
+import { nanoid } from 'nanoid';
+import { create } from 'zustand';
+import { isIrreversible, type Command, type CommandResult, type Ctx } from '@/core/command';
+import type { PolicyOpsDocument } from '@/core/document/schema';
+import { DomainError } from '@/core/errors';
+
+/**
+ * Documento em memória e pilha de comandos — docs/08-camada-de-comandos.md §2.
+ *
+ * O store é a **única** fronteira de impureza da camada de comandos: é aqui
+ * que `new Date()` e `nanoid()` são chamados, embrulhados no `Ctx` que o
+ * comando recebe. `src/core/` continua totalmente determinístico.
+ *
+ * Sobre undo/redo: desfazer **não** rebobina o documento para um estado
+ * guardado — ele *dispatcha o comando inverso*. A consequência é intencional e
+ * a interface precisa dizê-la: **desfazer gera evento próprio na auditoria**.
+ * O histórico registra o que aconteceu, inclusive os arrependimentos; ele não
+ * é reescrito. Refazer segue a mesma lógica, aplicando o inverso do inverso —
+ * que carrega o conteúdo exato de antes, e por isso devolve o documento
+ * idêntico, sem depender de gerar ids ou datas novos.
+ */
+
+/** docs/08 §2: profundidade da pilha. Em memória, não custa quase nada. */
+export const UNDO_STACK_DEPTH = 100;
+
+export type UndoEntry = {
+  /** O comando que foi aplicado. */
+  command: Command;
+  /** O que desfaz esse comando. */
+  inverse: Command;
+  /** Frase pronta em pt-BR: "Desfazer <label>". */
+  label: string;
+};
+
+export type CtxFactory = (actor: string) => Ctx;
+
+export const createRuntimeCtx: CtxFactory = (actor) => ({
+  actor,
+  now: () => new Date(),
+  newId: () => nanoid(12),
+});
+
+export interface DocumentStoreState {
+  document: PolicyOpsDocument | null;
+  dirty: boolean;
+  undoStack: UndoEntry[];
+  redoStack: UndoEntry[];
+  canUndo: boolean;
+  canRedo: boolean;
+  /** Nome de exibição usado nos eventos de auditoria (docs/02 §6). */
+  actor: string;
+  /** Fábrica do `Ctx`. Os testes trocam por uma determinística. */
+  ctxFactory: CtxFactory;
+
+  setActor: (actor: string) => void;
+  /** Abre um documento e zera as pilhas — elas pertencem ao documento aberto. */
+  openDocument: (document: PolicyOpsDocument) => void;
+  closeDocument: () => void;
+  /**
+   * Marca o documento como salvo. **Não** limpa as pilhas: o undo continua
+   * disponível depois de salvar; o que muda é que desfazer volta a sujar
+   * (docs/08 §2).
+   */
+  markSaved: () => void;
+
+  dispatch: <O>(command: Command<unknown, O>) => CommandResult<O>;
+  undo: () => CommandResult<unknown> | null;
+  redo: () => CommandResult<unknown> | null;
+}
+
+const NO_DOCUMENT = (): DomainError =>
+  new DomainError('NOT_FOUND', 'Nenhum documento aberto — abra ou crie um antes de editar.');
+
+export const useDocumentStore = create<DocumentStoreState>((set, get) => {
+  /**
+   * Executa um comando contra o documento aberto e devolve o resultado.
+   * Não mexe em nenhuma pilha: quem chama decide o que empilhar.
+   */
+  function execute<O>(command: Command<unknown, O>): CommandResult<O> {
+    const { document, actor, ctxFactory } = get();
+    if (document === null) return { ok: false, error: NO_DOCUMENT() };
+    const result = command.run(document, ctxFactory(actor));
+    // Erro não altera o documento e não empilha nada (docs/08 §2).
+    if (result.ok) set({ document: result.document, dirty: true });
+    return result;
+  }
+
+  function entryFor<O>(
+    command: Command<unknown, O>,
+    result: Extract<CommandResult<O>, { ok: true }>,
+  ): UndoEntry {
+    return { command: command as Command, inverse: result.inverse, label: command.label };
+  }
+
+  return {
+    document: null,
+    dirty: false,
+    undoStack: [],
+    redoStack: [],
+    canUndo: false,
+    canRedo: false,
+    actor: '',
+    ctxFactory: createRuntimeCtx,
+
+    setActor: (actor) => set({ actor }),
+
+    openDocument: (document) =>
+      set({ document, dirty: false, undoStack: [], redoStack: [], canUndo: false, canRedo: false }),
+
+    closeDocument: () =>
+      set({
+        document: null,
+        dirty: false,
+        undoStack: [],
+        redoStack: [],
+        canUndo: false,
+        canRedo: false,
+      }),
+
+    markSaved: () => set({ dirty: false }),
+
+    dispatch: (command) => {
+      const result = execute(command);
+      if (!result.ok) return result;
+
+      // Comando sem inverso natural (publicar, descartar rascunho) não entra
+      // na pilha: oferecer um "Desfazer" que só sabe falhar seria mentira.
+      let undoStack = isIrreversible(result.inverse)
+        ? get().undoStack
+        : [...get().undoStack, entryFor(command, result)].slice(-UNDO_STACK_DEPTH);
+
+      // Publicar limpa a pilha de undo daquela versão: o que foi publicado é
+      // imutável, e desfazer por cima dele falharia com VERSION_IMMUTABLE.
+      if (command.type === 'version/publish') {
+        const versionId = command.scope?.versionId;
+        undoStack = undoStack.filter((entry) => entry.command.scope?.versionId !== versionId);
+      }
+
+      set({
+        undoStack,
+        // Qualquer comando novo invalida o caminho de volta.
+        redoStack: [],
+        canUndo: undoStack.length > 0,
+        canRedo: false,
+      });
+      return result;
+    },
+
+    undo: () => {
+      const { undoStack, redoStack } = get();
+      const entry = undoStack[undoStack.length - 1];
+      if (entry === undefined) return null;
+
+      const result = execute(entry.inverse);
+      if (!result.ok) return result;
+
+      const nextUndo = undoStack.slice(0, -1);
+      const nextRedo = [
+        ...redoStack,
+        { command: entry.inverse, inverse: result.inverse, label: entry.label },
+      ].slice(-UNDO_STACK_DEPTH);
+      set({
+        undoStack: nextUndo,
+        redoStack: nextRedo,
+        canUndo: nextUndo.length > 0,
+        canRedo: true,
+      });
+      return result;
+    },
+
+    redo: () => {
+      const { undoStack, redoStack } = get();
+      const entry = redoStack[redoStack.length - 1];
+      if (entry === undefined) return null;
+
+      const result = execute(entry.inverse);
+      if (!result.ok) return result;
+
+      const nextRedo = redoStack.slice(0, -1);
+      const nextUndo = [
+        ...undoStack,
+        { command: entry.inverse, inverse: result.inverse, label: entry.label },
+      ].slice(-UNDO_STACK_DEPTH);
+      set({
+        undoStack: nextUndo,
+        redoStack: nextRedo,
+        canUndo: true,
+        canRedo: nextRedo.length > 0,
+      });
+      return result;
+    },
+  };
+});

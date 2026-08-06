@@ -1,0 +1,489 @@
+import { allCombinations, countPending as countPendingIn, listPending } from './axes/combinations';
+import { computeHeaderLayout, type HeaderRow } from './axes/header-layout';
+import type {
+  Axis,
+  AxisRole,
+  CatalogItem,
+  CatalogItemKind,
+  Cell,
+  CompatibilityRule,
+  DocEvent,
+  Matrix,
+  MatrixVersion,
+  MatrixVersionState,
+  PolicyOpsDocument,
+  Project,
+  Variable,
+  VariableVersion,
+} from './document/schema';
+import { locateMatrix, locateVersion } from './versioning/lifecycle';
+
+/**
+ * Consultas puras — docs/08-camada-de-comandos.md §4.
+ *
+ * São funções de leitura chamadas direto pelos componentes: não passam por
+ * comando, não alteram nada, não têm efeito colateral.
+ *
+ * `diffVersions` fica de fora: o motor de diff é `src/core/diff/` (S14).
+ */
+
+// ---------------------------------------------------------------------------
+// Vigência — docs/05 §6
+// ---------------------------------------------------------------------------
+
+/**
+ * Versão vigente em `at`: intervalo **semiaberto** `[effectiveFrom, effectiveTo)`.
+ * Na data exata da troca vale a versão nova. Sem resultado significa "não havia
+ * política vigente nessa data" — não é erro.
+ *
+ * A consulta é sempre pelo intervalo, **nunca** pelo estado: é o que faz uma
+ * publicação agendada continuar correta (a versão fica `PUBLISHED` com
+ * `effectiveFrom` no futuro, e até lá a anterior segue vigente).
+ */
+export function getEffectiveVersion(
+  doc: PolicyOpsDocument,
+  matrixId: string,
+  at: Date,
+): MatrixVersion | null {
+  const { matrix } = locateMatrix(doc, matrixId);
+  const instant = at.toISOString();
+  for (const version of matrix.versions) {
+    if (version.state !== 'PUBLISHED' && version.state !== 'SUPERSEDED') continue;
+    if (version.effectiveFrom === undefined || version.effectiveFrom > instant) continue;
+    if (version.effectiveTo !== undefined && version.effectiveTo <= instant) continue;
+    return version;
+  }
+  return null;
+}
+
+export type PortfolioEntry = { matrix: Matrix; version: MatrixVersion | null };
+
+/** As matrizes de um projeto com a versão vigente de cada uma em `at`. */
+export function getPortfolioAt(
+  doc: PolicyOpsDocument,
+  projectId: string,
+  at: Date,
+): PortfolioEntry[] {
+  return doc.matrices
+    .filter((matrix) => matrix.projectId === projectId)
+    .map((matrix) => ({ matrix, version: getEffectiveVersion(doc, matrix.id, at) }));
+}
+
+// ---------------------------------------------------------------------------
+// Histórico e auditoria
+// ---------------------------------------------------------------------------
+
+export type MatrixVersionSummary = {
+  id: string;
+  number: number;
+  state: MatrixVersionState;
+  createdAt: string;
+  createdBy: string;
+  publishedAt?: string;
+  publishedBy?: string;
+  effectiveFrom?: string;
+  effectiveTo?: string;
+  archivedAt?: string;
+  notes?: string;
+  baseVersionId?: string;
+  combinations: number;
+  filledCells: number;
+  pendingCells: number;
+};
+
+/** Histórico da matriz, da versão mais recente para a mais antiga. */
+export function listMatrixVersions(
+  doc: PolicyOpsDocument,
+  matrixId: string,
+): MatrixVersionSummary[] {
+  const { matrix } = locateMatrix(doc, matrixId);
+  return [...matrix.versions]
+    .sort((a, b) => b.number - a.number)
+    .map((version) => {
+      const summary: MatrixVersionSummary = {
+        id: version.id,
+        number: version.number,
+        state: version.state,
+        createdAt: version.createdAt,
+        createdBy: version.createdBy,
+        combinations: allCombinations(version).length,
+        filledCells: Object.keys(version.cells).length,
+        pendingCells: countPendingIn(version),
+      };
+      if (version.publishedAt !== undefined) summary.publishedAt = version.publishedAt;
+      if (version.publishedBy !== undefined) summary.publishedBy = version.publishedBy;
+      if (version.effectiveFrom !== undefined) summary.effectiveFrom = version.effectiveFrom;
+      if (version.effectiveTo !== undefined) summary.effectiveTo = version.effectiveTo;
+      if (version.archivedAt !== undefined) summary.archivedAt = version.archivedAt;
+      if (version.notes !== undefined) summary.notes = version.notes;
+      if (version.baseVersionId !== undefined) summary.baseVersionId = version.baseVersionId;
+      return summary;
+    });
+}
+
+/** Auditoria da versão, em ordem cronológica (`events` já é append-only). */
+export function getVersionEvents(doc: PolicyOpsDocument, versionId: string): DocEvent[] {
+  return doc.events.filter((event) => event.scope.versionId === versionId);
+}
+
+/** Combinações sem decisão nesta versão. */
+export function countPending(doc: PolicyOpsDocument, versionId: string): number {
+  const { version } = locateVersion(doc, versionId);
+  return countPendingIn(version);
+}
+
+// ---------------------------------------------------------------------------
+// Defasagem de eixo — docs/05 §5.2
+// ---------------------------------------------------------------------------
+
+export type StaleReasonKind = 'LEVEL_PIN_OUTDATED' | 'RULE_OUTDATED' | 'NEW_RULE_AVAILABLE';
+
+export type StaleReason = {
+  kind: StaleReasonKind;
+  /** Frase pronta em pt-BR. */
+  message: string;
+  levelIndex?: number;
+  variableCode?: string;
+  ruleCode?: string;
+};
+
+export type AxisStaleness = { role: AxisRole; stale: boolean; reasons: StaleReason[] };
+
+function publishedCompatibilityFor(
+  rules: CompatibilityRule[],
+  parentVariableId: string,
+  childVariableId: string,
+): { rule: CompatibilityRule; versionId: string } | undefined {
+  for (const rule of rules) {
+    if (rule.archivedAt !== undefined) continue;
+    if (rule.parentVariableId !== parentVariableId) continue;
+    if (rule.childVariableId !== childVariableId) continue;
+    const version = rule.versions.find((candidate) => candidate.state === 'PUBLISHED');
+    if (version !== undefined) return { rule, versionId: version.id };
+  }
+  return undefined;
+}
+
+/**
+ * Um eixo está defasado quando qualquer uma destas for verdadeira (§5.2):
+ * um pin de variável não aponta mais para uma versão `PUBLISHED`; uma regra
+ * usada para gerar as tuplas não está mais `PUBLISHED`; ou passou a existir
+ * regra publicada para um par adjacente que não tinha regra na geração.
+ */
+export function getAxisStaleness(doc: PolicyOpsDocument, axis: Axis): AxisStaleness {
+  const reasons: StaleReason[] = [];
+
+  axis.levels.forEach((level, levelIndex) => {
+    const variable = doc.variables.find((candidate) => candidate.id === level.variableId);
+    const pinned = variable?.versions.find(
+      (candidate) => candidate.id === level.variableVersionId,
+    );
+    if (pinned === undefined || pinned.state !== 'PUBLISHED') {
+      reasons.push({
+        kind: 'LEVEL_PIN_OUTDATED',
+        levelIndex,
+        variableCode: variable === undefined ? level.label : variable.code,
+        message: `O nível ${levelIndex + 1} usa uma versão de "${level.label}" que não é mais a publicada.`,
+      });
+    }
+  });
+
+  // Regras usadas na geração das tuplas que já não estão publicadas.
+  const usedRuleIds = new Set<string>();
+  for (const versionId of axis.derivedFrom.compatibilityVersionIds) {
+    const rule = doc.compatibility.find((candidate) =>
+      candidate.versions.some((version) => version.id === versionId),
+    );
+    const version = rule?.versions.find((candidate) => candidate.id === versionId);
+    if (rule !== undefined) usedRuleIds.add(rule.id);
+    if (version === undefined || version.state !== 'PUBLISHED') {
+      reasons.push({
+        kind: 'RULE_OUTDATED',
+        ruleCode: rule === undefined ? versionId : rule.code,
+        message:
+          rule === undefined
+            ? 'Uma regra de compatibilidade usada por este eixo não existe mais.'
+            : `A regra "${rule.code}" tem uma versão mais nova publicada que a usada por este eixo.`,
+      });
+    }
+  }
+
+  // Regra publicada que passou a existir para um par adjacente sem regra.
+  for (let index = 1; index < axis.levels.length; index++) {
+    const parent = axis.levels[index - 1]!;
+    const child = axis.levels[index]!;
+    const found = publishedCompatibilityFor(doc.compatibility, parent.variableId, child.variableId);
+    if (found === undefined || usedRuleIds.has(found.rule.id)) continue;
+    reasons.push({
+      kind: 'NEW_RULE_AVAILABLE',
+      levelIndex: index,
+      ruleCode: found.rule.code,
+      message: `Passou a existir a regra "${found.rule.code}" entre os níveis ${index} e ${index + 1}, ainda não aplicada neste eixo.`,
+    });
+  }
+
+  return { role: axis.role, stale: reasons.length > 0, reasons };
+}
+
+export type StaleAxisEntry = {
+  matrixId: string;
+  matrixCode: string;
+  versionId: string;
+  versionNumber: number;
+  staleness: AxisStaleness;
+};
+
+/**
+ * Todos os rascunhos com eixo defasado. Só `DRAFT`: em publicadas e históricas
+ * a defasagem não é pendência, é registro (§5.2).
+ */
+export function getStaleAxes(doc: PolicyOpsDocument): StaleAxisEntry[] {
+  const entries: StaleAxisEntry[] = [];
+  for (const matrix of doc.matrices) {
+    for (const version of matrix.versions) {
+      if (version.state !== 'DRAFT') continue;
+      for (const axis of [version.axes.x, version.axes.y]) {
+        const staleness = getAxisStaleness(doc, axis);
+        if (!staleness.stale) continue;
+        entries.push({
+          matrixId: matrix.id,
+          matrixCode: matrix.code,
+          versionId: version.id,
+          versionNumber: version.number,
+          staleness,
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+// ---------------------------------------------------------------------------
+// Biblioteca de variáveis
+// ---------------------------------------------------------------------------
+
+export type VariableFilter = { search?: string; includeArchived?: boolean };
+
+export type VariableSummary = {
+  variable: Variable;
+  publishedVersion: VariableVersion | null;
+  draftVersion: VariableVersion | null;
+  /** Níveis de eixo que pinam alguma versão desta variável. */
+  usageCount: number;
+};
+
+export type VariableUsageEntry = {
+  matrixId: string;
+  matrixCode: string;
+  versionId: string;
+  versionNumber: number;
+  versionState: MatrixVersionState;
+  role: AxisRole;
+  levelIndex: number;
+  variableVersionId: string;
+  variableVersionNumber: number | null;
+};
+
+/** Quem pina cada versão desta variável — a base do "não dá para arquivar". */
+export function getVariableUsage(
+  doc: PolicyOpsDocument,
+  variableId: string,
+): VariableUsageEntry[] {
+  const variable = doc.variables.find((candidate) => candidate.id === variableId);
+  const entries: VariableUsageEntry[] = [];
+  for (const matrix of doc.matrices) {
+    for (const version of matrix.versions) {
+      for (const axis of [version.axes.x, version.axes.y]) {
+        axis.levels.forEach((level, levelIndex) => {
+          if (level.variableId !== variableId) return;
+          const pinned = variable?.versions.find(
+            (candidate) => candidate.id === level.variableVersionId,
+          );
+          entries.push({
+            matrixId: matrix.id,
+            matrixCode: matrix.code,
+            versionId: version.id,
+            versionNumber: version.number,
+            versionState: version.state,
+            role: axis.role,
+            levelIndex,
+            variableVersionId: level.variableVersionId,
+            variableVersionNumber: pinned === undefined ? null : pinned.number,
+          });
+        });
+      }
+    }
+  }
+  return entries;
+}
+
+export function listVariables(
+  doc: PolicyOpsDocument,
+  filter: VariableFilter = {},
+): VariableSummary[] {
+  const search = filter.search?.trim().toLowerCase();
+  return doc.variables
+    .filter((variable) => {
+      if (variable.archivedAt !== undefined && filter.includeArchived !== true) return false;
+      if (search === undefined || search.length === 0) return true;
+      return (
+        variable.code.toLowerCase().includes(search) || variable.name.toLowerCase().includes(search)
+      );
+    })
+    .map((variable) => ({
+      variable,
+      publishedVersion:
+        variable.versions.find((version) => version.state === 'PUBLISHED') ?? null,
+      draftVersion: variable.versions.find((version) => version.state === 'DRAFT') ?? null,
+      usageCount: getVariableUsage(doc, variable.id).length,
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// getEditorView — tudo que o grid precisa, calculado uma vez só
+// ---------------------------------------------------------------------------
+
+export type EditorAxisView = {
+  axis: Axis;
+  /** Uma linha de cabeçalho por nível, com os spans já calculados (S03). */
+  headerRows: HeaderRow[];
+  levelCount: number;
+  tupleCount: number;
+};
+
+export type EditorStats = {
+  combinations: number;
+  filledCells: number;
+  decidedCells: number;
+  pendingCells: number;
+};
+
+export type EditorCatalog = {
+  decisions: CatalogItem[];
+  offers: CatalogItem[];
+  limits: CatalogItem[];
+  tags: CatalogItem[];
+  /** Busca O(1) por `kind` e `code` — a célula referencia o catálogo por código. */
+  byCode: Record<CatalogItemKind, Record<string, CatalogItem>>;
+};
+
+export type EditorView = {
+  project: Project | null;
+  matrix: Matrix;
+  version: MatrixVersion;
+  /** `false` em PUBLISHED, SUPERSEDED e ARCHIVED — a interface entra em modo leitura. */
+  editable: boolean;
+  x: EditorAxisView;
+  y: EditorAxisView;
+  cells: Record<string, Cell>;
+  catalog: EditorCatalog;
+  stats: EditorStats;
+  /** Só em rascunho: o badge de defasagem não aparece em versão publicada (§5.2). */
+  staleness: { x: AxisStaleness; y: AxisStaleness } | null;
+};
+
+function buildCatalog(catalog: CatalogItem[]): EditorCatalog {
+  const byKind = (kind: CatalogItemKind): CatalogItem[] =>
+    catalog.filter((item) => item.kind === kind).sort((a, b) => a.position - b.position);
+  const byCode: Record<CatalogItemKind, Record<string, CatalogItem>> = {
+    DECISION: {},
+    OFFER: {},
+    LIMIT: {},
+    TAG: {},
+  };
+  for (const item of catalog) byCode[item.kind][item.code] = item;
+  return {
+    decisions: byKind('DECISION'),
+    offers: byKind('OFFER'),
+    limits: byKind('LIMIT'),
+    tags: byKind('TAG'),
+    byCode,
+  };
+}
+
+function axisView(axis: Axis): EditorAxisView {
+  return {
+    axis,
+    headerRows: computeHeaderLayout(axis),
+    levelCount: axis.levels.length,
+    tupleCount: axis.tuples.length,
+  };
+}
+
+function computeEditorView(doc: PolicyOpsDocument, versionId: string): EditorView {
+  const { matrix, version } = locateVersion(doc, versionId);
+  const combinations = allCombinations(version).length;
+  const pendingCells = listPending(version).length;
+  const filledCells = Object.keys(version.cells).length;
+  return {
+    project: doc.projects.find((candidate) => candidate.id === matrix.projectId) ?? null,
+    matrix,
+    version,
+    editable: version.state === 'DRAFT',
+    x: axisView(version.axes.x),
+    y: axisView(version.axes.y),
+    cells: version.cells,
+    catalog: buildCatalog(doc.catalog),
+    stats: {
+      combinations,
+      filledCells,
+      decidedCells: combinations - pendingCells,
+      pendingCells,
+    },
+    staleness:
+      version.state === 'DRAFT'
+        ? {
+            x: getAxisStaleness(doc, version.axes.x),
+            y: getAxisStaleness(doc, version.axes.y),
+          }
+        : null,
+  };
+}
+
+/**
+ * Memoização por `(referência do documento, versionId)`.
+ *
+ * O `WeakMap` chaveado pelo documento é o que torna a invalidação automática e
+ * exata: todo comando devolve um documento **novo** (Immer), então uma edição
+ * troca a chave e o cache antigo é coletado junto com o documento antigo. Não
+ * há revisão a incrementar nem cache a limpar na mão.
+ */
+const editorViewCache = new WeakMap<PolicyOpsDocument, Map<string, EditorView>>();
+
+let editorViewComputations = 0;
+
+/**
+ * Tudo que o grid precisa: eixos, layout de cabeçalhos, células, catálogo,
+ * estatísticas e defasagem.
+ *
+ * **Chame à vontade.** Recalcular o layout de cabeçalhos a cada render de
+ * célula é o erro de desempenho mais provável do projeto (docs/08 §4); por
+ * isso o resultado é memoizado e a mesma referência é devolvida enquanto o
+ * documento não mudar.
+ */
+export function getEditorView(doc: PolicyOpsDocument, versionId: string): EditorView {
+  let byVersion = editorViewCache.get(doc);
+  if (byVersion === undefined) {
+    byVersion = new Map<string, EditorView>();
+    editorViewCache.set(doc, byVersion);
+  }
+  const cached = byVersion.get(versionId);
+  if (cached !== undefined) return cached;
+
+  const view = computeEditorView(doc, versionId);
+  editorViewComputations += 1;
+  byVersion.set(versionId, view);
+  return view;
+}
+
+/**
+ * Quantas vezes `getEditorView` realmente calculou (em vez de servir do cache).
+ * Instrumentação — é o que o teste de memoização conta.
+ */
+export function getEditorViewComputations(): number {
+  return editorViewComputations;
+}
+
+export function resetEditorViewComputations(): void {
+  editorViewComputations = 0;
+}

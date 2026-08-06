@@ -24,6 +24,12 @@ export default mergeConfig(
           branches: 85,
           functions: 85,
           statements: 85,
+          'src/core/versioning/**/*.ts': {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
           'src/core/axes/**/*.ts': {
             lines: 100,
             branches: 100,

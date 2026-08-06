@@ -41,6 +41,43 @@ export default tseslint.config(
     },
   },
   {
+    // Camada de comandos: pureza é critério de aceite (docs/08 §1, regra 1).
+    // Hora e ids entram por `ctx`, e só por ele — o que torna os testes
+    // determinísticos e o undo/redo reprodutível.
+    files: [
+      'src/core/command.ts',
+      'src/core/queries.ts',
+      'src/core/versioning/**/*.ts',
+      'src/core/document/commands.ts',
+    ],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'Date',
+          property: 'now',
+          message: 'Comando é puro: a hora vem de `ctx.now()` (docs/08 §1).',
+        },
+        {
+          object: 'Math',
+          property: 'random',
+          message: 'Comando é puro: ids vêm de `ctx.newId()` (docs/08 §1).',
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message: '`new Date()` sem argumento é impuro — use `ctx.now()` (docs/08 §1).',
+        },
+        {
+          selector: "CallExpression[callee.name='nanoid']",
+          message: 'Gerar id direto é impuro — use `ctx.newId()` (docs/08 §1).',
+        },
+      ],
+    },
+  },
+  {
     files: ['*.config.{js,ts}', 'scripts/**/*.mjs'],
     languageOptions: {
       globals: globals.node,
