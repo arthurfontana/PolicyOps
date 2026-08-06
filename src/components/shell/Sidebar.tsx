@@ -24,7 +24,7 @@ const TOP_ITEMS: NavItem[] = [{ view: 'projects', label: 'Projetos', icon: Folde
 
 const LIBRARY_ITEMS: NavItem[] = [
   { view: 'library-variables', label: 'Variáveis', icon: ListTree, implemented: true },
-  { view: 'library-compatibility', label: 'Compatibilidade', icon: Shuffle },
+  { view: 'library-compatibility', label: 'Compatibilidade', icon: Shuffle, implemented: true },
   { view: 'library-content', label: 'Conteúdo', icon: Library },
 ];
 

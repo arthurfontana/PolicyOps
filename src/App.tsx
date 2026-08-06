@@ -7,6 +7,7 @@ import { DropTarget } from '@/components/shell/DropTarget';
 import { HomeScreen } from '@/components/home/HomeScreen';
 import { DocumentScreen } from '@/components/document/DocumentScreen';
 import { VariablesScreen } from '@/components/library/VariablesScreen';
+import { CompatibilityScreen } from '@/components/library/CompatibilityScreen';
 import { IdentityDialog } from '@/components/dialogs/IdentityDialog';
 import { ConflictDialog } from '@/components/dialogs/ConflictDialog';
 import { RecoveryDialog } from '@/components/dialogs/RecoveryDialog';
@@ -44,6 +45,7 @@ function CurrentView() {
   if (view === 'home') return <HomeScreen />;
   if (view === 'document') return <DocumentScreen />;
   if (view === 'library-variables') return <VariablesScreen />;
+  if (view === 'library-compatibility') return <CompatibilityScreen />;
   return <UnderConstruction view={view} />;
 }
 
