@@ -8,6 +8,7 @@ import { HomeScreen } from '@/components/home/HomeScreen';
 import { DocumentScreen } from '@/components/document/DocumentScreen';
 import { VariablesScreen } from '@/components/library/VariablesScreen';
 import { CompatibilityScreen } from '@/components/library/CompatibilityScreen';
+import { CatalogScreen } from '@/components/library/CatalogScreen';
 import { IdentityDialog } from '@/components/dialogs/IdentityDialog';
 import { ConflictDialog } from '@/components/dialogs/ConflictDialog';
 import { RecoveryDialog } from '@/components/dialogs/RecoveryDialog';
@@ -46,6 +47,7 @@ function CurrentView() {
   if (view === 'document') return <DocumentScreen />;
   if (view === 'library-variables') return <VariablesScreen />;
   if (view === 'library-compatibility') return <CompatibilityScreen />;
+  if (view === 'library-content') return <CatalogScreen />;
   return <UnderConstruction view={view} />;
 }
 
