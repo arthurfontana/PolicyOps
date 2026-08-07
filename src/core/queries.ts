@@ -262,6 +262,79 @@ export function getStaleAxes(doc: PolicyOpsDocument): StaleAxisEntry[] {
   return entries;
 }
 
+/**
+ * Contagem simples de células alteradas entre um rascunho e a versão de
+ * referência (a vigente, tipicamente) — docs/prompts/S13-ciclo-de-vida.md
+ * item 2: "contagem simples por ora; a S14 substitui pelo resumo semântico".
+ * Célula adicionada, removida ou com qualquer campo diferente conta uma vez.
+ */
+export function countChangedCells(
+  draft: MatrixVersion,
+  reference: MatrixVersion | null,
+): number {
+  if (reference === null) return Object.keys(draft.cells).length;
+  const keys = new Set([...Object.keys(draft.cells), ...Object.keys(reference.cells)]);
+  let changed = 0;
+  for (const key of keys) {
+    const before = reference.cells[key];
+    const after = draft.cells[key];
+    if (JSON.stringify(before) !== JSON.stringify(after)) changed += 1;
+  }
+  return changed;
+}
+
+/** A versão `PUBLISHED` vigente da matriz, se houver — I2 garante no máximo uma. */
+export function getPublishedVersion(matrix: Matrix): MatrixVersion | null {
+  return matrix.versions.find((version) => version.state === 'PUBLISHED') ?? null;
+}
+
+/** O rascunho aberto da matriz, se houver — I1 garante no máximo um. */
+export function getOpenDraft(matrix: Matrix): MatrixVersion | null {
+  return matrix.versions.find((version) => version.state === 'DRAFT') ?? null;
+}
+
+/**
+ * A versão que "SUPERSEDED" imediatamente antes de `version` — quem ela
+ * substituiu ao ser publicada. Usada como alvo padrão de "Comparar" quando a
+ * própria versão é a vigente (ou uma agendada) e não há vigente distinta
+ * dela mesma para comparar.
+ */
+export function getPrecedingVersion(matrix: Matrix, version: MatrixVersion): MatrixVersion | null {
+  if (version.effectiveFrom === undefined) return null;
+  return (
+    matrix.versions.find(
+      (candidate) => candidate.state === 'SUPERSEDED' && candidate.effectiveTo === version.effectiveFrom,
+    ) ?? null
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tela de rascunhos — docs/prompts/S13-ciclo-de-vida.md item 5
+// ---------------------------------------------------------------------------
+
+export type OpenDraftEntry = {
+  matrix: Matrix;
+  project: Project | null;
+  version: MatrixVersion;
+  pendingCells: number;
+};
+
+/** Todos os rascunhos abertos de todos os projetos — a tela `/drafts`. */
+export function listOpenDrafts(doc: PolicyOpsDocument): OpenDraftEntry[] {
+  const entries: OpenDraftEntry[] = [];
+  for (const matrix of doc.matrices) {
+    const draft = getOpenDraft(matrix);
+    if (draft === null) continue;
+    entries.push({
+      matrix,
+      project: doc.projects.find((candidate) => candidate.id === matrix.projectId) ?? null,
+      version: draft,
+      pendingCells: countPendingIn(draft),
+    });
+  }
+  return entries.sort((a, b) => b.version.createdAt.localeCompare(a.version.createdAt));
+}
+
 // ---------------------------------------------------------------------------
 // Navegação de projeto → matriz → versão — docs/09 S09
 // ---------------------------------------------------------------------------

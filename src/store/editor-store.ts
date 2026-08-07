@@ -93,6 +93,13 @@ interface EditorState {
   zoom: number;
 
   /**
+   * As duas versões escolhidas para comparação — os links "Comparar" desta
+   * sessão (S13) só preenchem isso e navegam para `compare`; a tela em si é
+   * da S14 (docs/07-ux-e-editor.md §9, rota `compare?a=&b=`).
+   */
+  compareVersionIds: { aId: string; bId: string } | null;
+
+  /**
    * `false` em versão publicada, superada ou descartada. A **seleção continua
    * funcionando** — é útil para inspecionar uma versão histórica; o que a
    * flag governa é a edição (S11), não a seleção.
@@ -109,6 +116,7 @@ interface EditorState {
   openMatrix: (matrixId: string, versionId: string | null) => void;
   setVersion: (versionId: string) => void;
   closeMatrix: () => void;
+  setCompareVersions: (aId: string, bId: string) => void;
   setEditable: (isEditable: boolean) => void;
   setZoom: (zoom: number) => void;
   zoomIn: () => void;
@@ -138,6 +146,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   currentMatrixId: null,
   currentVersionId: null,
   zoom: 1,
+  compareVersionIds: null,
   isEditable: false,
   selection: new Set<string>(),
   anchor: null,
@@ -156,6 +165,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   closeMatrix: () => set({ currentMatrixId: null, currentVersionId: null, ...emptySelection() }),
 
+  setCompareVersions: (aId, bId) => set({ compareVersionIds: { aId, bId } }),
+
   setEditable: (isEditable) => set({ isEditable }),
 
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
@@ -172,6 +183,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       currentMatrixId: null,
       currentVersionId: null,
       zoom: 1,
+      compareVersionIds: null,
       isEditable: false,
       ...emptySelection(),
     }),

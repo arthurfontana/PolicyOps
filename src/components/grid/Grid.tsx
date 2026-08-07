@@ -82,6 +82,12 @@ export interface GridProps {
   onZoomChange?: (zoom: number) => void;
   /** Omitida, o grid é somente leitura. */
   selection?: GridSelectionApi;
+  /**
+   * Pulso temporário nas células pendentes — reação a `UNSET_CELLS_REMAIN` ao
+   * tentar publicar (docs/prompts/S13, item 2). Puramente visual: não muda
+   * seleção nem foco.
+   */
+  highlightPending?: boolean;
 }
 
 function clampZoom(zoom: number): number {
@@ -142,6 +148,7 @@ interface GridCellProps {
   background: string;
   color: string;
   pending: boolean;
+  pulsePending: boolean;
   decisionLabel?: string;
   offerLabel?: string;
   limitDisplay?: string;
@@ -169,6 +176,7 @@ function GridCellImpl(props: GridCellProps) {
     background,
     color,
     pending,
+    pulsePending,
     decisionLabel,
     offerLabel,
     limitDisplay,
@@ -221,7 +229,7 @@ function GridCellImpl(props: GridCellProps) {
         outlineOffset: isFocused ? '-4px' : undefined,
         zIndex: selected || isFocused ? 5 : undefined,
       }}
-      className={`relative flex min-w-0 flex-col justify-center gap-0.5 overflow-hidden border-b border-r border-neutral-200 px-1.5 py-1 text-[11px] leading-tight dark:border-neutral-800 ${isXBoundary ? 'border-r-2 border-r-neutral-400 dark:border-r-neutral-600' : ''} ${isYBoundary ? 'border-b-2 border-b-neutral-400 dark:border-b-neutral-600' : ''} ${pending ? 'policy-grid-pending' : ''}`}
+      className={`relative flex min-w-0 flex-col justify-center gap-0.5 overflow-hidden border-b border-r border-neutral-200 px-1.5 py-1 text-[11px] leading-tight dark:border-neutral-800 ${isXBoundary ? 'border-r-2 border-r-neutral-400 dark:border-r-neutral-600' : ''} ${isYBoundary ? 'border-b-2 border-b-neutral-400 dark:border-b-neutral-600' : ''} ${pending ? 'policy-grid-pending' : ''} ${pending && pulsePending ? 'policy-grid-pending-pulse' : ''}`}
     >
       {decisionLabel !== undefined && <span className="truncate font-semibold">{decisionLabel}</span>}
       {offerLabel !== undefined && <span className="truncate">{offerLabel}</span>}
@@ -255,6 +263,7 @@ const GridCell = memo(GridCellImpl, (prev, next) => {
     prev.background === next.background &&
     prev.color === next.color &&
     prev.pending === next.pending &&
+    prev.pulsePending === next.pulsePending &&
     prev.decisionLabel === next.decisionLabel &&
     prev.offerLabel === next.offerLabel &&
     prev.limitDisplay === next.limitDisplay &&
@@ -271,7 +280,7 @@ const GridCell = memo(GridCellImpl, (prev, next) => {
 // Grid
 // ---------------------------------------------------------------------------
 
-export function Grid({ view, zoom, onZoomChange, selection: api }: GridProps) {
+export function Grid({ view, zoom, onZoomChange, selection: api, highlightPending = false }: GridProps) {
   const { x, y, cells, catalog, stats } = view;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -719,6 +728,7 @@ export function Grid({ view, zoom, onZoomChange, selection: api }: GridProps) {
                   background={background}
                   color={contrastText(background)}
                   pending={isCellPending(cell)}
+                  pulsePending={highlightPending}
                   {...(decisionItem !== undefined ? { decisionLabel: decisionItem.label } : {})}
                   {...(offerItem !== undefined ? { offerLabel: offerItem.label } : {})}
                   {...(limitDisplay !== undefined ? { limitDisplay } : {})}

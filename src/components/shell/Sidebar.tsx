@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { useUiStore, type View } from '@/store/ui-store';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
-import { listProjects } from '@/core/queries';
+import { listOpenDrafts, listProjects } from '@/core/queries';
 import { Badge } from '@/components/ui/badge';
 
 interface NavItem {
@@ -32,10 +32,21 @@ const LIBRARY_ITEMS: NavItem[] = [
 const BOTTOM_ITEMS: NavItem[] = [
   { view: 'templates', label: 'Templates', icon: LayoutTemplate },
   { view: 'timeline', label: 'Vigência', icon: CalendarClock },
-  { view: 'drafts', label: 'Rascunhos', icon: PencilLine },
+  { view: 'drafts', label: 'Rascunhos', icon: PencilLine, implemented: true },
 ];
 
-function NavButton({ item, isActive, onClick }: { item: NavItem; isActive: boolean; onClick: () => void }) {
+function NavButton({
+  item,
+  isActive,
+  onClick,
+  count,
+}: {
+  item: NavItem;
+  isActive: boolean;
+  onClick: () => void;
+  /** Badge de rascunho aberto na sidebar (docs/prompts/S13, item 5). */
+  count?: number;
+}) {
   const Icon = item.icon;
 
   return (
@@ -55,6 +66,11 @@ function NavButton({ item, isActive, onClick }: { item: NavItem; isActive: boole
       {item.implemented !== true && (
         <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px] font-normal">
           em construção
+        </Badge>
+      )}
+      {count !== undefined && count > 0 && (
+        <Badge variant="amber" className="shrink-0 px-1.5 py-0 text-[10px] font-normal">
+          {count}
         </Badge>
       )}
     </button>
@@ -116,6 +132,8 @@ function ProjectNav() {
 export function Sidebar() {
   const view = useUiStore((s) => s.view);
   const setView = useUiStore((s) => s.setView);
+  const document = useDocumentStore((s) => s.document);
+  const openDraftCount = document === null ? 0 : listOpenDrafts(document).length;
 
   return (
     <nav aria-label="Navegação principal" className="flex h-full flex-col gap-4 overflow-y-auto p-3">
@@ -132,7 +150,13 @@ export function Sidebar() {
 
       <div className="flex flex-col gap-1">
         {BOTTOM_ITEMS.map((item) => (
-          <NavButton key={item.view} item={item} isActive={view === item.view} onClick={() => setView(item.view)} />
+          <NavButton
+            key={item.view}
+            item={item}
+            isActive={view === item.view}
+            onClick={() => setView(item.view)}
+            count={item.view === 'drafts' ? openDraftCount : undefined}
+          />
         ))}
       </div>
     </nav>

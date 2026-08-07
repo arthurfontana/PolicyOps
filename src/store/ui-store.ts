@@ -15,7 +15,8 @@ export type View =
   | 'templates'
   | 'timeline'
   | 'drafts'
-  | 'matrix';
+  | 'matrix'
+  | 'compare';
 
 export type Theme = 'light' | 'dark';
 
@@ -33,6 +34,7 @@ export const HASH_BY_VIEW: Record<View, string> = {
   timeline: '#/timeline',
   drafts: '#/drafts',
   matrix: '#/matrix',
+  compare: '#/compare',
 };
 
 const VIEW_BY_HASH: Partial<Record<string, View>> = Object.fromEntries(
