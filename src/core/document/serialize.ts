@@ -82,6 +82,7 @@ const VARIABLE_VERSION_KEYS = [
   'publishedAt',
   'publishedBy',
   'domains',
+  'boundaryMode',
 ] as const;
 function canonicalVariableVersion(v: VariableVersion): VariableVersion {
   return { ...pick(v, VARIABLE_VERSION_KEYS), domains: v.domains.map(canonicalDomain) };

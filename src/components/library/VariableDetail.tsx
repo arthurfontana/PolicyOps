@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import type { Domain, RegionalDimension, VariableVersion } from '@/core/document/schema';
+import type { BoundaryMode, Domain, RegionalDimension, VariableVersion } from '@/core/document/schema';
 import { validateDomains } from '@/core/library/validate-domains';
 import {
   archiveVariable,
@@ -64,6 +64,10 @@ function regionalDimensionEqual(a: RegionalDimension | undefined, b: RegionalDim
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 
+function boundaryModeEqual(a: BoundaryMode | undefined, b: BoundaryMode | undefined): boolean {
+  return (a ?? 'HALF_OPEN') === (b ?? 'HALF_OPEN');
+}
+
 export interface VariableDetailProps {
   variableId: string;
   onBack: () => void;
@@ -90,9 +94,13 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
   const [editingRegionalDimension, setEditingRegionalDimension] = useState<RegionalDimension | undefined>(
     selectedVersion?.regionalDimension,
   );
+  const [editingBoundaryMode, setEditingBoundaryMode] = useState<BoundaryMode | undefined>(
+    selectedVersion?.boundaryMode,
+  );
   useEffect(() => {
     setEditingDomains(selectedVersion?.domains ?? []);
     setEditingRegionalDimension(selectedVersion?.regionalDimension);
+    setEditingBoundaryMode(selectedVersion?.boundaryMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVersionId]);
 
@@ -110,8 +118,8 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
 
   const validation = useMemo(() => {
     if (variable === null) return { ok: true as const };
-    return validateDomains(variable.type, editingDomains, editingRegionalDimension);
-  }, [variable, editingDomains, editingRegionalDimension]);
+    return validateDomains(variable.type, editingDomains, editingRegionalDimension, editingBoundaryMode);
+  }, [variable, editingDomains, editingRegionalDimension, editingBoundaryMode]);
   const issues = validation.ok ? [] : validation.issues;
 
   const usage = useMemo(() => (document === null ? [] : getVariableUsage(document, variableId)), [
@@ -146,7 +154,8 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
   const dirty =
     selectedVersion !== null &&
     (!domainsEqual(editingDomains, selectedVersion.domains) ||
-      !regionalDimensionEqual(editingRegionalDimension, selectedVersion.regionalDimension));
+      !regionalDimensionEqual(editingRegionalDimension, selectedVersion.regionalDimension) ||
+      !boundaryModeEqual(editingBoundaryMode, selectedVersion.boundaryMode));
   const hasOpenDraft = variable.versions.some((v) => v.state === 'DRAFT');
   const hasPublished = variable.versions.some((v) => v.state === 'PUBLISHED');
 
@@ -179,6 +188,7 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
         versionId: selectedVersion.id,
         domains: editingDomains,
         ...(editingRegionalDimension === undefined ? {} : { regionalDimension: editingRegionalDimension }),
+        ...(editingBoundaryMode === undefined ? {} : { boundaryMode: editingBoundaryMode }),
       }),
     );
     if (!result.ok) {
@@ -331,6 +341,8 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
                   disabled={!isDraft}
                   regionalDimension={editingRegionalDimension}
                   onRegionalDimensionChange={setEditingRegionalDimension}
+                  boundaryMode={editingBoundaryMode}
+                  onBoundaryModeChange={setEditingBoundaryMode}
                 />
               )}
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseRegionalRangeTable } from '@/core/library/regional-import';
+import { validateDomains } from '@/core/library/validate-domains';
 
 /**
  * `parseRegionalRangeTable` — docs/05-regras-de-negocio.md §5.6.2.
@@ -124,6 +125,30 @@ describe('parseRegionalRangeTable', () => {
     ]);
     const result = parseRegionalRangeTable(text);
     expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  it('tabela colada no formato fechado-fechado do Excel (0-357, 358-437…) passa sem ajuste manual sob boundaryMode INCLUSIVE_INTEGER', () => {
+    // docs/ajuste — cortes de score Serasa: R20: 0–357, R19: 358–437, R18: 438–485.
+    const text = tsv([
+      ['', 'BASE', ''],
+      ['', 'MIN', 'MAX'],
+      ['R20 - Altíssimo', '0', '357'],
+      ['R19 - Alto', '358', '437'],
+      ['R18 - Médio', '438', '485'],
+    ]);
+    const result = parseRegionalRangeTable(text);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+
+    // Sem o modo inclusivo, a colagem "crua" (sem ajustar o máx para repetir
+    // o mín da seguinte) é rejeitada — é exatamente o problema que o ajuste
+    // resolve.
+    const half = validateDomains('RANGE', result.domains, { regions: result.regions });
+    expect(half.ok).toBe(false);
+
+    // Ligando o modo, a mesma colagem — sem qualquer edição — passa.
+    const inclusive = validateDomains('RANGE', result.domains, { regions: result.regions }, 'INCLUSIVE_INTEGER');
+    expect(inclusive.ok).toBe(true);
   });
 
   it('aceita marca de MIN/MAX acentuada e minúscula', () => {

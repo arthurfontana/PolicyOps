@@ -179,6 +179,12 @@ Detalhe: timeline de versões, editor de domínios com drag para reordenar, camp
 - erros de parsing da colagem aparecem como lista, cada um apontando linha/coluna do texto colado, sem fechar a caixa;
 - o aviso de Impacto (acima) continua valendo: mudar a dimensão regional de uma variável nunca afeta versões de matriz já publicadas — só o rascunho da variável.
 
+**Limites inclusivos (só `RANGE`, só em `DRAFT`, independente de regional).** Logo abaixo do toggle "Esta faixa varia por regional" (aparece com ou sem ele, já que também vale para faixa `RANGE` simples), um segundo toggle: "Faixas com limites fechados nos dois lados". Desligado (default, `boundaryMode` ausente/`HALF_OPEN`), o editor é o de sempre — `[mín, máx)`, cada linha mostra os checkboxes "mín. inclusivo"/"máx. inclusivo" de sempre. Ligado (`boundaryMode: 'INCLUSIVE_INTEGER'`):
+
+- os checkboxes "mín. inclusivo"/"máx. inclusivo" de cada faixa (só aparecem no modo simples, sem regional) somem, substituídos por um rótulo fixo "limites inclusivos, passo 1" — deixam de fazer sentido porque o modo já implica `[mín, máx]` para a versão inteira;
+- a validação de contiguidade em tempo real passa a exigir `atual.máx + 1 == próxima.mín` (em vez de `atual.máx == próxima.mín`) e valores inteiros — a mensagem inline muda de acordo (`05-regras-de-negocio.md` §5.6.0);
+- colar a tabela (regional) ou digitar direto (simples) no formato fechado-fechado do Excel (`0-357`, `358-437`, …) não precisa mais de ajuste manual do usuário antes de salvar.
+
 **Compatibilidade** — lista de regras por par. Editor em **matriz de marcação**: domínios do pai nas linhas, do filho nas colunas, caixas de seleção. Ações de linha ("todos"/"nenhum"), contador de combinações válidas, e preview do eixo resultante. Aviso do mesmo teor sobre não afetar publicadas.
 
 **Conteúdo** — abas por kind, tabela editável, reordenação por drag, toggle de arquivados, e ao renomear item em uso:

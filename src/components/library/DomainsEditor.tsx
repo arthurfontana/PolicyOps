@@ -16,7 +16,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ClipboardPaste, GripVertical, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Domain, RegionalDimension, RegionalOption, VariableType } from '@/core/document/schema';
+import type { BoundaryMode, Domain, RegionalDimension, RegionalOption, VariableType } from '@/core/document/schema';
 import type { DomainValidationIssue } from '@/core/library/validate-domains';
 import { parseRegionalRangeTable, type ParseRegionalRangeTableResult } from '@/core/library/regional-import';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,13 @@ export interface DomainsEditorProps {
    * migrou para o fluxo regional).
    */
   onRegionalDimensionChange?: (regionalDimension: RegionalDimension | undefined) => void;
+  /** Ausente = `HALF_OPEN`, o comportamento de sempre (docs/03 §2). */
+  boundaryMode?: BoundaryMode;
+  /**
+   * Só quando definido o toggle "Faixas com limites fechados nos dois
+   * lados" aparece — mesmo padrão de `onRegionalDimensionChange`.
+   */
+  onBoundaryModeChange?: (boundaryMode: BoundaryMode | undefined) => void;
 }
 
 type Row = { rowId: string; domain: Domain };
@@ -102,6 +109,7 @@ function SortableRow({
   row,
   type,
   regions,
+  boundaryMode,
   disabled,
   issues,
   onUpdate,
@@ -113,6 +121,7 @@ function SortableRow({
   type: VariableType;
   /** Presente = grid regional; ausente = par mín/máx único de sempre. */
   regions: RegionalOption[] | undefined;
+  boundaryMode: BoundaryMode;
   disabled: boolean;
   issues: DomainValidationIssue[];
   onUpdate: (rowId: string, patch: Partial<Domain>) => void;
@@ -216,22 +225,30 @@ function SortableRow({
             onChange={(event) => onUpdate(row.rowId, { rangeMax: event.target.value })}
             className="w-24"
           />
-          <label className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-            <Checkbox
-              checked={row.domain.minInclusive ?? true}
-              disabled={disabled}
-              onCheckedChange={(checked) => onUpdate(row.rowId, { minInclusive: checked === true })}
-            />
-            mín. inclusivo
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-            <Checkbox
-              checked={row.domain.maxInclusive ?? false}
-              disabled={disabled}
-              onCheckedChange={(checked) => onUpdate(row.rowId, { maxInclusive: checked === true })}
-            />
-            máx. inclusivo
-          </label>
+          {boundaryMode === 'INCLUSIVE_INTEGER' ? (
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              limites inclusivos, passo 1
+            </span>
+          ) : (
+            <>
+              <label className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
+                <Checkbox
+                  checked={row.domain.minInclusive ?? true}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => onUpdate(row.rowId, { minInclusive: checked === true })}
+                />
+                mín. inclusivo
+              </label>
+              <label className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
+                <Checkbox
+                  checked={row.domain.maxInclusive ?? false}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => onUpdate(row.rowId, { maxInclusive: checked === true })}
+                />
+                máx. inclusivo
+              </label>
+            </>
+          )}
           <label className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
             <Checkbox
               checked={row.domain.isCatchAll ?? false}
@@ -461,8 +478,11 @@ export function DomainsEditor({
   disabled = false,
   regionalDimension,
   onRegionalDimensionChange,
+  boundaryMode,
+  onBoundaryModeChange,
 }: DomainsEditorProps) {
   const regionalMode = type === 'RANGE' && regionalDimension !== undefined;
+  const effectiveBoundaryMode: BoundaryMode = boundaryMode ?? 'HALF_OPEN';
   const [rows, setRows] = useState<Row[]>(() => toRows(domains));
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
@@ -557,6 +577,19 @@ export function DomainsEditor({
         </label>
       )}
 
+      {type === 'RANGE' && onBoundaryModeChange !== undefined && (
+        <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+          <Checkbox
+            checked={effectiveBoundaryMode === 'INCLUSIVE_INTEGER'}
+            disabled={disabled}
+            onCheckedChange={(checked) =>
+              onBoundaryModeChange(checked === true ? 'INCLUSIVE_INTEGER' : undefined)
+            }
+          />
+          Faixas com limites fechados nos dois lados (ex.: 0–357, 358–437 — inteiros, passo 1)
+        </label>
+      )}
+
       {regionalMode && (
         <>
           <RegionalOptionsEditor
@@ -598,6 +631,7 @@ export function DomainsEditor({
                 row={row}
                 type={type}
                 regions={regionalMode ? regionalDimension.regions : undefined}
+                boundaryMode={effectiveBoundaryMode}
                 disabled={disabled}
                 issues={issues}
                 onUpdate={handleUpdate}

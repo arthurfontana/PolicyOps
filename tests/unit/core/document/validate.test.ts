@@ -295,6 +295,69 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
     expect(issues.length).toBeGreaterThan(0);
     expect(issues[0]!.invariant).toBe('I9');
   });
+
+  it('boundaryMode INCLUSIVE_INTEGER: faixas com salto de 1 (formato fechado-fechado do Excel) são válidas', () => {
+    const doc = base();
+    const variable = rangeVariable([
+      { code: 'R20', label: 'R20', position: 0, rangeMin: '0', rangeMax: '357' },
+      { code: 'R19', label: 'R19', position: 1, rangeMin: '358', rangeMax: '437' },
+      { code: 'R18', label: 'R18', position: 2, rangeMin: '438', isCatchAll: true },
+    ]);
+    variable.versions[0]!.boundaryMode = 'INCLUSIVE_INTEGER';
+    doc.variables.push(variable);
+    expect(checkI9(doc)).toEqual([]);
+  });
+
+  it('boundaryMode INCLUSIVE_INTEGER: buraco real (salto > 1) continua inválido', () => {
+    const doc = base();
+    const variable = rangeVariable([
+      { code: 'R20', label: 'R20', position: 0, rangeMin: '0', rangeMax: '357' },
+      { code: 'R19', label: 'R19', position: 1, rangeMin: '360', isCatchAll: true },
+    ]);
+    variable.versions[0]!.boundaryMode = 'INCLUSIVE_INTEGER';
+    doc.variables.push(variable);
+    const issues = checkI9(doc);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues[0]!.invariant).toBe('I9');
+  });
+
+  it('boundaryMode INCLUSIVE_INTEGER: faixas no formato HALF_OPEN (máx == próx.mín, sem +1) ficam inválidas', () => {
+    const doc = base();
+    const variable = rangeVariable([
+      { code: 'BAIXA', label: 'Baixa', position: 0, rangeMin: '0', rangeMax: '100' },
+      { code: 'ALTA', label: 'Alta', position: 1, rangeMin: '100', isCatchAll: true },
+    ]);
+    variable.versions[0]!.boundaryMode = 'INCLUSIVE_INTEGER';
+    doc.variables.push(variable);
+    const issues = checkI9(doc);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues[0]!.invariant).toBe('I9');
+  });
+
+  it('boundaryMode INCLUSIVE_INTEGER: valor não inteiro falha com issue de I9', () => {
+    const doc = base();
+    const variable = rangeVariable([
+      { code: 'R20', label: 'R20', position: 0, rangeMin: '0', rangeMax: '357.5' },
+      { code: 'R19', label: 'R19', position: 1, rangeMin: '358.5', isCatchAll: true },
+    ]);
+    variable.versions[0]!.boundaryMode = 'INCLUSIVE_INTEGER';
+    doc.variables.push(variable);
+    const issues = checkI9(doc);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues[0]!.invariant).toBe('I9');
+  });
+
+  it('boundaryMode ausente (fixture anterior ao ajuste): comportamento HALF_OPEN de sempre, sem migração', () => {
+    const doc = base();
+    doc.variables.push(
+      rangeVariable([
+        { code: 'BAIXA', label: 'Baixa', position: 0, rangeMin: '0', rangeMax: '100' },
+        { code: 'ALTA', label: 'Alta', position: 1, rangeMin: '100', isCatchAll: true },
+      ]),
+    );
+    expect(doc.variables[doc.variables.length - 1]!.versions[0]!.boundaryMode).toBeUndefined();
+    expect(checkI9(doc)).toEqual([]);
+  });
 });
 
 describe('I19 — regionalDimension: regions não vazio/único; todo domínio RANGE tem entrada por regional', () => {

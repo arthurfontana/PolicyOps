@@ -1,5 +1,13 @@
+import Decimal from 'decimal.js-light';
 import { z } from 'zod';
-import { PolicyOpsDocumentSchema, type CatalogItemKind, type Domain, type PolicyOpsDocument } from './schema';
+import {
+  INTEGER_REGEX,
+  PolicyOpsDocumentSchema,
+  type BoundaryMode,
+  type CatalogItemKind,
+  type Domain,
+  type PolicyOpsDocument,
+} from './schema';
 
 /**
  * Validação do documento — schema estrutural (Zod) + invariantes de negócio
@@ -337,9 +345,11 @@ function checkValueContiguity(
   variableCode: string,
   path: string,
   regionCode: string | undefined,
+  boundaryMode: BoundaryMode,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const regionSuffix = regionCode === undefined ? '' : ` no regional "${regionCode}"`;
+  const isInclusiveInteger = boundaryMode === 'INCLUSIVE_INTEGER';
   for (let i = 0; i < domains.length - 1; i++) {
     const current = domains[i]!;
     const next = domains[i + 1]!;
@@ -355,12 +365,26 @@ function checkValueContiguity(
       });
       continue;
     }
-    if (currentMax !== nextMin) {
+    if (isInclusiveInteger && (!INTEGER_REGEX.test(currentMax) || !INTEGER_REGEX.test(nextMin))) {
       issues.push({
         severity: 'ERROR',
         invariant: 'I9',
         path,
-        message: `As faixas "${current.code}" e "${next.code}" de "${variableCode}" não são contíguas${regionSuffix} (máx=${currentMax} ≠ mín=${nextMin}).`,
+        message: `Os domínios "${current.code}" e "${next.code}" de "${variableCode}" têm mínimo/máximo não inteiro${regionSuffix} — o modo de limites inclusivos exige inteiros.`,
+      });
+      continue;
+    }
+    const contiguous = isInclusiveInteger
+      ? new Decimal(currentMax).plus(1).eq(new Decimal(nextMin))
+      : currentMax === nextMin;
+    if (!contiguous) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I9',
+        path,
+        message: isInclusiveInteger
+          ? `As faixas "${current.code}" e "${next.code}" de "${variableCode}" não são contíguas${regionSuffix} no modo de limites inclusivos (máx+1=${currentMax}+1 ≠ mín=${nextMin}).`
+          : `As faixas "${current.code}" e "${next.code}" de "${variableCode}" não são contíguas${regionSuffix} (máx=${currentMax} ≠ mín=${nextMin}).`,
       });
     }
   }
@@ -374,6 +398,7 @@ export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
     variable.versions.forEach((version, vi) => {
       const path = `variables[${vari}].versions[${vi}]`;
       const domains = [...version.domains].sort((a, b) => a.position - b.position);
+      const boundaryMode: BoundaryMode = version.boundaryMode ?? 'HALF_OPEN';
 
       issues.push(...checkCatchAllIdentity(domains, variable.code, path));
 
@@ -385,6 +410,7 @@ export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
             variable.code,
             path,
             undefined,
+            boundaryMode,
           ),
         );
       } else {
@@ -400,6 +426,7 @@ export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
               variable.code,
               path,
               region.code,
+              boundaryMode,
             ),
           );
         }
