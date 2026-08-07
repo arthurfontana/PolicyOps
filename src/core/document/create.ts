@@ -518,19 +518,37 @@ export function createSampleDocument(): PolicyOpsDocument {
         x: { levels: [{ variableId: scoreId }] },
         y: { levels: [{ variableId: restritivoId }] },
       },
-      seedRules: [],
+      defaults: { decision: decisionAnaliseManual.code },
+      // Demonstra "a última vencendo": R1×ALTO cai nas duas primeiras regras
+      // (aprovado por R1, reprovado por ALTO) e a terceira, mais específica e
+      // por último, decide o caso — análise manual.
+      seedRules: [
+        { when: { x: ['R1'] }, set: { decision: decisionAprovado.code, offer: offers[0]!.code } },
+        { when: { y: ['ALTO'] }, set: { decision: decisionReprovado.code } },
+        { when: { x: ['R1'], y: ['ALTO'] }, set: { decision: decisionAnaliseManual.code } },
+      ],
       createdAt: t0,
     },
     {
       id: genId(),
       code: 'TPL_PJ_SEGMENTADO',
       name: 'Limite PJ segmentado',
-      description: 'Score HVI3 × Segmento aninhado com Faixa de Faturamento.',
+      description: 'Score HVI3 × Segmento aninhado com Faixa de Faturamento, com regras por segmento.',
       axes: {
         x: { levels: [{ variableId: scoreId }] },
         y: { levels: [{ variableId: segmentoId }, { variableId: fatId }] },
       },
-      seedRules: [],
+      defaults: { decision: decisionAnaliseManual.code },
+      // Regras por segmento — Corporate e Atacado entram aprovados, Varejo
+      // fica em análise (redundante com o default, mas explícito). A última
+      // regra, por score, vence por cima de qualquer segmento: R6 é sempre
+      // reprovado, mesmo em Corporate.
+      seedRules: [
+        { when: { y: ['CORPORATE', null] }, set: { decision: decisionAprovado.code, offer: offers[4]!.code } },
+        { when: { y: ['ATACADO', null] }, set: { decision: decisionAprovado.code, offer: offers[2]!.code } },
+        { when: { y: ['VAREJO', null] }, set: { decision: decisionAnaliseManual.code } },
+        { when: { x: ['R6'] }, set: { decision: decisionReprovado.code } },
+      ],
       createdAt: t0,
     },
   ];

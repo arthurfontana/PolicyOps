@@ -24,12 +24,14 @@ import type {
   AxisLevel,
   AxisRole,
   CatalogItemKind,
+  Cell,
   DocEvent,
   Matrix,
   MatrixVersion,
   PolicyOpsDocument,
 } from '../document/schema';
 import { DomainError } from '../errors';
+import { buildSeedCells, type SkippedSeedRule } from '../templates/seed';
 
 /**
  * Ciclo de vida da versão de matriz — docs/05-regras-de-negocio.md §1.
@@ -135,8 +137,16 @@ export type CreateMatrixInput = {
   description?: string;
   x: { levels: AxisLevelRef[] };
   y: { levels: AxisLevelRef[] };
+  /** Template de origem (docs/05 §1.1 e §8) — aplica `defaults`/`seedRules` ao criar. */
+  templateId?: string;
 };
-export type CreateMatrixData = { matrixId: string; versionId: string; combinations: number };
+export type CreateMatrixData = {
+  matrixId: string;
+  versionId: string;
+  combinations: number;
+  /** Só presente quando `templateId` foi informado. */
+  skippedRules?: SkippedSeedRule[];
+};
 
 function assertCode(code: string): void {
   if (!CODE_REGEX.test(code)) {
@@ -256,7 +266,31 @@ export function createMatrix(input: CreateMatrixInput): Command<CreateMatrixInpu
       const combinations = x.tuples.length * y.tuples.length;
       assertGridFits(combinations);
 
-      // 6. v1 DRAFT, `cells: {}` — nenhuma célula é materializada.
+      // 7. Se veio de template, aplica `defaults` e `seedRules` (docs/05 §8) —
+      // com as versões publicadas atuais das variáveis, já resolvidas acima.
+      let cells: Record<string, Cell> = {};
+      let skippedRules: SkippedSeedRule[] | undefined;
+      let templateCode: string | undefined;
+      if (input.templateId !== undefined) {
+        const template = doc.templates.find((candidate) => candidate.id === input.templateId);
+        if (template === undefined) {
+          throw new DomainError('NOT_FOUND', 'O template informado não existe neste documento.', {
+            templateId: input.templateId,
+          });
+        }
+        templateCode = template.code;
+        const seeded = buildSeedCells({
+          xTuples: x.tuples,
+          yTuples: y.tuples,
+          defaults: template.defaults,
+          seedRules: template.seedRules,
+          catalog: doc.catalog,
+        });
+        cells = seeded.cells;
+        skippedRules = seeded.skippedRules;
+      }
+
+      // 6. v1 DRAFT — `cells: {}` a menos que um template tenha semeado algo.
       const now = isoFrom(ctx.now());
       const matrixId = ctx.newId();
       const versionId = ctx.newId();
@@ -267,7 +301,7 @@ export function createMatrix(input: CreateMatrixInput): Command<CreateMatrixInpu
         createdAt: now,
         createdBy: ctx.actor,
         axes: { x, y },
-        cells: {},
+        cells,
       };
       const matrix: Matrix = {
         id: matrixId,
@@ -282,6 +316,8 @@ export function createMatrix(input: CreateMatrixInput): Command<CreateMatrixInpu
       }
 
       const scope = versionScope(matrix, versionId);
+      const draftPayload: Record<string, unknown> = { baseVersionNumber: null };
+      if (templateCode !== undefined) draftPayload.templateCode = templateCode;
       const events = [
         makeEvent(ctx, {
           type: 'MATRIX_CREATED',
@@ -299,7 +335,7 @@ export function createMatrix(input: CreateMatrixInput): Command<CreateMatrixInpu
           type: 'DRAFT_CREATED',
           scope,
           summary: `${ctx.actor} criou o rascunho da versão 1 de "${input.code}".`,
-          payload: { baseVersionNumber: null },
+          payload: draftPayload,
         }),
       ];
 
@@ -307,7 +343,12 @@ export function createMatrix(input: CreateMatrixInput): Command<CreateMatrixInpu
         document: applyToDocument(doc, events, (draft) => {
           draft.matrices.push(matrix);
         }),
-        data: { matrixId, versionId, combinations },
+        data: {
+          matrixId,
+          versionId,
+          combinations,
+          ...(skippedRules !== undefined ? { skippedRules } : {}),
+        },
         events,
         inverse: removeCreatedMatrix({ matrixId, code: input.code }),
       };

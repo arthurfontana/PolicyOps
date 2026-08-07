@@ -14,6 +14,7 @@ import { MatrixScreen } from '@/components/matrix/MatrixScreen';
 import { CompareScreen } from '@/components/compare/CompareScreen';
 import { DraftsScreen } from '@/components/drafts/DraftsScreen';
 import { TimelineScreen } from '@/components/timeline/TimelineScreen';
+import { TemplatesScreen } from '@/components/templates/TemplatesScreen';
 import { IdentityDialog } from '@/components/dialogs/IdentityDialog';
 import { ConflictDialog } from '@/components/dialogs/ConflictDialog';
 import { RecoveryDialog } from '@/components/dialogs/RecoveryDialog';
@@ -58,6 +59,7 @@ function CurrentView() {
   if (view === 'drafts') return <DraftsScreen />;
   if (view === 'compare') return <CompareScreen />;
   if (view === 'timeline') return <TimelineScreen />;
+  if (view === 'templates') return <TemplatesScreen />;
   return <UnderConstruction view={view} />;
 }
 

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { AxisRole } from '@/core/document/schema';
+import type { ExtractedTemplateSeed } from '@/core/templates/extract';
 import {
   allCoords,
   coordsUnderHeader,
@@ -122,6 +123,13 @@ interface EditorState {
    */
   pendingResnapshot: { versionId: string; role: AxisRole } | null;
 
+  /**
+   * Ponte de "Criar template a partir desta matriz" (docs/07 §11) para a tela
+   * de templates: o editor de matriz extrai eixos e defaults e deixa aqui;
+   * `TemplatesScreen` consome e limpa ao abrir o editor de template novo.
+   */
+  pendingTemplateSeed: ExtractedTemplateSeed | null;
+
   selection: Set<string>;
   anchor: Coord | null;
   focus: Coord | null;
@@ -136,6 +144,7 @@ interface EditorState {
   setCompareSelectedKey: (key: string | null) => void;
   setEditable: (isEditable: boolean) => void;
   requestResnapshot: (request: { versionId: string; role: AxisRole } | null) => void;
+  requestTemplateFromMatrix: (seed: ExtractedTemplateSeed | null) => void;
   setZoom: (zoom: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -168,6 +177,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   compareSelectedKey: null,
   isEditable: false,
   pendingResnapshot: null,
+  pendingTemplateSeed: null,
   selection: new Set<string>(),
   anchor: null,
   focus: null,
@@ -195,6 +205,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   requestResnapshot: (request) => set({ pendingResnapshot: request }),
 
+  requestTemplateFromMatrix: (seed) => set({ pendingTemplateSeed: seed }),
+
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
 
   zoomIn: () => set({ zoom: clampZoom(get().zoom + ZOOM_STEP) }),
@@ -213,6 +225,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       compareSelectedKey: null,
       isEditable: false,
       pendingResnapshot: null,
+      pendingTemplateSeed: null,
       ...emptySelection(),
     }),
 

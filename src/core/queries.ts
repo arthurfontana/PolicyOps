@@ -16,11 +16,13 @@ import type {
   MatrixVersionState,
   PolicyOpsDocument,
   Project,
+  Template,
   Variable,
   VariableType,
   VariableVersion,
 } from './document/schema';
 import { getAxisStaleness, type AxisStaleness } from './reconcile/stale';
+import { previewTemplate } from './templates/preview';
 import { locateMatrix, locateVersion } from './versioning/lifecycle';
 
 /**
@@ -768,4 +770,46 @@ export function getEditorViewComputations(): number {
 
 export function resetEditorViewComputations(): void {
   editorViewComputations = 0;
+}
+
+// ---------------------------------------------------------------------------
+// Templates — docs/07-ux-e-editor.md §11, docs/prompts/S17 Parte A
+// ---------------------------------------------------------------------------
+
+export type TemplateSummary = {
+  template: Template;
+  /** `null` quando o preview falha (ex.: variável sem versão publicada) — a lista mostra o aviso. */
+  combinations: number | null;
+  filledCount: number | null;
+  pendingCount: number | null;
+  error: string | null;
+};
+
+/** Lista de templates com o preview atual — docs/07 §11. */
+export function listTemplates(
+  doc: PolicyOpsDocument,
+  filter: { includeArchived?: boolean } = {},
+): TemplateSummary[] {
+  return doc.templates
+    .filter((template) => filter.includeArchived === true || template.archivedAt === undefined)
+    .map((template) => {
+      try {
+        const preview = previewTemplate(doc, template.id);
+        return {
+          template,
+          combinations: preview.combinations,
+          filledCount: preview.filledCount,
+          pendingCount: preview.pendingCount,
+          error: null,
+        };
+      } catch (error) {
+        return {
+          template,
+          combinations: null,
+          filledCount: null,
+          pendingCount: null,
+          error: error instanceof Error ? error.message : 'Não foi possível gerar o preview deste template.',
+        };
+      }
+    });
 }
