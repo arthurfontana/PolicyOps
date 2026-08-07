@@ -35,6 +35,8 @@ import type {
   PolicyOpsDocument,
 } from '../document/schema';
 import { DomainError } from '../errors';
+import { computeResnapshot, type ResnapshotPlan } from '../reconcile/resnapshot';
+import { getAxisStaleness } from '../reconcile/stale';
 import { assertEditable, locateVersion, resolveLevel, versionScope } from './lifecycle';
 
 /**
@@ -572,6 +574,96 @@ export function restoreTuplesCommand(
         data: dataFor(applied.preview, snapshot.axis, applied.version, input.role),
         events,
         inverse: restoreAxis(snapshot, 'Desfazer a restauração de combinações'),
+      };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// axis/resnapshot — docs/05 §5.4
+// ---------------------------------------------------------------------------
+
+export type ResnapshotAxisInput = { versionId: string; role: AxisRole };
+
+/**
+ * Adota, neste rascunho, as versões publicadas atuais da biblioteca.
+ *
+ * **A guarda mais importante do comando é a primeira linha do `execute`.**
+ * `assertEditable` roda antes de qualquer leitura de biblioteca, antes de
+ * qualquer cálculo e antes da checagem de defasagem: uma versão `PUBLISHED` ou
+ * `SUPERSEDED` recusa com `VERSION_IMMUTABLE`, nunca com `AXIS_NOT_STALE`, e
+ * nunca chega perto de um caminho que escreve. É o que garante que a evolução
+ * da biblioteca jamais reescreva o lastro histórico (docs/01 §5).
+ *
+ * O inverso é o mesmo `axis/_restore` das operações de nível: devolve o eixo e
+ * o mapa de células inteiros. Reconstruir passo a passo perderia o conteúdo das
+ * células descartadas; restaurar o estado é o único caminho que cumpre o
+ * critério de aceite — **desfazer devolve o documento deep-equal ao original**.
+ */
+export function resnapshotAxisCommand(
+  input: ResnapshotAxisInput,
+): Command<ResnapshotAxisInput, AxisCommandData<ResnapshotPlan>> {
+  return defineCommand({
+    type: 'axis/resnapshot',
+    input,
+    label: `Atualizar o ${AXIS_ROLE_LABEL[input.role]} para as versões mais recentes`,
+    scope: { versionId: input.versionId },
+    execute(doc, ctx) {
+      const { matrix, matrixIndex, version, versionIndex } = locateVersion(doc, input.versionId);
+      // 1. Primeiro, sempre.
+      assertEditable(version);
+
+      const staleness = getAxisStaleness(doc, axisOf(version, input.role));
+      if (!staleness.stale) {
+        throw new DomainError(
+          'AXIS_NOT_STALE',
+          `O ${AXIS_ROLE_LABEL[input.role]} já está nas versões mais recentes da biblioteca.`,
+          { versionId: input.versionId, role: input.role },
+        );
+      }
+
+      const snapshot = snapshotOf(version, input.role, input.versionId);
+      const applied = computeResnapshot(doc, version, input.role);
+      assertCombinationsFit(applied.version);
+
+      const { plan } = applied;
+      const before = snapshot.axis.tuples.length * otherAxisOf(version, input.role).tuples.length;
+      const after =
+        applied.version.axes.x.tuples.length * applied.version.axes.y.tuples.length;
+
+      const events = [
+        makeEvent(ctx, {
+          type: 'AXIS_RESNAPSHOTTED',
+          scope: versionScope(matrix, version.id),
+          summary:
+            `${ctx.actor} atualizou o ${AXIS_ROLE_LABEL[input.role]} de "${matrix.code}" para as versões ` +
+            `mais recentes da biblioteca: ${before} combinações viram ${after}, ` +
+            `${plural(plan.newCombinations, 'combinação nova', 'combinações novas')} e ` +
+            `${plural(plan.droppedCells.length, 'célula descartada', 'células descartadas')}.`,
+          payload: {
+            role: input.role,
+            plan,
+            // Íntegro: o conteúdo descartado precisa ser recuperável a partir
+            // da auditoria, e é aqui que ele fica registrado.
+            droppedCells: plan.droppedCells,
+          },
+        }),
+      ];
+
+      return {
+        document: applyToDocument(doc, events, (draft) => {
+          writeVersion(draft.matrices[matrixIndex]!.versions[versionIndex]!, applied.version);
+        }),
+        // As tuplas novas do plano, e não a diferença de conjuntos: uma
+        // combinação substituída (mesmo `code`, outro domínio) tem caminho
+        // idêntico ao de antes e mesmo assim nasce vazia.
+        data: {
+          preview: plan,
+          newTuples: plan.addedTuples,
+          pendingCells: listPending(applied.version).length,
+        },
+        events,
+        inverse: restoreAxis(snapshot, `Desfazer a atualização do ${AXIS_ROLE_LABEL[input.role]}`),
       };
     },
   });

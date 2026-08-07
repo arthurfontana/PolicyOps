@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Plus, RotateCcw, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Plus, RefreshCw, RotateCcw, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -8,24 +8,29 @@ import {
   RemoveLevelDialog,
   ReorderLevelsDialog,
 } from '@/components/editor/AxisLevelDialogs';
+import { ResnapshotDialog } from '@/components/editor/ResnapshotDialog';
+import { StaleBadges } from '@/components/editor/StaleBadges';
 import { readableTuple } from '@/lib/axis-labels';
 import type { OnCollapse, OnExistingContent } from '@/core/axes/levels';
 import type { AxisRole } from '@/core/document/schema';
 import { MAX_AXIS_LEVELS } from '@/core/axes/tuples';
 import { getErrorMessage } from '@/core/error-messages';
 import type { EditorView } from '@/core/queries';
+import { reasonsForLevel, reasonsForRules, type AxisStaleness } from '@/core/reconcile/stale';
 import {
   addLevelCommand,
   previewReorderLevelsOn,
   removeLevelCommand,
   reorderLevelsCommand,
+  resnapshotAxisCommand,
   restoreTuplesCommand,
 } from '@/core/versioning/axis-commands';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
 
 /**
- * Construtor de eixos editável no inspector — docs/07-ux-e-editor.md §7 e §8.
+ * Construtor de eixos editável no inspector — docs/07-ux-e-editor.md §7 e §8,
+ * e o badge de defasagem de docs/05 §5.2.
  *
  * Toda alteração passa por um diálogo de preview antes de virar comando. A
  * única exceção é a reordenação que **não** muda o conjunto de tuplas: aí não
@@ -41,18 +46,35 @@ const SUPPRESSION_HINT_THRESHOLD = 3;
 export interface AxisEditorProps {
   role: AxisRole;
   view: EditorView;
-  stale: boolean;
+  /** `null` fora de rascunho: em versão publicada o badge não aparece (§5.2). */
+  staleness: AxisStaleness | null;
 }
 
-export function AxisEditor({ role, view, stale }: AxisEditorProps) {
+export function AxisEditor({ role, view, staleness }: AxisEditorProps) {
   const doc = useDocumentStore((s) => s.document);
   const dispatch = useDocumentStore((s) => s.dispatch);
   const selectCoords = useEditorStore((s) => s.selectCoords);
+  const pendingResnapshot = useEditorStore((s) => s.pendingResnapshot);
+  const requestResnapshot = useEditorStore((s) => s.requestResnapshot);
   const { toast } = useToast();
 
   const [addOpen, setAddOpen] = useState(false);
   const [removeIndex, setRemoveIndex] = useState<number | null>(null);
   const [reorder, setReorder] = useState<{ from: number; to: number } | null>(null);
+  const [resnapshotOpen, setResnapshotOpen] = useState(false);
+
+  // Link direto da tela de impacto das bibliotecas: abrir a matriz já com o
+  // diálogo de reconciliação do eixo certo (docs/prompts/S16, item 4).
+  const stale = staleness?.stale ?? false;
+  const requested =
+    pendingResnapshot !== null &&
+    pendingResnapshot.versionId === view.version.id &&
+    pendingResnapshot.role === role;
+  useEffect(() => {
+    if (!requested) return;
+    if (stale) setResnapshotOpen(true);
+    requestResnapshot(null);
+  }, [requested, stale, requestResnapshot]);
 
   if (doc === null) return null;
 
@@ -146,6 +168,21 @@ export function AxisEditor({ role, view, stale }: AxisEditorProps) {
     );
   }
 
+  /** Adoção da evolução da biblioteca — docs/05 §5.4. */
+  function applyResnapshot() {
+    setResnapshotOpen(false);
+    run(
+      resnapshotAxisCommand({ versionId, role }),
+      (data) =>
+        (data.newTuples.length === 0
+          ? 'Eixo atualizado para as versões mais recentes da biblioteca. '
+          : `${data.newTuples.length} combinações novas neste eixo. `) +
+        (data.pendingCells === 0
+          ? 'Nenhuma combinação ficou pendente.'
+          : `${data.pendingCells} combinações precisam ser preenchidas.`),
+    );
+  }
+
   function restore(path: string) {
     const result = dispatch(restoreTuplesCommand({ versionId, role, paths: [path] }));
     if (!result.ok) {
@@ -168,50 +205,81 @@ export function AxisEditor({ role, view, stale }: AxisEditorProps) {
         {levels.map((level, index) => (
           <li
             key={level.id}
-            className="flex items-center gap-1 rounded-md border border-neutral-200 px-1.5 py-1 text-xs dark:border-neutral-800"
+            className="flex flex-col gap-0.5 rounded-md border border-neutral-200 px-1.5 py-1 text-xs dark:border-neutral-800"
           >
-            <span className="flex-1 truncate">
-              <span className="text-neutral-500 dark:text-neutral-400">Nível {index}: </span>
-              <span className="font-medium text-neutral-900 dark:text-neutral-100">{level.label}</span>
-              <span className="ml-1 text-neutral-400">{level.domains.length} domínios</span>
-            </span>
-            {editable && (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Mover "${level.label}" para fora`}
-                  disabled={index === 0}
-                  onClick={() => tryReorder(index, index - 1)}
-                >
-                  <ChevronUp className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Mover "${level.label}" para dentro`}
-                  disabled={index === levels.length - 1}
-                  onClick={() => tryReorder(index, index + 1)}
-                >
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Remover o nível "${level.label}"`}
-                  disabled={levels.length === 1}
-                  onClick={() => setRemoveIndex(index)}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </>
+            <div className="flex items-center gap-1">
+              <span className="flex-1 truncate">
+                <span className="text-neutral-500 dark:text-neutral-400">Nível {index}: </span>
+                <span className="font-medium text-neutral-900 dark:text-neutral-100">{level.label}</span>
+                <span className="ml-1 text-neutral-400">{level.domains.length} domínios</span>
+              </span>
+              {editable && (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Mover "${level.label}" para fora`}
+                    disabled={index === 0}
+                    onClick={() => tryReorder(index, index - 1)}
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Mover "${level.label}" para dentro`}
+                    disabled={index === levels.length - 1}
+                    onClick={() => tryReorder(index, index + 1)}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remover o nível "${level.label}"`}
+                    disabled={levels.length === 1}
+                    onClick={() => setRemoveIndex(index)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </>
+              )}
+            </div>
+            {staleness !== null && (
+              <div className="flex flex-wrap gap-1">
+                <StaleBadges
+                  reasons={reasonsForLevel(staleness, index)}
+                  labelOf={() => level.label}
+                />
+              </div>
             )}
           </li>
         ))}
       </ul>
+
+      {staleness !== null && reasonsForRules(staleness).length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          <StaleBadges
+            reasons={reasonsForRules(staleness)}
+            labelOf={(reason) => `Regra ${reason.ruleName ?? reason.ruleCode ?? ''}`}
+          />
+        </div>
+      )}
+
+      {editable && stale && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          data-testid={`resnapshot-${role}`}
+          onClick={() => setResnapshotOpen(true)}
+        >
+          <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Atualizar para as versões mais recentes
+        </Button>
+      )}
 
       <p className="text-xs text-neutral-500 dark:text-neutral-400">{axisView.tupleCount} tuplas</p>
 
@@ -285,6 +353,19 @@ export function AxisEditor({ role, view, stale }: AxisEditorProps) {
           otherTuples={otherView.axis.tuples}
           levelIndex={removeIndex}
           onApply={applyRemove}
+        />
+      )}
+
+      {resnapshotOpen && stale && (
+        <ResnapshotDialog
+          open
+          onOpenChange={setResnapshotOpen}
+          doc={doc}
+          versionId={versionId}
+          role={role}
+          levels={levels}
+          otherTuples={otherView.axis.tuples}
+          onApply={applyResnapshot}
         />
       )}
 

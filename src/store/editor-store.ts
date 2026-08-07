@@ -114,6 +114,14 @@ interface EditorState {
    */
   isEditable: boolean;
 
+  /**
+   * Pedido de abrir o diálogo de reconciliação de um eixo assim que a matriz
+   * for aberta — é o "link direto" da tela de impacto das bibliotecas
+   * (docs/prompts/S16, item 4). O construtor do eixo consome e limpa; nada em
+   * lote, um pedido por vez.
+   */
+  pendingResnapshot: { versionId: string; role: AxisRole } | null;
+
   selection: Set<string>;
   anchor: Coord | null;
   focus: Coord | null;
@@ -127,6 +135,7 @@ interface EditorState {
   setCompareVersions: (aId: string, bId: string) => void;
   setCompareSelectedKey: (key: string | null) => void;
   setEditable: (isEditable: boolean) => void;
+  requestResnapshot: (request: { versionId: string; role: AxisRole } | null) => void;
   setZoom: (zoom: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -158,6 +167,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   compareVersionIds: null,
   compareSelectedKey: null,
   isEditable: false,
+  pendingResnapshot: null,
   selection: new Set<string>(),
   anchor: null,
   focus: null,
@@ -183,6 +193,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setEditable: (isEditable) => set({ isEditable }),
 
+  requestResnapshot: (request) => set({ pendingResnapshot: request }),
+
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
 
   zoomIn: () => set({ zoom: clampZoom(get().zoom + ZOOM_STEP) }),
@@ -200,6 +212,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       compareVersionIds: null,
       compareSelectedKey: null,
       isEditable: false,
+      pendingResnapshot: null,
       ...emptySelection(),
     }),
 

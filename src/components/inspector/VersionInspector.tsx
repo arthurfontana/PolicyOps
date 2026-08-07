@@ -16,7 +16,12 @@ import { useEditorStore } from '@/store/editor-store';
 
 const AXIS_ROLE_LABEL: Record<AxisRole, string> = { X: 'Eixo X (colunas)', Y: 'Eixo Y (linhas)' };
 
-function AxisSection({ role, axisView, stale }: { role: AxisRole; axisView: EditorAxisView; stale: boolean }) {
+/**
+ * Eixo em modo leitura — versão publicada, histórica ou descartada. **Sem
+ * badge de defasagem**: essas versões são registro, não pendência (§5.2), e é
+ * por isso que esta variante nem recebe a defasagem como propriedade.
+ */
+function AxisSection({ role, axisView }: { role: AxisRole; axisView: EditorAxisView }) {
   const suppressions = axisView.axis.manualSuppressions?.length ?? 0;
   return (
     <div className="flex flex-col gap-1.5 rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
@@ -24,7 +29,6 @@ function AxisSection({ role, axisView, stale }: { role: AxisRole; axisView: Edit
         <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
           {AXIS_ROLE_LABEL[role]}
         </span>
-        {stale && <Badge variant="amber">defasado</Badge>}
       </div>
       <ul className="flex flex-col gap-1">
         {axisView.axis.levels.map((level, index) => (
@@ -77,13 +81,13 @@ export function VersionInspector() {
       <div className="flex flex-col gap-2">
         {view.editable ? (
           <>
-            <AxisEditor role="X" view={view} stale={view.staleness?.x.stale ?? false} />
-            <AxisEditor role="Y" view={view} stale={view.staleness?.y.stale ?? false} />
+            <AxisEditor role="X" view={view} staleness={view.staleness?.x ?? null} />
+            <AxisEditor role="Y" view={view} staleness={view.staleness?.y ?? null} />
           </>
         ) : (
           <>
-            <AxisSection role="X" axisView={view.x} stale={view.staleness?.x.stale ?? false} />
-            <AxisSection role="Y" axisView={view.y} stale={view.staleness?.y.stale ?? false} />
+            <AxisSection role="X" axisView={view.x} />
+            <AxisSection role="Y" axisView={view.y} />
           </>
         )}
       </div>

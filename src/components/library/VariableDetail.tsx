@@ -25,8 +25,10 @@ import {
   updateVariableMeta,
 } from '@/core/library/variables';
 import { getVariableUsage } from '@/core/queries';
+import { getDraftsAdoptingVariable } from '@/core/reconcile/stale';
 import { VARIABLE_TYPE_LABELS } from '@/lib/variable-types';
 import { useDocumentStore } from '@/store/document-store';
+import { AdoptionList } from './AdoptionList';
 import { ConfirmDialog } from './ConfirmDialog';
 import { DomainsEditor } from './DomainsEditor';
 
@@ -120,6 +122,11 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
     }
     return [...groups.values()];
   }, [usage]);
+
+  const adoptable = useMemo(
+    () => (document === null ? [] : getDraftsAdoptingVariable(document, variableId)),
+    [document, variableId],
+  );
 
   if (document === null || variable === null) {
     return (
@@ -375,6 +382,21 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
                   ))}
                 </ul>
               )}
+
+              {/* Além do uso, quem **pode adotar** — docs/prompts/S16, item 4. */}
+              <div className="flex flex-col gap-1.5 border-t border-neutral-100 pt-3 dark:border-neutral-800">
+                <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                  Rascunhos que podem adotar a versão mais recente
+                </span>
+                <AdoptionList
+                  entries={adoptable}
+                  emptyText="Nenhum rascunho tem a adotar: todos já estão na versão publicada desta variável."
+                />
+                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  A adoção é sempre matriz a matriz: cada grid cria e destrói combinações de um jeito
+                  diferente, e quem decide o que fazer com as células novas é você.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
