@@ -8,6 +8,7 @@ import {
 } from '../command';
 import { CODE_REGEX } from '../document/schema';
 import type {
+  BoundaryMode,
   Domain,
   PolicyOpsDocument,
   RegionalDimension,
@@ -117,8 +118,9 @@ function assertValidDomains(
   type: VariableType,
   domains: Domain[],
   regionalDimension?: RegionalDimension,
+  boundaryMode?: BoundaryMode,
 ): void {
-  const result = validateDomains(type, domains, regionalDimension);
+  const result = validateDomains(type, domains, regionalDimension, boundaryMode);
   if (!result.ok) {
     const [first, ...rest] = result.issues;
     throw new DomainError(first!.code, first!.message, { issues: [first, ...rest] });
@@ -342,6 +344,9 @@ export function createVariableDraft(
       if (publishedVersion.regionalDimension !== undefined) {
         draft.regionalDimension = structuredClone(publishedVersion.regionalDimension);
       }
+      if (publishedVersion.boundaryMode !== undefined) {
+        draft.boundaryMode = publishedVersion.boundaryMode;
+      }
 
       return {
         document: applyToDocument(doc, [], (draftDoc) => {
@@ -423,11 +428,18 @@ export type SaveVariableDomainsInput = {
   domains: Domain[];
   /** Ausente = variável não usa regional (docs/05 §5.6.1). */
   regionalDimension?: RegionalDimension;
+  /** Ausente = `HALF_OPEN` (docs/03 §2). */
+  boundaryMode?: BoundaryMode;
 };
 
 /** Valor anterior de `regionalDimension`, no formato que o inverso precisa. */
 function previousRegionalDimension(version: VariableVersion): RegionalDimension | null {
   return version.regionalDimension === undefined ? null : structuredClone(version.regionalDimension);
+}
+
+/** Valor anterior de `boundaryMode`, no formato que o inverso precisa. */
+function previousBoundaryMode(version: VariableVersion): BoundaryMode | null {
+  return version.boundaryMode === undefined ? null : version.boundaryMode;
 }
 
 /** Substitui o conjunto inteiro de domínios (e a dimensão regional); só em DRAFT, senão `VARIABLE_VERSION_IMMUTABLE` (I10). */
@@ -446,30 +458,36 @@ export function saveVariableDomains(
         input.versionId,
       );
       assertVariableDraft(version);
-      assertValidDomains(variable.type, input.domains, input.regionalDimension);
+      assertValidDomains(variable.type, input.domains, input.regionalDimension, input.boundaryMode);
 
       const previousDomains = structuredClone(version.domains);
       const previousRegional = previousRegionalDimension(version);
+      const previousBoundary = previousBoundaryMode(version);
       const nextDomains = structuredClone(input.domains);
       const nextRegional = input.regionalDimension === undefined ? null : structuredClone(input.regionalDimension);
+      const nextBoundary = input.boundaryMode ?? null;
       return {
         document: applyToDocument(doc, [], (draft) => {
           const target = draft.variables[index]!.versions[versionIndex]!;
           target.domains = nextDomains;
           if (nextRegional === null) delete target.regionalDimension;
           else target.regionalDimension = nextRegional;
+          if (nextBoundary === null) delete target.boundaryMode;
+          else target.boundaryMode = nextBoundary;
         }),
         data: undefined,
         events: [],
-        // O inverso restaura os domínios (e a dimensão regional) exatos de
-        // antes, sem revalidar: um conjunto anterior pode ter sido salvo antes
-        // de outra regra existir, ou pode ser o `[]` inicial de um rascunho
-        // recém-criado, e desfazer nunca pode falhar por causa disso.
+        // O inverso restaura os domínios (e a dimensão regional/boundaryMode)
+        // exatos de antes, sem revalidar: um conjunto anterior pode ter sido
+        // salvo antes de outra regra existir, ou pode ser o `[]` inicial de
+        // um rascunho recém-criado, e desfazer nunca pode falhar por causa
+        // disso.
         inverse: setVariableDomains({
           variableId: variable.id,
           versionId: version.id,
           domains: previousDomains,
           regionalDimension: previousRegional,
+          boundaryMode: previousBoundary,
         }),
       };
     },
@@ -482,9 +500,16 @@ function setVariableDomains(
     versionId: string;
     domains: Domain[];
     regionalDimension: RegionalDimension | null;
+    boundaryMode: BoundaryMode | null;
   },
 ): Command<
-  { variableId: string; versionId: string; domains: Domain[]; regionalDimension: RegionalDimension | null },
+  {
+    variableId: string;
+    versionId: string;
+    domains: Domain[];
+    regionalDimension: RegionalDimension | null;
+    boundaryMode: BoundaryMode | null;
+  },
   void
 > {
   return defineCommand({
@@ -501,12 +526,15 @@ function setVariableDomains(
       assertVariableDraft(version);
       const previousDomains = structuredClone(version.domains);
       const previousRegional = previousRegionalDimension(version);
+      const previousBoundary = previousBoundaryMode(version);
       return {
         document: applyToDocument(doc, [], (draft) => {
           const target = draft.variables[index]!.versions[versionIndex]!;
           target.domains = structuredClone(input.domains);
           if (input.regionalDimension === null) delete target.regionalDimension;
           else target.regionalDimension = structuredClone(input.regionalDimension);
+          if (input.boundaryMode === null) delete target.boundaryMode;
+          else target.boundaryMode = input.boundaryMode;
         }),
         data: undefined,
         events: [],
@@ -515,6 +543,7 @@ function setVariableDomains(
           versionId: version.id,
           domains: previousDomains,
           regionalDimension: previousRegional,
+          boundaryMode: previousBoundary,
         }),
       };
     },
@@ -548,7 +577,7 @@ export function publishVariable(
         input.versionId,
       );
       assertVariableDraft(version);
-      assertValidDomains(variable.type, version.domains, version.regionalDimension);
+      assertValidDomains(variable.type, version.domains, version.regionalDimension, version.boundaryMode);
 
       const current = variable.versions.find((candidate) => candidate.state === 'PUBLISHED');
       const currentIndex =
@@ -732,6 +761,9 @@ export function duplicateVariable(
       };
       if (sourceVersion.regionalDimension !== undefined) {
         version.regionalDimension = structuredClone(sourceVersion.regionalDimension);
+      }
+      if (sourceVersion.boundaryMode !== undefined) {
+        version.boundaryMode = sourceVersion.boundaryMode;
       }
       const variable: Variable = {
         id: variableId,

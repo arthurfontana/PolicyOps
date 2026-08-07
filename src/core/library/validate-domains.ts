@@ -1,6 +1,6 @@
 import Decimal from 'decimal.js-light';
-import { CODE_REGEX, DECIMAL_REGEX } from '../document/schema';
-import type { Domain, RegionalDimension, VariableType } from '../document/schema';
+import { CODE_REGEX, DECIMAL_REGEX, INTEGER_REGEX } from '../document/schema';
+import type { BoundaryMode, Domain, RegionalDimension, VariableType } from '../document/schema';
 
 /**
  * Validação de domínios — docs/05-regras-de-negocio.md §5.1 (I8, I9, I18) e
@@ -108,6 +108,11 @@ function isValidDecimal(value: string | undefined): value is string {
   return value !== undefined && DECIMAL_REGEX.test(value);
 }
 
+/** `INCLUSIVE_INTEGER` (docs/03 §2) exige inteiro — sem parte decimal. */
+function isValidInteger(value: string | undefined): value is string {
+  return value !== undefined && INTEGER_REGEX.test(value);
+}
+
 /** I9 (identidade): no máximo um `isCatchAll`, e ele é o último por `position`. Não depende de regional. */
 function checkCatchAllIdentity(
   domains: Domain[],
@@ -140,17 +145,20 @@ type RangeAccessor = {
   max: (domain: Domain) => string | undefined;
 };
 
-/** I9 (valores): mínimo/máximo definidos, decimais válidos, e contíguos entre faixas vizinhas. */
+/** I9 (valores): mínimo/máximo definidos, válidos para o `boundaryMode`, e contíguos entre faixas vizinhas. */
 function checkValueContiguity(
   domains: Domain[],
   accessor: RangeAccessor,
   code: 'RANGE_NOT_CONTIGUOUS' | 'RANGE_REGIONAL_NOT_CONTIGUOUS',
+  boundaryMode: BoundaryMode,
   regionCode?: string,
 ): DomainValidationIssue[] {
   const issues: DomainValidationIssue[] = [];
   const sorted = [...domains].sort((a, b) => a.position - b.position);
   const regionTag = regionCode === undefined ? {} : { regionCode };
   const regionSuffix = regionCode === undefined ? '' : ` no regional "${regionCode}"`;
+  const isInclusiveInteger = boundaryMode === 'INCLUSIVE_INTEGER';
+  const isValid = isInclusiveInteger ? isValidInteger : isValidDecimal;
 
   for (const domain of sorted) {
     if (domain.isCatchAll === true) continue;
@@ -163,10 +171,12 @@ function checkValueContiguity(
         domainCodes: [domain.code],
         ...regionTag,
       });
-    } else if (!isValidDecimal(min) || !isValidDecimal(max)) {
+    } else if (!isValid(min) || !isValid(max)) {
       issues.push({
         code,
-        message: `O domínio "${domain.code}" tem mínimo ou máximo que não é um número decimal válido${regionSuffix}.`,
+        message: isInclusiveInteger
+          ? `O domínio "${domain.code}" tem mínimo ou máximo que não é um número inteiro válido${regionSuffix} — o modo de limites inclusivos exige inteiros.`
+          : `O domínio "${domain.code}" tem mínimo ou máximo que não é um número decimal válido${regionSuffix}.`,
         domainCodes: [domain.code],
         ...regionTag,
       });
@@ -179,11 +189,16 @@ function checkValueContiguity(
     if (current.isCatchAll === true) continue;
     const currentMax = accessor.max(current);
     const nextMin = accessor.min(next);
-    if (!isValidDecimal(currentMax) || !isValidDecimal(nextMin)) continue;
-    if (!new Decimal(currentMax).eq(new Decimal(nextMin))) {
+    if (!isValid(currentMax) || !isValid(nextMin)) continue;
+    const expectedNextMin = isInclusiveInteger
+      ? new Decimal(currentMax).plus(1)
+      : new Decimal(currentMax);
+    if (!expectedNextMin.eq(new Decimal(nextMin))) {
       issues.push({
         code,
-        message: `As faixas "${current.code}" e "${next.code}" não são contíguas${regionSuffix}: o máximo de "${current.code}" (${currentMax}) precisa ser igual ao mínimo de "${next.code}" (${nextMin}).`,
+        message: isInclusiveInteger
+          ? `As faixas "${current.code}" e "${next.code}" não são contíguas${regionSuffix}: no modo de limites inclusivos, o máximo de "${current.code}" (${currentMax}) + 1 precisa ser igual ao mínimo de "${next.code}" (${nextMin}).`
+          : `As faixas "${current.code}" e "${next.code}" não são contíguas${regionSuffix}: o máximo de "${current.code}" (${currentMax}) precisa ser igual ao mínimo de "${next.code}" (${nextMin}).`,
         domainCodes: [current.code, next.code],
         ...regionTag,
       });
@@ -194,10 +209,15 @@ function checkValueContiguity(
 }
 
 /** I9: só para RANGE sem `regionalDimension` — faixas contíguas, não sobrepostas, catch-all único e por último. */
-function checkRangeContiguity(domains: Domain[]): DomainValidationIssue[] {
+function checkRangeContiguity(domains: Domain[], boundaryMode: BoundaryMode): DomainValidationIssue[] {
   return [
     ...checkCatchAllIdentity(domains, 'RANGE_NOT_CONTIGUOUS'),
-    ...checkValueContiguity(domains, { min: (d) => d.rangeMin, max: (d) => d.rangeMax }, 'RANGE_NOT_CONTIGUOUS'),
+    ...checkValueContiguity(
+      domains,
+      { min: (d) => d.rangeMin, max: (d) => d.rangeMax },
+      'RANGE_NOT_CONTIGUOUS',
+      boundaryMode,
+    ),
   ];
 }
 
@@ -253,6 +273,7 @@ function checkRegionalCompleteness(
 function checkRegionalContiguity(
   domains: Domain[],
   regionalDimension: RegionalDimension,
+  boundaryMode: BoundaryMode,
 ): DomainValidationIssue[] {
   const issues: DomainValidationIssue[] = [...checkCatchAllIdentity(domains, 'RANGE_REGIONAL_NOT_CONTIGUOUS')];
 
@@ -269,6 +290,7 @@ function checkRegionalContiguity(
           max: (d) => d.regionalRanges?.[region.code]?.max,
         },
         'RANGE_REGIONAL_NOT_CONTIGUOUS',
+        boundaryMode,
         region.code,
       ),
     );
@@ -281,6 +303,7 @@ export function validateDomains(
   type: VariableType,
   domains: Domain[],
   regionalDimension?: RegionalDimension,
+  boundaryMode: BoundaryMode = 'HALF_OPEN',
 ): DomainValidationResult {
   const issues: DomainValidationIssue[] = [
     ...checkCount(type, domains),
@@ -290,12 +313,12 @@ export function validateDomains(
 
   if (type === 'RANGE') {
     if (regionalDimension === undefined) {
-      issues.push(...checkRangeContiguity(domains));
+      issues.push(...checkRangeContiguity(domains, boundaryMode));
     } else {
       issues.push(
         ...checkRegionalDimension(regionalDimension),
         ...checkRegionalCompleteness(domains, regionalDimension),
-        ...checkRegionalContiguity(domains, regionalDimension),
+        ...checkRegionalContiguity(domains, regionalDimension, boundaryMode),
       );
     }
   }

@@ -64,11 +64,22 @@ type VariableVersion = {
   domains: Domain[];               // ordenados por position
   // apenas quando type = RANGE, e opcional mesmo assim
   regionalDimension?: RegionalDimension;
+  // apenas quando type = RANGE, e opcional mesmo assim; default HALF_OPEN
+  boundaryMode?: 'HALF_OPEN' | 'INCLUSIVE_INTEGER';
 };
 
 // Presença de regionalDimension muda a leitura de TODOS os domínios RANGE
 // da versão: eles passam a usar `regionalRanges` em vez de `rangeMin`/`rangeMax`.
 // É um interruptor por versão, não por domínio — nunca mistura os dois modos.
+//
+// boundaryMode é outro interruptor por versão (independente de
+// regionalDimension, vale tanto para rangeMin/rangeMax quanto para
+// regionalRanges): ausente ou 'HALF_OPEN' é o [mín, máx) de sempre —
+// I9 exige atual.máx == próxima.mín. 'INCLUSIVE_INTEGER' é [mín, máx] com
+// passo 1 — os valores precisam ser inteiros, e I9 passa a exigir
+// atual.máx + 1 == próxima.mín. Resolve faixas coladas direto do Excel no
+// formato fechado-fechado (ex.: 0–357, 358–437) sem o usuário precisar
+// reescrever o máximo de cada faixa para repetir o mínimo da seguinte.
 type RegionalDimension = {
   regions: RegionalOption[];       // ao menos 1; ordem = ordem de exibição nas colunas
 };
@@ -357,7 +368,7 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I6 | Publicar exige zero combinações sem `decision` |
 | I7 | `CatalogItem` de kind `LIMIT` tem `numericValue` |
 | I8 | `BOOLEAN` tem exatamente 2 domínios; demais tipos, ao menos 2 |
-| I9 | `RANGE` sem `regionalDimension`: faixas contíguas, sem sobreposição, ordenadas por `position`, usando `rangeMin`/`rangeMax`; no máximo um `isCatchAll`, e ele é o último. `RANGE` **com** `regionalDimension`: a mesma regra de contiguidade/sobreposição/catch-all vale **independentemente para cada regional**, usando `regionalRanges[region]` no lugar de `rangeMin`/`rangeMax` |
+| I9 | `RANGE` sem `regionalDimension`: faixas contíguas, sem sobreposição, ordenadas por `position`, usando `rangeMin`/`rangeMax`; no máximo um `isCatchAll`, e ele é o último. `RANGE` **com** `regionalDimension`: a mesma regra de contiguidade/sobreposição/catch-all vale **independentemente para cada regional**, usando `regionalRanges[region]` no lugar de `rangeMin`/`rangeMax`. Em ambos os casos, a contiguidade lê `boundaryMode` da versão: `HALF_OPEN` (default) exige `atual.máx == próxima.mín`; `INCLUSIVE_INTEGER` exige valores inteiros e `atual.máx + 1 == próxima.mín` |
 | I10 | `VariableVersion` / `CompatibilityVersion` publicada é imutável |
 | I11 | No máximo uma versão `DRAFT` e uma `PUBLISHED` por variável e por regra de compatibilidade |
 | I12 | Uma única regra de compatibilidade publicada por par (parent, child) |

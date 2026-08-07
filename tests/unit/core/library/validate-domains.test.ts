@@ -325,6 +325,114 @@ describe('validateDomains', () => {
     }
   });
 
+  // -- boundaryMode: HALF_OPEN (default) × INCLUSIVE_INTEGER (ajuste) --------
+
+  it('HALF_OPEN é o default: omitir boundaryMode se comporta bit-a-bit igual a hoje', () => {
+    const contiguous = validateDomains('RANGE', [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')]);
+    expect(contiguous.ok).toBe(true);
+    const withHole = validateDomains('RANGE', [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '150', '200')]);
+    expect(withHole.ok).toBe(false);
+  });
+
+  it('INCLUSIVE_INTEGER: faixas com salto de 1 (formato fechado-fechado do Excel) são contíguas', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        range('R20', 0, '0', '357'),
+        range('R19', 1, '358', '437'),
+        range('R18', 2, '438', undefined, { isCatchAll: true }),
+      ],
+      undefined,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('INCLUSIVE_INTEGER: o mesmo par no formato HALF_OPEN (máx == próx.mín, sem +1) fica não contíguo', () => {
+    const result = validateDomains(
+      'RANGE',
+      [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')],
+      undefined,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
+    }
+  });
+
+  it('INCLUSIVE_INTEGER: buraco real (salto > 1) continua falhando', () => {
+    const result = validateDomains(
+      'RANGE',
+      [range('R20', 0, '0', '357'), range('R19', 1, '360', '437')],
+      undefined,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
+    }
+  });
+
+  it('INCLUSIVE_INTEGER: sobreposição continua falhando', () => {
+    const result = validateDomains(
+      'RANGE',
+      [range('R20', 0, '0', '357'), range('R19', 1, '350', '437')],
+      undefined,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
+    }
+  });
+
+  it('INCLUSIVE_INTEGER: valor não inteiro falha com mensagem clara', () => {
+    const result = validateDomains(
+      'RANGE',
+      [range('R20', 0, '0', '357.5'), range('R19', 1, '358.5', undefined, { isCatchAll: true })],
+      undefined,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const issue = result.issues.find((i) => i.code === 'RANGE_NOT_CONTIGUOUS');
+      expect(issue).toBeDefined();
+      expect(issue?.message).toMatch(/inteiro/);
+    }
+  });
+
+  it('INCLUSIVE_INTEGER regional: salto de 1 em todas as regionais é contíguo', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        regionalDomain('R20', 0, { BASE: { min: '0', max: '357' }, SP: { min: '0', max: '400' } }),
+        regionalDomain('R19', 1, { BASE: { min: '358', max: '437' }, SP: { min: '401', max: '480' } }),
+      ],
+      twoRegions,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('INCLUSIVE_INTEGER regional: buraco numa regional só aponta a regional certa', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        regionalDomain('R20', 0, { BASE: { min: '0', max: '357' }, SP: { min: '0', max: '400' } }),
+        // SP tem buraco real (401 esperado, veio 402); BASE segue contíguo com +1.
+        regionalDomain('R19', 1, { BASE: { min: '358', max: '437' }, SP: { min: '402', max: '480' } }),
+      ],
+      twoRegions,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const issue = result.issues.find((i) => i.code === 'RANGE_REGIONAL_NOT_CONTIGUOUS');
+      expect(issue?.regionCode).toBe('SP');
+    }
+  });
+
   it('rejeita domínio sem entrada para uma regional — RANGE_REGIONAL_INCOMPLETE', () => {
     const result = validateDomains(
       'RANGE',

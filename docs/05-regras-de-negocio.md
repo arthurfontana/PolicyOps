@@ -295,6 +295,12 @@ Resolve o caso de modelo de score cujo corte numérico de cada faixa (R01…R20)
 
 **Editar.** `regionalDimension` e `regionalRanges` são editados **junto** dos domínios, no mesmo `variable/saveDomains` (§5.6.1) — não existe comando separado para eles. Ligar/desligar `regionalDimension` numa versão `DRAFT` é uma escolha binária: ligado, todo domínio `RANGE` da versão usa `regionalRanges`; desligado, usa `rangeMin`/`rangeMax` como antes. Alternar o interruptor não converte valores automaticamente — o usuário parte de faixas vazias no modo para o qual mudou.
 
+#### 5.6.0 `boundaryMode` — limites inclusivo-inclusivo com passo 1
+
+Interruptor por versão (`VariableVersion.boundaryMode`, independente de `regionalDimension` — vale tanto para `rangeMin`/`rangeMax` quanto para `regionalRanges`), ausente ou `'HALF_OPEN'` é o `[mín, máx)` de sempre. `'INCLUSIVE_INTEGER'` é `[mín, máx]` com passo 1, pensado para cortes de score que vêm do Excel já fechado-fechado (`R20: 0–357`, `R19: 358–437`, …): os valores são validados como inteiros, e a contiguidade (I9) passa a exigir `atual.máx + 1 == próxima.mín` em vez de `atual.máx == próxima.mín`. Sem esse modo, colar a tabela nesse formato acusa `RANGE_NOT_CONTIGUOUS`/`RANGE_REGIONAL_NOT_CONTIGUOUS` mesmo o dado estando correto — o contorno manual (reescrever o `máx` de cada faixa para repetir o `mín` da seguinte) deixa de ser necessário.
+
+Documentos sem `boundaryMode` continuam se comportando exatamente como antes — não há migração, e o campo é ligado variável por variável, como o interruptor regional.
+
 #### 5.6.1 `variable/saveDomains` — entrada estendida
 
 ```ts
@@ -303,17 +309,19 @@ input: {
   versionId: string;
   domains: Domain[];
   regionalDimension?: RegionalDimension;   // ausente = variável não usa regional
+  boundaryMode?: 'HALF_OPEN' | 'INCLUSIVE_INTEGER';   // ausente = HALF_OPEN (§5.6.0)
 }
 ```
 
-Continua substituindo o conjunto inteiro (domínios **e** dimensão regional), só em `DRAFT` (`VARIABLE_VERSION_IMMUTABLE` senão), e roda `validateDomains` antes de gravar — agora ciente de `regionalDimension` (I9, I19):
+Continua substituindo o conjunto inteiro (domínios, dimensão regional **e** `boundaryMode`), só em `DRAFT` (`VARIABLE_VERSION_IMMUTABLE` senão), e roda `validateDomains` antes de gravar — agora ciente de `regionalDimension` (I9, I19) e de `boundaryMode` (I9):
 
 - sem `regionalDimension`: validação igual à de hoje;
-- com `regionalDimension`: `regions` não pode ser vazio nem ter `code` repetido (`REGIONAL_CODE_DUPLICATE`); para cada domínio `RANGE`, precisa haver uma entrada em `regionalRanges` para cada `region.code` (`RANGE_REGIONAL_INCOMPLETE` apontando o domínio e o regional faltante); dentro de **cada** regional, a mesma regra de contiguidade/sobreposição/catch-all de hoje, aplicada independentemente coluna a coluna (`RANGE_REGIONAL_NOT_CONTIGUOUS`, com `{ regionCode, domainCode }` no `details`).
+- com `regionalDimension`: `regions` não pode ser vazio nem ter `code` repetido (`REGIONAL_CODE_DUPLICATE`); para cada domínio `RANGE`, precisa haver uma entrada em `regionalRanges` para cada `region.code` (`RANGE_REGIONAL_INCOMPLETE` apontando o domínio e o regional faltante); dentro de **cada** regional, a mesma regra de contiguidade/sobreposição/catch-all de hoje, aplicada independentemente coluna a coluna (`RANGE_REGIONAL_NOT_CONTIGUOUS`, com `{ regionCode, domainCode }` no `details`);
+- com `boundaryMode: 'INCLUSIVE_INTEGER'` (com ou sem `regionalDimension`): mínimo/máximo de cada faixa precisam ser inteiros (mesmo código de erro que a contiguidade, `RANGE_NOT_CONTIGUOUS`/`RANGE_REGIONAL_NOT_CONTIGUOUS`, mensagem específica), e a contiguidade compara `atual.máx + 1` com `próxima.mín` em vez de igualdade direta.
 
 #### 5.6.2 Importar tabela colada
 
-Resolve o problema de digitar 20 faixas × 9 regionais × 2 números campo a campo. `parseRegionalRangeTable(text, regions)` — função **pura** em `src/core/library/regional-import.ts`, sem comando associado: só traduz texto em `{ domains, warnings, errors }`, que o usuário revisa na tela antes de virarem entrada de `saveDomains`. Nada é gravado no documento por esta função.
+Resolve o problema de digitar 20 faixas × 9 regionais × 2 números campo a campo. `parseRegionalRangeTable(text, regions)` — função **pura** em `src/core/library/regional-import.ts`, sem comando associado: só traduz texto em `{ domains, warnings, errors }`, que o usuário revisa na tela antes de virarem entrada de `saveDomains`. Nada é gravado no documento por esta função — a colagem em si nunca valida contiguidade, só extrai os números das colunas MIN/MAX; é `saveDomains` (via `validateDomains`) que decide se o resultado é contíguo, e o faz respeitando o `boundaryMode` corrente da versão (§5.6.0). Por isso uma tabela colada no formato fechado-fechado original do Excel (`0-357`, `358-437`, …) passa sem ajuste manual quando `boundaryMode: 'INCLUSIVE_INTEGER'` está ligado antes de colar.
 
 **Contrato de colagem** (o usuário cola direto do Excel, TSV com tabulação como separador de coluna):
 

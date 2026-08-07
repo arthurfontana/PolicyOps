@@ -185,6 +185,34 @@ describe('variable/createDraft', () => {
     const undone = apply(document, ctx, result.inverse);
     expect(undone.document.variables.find((v) => v.id === IDS.score)!.versions).toHaveLength(1);
   });
+
+  it('clona também o boundaryMode da versão publicada', () => {
+    const ctx = testCtx();
+    const created = apply(
+      baseDocument(),
+      ctx,
+      createVariable({ code: 'SERASA3', name: 'Score Serasa 3', type: 'RANGE' }),
+    );
+    const withInclusive = apply(
+      created.document,
+      ctx,
+      saveVariableDomains({
+        variableId: created.data.variableId,
+        versionId: created.data.versionId,
+        domains: [domain('A', 0, { rangeMin: '0', rangeMax: '9' }), domain('B', 1, { rangeMin: '10', isCatchAll: true })],
+        boundaryMode: 'INCLUSIVE_INTEGER',
+      }),
+    ).document;
+    const published = apply(
+      withInclusive,
+      ctx,
+      publishVariable({ variableId: created.data.variableId, versionId: created.data.versionId }),
+    ).document;
+    const { document } = apply(published, ctx, createVariableDraft({ variableId: created.data.variableId }));
+    const variable = document.variables.find((v) => v.id === created.data.variableId)!;
+    const draft = variable.versions.find((v) => v.state === 'DRAFT')!;
+    expect(draft.boundaryMode).toBe('INCLUSIVE_INTEGER');
+  });
 });
 
 describe('variable/saveDomains', () => {
@@ -274,6 +302,88 @@ describe('variable/saveDomains', () => {
       }),
       'BOOLEAN_NEEDS_TWO_DOMAINS',
     );
+  });
+
+  it('boundaryMode INCLUSIVE_INTEGER: aceita faixas fechado-fechado com salto de 1, sem ajuste manual', () => {
+    const ctx = testCtx();
+    const created = apply(
+      baseDocument(),
+      ctx,
+      createVariable({ code: 'SERASA', name: 'Score Serasa', type: 'RANGE' }),
+    );
+    // R20: 0-357, R19: 358-437 — formato original do Excel, sem repetir o
+    // máximo de R20 como mínimo de R19.
+    const excelDomains = [
+      domain('R20', 0, { rangeMin: '0', rangeMax: '357' }),
+      domain('R19', 1, { rangeMin: '358', isCatchAll: true }),
+    ];
+
+    // Sem boundaryMode (HALF_OPEN), a mesma colagem crua é rejeitada.
+    expectFailure(
+      created.document,
+      ctx,
+      saveVariableDomains({
+        variableId: created.data.variableId,
+        versionId: created.data.versionId,
+        domains: excelDomains,
+      }),
+      'RANGE_NOT_CONTIGUOUS',
+    );
+
+    // Ligando o modo, a mesma colagem passa e o campo fica gravado na versão.
+    const { document } = apply(
+      created.document,
+      ctx,
+      saveVariableDomains({
+        variableId: created.data.variableId,
+        versionId: created.data.versionId,
+        domains: excelDomains,
+        boundaryMode: 'INCLUSIVE_INTEGER',
+      }),
+    );
+    const draft = document.variables.find((v) => v.id === created.data.variableId)!.versions[0]!;
+    expect(draft.boundaryMode).toBe('INCLUSIVE_INTEGER');
+    expect(draft.domains).toEqual(excelDomains);
+  });
+
+  it('o inverso de saveDomains restaura também o boundaryMode anterior', () => {
+    const ctx = testCtx();
+    const created = apply(
+      baseDocument(),
+      ctx,
+      createVariable({ code: 'SERASA2', name: 'Score Serasa 2', type: 'RANGE' }),
+    );
+    const { document: withInclusive } = apply(
+      created.document,
+      ctx,
+      saveVariableDomains({
+        variableId: created.data.variableId,
+        versionId: created.data.versionId,
+        domains: [domain('R2', 0, { rangeMin: '0', rangeMax: '357' }), domain('R1', 1, { rangeMin: '358', isCatchAll: true })],
+        boundaryMode: 'INCLUSIVE_INTEGER',
+      }),
+    );
+
+    const { document, result } = apply(
+      withInclusive,
+      ctx,
+      saveVariableDomains({
+        variableId: created.data.variableId,
+        versionId: created.data.versionId,
+        domains: [
+          domain('A', 0, { rangeMin: '0', rangeMax: '10' }),
+          domain('B', 1, { rangeMin: '10', isCatchAll: true }),
+        ],
+      }),
+    );
+    expect(
+      document.variables.find((v) => v.id === created.data.variableId)!.versions[0]!.boundaryMode,
+    ).toBeUndefined();
+
+    const undone = apply(document, ctx, result.inverse);
+    expect(
+      undone.document.variables.find((v) => v.id === created.data.variableId)!.versions[0]!.boundaryMode,
+    ).toBe('INCLUSIVE_INTEGER');
   });
 
   it('o inverso restaura os domínios anteriores mesmo quando eram vazios', () => {
@@ -539,6 +649,38 @@ describe('variable/duplicate (docs/05 §5.6.3)', () => {
     expect(document.variables.find((v) => v.id === created0.data.variableId)).toEqual(
       before.variables.find((v) => v.id === created0.data.variableId),
     );
+  });
+
+  it('copia também o boundaryMode da versão de origem', () => {
+    const ctx = testCtx();
+    const created0 = apply(
+      baseDocument(),
+      ctx,
+      createVariable({ code: 'SERASA4', name: 'Score Serasa 4', type: 'RANGE' }),
+    );
+    const withInclusive = apply(
+      created0.document,
+      ctx,
+      saveVariableDomains({
+        variableId: created0.data.variableId,
+        versionId: created0.data.versionId,
+        domains: [domain('A', 0, { rangeMin: '0', rangeMax: '9' }), domain('B', 1, { rangeMin: '10', isCatchAll: true })],
+        boundaryMode: 'INCLUSIVE_INTEGER',
+      }),
+    ).document;
+
+    const { document, data } = apply(
+      withInclusive,
+      ctx,
+      duplicateVariable({
+        sourceVariableId: created0.data.variableId,
+        sourceVersionId: created0.data.versionId,
+        code: 'SERASA5',
+        name: 'Score Serasa 5',
+      }),
+    );
+    const created = document.variables.find((v) => v.id === data.variableId)!;
+    expect(created.versions[0]!.boundaryMode).toBe('INCLUSIVE_INTEGER');
   });
 
   it('falha com DUPLICATE_CODE quando o código novo já existe', () => {

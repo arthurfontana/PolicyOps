@@ -47,6 +47,8 @@ export const CODE_REGEX = /^[A-Z0-9_]+$/;
 export const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 /** Todo decimal é string, nunca `number`. */
 export const DECIMAL_REGEX = /^-?\d+(\.\d+)?$/;
+/** Subconjunto de `DECIMAL_REGEX` sem parte fracionária — usado por `boundaryMode: 'INCLUSIVE_INTEGER'` (docs/03 §2). */
+export const INTEGER_REGEX = /^-?\d+$/;
 export const COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 /** Todo id é `nanoid(12)`: alfabeto padrão do nanoid, comprimento 12. */
 export const NANOID_REGEX = /^[A-Za-z0-9_-]{12}$/;
@@ -125,6 +127,16 @@ export const DomainSchema: z.ZodType<Domain> = z
   })
   .strict();
 
+/**
+ * Como os limites de uma faixa RANGE são lidos — por versão, nunca por
+ * domínio (docs/03 §2). `HALF_OPEN` (default, ausência = este modo) é o
+ * `[mín, máx)` de sempre. `INCLUSIVE_INTEGER` é `[mín, máx]` com passo 1: a
+ * contiguidade exige `atual.máx + 1 == próxima.mín` em vez de
+ * `atual.máx == próxima.mín`, e os valores são validados como inteiros.
+ */
+export type BoundaryMode = 'HALF_OPEN' | 'INCLUSIVE_INTEGER';
+export const BoundaryModeSchema: z.ZodType<BoundaryMode> = z.enum(['HALF_OPEN', 'INCLUSIVE_INTEGER']);
+
 /** Um `code` por regional (BASE, CO, MG…), único dentro da versão (docs/03 §2). */
 export type RegionalOption = {
   code: string;
@@ -163,6 +175,8 @@ export type VariableVersion = {
   publishedBy?: string;
   domains: Domain[];
   regionalDimension?: RegionalDimension;
+  /** Ausente = `HALF_OPEN` (comportamento de sempre, sem migração — docs/03 §2). */
+  boundaryMode?: BoundaryMode;
 };
 
 export const VariableVersionSchema: z.ZodType<VariableVersion> = z
@@ -177,6 +191,7 @@ export const VariableVersionSchema: z.ZodType<VariableVersion> = z
     publishedBy: z.string().min(1).optional(),
     domains: z.array(DomainSchema),
     regionalDimension: RegionalDimensionSchema.optional(),
+    boundaryMode: BoundaryModeSchema.optional(),
   })
   .strict();
 
