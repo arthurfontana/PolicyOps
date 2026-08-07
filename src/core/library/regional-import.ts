@@ -1,5 +1,6 @@
 import { CODE_REGEX } from '../document/schema';
 import type { Domain, RegionalOption, RegionalRange } from '../document/schema';
+import { deriveDomainCode, normalizeText } from './text-normalize';
 
 /**
  * Importação de tabela colada — docs/05-regras-de-negocio.md §5.6.2.
@@ -22,8 +23,6 @@ import type { Domain, RegionalOption, RegionalRange } from '../document/schema';
  *             trecho antes do primeiro "-"/"–"/"—", maiúsculo.
  */
 
-const DASH_SPLIT = /^(.*?)\s*[-–—]\s*(.*)$/;
-
 export type ParseRegionalRangeTableResult = {
   domains: Domain[];
   regions: RegionalOption[];
@@ -33,24 +32,6 @@ export type ParseRegionalRangeTableResult = {
 
 function fatal(message: string): ParseRegionalRangeTableResult {
   return { domains: [], regions: [], warnings: [], errors: [message] };
-}
-
-// Faixa Unicode dos diacríticos combinantes (U+0300–U+036F), construída por
-// código de caractere para não depender de escapes de regex no arquivo-fonte.
-const COMBINING_DIACRITICS = new RegExp(
-  `[${String.fromCharCode(0x0300)}-${String.fromCharCode(0x036f)}]`,
-  'g',
-);
-
-/** Remove acentos e normaliza para comparar "MIN"/"Mín" sem se importar com caixa. */
-function normalizeMarker(value: string): string {
-  return value.normalize('NFD').replace(COMBINING_DIACRITICS, '').trim().toUpperCase();
-}
-
-function deriveCode(domainText: string): string {
-  const match = DASH_SPLIT.exec(domainText);
-  const codeRaw = match ? match[1]! : domainText;
-  return codeRaw.trim().toUpperCase();
 }
 
 export function parseRegionalRangeTable(text: string): ParseRegionalRangeTableResult {
@@ -89,8 +70,8 @@ export function parseRegionalRangeTable(text: string): ParseRegionalRangeTableRe
   const columnRegionIndex: number[] = new Array(headerRow2.length).fill(-1);
 
   for (let col = 1; col < headerRow2.length; col += 2) {
-    const minMark = normalizeMarker(headerRow2[col] ?? '');
-    const maxMark = normalizeMarker(headerRow2[col + 1] ?? '');
+    const minMark = normalizeText(headerRow2[col] ?? '');
+    const maxMark = normalizeText(headerRow2[col + 1] ?? '');
     if (minMark !== 'MIN' || maxMark !== 'MAX') {
       return fatal(
         `Cabeçalho incompleto: esperado "MIN"/"MAX" nas colunas ${col + 1} e ${col + 2}, encontrado "${headerRow2[col] ?? ''}"/"${headerRow2[col + 1] ?? ''}".`,
@@ -130,7 +111,7 @@ export function parseRegionalRangeTable(text: string): ParseRegionalRangeTableRe
       return fatal(`Linha ${lineNumber}: a primeira coluna (código/rótulo do domínio) está vazia.`);
     }
 
-    const code = deriveCode(domainText);
+    const code = deriveDomainCode(domainText);
     if (!CODE_REGEX.test(code)) {
       return fatal(
         `Linha ${lineNumber}: o código "${code}" derivado de "${domainText}" é inválido — precisa casar ^[A-Z0-9_]+$.`,

@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import type { Domain, RegionalDimension } from '@/core/document/schema';
+import type { BoundaryMode, Domain, RegionalDimension, VariableType } from '@/core/document/schema';
 import { validateDomains } from '@/core/library/validate-domains';
 import { DomainsEditor } from '@/components/library/DomainsEditor';
 
@@ -186,5 +186,136 @@ describe('DomainsEditor — dimensão regional (docs/07 §11)', () => {
     expect(screen.queryByLabelText('Tabela colada')).not.toBeInTheDocument();
     expect(screen.getByDisplayValue('R1')).toBeInTheDocument();
     expect(screen.getByLabelText('Mínimo (BASE)')).toHaveValue('0');
+  });
+});
+
+/**
+ * Colagem genérica (fora do modo regional), continuidade automática de
+ * faixas e paletas de cor — docs/07-ux-e-editor.md §11, docs/05 §5.6.2/§5.6.4.
+ */
+function GenericHarness({
+  type,
+  initial,
+  withAdvancedOptions = false,
+}: {
+  type: VariableType;
+  initial: Domain[];
+  /** Só quando true o pai passa `boundaryMode`/`onBoundaryModeChange` — expõe "Opções avançadas". */
+  withAdvancedOptions?: boolean;
+}) {
+  const [domains, setDomains] = useState<Domain[]>(initial);
+  const [boundaryMode, setBoundaryMode] = useState<BoundaryMode | undefined>(undefined);
+  const validation = useMemo(
+    () => validateDomains(type, domains, undefined, boundaryMode),
+    [type, domains, boundaryMode],
+  );
+  const issues = validation.ok ? [] : validation.issues;
+  return (
+    <DomainsEditor
+      type={type}
+      domains={domains}
+      onChange={setDomains}
+      issues={issues}
+      {...(withAdvancedOptions ? { boundaryMode, onBoundaryModeChange: setBoundaryMode } : {})}
+    />
+  );
+}
+
+describe('DomainsEditor — colagem genérica fora do modo regional (docs/05 §5.6.2)', () => {
+  it('colar tabela simples (Domínio, Cor) fora do modo regional preenche o editor', async () => {
+    const user = userEvent.setup();
+    render(<GenericHarness type="CATEGORICAL" initial={[]} />);
+
+    await user.click(screen.getByRole('button', { name: 'Colar tabela' }));
+    const textarea = screen.getByLabelText('Tabela de domínios colada');
+    const table = ['Domínio\tCor', 'SIM\t#16A34A', 'NAO\t#DC2626'].join('\n');
+    fireEvent.change(textarea, { target: { value: table } });
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+
+    expect(screen.queryByLabelText('Tabela de domínios colada')).not.toBeInTheDocument();
+    const codes = screen.getAllByLabelText('Código').map((el) => (el as HTMLInputElement).value);
+    expect(codes).toEqual(['SIM', 'NAO']);
+  });
+
+  it('colar com erro de formato mostra a lista de erros sem fechar a caixa', async () => {
+    const user = userEvent.setup();
+    render(<GenericHarness type="CATEGORICAL" initial={[]} />);
+
+    await user.click(screen.getByRole('button', { name: 'Colar tabela' }));
+    const textarea = screen.getByLabelText('Tabela de domínios colada');
+    fireEvent.change(textarea, { target: { value: ['Cor', 'vermelho'].join('\n') } });
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+
+    expect(screen.getByLabelText('Tabela de domínios colada')).toBeInTheDocument();
+    expect(screen.getByText(/sem a coluna "Domínio"/)).toBeInTheDocument();
+  });
+
+  it('recolar Domínio+Cor sobre uma variável RANGE existente preserva mínimo/máximo', async () => {
+    const user = userEvent.setup();
+    const initial: Domain[] = [{ code: 'R1', label: 'R1', position: 0, rangeMin: '0', rangeMax: '100' }];
+    render(<GenericHarness type="RANGE" initial={initial} />);
+
+    await user.click(screen.getByRole('button', { name: 'Colar tabela' }));
+    const textarea = screen.getByLabelText('Tabela de domínios colada');
+    fireEvent.change(textarea, { target: { value: ['Domínio\tCor', 'R1\t#FF0000'].join('\n') } });
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+
+    expect(screen.getByLabelText('Mínimo')).toHaveValue('0');
+    expect(screen.getByLabelText('Máximo')).toHaveValue('100');
+  });
+});
+
+describe('DomainsEditor — continuidade automática e opções avançadas (docs/07 §11)', () => {
+  it('por padrão não mostra os checkboxes de inclusão manual', () => {
+    render(<GenericHarness type="RANGE" initial={CONTIGUOUS} withAdvancedOptions />);
+    expect(screen.queryByText('mín. inclusivo')).not.toBeInTheDocument();
+    expect(screen.queryByText('máx. inclusivo')).not.toBeInTheDocument();
+  });
+
+  it('alternar "Opções avançadas" e o controle de inclusão manual reexibe os checkboxes', async () => {
+    const user = userEvent.setup();
+    render(<GenericHarness type="RANGE" initial={CONTIGUOUS} withAdvancedOptions />);
+
+    await user.click(screen.getByRole('button', { name: /Opções avançadas/ }));
+    expect(screen.queryByText('mín. inclusivo')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('checkbox', { name: /inclusão manualmente por faixa/ }));
+    expect(screen.getAllByText('mín. inclusivo').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('máx. inclusivo').length).toBeGreaterThan(0);
+  });
+});
+
+describe('DomainsEditor — paletas de cor (docs/05 §5.6.4)', () => {
+  it('aplicar paleta atualiza as cores visíveis', async () => {
+    const user = userEvent.setup();
+    const initial: Domain[] = [
+      { code: 'R1', label: 'R1', position: 0, rangeMin: '0', rangeMax: '100' },
+      { code: 'R2', label: 'R2', position: 1, rangeMin: '100', rangeMax: '200' },
+    ];
+    render(<GenericHarness type="RANGE" initial={initial} />);
+
+    await user.selectOptions(screen.getByLabelText('Aplicar paleta'), 'RISCO_R01_R20');
+
+    const colorInputs = screen.getAllByLabelText('Cor');
+    expect((colorInputs[0] as HTMLInputElement).value).toBe('#00ff2a');
+    expect((colorInputs[1] as HTMLInputElement).value).toBe('#24ff48');
+    expect(screen.getByText(/2 de 2 domínio\(s\) coloridos/)).toBeInTheDocument();
+  });
+
+  it('reaplicar a mesma paleta sobre domínios já coloridos por ela continua contando como acerto', async () => {
+    const user = userEvent.setup();
+    const initial: Domain[] = [
+      { code: 'R1', label: 'R1', position: 0, rangeMin: '0', rangeMax: '100' },
+      { code: 'R2', label: 'R2', position: 1, rangeMin: '100', rangeMax: '200' },
+    ];
+    render(<GenericHarness type="RANGE" initial={initial} />);
+
+    const select = screen.getByLabelText('Aplicar paleta');
+    await user.selectOptions(select, 'RISCO_R01_R20');
+    expect(screen.getByText(/2 de 2 domínio\(s\) coloridos/)).toBeInTheDocument();
+
+    // Reaplicar não muda nenhuma cor (já estavam certas) — "bateram" ainda é 2, não 0.
+    await user.selectOptions(select, 'RISCO_R01_R20');
+    expect(screen.getByText(/2 de 2 domínio\(s\) coloridos/)).toBeInTheDocument();
   });
 });

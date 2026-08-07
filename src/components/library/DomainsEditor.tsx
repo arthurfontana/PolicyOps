@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -14,11 +14,13 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ClipboardPaste, GripVertical, Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { ClipboardPaste, Download, GripVertical, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { BoundaryMode, Domain, RegionalDimension, RegionalOption, VariableType } from '@/core/document/schema';
 import type { DomainValidationIssue } from '@/core/library/validate-domains';
 import { parseRegionalRangeTable, type ParseRegionalRangeTableResult } from '@/core/library/regional-import';
+import { mergeImportedDomains, parseDomainTable, type ParseDomainTableResult } from '@/core/library/domain-import';
+import { COLOR_PALETTES, suggestPaletteColors } from '@/lib/color-palettes';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -96,6 +98,128 @@ function stripRangeFields(domain: Domain): Domain {
   return next;
 }
 
+/**
+ * Sugestão automática de cor — docs/05-regras-de-negocio.md §5.6.4. Domínio
+ * sem `color` que bata com uma paleta oficial (código ou rótulo) já nasce com
+ * a cor sugerida; domínio que já tem cor (digitada, colada ou herdada pelo
+ * merge) nunca é sobrescrito por esta função — só "Aplicar paleta" sobrescreve
+ * explicitamente.
+ */
+function autoSuggestColors(domains: Domain[]): Domain[] {
+  let next = domains;
+  for (const palette of COLOR_PALETTES) {
+    next = next.map((domain) => {
+      if (domain.color !== undefined) return domain;
+      const [suggested] = suggestPaletteColors([domain], palette.id);
+      return suggested ?? domain;
+    });
+  }
+  return next;
+}
+
+/** Linhas de exemplo — fonte única para o modelo `.csv` e o preview inline (docs/07 §11). */
+function domainTemplateRows(type: VariableType): string[][] {
+  if (type === 'RANGE') {
+    return [
+      ['Domínio', 'Mínimo', 'Máximo', 'Cor'],
+      ['R1 - Risco baixo', '0', '100', '#00FF2A'],
+      ['R2 - Risco médio', '100', '200', '#FFA200'],
+    ];
+  }
+  return [
+    ['Domínio', 'Cor'],
+    ['SIM', '#16A34A'],
+    ['NAO', '#DC2626'],
+  ];
+}
+
+function downloadDomainTemplate(type: VariableType): void {
+  const csv = domainTemplateRows(type)
+    .map((row) => row.join(','))
+    .join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'modelo-dominios.csv';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Lista de erros (vermelho) ou avisos (âmbar) de um resultado de colagem — reaproveitada pelos dois diálogos. */
+function ParseFeedback({ items, tone }: { items: string[]; tone: 'error' | 'warning' }) {
+  if (items.length === 0) return null;
+  const cls =
+    tone === 'error'
+      ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400'
+      : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400';
+  return (
+    <ul className={cn('flex flex-col gap-1 rounded-md border p-2 text-xs', cls)}>
+      {items.map((item, index) => (
+        <li key={index} className="flex items-start gap-1.5">
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Diálogo de "Colar tabela" — mesma estrutura para o caminho regional (S18) e o genérico (S19). */
+function PasteDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  textareaLabel,
+  extra,
+  text,
+  onTextChange,
+  result,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: ReactNode;
+  textareaLabel: string;
+  extra?: ReactNode;
+  text: string;
+  onTextChange: (text: string) => void;
+  result: { errors: string[]; warnings: string[] } | null;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        {extra}
+        <Textarea
+          aria-label={textareaLabel}
+          rows={10}
+          value={text}
+          onChange={(event) => onTextChange(event.target.value)}
+          placeholder="Cole aqui a tabela copiada do Excel…"
+          className="font-mono text-xs"
+        />
+        {result !== null && <ParseFeedback items={result.errors} tone="error" />}
+        {result !== null && <ParseFeedback items={result.warnings} tone="warning" />}
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button type="button" onClick={onConfirm}>
+            Aplicar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function issuesFor(issues: DomainValidationIssue[], code: string): DomainValidationIssue[] {
   if (code === '') return [];
   return issues.filter((issue) => issue.domainCodes?.includes(code));
@@ -110,6 +234,7 @@ function SortableRow({
   type,
   regions,
   boundaryMode,
+  showManualInclusion,
   disabled,
   issues,
   onUpdate,
@@ -122,6 +247,8 @@ function SortableRow({
   /** Presente = grid regional; ausente = par mín/máx único de sempre. */
   regions: RegionalOption[] | undefined;
   boundaryMode: BoundaryMode;
+  /** Só true quando o usuário abriu "Opções avançadas" e ligou o controle de inclusão manual (docs/07 §11). */
+  showManualInclusion: boolean;
   disabled: boolean;
   issues: DomainValidationIssue[];
   onUpdate: (rowId: string, patch: Partial<Domain>) => void;
@@ -225,11 +352,12 @@ function SortableRow({
             onChange={(event) => onUpdate(row.rowId, { rangeMax: event.target.value })}
             className="w-24"
           />
-          {boundaryMode === 'INCLUSIVE_INTEGER' ? (
+          {boundaryMode === 'INCLUSIVE_INTEGER' && (
             <span className="text-xs text-neutral-500 dark:text-neutral-400">
               limites inclusivos, passo 1
             </span>
-          ) : (
+          )}
+          {boundaryMode !== 'INCLUSIVE_INTEGER' && showManualInclusion && (
             <>
               <label className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
                 <Checkbox
@@ -488,12 +616,29 @@ export function DomainsEditor({
   const [pasteText, setPasteText] = useState('');
   const [pasteResult, setPasteResult] = useState<ParseRegionalRangeTableResult | null>(null);
 
+  // "Opções avançadas" — docs/07 §11: boundaryMode e inclusão manual por
+  // faixa ficam colapsados por padrão; o comportamento assumido é HALF_OPEN.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [showManualInclusion, setShowManualInclusion] = useState(false);
+
+  // Colagem genérica (fora do modo regional) — docs/05 §5.6.2.
+  const [genericPasteOpen, setGenericPasteOpen] = useState(false);
+  const [genericPasteText, setGenericPasteText] = useState('');
+  const [genericPasteResult, setGenericPasteResult] = useState<ParseDomainTableResult | null>(null);
+
+  // Paletas de cor — docs/05 §5.6.4.
+  const [paletteMatchInfo, setPaletteMatchInfo] = useState<{ name: string; matched: number; total: number } | null>(
+    null,
+  );
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   function commit(next: Row[]) {
     const renumbered = renumber(next);
-    setRows(renumbered);
-    onChange(toDomains(renumbered));
+    const suggested = autoSuggestColors(renumbered.map((row) => row.domain));
+    const withSuggestedColors = renumbered.map((row, index) => ({ ...row, domain: suggested[index]! }));
+    setRows(withSuggestedColors);
+    onChange(toDomains(withSuggestedColors));
   }
 
   function handleUpdate(rowId: string, patch: Partial<Domain>) {
@@ -562,7 +707,40 @@ export function DomainsEditor({
     setPasteResult(null);
   }
 
+  /**
+   * Colagem genérica (fora do modo regional) — docs/05 §5.6.2/§5.6.3: o
+   * resultado de `mergeImportedDomains` substitui o conteúdo do editor para
+   * revisão; nada é gravado até o "Salvar" normal do pai (`variable/saveDomains`).
+   */
+  function handleGenericPasteConfirm() {
+    const result = parseDomainTable(genericPasteText);
+    setGenericPasteResult(result);
+    if (result.errors.length > 0) return;
+    const merged = mergeImportedDomains(toDomains(rows), result);
+    commit(toRows(merged));
+    setGenericPasteOpen(false);
+    setGenericPasteText('');
+    setGenericPasteResult(null);
+  }
+
+  /** "Aplicar paleta" — docs/05 §5.6.4: sobrescreve a cor de todo domínio que bater, mostra quantos bateram. */
+  function handleApplyPalette(paletteId: string) {
+    const palette = COLOR_PALETTES.find((candidate) => candidate.id === paletteId);
+    if (palette === undefined) return;
+    const before = toDomains(rows);
+    const after = suggestPaletteColors(before, paletteId);
+    // "Bateram" é quem a paleta reconhece por code/label — não quem mudou de
+    // cor: reaplicar a mesma paleta sobre domínios já coloridos por ela
+    // continua contando como acerto (docs/05 §5.6.4).
+    const uncolored = before.map((domain) => ({ ...domain, color: undefined }));
+    const matched = suggestPaletteColors(uncolored, paletteId).filter((domain) => domain.color !== undefined).length;
+    commit(toRows(after));
+    setPaletteMatchInfo({ name: palette.name, matched, total: before.length });
+  }
+
   const topIssues = generalIssues(issues);
+  const showGenericPaste = !regionalMode;
+  const showPaletteButton = type === 'RANGE' || type === 'CATEGORICAL' || type === 'ORDINAL';
 
   return (
     <div className="flex flex-col gap-2">
@@ -578,16 +756,37 @@ export function DomainsEditor({
       )}
 
       {type === 'RANGE' && onBoundaryModeChange !== undefined && (
-        <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-          <Checkbox
-            checked={effectiveBoundaryMode === 'INCLUSIVE_INTEGER'}
-            disabled={disabled}
-            onCheckedChange={(checked) =>
-              onBoundaryModeChange(checked === true ? 'INCLUSIVE_INTEGER' : undefined)
-            }
-          />
-          Faixas com limites fechados nos dois lados (ex.: 0–357, 358–437 — inteiros, passo 1)
-        </label>
+        <div className="flex flex-col gap-1.5">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((open) => !open)}
+            className="flex w-fit items-center gap-1 text-xs font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
+          >
+            {advancedOpen ? '▾' : '▸'} Opções avançadas
+          </button>
+          {advancedOpen && (
+            <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
+              <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                <Checkbox
+                  checked={effectiveBoundaryMode === 'INCLUSIVE_INTEGER'}
+                  disabled={disabled}
+                  onCheckedChange={(checked) =>
+                    onBoundaryModeChange(checked === true ? 'INCLUSIVE_INTEGER' : undefined)
+                  }
+                />
+                Faixas com limites fechados nos dois lados (ex.: 0–357, 358–437 — inteiros, passo 1)
+              </label>
+              <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
+                <Checkbox
+                  checked={showManualInclusion}
+                  disabled={disabled}
+                  onCheckedChange={(checked) => setShowManualInclusion(checked === true)}
+                />
+                Definir inclusão manualmente por faixa (caso raro)
+              </label>
+            </div>
+          )}
+        </div>
       )}
 
       {regionalMode && (
@@ -611,6 +810,48 @@ export function DomainsEditor({
         </>
       )}
 
+      {!disabled && (showGenericPaste || showPaletteButton) && (
+        <div className="flex flex-wrap gap-2">
+          {showGenericPaste && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setGenericPasteOpen(true)}
+              className="self-start"
+            >
+              <ClipboardPaste className="mr-1.5 h-4 w-4" /> Colar tabela
+            </Button>
+          )}
+          {showPaletteButton && (
+            <select
+              aria-label="Aplicar paleta"
+              defaultValue=""
+              onChange={(event) => {
+                if (event.target.value !== '') handleApplyPalette(event.target.value);
+                event.target.value = '';
+              }}
+              className="h-8 rounded-md border border-neutral-300 bg-white px-2 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100"
+            >
+              <option value="" disabled>
+                Aplicar paleta…
+              </option>
+              {COLOR_PALETTES.map((palette) => (
+                <option key={palette.id} value={palette.id}>
+                  {palette.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+      {paletteMatchInfo !== null && (
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          {paletteMatchInfo.matched} de {paletteMatchInfo.total} domínio(s) coloridos pela paleta "
+          {paletteMatchInfo.name}".
+        </p>
+      )}
+
       {topIssues.length > 0 && (
         <ul className="flex flex-col gap-1 rounded-md border border-red-200 bg-red-50 p-2 dark:border-red-900 dark:bg-red-950/30">
           {topIssues.map((issue, index) => (
@@ -632,6 +873,7 @@ export function DomainsEditor({
                 type={type}
                 regions={regionalMode ? regionalDimension.regions : undefined}
                 boundaryMode={effectiveBoundaryMode}
+                showManualInclusion={showManualInclusion}
                 disabled={disabled}
                 issues={issues}
                 onUpdate={handleUpdate}
@@ -656,7 +898,7 @@ export function DomainsEditor({
         </Button>
       )}
 
-      <Dialog
+      <PasteDialog
         open={pasteOpen}
         onOpenChange={(next) => {
           setPasteOpen(next);
@@ -665,53 +907,46 @@ export function DomainsEditor({
             setPasteResult(null);
           }
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Colar tabela de regionais</DialogTitle>
-            <DialogDescription>
-              Cole direto do Excel: regional nas colunas (linha de código + linha MIN/MAX), uma faixa por
-              linha.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            aria-label="Tabela colada"
-            rows={10}
-            value={pasteText}
-            onChange={(event) => setPasteText(event.target.value)}
-            placeholder="Cole aqui a tabela copiada do Excel…"
-            className="font-mono text-xs"
-          />
-          {pasteResult !== null && pasteResult.errors.length > 0 && (
-            <ul className="flex flex-col gap-1 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
-              {pasteResult.errors.map((error, index) => (
-                <li key={index} className="flex items-start gap-1.5">
-                  <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                  {error}
-                </li>
-              ))}
-            </ul>
-          )}
-          {pasteResult !== null && pasteResult.warnings.length > 0 && (
-            <ul className="flex flex-col gap-1 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400">
-              {pasteResult.warnings.map((warning, index) => (
-                <li key={index} className="flex items-start gap-1.5">
-                  <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                  {warning}
-                </li>
-              ))}
-            </ul>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setPasteOpen(false)}>
-              Cancelar
+        title="Colar tabela de regionais"
+        description="Cole direto do Excel: regional nas colunas (linha de código + linha MIN/MAX), uma faixa por linha."
+        textareaLabel="Tabela colada"
+        text={pasteText}
+        onTextChange={setPasteText}
+        result={pasteResult}
+        onConfirm={handlePasteConfirm}
+      />
+
+      <PasteDialog
+        open={genericPasteOpen}
+        onOpenChange={(next) => {
+          setGenericPasteOpen(next);
+          if (!next) {
+            setGenericPasteText('');
+            setGenericPasteResult(null);
+          }
+        }}
+        title="Colar tabela de domínios"
+        description={`Cole direto do Excel: uma linha de cabeçalho ("Domínio"${type === 'RANGE' ? ', "Mínimo", "Máximo"' : ''} e "Cor" são reconhecidas) e uma linha por domínio.`}
+        textareaLabel="Tabela de domínios colada"
+        text={genericPasteText}
+        onTextChange={setGenericPasteText}
+        result={genericPasteResult}
+        onConfirm={handleGenericPasteConfirm}
+        extra={
+          <div className="rounded-md border border-neutral-200 bg-neutral-50 p-2 text-[11px] text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-400">
+            <p className="mb-1 font-medium text-neutral-600 dark:text-neutral-300">Exemplo:</p>
+            <pre className="whitespace-pre-wrap font-mono">
+              {domainTemplateRows(type)
+                .map((row) => row.join('\t'))
+                .join('\n')}
+            </pre>
+            <Button type="button" variant="ghost" size="sm" onClick={() => downloadDomainTemplate(type)}>
+              <Download className="mr-1.5 h-4 w-4" /> Baixar modelo simples (.csv)
             </Button>
-            <Button type="button" onClick={handlePasteConfirm}>
-              Aplicar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        }
+      />
+
     </div>
   );
 }

@@ -58,6 +58,8 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
   REGIONAL_CODE_DUPLICATE: 'Há regionais com o mesmo código — cada regional precisa de um código único nesta versão.',
   REGIONAL_IMPORT_PARSE_ERROR:
     'Não foi possível interpretar a tabela colada — confira o cabeçalho de regionais e o número de colunas.',
+  DOMAIN_TABLE_PARSE_ERROR:
+    'Não foi possível interpretar a tabela colada — confira o cabeçalho (Domínio é obrigatório) e o número de colunas.',
 };
 
 export function getErrorMessage(code: DomainErrorCode): string {
