@@ -7,6 +7,7 @@ import {
   getEditorView,
   getEditorViewComputations,
   getEffectiveVersion,
+  getMatrixTimeline,
   getOpenDraft,
   getPortfolioAt,
   getPrecedingVersion,
@@ -23,6 +24,7 @@ import {
   resetEditorViewComputations,
   resolveOpenVersion,
 } from '@/core/queries';
+import { addLevelCommand } from '@/core/versioning/axis-commands';
 import { applyCellPatch } from '@/core/versioning/cells';
 import { createDraft, createMatrix, locateVersion, publishVersion } from '@/core/versioning/lifecycle';
 import {
@@ -30,6 +32,7 @@ import {
   baseDocument,
   coordsOf,
   createTestMatrix,
+  DAY,
   documentWithAllStates,
   fillAllCells,
   IDS,
@@ -390,6 +393,130 @@ describe('getEffectiveVersion e getPortfolioAt', () => {
       ['MTZ_B', null],
     ]);
     expect(getPortfolioAt(outra.document, IDS.projectB, new Date(T0))).toEqual([]);
+  });
+
+  it('nos limites da troca: um instante antes vale a antiga, no instante exato e depois valem a nova (intervalo semiaberto)', () => {
+    const ctx = testCtx();
+    const state = documentWithAllStates(ctx);
+    // `documentWithAllStates`: superseded publicada em T0, published (v3) publicada em T0+DAY.
+    const transitionInstant = new Date(T0).getTime() + DAY;
+
+    const before = getEffectiveVersion(state.document, state.matrixId, new Date(transitionInstant - 1));
+    expect(before?.id).toBe(state.superseded);
+
+    const exact = getEffectiveVersion(state.document, state.matrixId, new Date(transitionInstant));
+    expect(exact?.id).toBe(state.published);
+
+    const after = getEffectiveVersion(state.document, state.matrixId, new Date(transitionInstant + 1));
+    expect(after?.id).toBe(state.published);
+  });
+
+  it('data anterior à primeira publicação devolve null', () => {
+    const ctx = testCtx();
+    const state = documentWithAllStates(ctx);
+    const before = new Date(new Date(T0).getTime() - 1);
+    expect(getEffectiveVersion(state.document, state.matrixId, before)).toBeNull();
+  });
+
+  it('versão agendada para o futuro não vale hoje, mas vale a partir da data do agendamento', () => {
+    const ctx = testCtx();
+    const created = createTestMatrix(baseDocument(), ctx);
+    const filled = fillAllCells(created.document, ctx, created.data.versionId);
+    const future = new Date(new Date(T0).getTime() + 30 * DAY).toISOString();
+    const scheduled = apply(
+      filled,
+      ctx,
+      publishVersion({ versionId: created.data.versionId, notes: 'Publicação agendada.', effectiveFrom: future }),
+    ).document;
+
+    expect(getEffectiveVersion(scheduled, created.data.matrixId, new Date(T0))).toBeNull();
+    expect(getEffectiveVersion(scheduled, created.data.matrixId, new Date(future))).not.toBeNull();
+    expect(getEffectiveVersion(scheduled, created.data.matrixId, new Date(future))?.number).toBe(1);
+  });
+
+  it('getPortfolioAt com matrizes de idades diferentes: cada uma responde pela própria vigência', () => {
+    const ctx = testCtx();
+    // MTZ_A publica em T0.
+    const first = createTestMatrix(baseDocument(), ctx);
+    let doc = fillAllCells(first.document, ctx, first.data.versionId);
+    doc = apply(doc, ctx, publishVersion({ versionId: first.data.versionId, notes: 'Primeira matriz.' })).document;
+
+    // MTZ_B só nasce e publica bem mais tarde.
+    ctx.advance(60 * DAY);
+    const second = createTestMatrix(doc, ctx, 'MTZ_B');
+    doc = fillAllCells(second.document, ctx, second.data.versionId);
+    doc = apply(doc, ctx, publishVersion({ versionId: second.data.versionId, notes: 'Segunda matriz, bem mais nova.' }))
+      .document;
+
+    // A 30 dias de T0: MTZ_A já vigora, MTZ_B ainda não existia.
+    const midDate = new Date(new Date(T0).getTime() + 30 * DAY);
+    const midPortfolio = getPortfolioAt(doc, IDS.projectA, midDate);
+    expect(midPortfolio.map((entry) => [entry.matrix.code, entry.version?.number ?? null])).toEqual([
+      ['MTZ_A', 1],
+      ['MTZ_B', null],
+    ]);
+
+    // Hoje (ctx.now(), depois dos 60 dias): as duas vigoram.
+    const todayPortfolio = getPortfolioAt(doc, IDS.projectA, ctx.now());
+    expect(todayPortfolio.map((entry) => [entry.matrix.code, entry.version?.number ?? null])).toEqual([
+      ['MTZ_A', 1],
+      ['MTZ_B', 1],
+    ]);
+  });
+});
+
+describe('getMatrixTimeline', () => {
+  it('um segmento por versão publicada/superada, em ordem cronológica — sem rascunho nem descartada', () => {
+    const ctx = testCtx();
+    const state = documentWithAllStates(ctx);
+    const { matrix } = locateVersion(state.document, state.draft);
+
+    const timeline = getMatrixTimeline(matrix);
+    expect(timeline.map((segment) => segment.versionId)).toEqual([state.superseded, state.published]);
+    expect(timeline[0]).toMatchObject({ state: 'SUPERSEDED', effectiveFrom: T0 });
+    expect(timeline[0]!.effectiveTo).toBe(timeline[1]!.effectiveFrom);
+    expect(timeline[1]).toMatchObject({ state: 'PUBLISHED', effectiveTo: null });
+  });
+
+  it('matriz sem nenhuma versão publicada devolve lista vazia', () => {
+    const ctx = testCtx();
+    const created = createTestMatrix(baseDocument(), ctx);
+    const { matrix } = locateVersion(created.document, created.data.versionId);
+    expect(getMatrixTimeline(matrix)).toEqual([]);
+  });
+});
+
+describe('vigência mostra a estrutura de eixos DAQUELA versão, não a atual', () => {
+  it('matriz cujo eixo Y ganhou um nível entre v1 e v2: a consulta antiga devolve a estrutura antiga', () => {
+    const ctx = testCtx();
+    const created = createTestMatrix(baseDocument(), ctx);
+    const v1Id = created.data.versionId;
+    let doc = fillAllCells(created.document, ctx, v1Id);
+    doc = apply(doc, ctx, publishVersion({ versionId: v1Id, notes: 'Publicação inicial — Y só com Restritivo.' }))
+      .document;
+
+    const draft = apply(doc, ctx, createDraft({ matrixId: created.data.matrixId }));
+    doc = apply(
+      draft.document,
+      ctx,
+      addLevelCommand({ versionId: draft.data.versionId, role: 'Y', variableId: IDS.segmento, position: 1 }),
+    ).document;
+    ctx.advance(DAY);
+    doc = apply(
+      doc,
+      ctx,
+      publishVersion({ versionId: draft.data.versionId, notes: 'Y ganhou Segmento.' }),
+    ).document;
+
+    // Na data de v1, a estrutura consultada é a de v1 — um nível só.
+    const atV1 = getEffectiveVersion(doc, created.data.matrixId, new Date(T0));
+    expect(atV1?.id).toBe(v1Id);
+    expect(axisStructureLabel(atV1!.axes.y)).toBe('Restritivo');
+
+    // Hoje, a vigente é v2 — dois níveis.
+    const atToday = getEffectiveVersion(doc, created.data.matrixId, ctx.now());
+    expect(atToday?.id).toBe(draft.data.versionId);
+    expect(axisStructureLabel(atToday!.axes.y)).toBe('Restritivo › Segmento');
   });
 });
 

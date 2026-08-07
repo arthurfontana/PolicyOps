@@ -35,6 +35,8 @@ export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 2;
 const BASE_CELL_WIDTH = 88;
 const BASE_CELL_HEIGHT = 56;
+/** Célula de 12px, só cor, sem texto — a miniatura de portfólio (docs/07 §10, item 3). */
+const THUMBNAIL_CELL_SIZE = 12;
 /**
  * Altura da faixa de cabeçalho de X e largura da coluna de cabeçalho de Y.
  * Exportadas porque a tela de comparação precisa delas para alinhar a rolagem
@@ -125,6 +127,13 @@ export interface GridProps {
   diffOverlay?: GridDiffOverlay;
   /** Esconde o rodapé de legenda e contadores — a tela de comparação tem os seus. */
   hideFooter?: boolean;
+  /**
+   * `'thumbnail'`: miniatura de 12px por célula, só cor, sem texto nem
+   * cabeçalhos — a visão de portfólio (docs/07 §10, item 3). Os separadores
+   * de nível continuam desenhados, para o agrupamento seguir legível.
+   * Sempre somente leitura, independente de `selection`.
+   */
+  variant?: 'full' | 'thumbnail';
 }
 
 function clampZoom(zoom: number): number {
@@ -199,6 +208,8 @@ interface GridCellProps {
   /** Recebe o tabindex do roving quando nenhuma célula está focada. */
   isTabStop: boolean;
   interactive: boolean;
+  /** Miniatura: sem papel de `gridcell`, sem foco — puramente visual (docs/07 §10). */
+  decorative?: boolean;
   onPress?: (coord: Coord, modifiers: GridModifiers) => void;
   onHover?: (coord: Coord) => void;
   /** --- Sobreposição de diff (S14) --- */
@@ -249,6 +260,7 @@ function GridCellImpl(props: GridCellProps) {
     isFocused,
     isTabStop,
     interactive,
+    decorative = false,
     onPress,
     onHover,
     diffKind,
@@ -296,12 +308,12 @@ function GridCellImpl(props: GridCellProps) {
 
   return (
     <div
-      role="gridcell"
+      role={decorative ? undefined : 'gridcell'}
       data-cell-key={cellKey}
       data-diff={diffKind}
       aria-selected={interactive ? selected : diffClickable ? diffSelected : undefined}
-      tabIndex={interactive ? (isFocused || isTabStop ? 0 : -1) : diffClickable ? 0 : undefined}
-      title={title}
+      tabIndex={decorative ? undefined : interactive ? (isFocused || isTabStop ? 0 : -1) : diffClickable ? 0 : undefined}
+      title={decorative ? undefined : title}
       onMouseDown={interactive ? handleMouseDown : undefined}
       onMouseEnter={interactive || onDiffHover !== undefined ? handleMouseEnter : undefined}
       onClick={diffClickable ? handleDiffClick : undefined}
@@ -364,6 +376,7 @@ const GridCell = memo(GridCellImpl, (prev, next) => {
     prev.isFocused === next.isFocused &&
     prev.isTabStop === next.isTabStop &&
     prev.interactive === next.interactive &&
+    prev.decorative === next.decorative &&
     prev.background === next.background &&
     prev.color === next.color &&
     prev.pending === next.pending &&
@@ -399,8 +412,10 @@ export function Grid({
   highlightPending = false,
   diffOverlay,
   hideFooter = false,
+  variant = 'full',
 }: GridProps) {
   const { x, y, cells, catalog, stats } = view;
+  const thumbnail = variant === 'thumbnail';
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
@@ -425,9 +440,10 @@ export function Grid({
     return () => registerScroll(null);
   }, [registerScroll]);
 
-  const interactive = api !== undefined;
-  const cellWidth = BASE_CELL_WIDTH * zoom;
-  const cellHeight = BASE_CELL_HEIGHT * zoom;
+  // A miniatura é sempre somente leitura, mesmo que o chamador passe `selection`.
+  const interactive = !thumbnail && api !== undefined;
+  const cellWidth = thumbnail ? THUMBNAIL_CELL_SIZE : BASE_CELL_WIDTH * zoom;
+  const cellHeight = thumbnail ? THUMBNAIL_CELL_SIZE : BASE_CELL_HEIGHT * zoom;
   const xTuples = x.axis.tuples;
   const yTuples = y.axis.tuples;
 
@@ -707,6 +723,16 @@ export function Grid({
     .filter((label) => label !== '')
     .join(' \\ ');
 
+  const columnsTemplate = thumbnail
+    ? `repeat(${xTuples.length}, ${cellWidth}px)`
+    : `repeat(${y.levelCount}, ${Y_HEADER_COL_WIDTH}px) repeat(${xTuples.length}, ${cellWidth}px)`;
+  const rowsTemplate = thumbnail
+    ? `repeat(${yTuples.length}, ${cellHeight}px)`
+    : `repeat(${x.levelCount}, ${HEADER_ROW_HEIGHT}px) repeat(${yTuples.length}, ${cellHeight}px)`;
+  /** Deslocamento das células de dados: sem faixa de cabeçalho na miniatura. */
+  const columnOffset = thumbnail ? 0 : y.levelCount;
+  const rowOffset = thumbnail ? 0 : x.levelCount;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div
@@ -718,20 +744,23 @@ export function Grid({
       >
         <div
           ref={contentRef}
-          role="grid"
-          aria-rowcount={x.levelCount + yTuples.length}
-          aria-colcount={y.levelCount + xTuples.length}
+          role={thumbnail ? 'img' : 'grid'}
+          aria-label={thumbnail ? `Miniatura da matriz "${view.matrix.name}"` : undefined}
+          aria-rowcount={thumbnail ? undefined : x.levelCount + yTuples.length}
+          aria-colcount={thumbnail ? undefined : y.levelCount + xTuples.length}
           aria-multiselectable={interactive ? true : undefined}
           onKeyDown={interactive ? handleKeyDown : undefined}
           style={{
             display: 'grid',
             width: 'max-content',
-            gridTemplateColumns: `repeat(${y.levelCount}, ${Y_HEADER_COL_WIDTH}px) repeat(${xTuples.length}, ${cellWidth}px)`,
-            gridTemplateRows: `repeat(${x.levelCount}, ${HEADER_ROW_HEIGHT}px) repeat(${yTuples.length}, ${cellHeight}px)`,
+            gridTemplateColumns: columnsTemplate,
+            gridTemplateRows: rowsTemplate,
             userSelect: dragging ? 'none' : undefined,
           }}
         >
           {/* Canto superior esquerdo: nomes das variáveis de cada nível; clicável para selecionar tudo. */}
+          {!thumbnail && (
+          <>
           <div
             role={interactive ? 'button' : 'presentation'}
             aria-label={interactive ? 'Selecionar tudo' : undefined}
@@ -838,6 +867,8 @@ export function Grid({
               );
             }),
           )}
+          </>
+          )}
 
           {/* Células de dados. */}
           {yTuples.map((yPath, yIndex) =>
@@ -845,15 +876,19 @@ export function Grid({
               const key = `${xPath}::${yPath}`;
               const cell = cells[key];
               const background = resolveCellColor(cell, catalog);
-              const decisionItem = cell?.decision !== undefined ? catalog.byCode.DECISION[cell.decision] : undefined;
-              const offerItem = cell?.offer !== undefined ? catalog.byCode.OFFER[cell.offer] : undefined;
+              const decisionItem =
+                !thumbnail && cell?.decision !== undefined ? catalog.byCode.DECISION[cell.decision] : undefined;
+              const offerItem =
+                !thumbnail && cell?.offer !== undefined ? catalog.byCode.OFFER[cell.offer] : undefined;
               const limitItem = cell?.limit !== undefined ? catalog.byCode.LIMIT[cell.limit] : undefined;
               const limitDisplay =
-                cell?.limitOverride !== undefined
-                  ? formatBRL(cell.limitOverride)
-                  : limitItem?.numericValue !== undefined
-                    ? formatBRL(limitItem.numericValue)
-                    : undefined;
+                thumbnail
+                  ? undefined
+                  : cell?.limitOverride !== undefined
+                    ? formatBRL(cell.limitOverride)
+                    : limitItem?.numericValue !== undefined
+                      ? formatBRL(limitItem.numericValue)
+                      : undefined;
               const selected = interactive && isSelectedAt(xIndex, yIndex, key);
               const anchor = api?.anchor ?? null;
               const isAnchor = anchor !== null && anchor.xPath === xPath && anchor.yPath === yPath;
@@ -866,16 +901,17 @@ export function Grid({
                   cellKey={key}
                   xPath={xPath}
                   yPath={yPath}
-                  column={y.levelCount + xIndex + 1}
-                  row={x.levelCount + yIndex + 1}
+                  column={columnOffset + xIndex + 1}
+                  row={rowOffset + yIndex + 1}
                   background={background}
                   color={contrastText(background)}
                   pending={isCellPending(cell)}
                   pulsePending={highlightPending}
+                  decorative={thumbnail}
                   {...(decisionItem !== undefined ? { decisionLabel: decisionItem.label } : {})}
                   {...(offerItem !== undefined ? { offerLabel: offerItem.label } : {})}
                   {...(limitDisplay !== undefined ? { limitDisplay } : {})}
-                  hasNote={cell?.note !== undefined}
+                  hasNote={!thumbnail && cell?.note !== undefined}
                   isXBoundary={xBoundaries.has(xIndex)}
                   isYBoundary={yBoundaries.has(yIndex)}
                   title={`${readablePath(x, xPath)} × ${readablePath(y, yPath)}`}
@@ -916,7 +952,7 @@ export function Grid({
         </div>
       </div>
 
-      {!hideFooter && (
+      {!hideFooter && !thumbnail && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
           <div className="flex flex-wrap items-center gap-2">
             {legendItems.map((item) => (
