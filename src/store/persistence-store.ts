@@ -4,6 +4,7 @@ import type { PolicyOpsDocument } from '@/core/document/schema';
 import { serialize } from '@/core/document/serialize';
 import { validateDocument, type ValidationIssue } from '@/core/document/validate';
 import { DomainError } from '@/core/errors';
+import { mergeDocument, type MergeResolutions } from '@/core/merge';
 import type { OpenedFile, SaveResult, StorageAdapter } from '@/storage/adapter';
 import {
   classifyPickerFailure,
@@ -63,6 +64,13 @@ export type ConflictState = {
   fileName: string;
 };
 
+/** Merge em revisão: o documento do arquivo, à espera das decisões (§7). */
+export type MergeState = {
+  headline: string;
+  theirs: PolicyOpsDocument;
+  fileName: string;
+};
+
 export type RecoveryState = {
   fileName: string;
   issues: ValidationIssue[];
@@ -105,6 +113,7 @@ interface PersistenceState {
   backupWarning: string | null;
 
   conflict: ConflictState | null;
+  merge: MergeState | null;
   recovery: RecoveryState | null;
   invalid: InvalidState | null;
   bufferOffer: BufferEntry | null;
@@ -129,6 +138,11 @@ interface PersistenceState {
   saveAs: () => Promise<void>;
   saveConflictCopy: () => Promise<void>;
   overwriteAnyway: (typedFileName: string) => Promise<void>;
+  /** §5 "Mesclar": abre a tela de merge com o documento do arquivo. */
+  startMerge: () => void;
+  cancelMerge: () => void;
+  /** Aplica `document/merge` com as decisões da tela e grava (§7). */
+  applyMerge: (resolutions: MergeResolutions) => Promise<void>;
   dismissConflict: () => void;
   dismissInvalid: () => void;
   dismissDownloadOnlyWarning: () => void;
@@ -219,6 +233,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       status: 'saved',
       errorMessage: null,
       conflict: null,
+      merge: null,
       invalid: null,
       recovery: null,
       readOnly: false,
@@ -321,6 +336,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
         fileName: result.fileName,
         errorMessage: null,
         conflict: null,
+        merge: null,
         invalid: null,
       });
       void buffer?.clearFor(doc?.meta.id ?? '');
@@ -459,6 +475,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       status: 'dirty',
       errorMessage: null,
       conflict: null,
+      merge: null,
       invalid: null,
       recovery: null,
       readOnly: false,
@@ -489,6 +506,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
     backupWarning: null,
 
     conflict: null,
+    merge: null,
     recovery: null,
     invalid: null,
     bufferOffer: null,
@@ -503,6 +521,19 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       initialized = true;
       set({ recents: listRecents() });
       buffer ??= createLocalBuffer();
+
+      // Identidade (docs/02 §6): o nome informado na tela inicial carimba
+      // `savedBy` **e** o `actor` de todo evento de auditoria. O store do
+      // documento é quem monta o `Ctx` dos comandos, então ele precisa de uma
+      // cópia — sem isso, todo evento gerado pela interface nasceria sem autor
+      // e o documento seria recusado na validação do salvamento (§4).
+      const syncActor = (name: string | null): void => {
+        useDocumentStore.getState().setActor(name ?? 'Anônimo');
+      };
+      syncActor(useUiStore.getState().actor);
+      useUiStore.subscribe((state, previous) => {
+        if (state.actor !== previous.actor) syncActor(state.actor);
+      });
 
       // Autosave: toda mudança no documento agenda a gravação do buffer,
       // com debounce de 3 s (§8).
@@ -555,6 +586,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
         status: 'no-document',
         errorMessage: null,
         conflict: null,
+        merge: null,
         invalid: null,
         recovery: null,
         readOnly: false,
@@ -599,6 +631,48 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       }
       currentAdapter().acceptRemoteAsBase();
       set({ conflict: null, errorMessage: null });
+      await runSave('save');
+    },
+
+    /**
+     * §5 — "Mesclar". Troca o diálogo de conflito pela tela de merge; nada é
+     * mesclado nem gravado aqui: a tela mostra o resultado antes.
+     */
+    startMerge: () => {
+      const conflict = get().conflict;
+      if (conflict === null) return;
+      set({
+        conflict: null,
+        merge: {
+          headline: conflict.headline,
+          theirs: conflict.remote,
+          fileName: conflict.fileName,
+        },
+        errorMessage: null,
+      });
+    },
+
+    cancelMerge: () => set({ merge: null, status: 'dirty', errorMessage: null }),
+
+    /**
+     * §7 — aplica o merge com as decisões do usuário e grava.
+     *
+     * Depois de mesclar, o conteúdo do arquivo já está dentro do documento em
+     * memória: `acceptRemoteAsBase()` é o que permite o salvamento seguinte
+     * gravar por cima em vez de acusar o mesmo conflito de novo.
+     */
+    applyMerge: async (resolutions) => {
+      const merge = get().merge;
+      if (merge === null) return;
+      const result = useDocumentStore
+        .getState()
+        .dispatch(mergeDocument({ theirs: merge.theirs, resolutions }));
+      if (!result.ok) {
+        set({ merge: null, status: 'error', errorMessage: result.error.message });
+        return;
+      }
+      currentAdapter().acceptRemoteAsBase();
+      set({ merge: null, conflict: null, errorMessage: null });
       await runSave('save');
     },
 

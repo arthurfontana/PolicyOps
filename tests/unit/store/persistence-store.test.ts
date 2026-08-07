@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
+import { renameDocument } from '@/core/document/commands';
 import { createSampleDocument } from '@/core/document/create';
 import { serialize } from '@/core/document/serialize';
+import { validateDocument } from '@/core/document/validate';
 import type { PolicyOpsDocument } from '@/core/document/schema';
 import { DownloadAdapter } from '@/storage/download-adapter';
 import { FsaAdapter } from '@/storage/fsa-adapter';
@@ -31,6 +33,7 @@ function resetStores() {
     status: 'no-document',
     errorMessage: null,
     conflict: null,
+    merge: null,
     invalid: null,
     recovery: null,
     bufferOffer: null,
@@ -220,6 +223,59 @@ describe('salvar', () => {
     await usePersistenceStore.getState().overwriteAnyway('politicas.json');
     expect(handle.writeCount()).toBe(1);
     expect(usePersistenceStore.getState().conflict).toBeNull();
+  });
+
+  it('mesclar junta os dois documentos, grava o resultado e registra DOCUMENT_MERGED', async () => {
+    const doc = createSampleDocument();
+    const handle = fakeFileHandle('politicas.json', serialize(doc));
+    const adapter = new FsaAdapter({ getActor: () => 'Arthur' });
+    usePersistenceStore.getState()._setAdapter(adapter);
+    await adapter.openFromDropHandle(handle);
+    useDocumentStore.getState().openDocument(doc);
+    usePersistenceStore.setState({ fileName: 'politicas.json' });
+
+    // Eu renomeei o documento; Beatriz salvou um projeto novo antes de mim.
+    useDocumentStore.getState().setActor('Arthur');
+    useDocumentStore.getState().dispatch(renameDocument({ name: 'Políticas — meu' }));
+    const theirs: PolicyOpsDocument = {
+      ...doc,
+      meta: { ...doc.meta, revision: 9, savedAt: '2026-08-05T12:00:00.000Z', savedBy: 'Beatriz' },
+      projects: [
+        ...doc.projects,
+        {
+          id: 'projBeatriz1',
+          code: 'POLITICA_AUTO',
+          name: 'Política Auto',
+          position: doc.projects.length,
+          createdAt: '2026-08-05T11:00:00.000Z',
+        },
+      ],
+    };
+    handle.writeExternally(serialize(theirs));
+
+    await usePersistenceStore.getState().save();
+    expect(usePersistenceStore.getState().conflict).not.toBeNull();
+    expect(handle.writeCount()).toBe(0);
+
+    // "Mesclar" só abre a tela: nada foi gravado ainda.
+    usePersistenceStore.getState().startMerge();
+    expect(usePersistenceStore.getState().conflict).toBeNull();
+    expect(usePersistenceStore.getState().merge!.theirs.meta.savedBy).toBe('Beatriz');
+    expect(handle.writeCount()).toBe(0);
+
+    await usePersistenceStore.getState().applyMerge({});
+
+    expect(usePersistenceStore.getState().merge).toBeNull();
+    expect(usePersistenceStore.getState().status).toBe('saved');
+    expect(handle.writeCount()).toBe(1);
+
+    const written = JSON.parse(handle.content()) as PolicyOpsDocument;
+    // O projeto dela e o meu nome de documento sobreviveram.
+    expect(written.projects.some((project) => project.code === 'POLITICA_AUTO')).toBe(true);
+    expect(written.meta.name).toBe('Políticas — meu');
+    expect(written.meta.revision).toBe(10);
+    expect(written.events.some((event) => event.type === 'DOCUMENT_MERGED')).toBe(true);
+    expect(validateDocument(written).ok).toBe(true);
   });
 
   it('somente leitura recusa salvar por cima e explica o caminho', async () => {

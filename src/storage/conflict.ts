@@ -69,7 +69,12 @@ export function conflictHeadline(theirs: PolicyOpsDocument): string {
   return `${who} salvou este arquivo em ${when} (revisão ${theirs.meta.revision}) depois de você abri-lo. Nada foi gravado.`;
 }
 
-export const MERGE_COMING_LATER = 'Mesclar os dois documentos estará disponível na Sessão 17.';
+/**
+ * O que "Mesclar" faz, dito antes de o usuário clicar
+ * (docs/06-persistencia-e-concorrencia.md §5 e §7).
+ */
+export const MERGE_EXPLANATION =
+  'Mesclar junta os dois documentos: tudo que só existe de um lado entra por união, e você decide o que fazer nos poucos pontos em que os dois divergem. Nada é gravado antes de você ver o resultado.';
 
 export const DOWNLOAD_ONLY_CONFLICT_WARNING =
   'Neste modo a aplicação não consegue reler o arquivo, e por isso não detecta conflito: se outra pessoa salvar enquanto você edita, nada avisa. Use o bloqueio consultivo, combine com o time quem edita e salve com frequência.';
