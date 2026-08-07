@@ -8,6 +8,7 @@ import { CreateMatrixDialog } from '@/components/dialogs/CreateMatrixDialog';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { archiveProject } from '@/core/document/commands';
 import { listProjectMatrices, resolveOpenVersion } from '@/core/queries';
+import { formatDateBR } from '@/lib/format';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
@@ -131,9 +132,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                 {publishedVersion !== null && (
                   <p className="text-xs text-neutral-400 dark:text-neutral-500">
                     última publicação:{' '}
-                    {publishedVersion.publishedAt === undefined
-                      ? '—'
-                      : new Date(publishedVersion.publishedAt).toLocaleDateString('pt-BR')}
+                    {publishedVersion.publishedAt === undefined ? '—' : formatDateBR(publishedVersion.publishedAt)}
                   </p>
                 )}
               </div>

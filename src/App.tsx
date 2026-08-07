@@ -22,6 +22,7 @@ import { RecoveryDialog } from '@/components/dialogs/RecoveryDialog';
 import { InvalidDocumentDialog } from '@/components/dialogs/InvalidDocumentDialog';
 import { BufferRecoveryDialog } from '@/components/dialogs/BufferRecoveryDialog';
 import { CompressionOfferDialog } from '@/components/dialogs/CompressionOfferDialog';
+import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useHashRouting } from '@/hooks/useHashRouting';
 import { usePersistence } from '@/hooks/usePersistence';
 import { useDocumentStore } from '@/store/document-store';
@@ -68,6 +69,7 @@ function App() {
   useHashRouting();
   usePersistence();
   useDocumentRoute();
+  useDocumentTitle();
 
   return (
     <TooltipProvider delayDuration={300}>

@@ -31,7 +31,7 @@ function Banner({
   }[tone];
 
   return (
-    <div className={`flex items-start gap-2 border-b border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800 ${toneClass}`}>
+    <div className={`flex items-start gap-2 border-b border-neutral-200 px-3 py-2 text-xs print:hidden dark:border-neutral-800 ${toneClass}`}>
       <span className="mt-0.5 shrink-0" aria-hidden>
         {icon}
       </span>

@@ -121,6 +121,7 @@ export function CreateCompatibilityDialog({ open, onOpenChange, onCreated }: Cre
                 onChange={setParentVariableId}
                 placeholder="Selecione a variável pai…"
                 emptyText="Nenhuma variável com versão publicada."
+                aria-label="Variável pai"
               />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -131,6 +132,7 @@ export function CreateCompatibilityDialog({ open, onOpenChange, onCreated }: Cre
                 onChange={setChildVariableId}
                 placeholder="Selecione a variável filho…"
                 emptyText="Nenhuma variável com versão publicada."
+                aria-label="Variável filho"
               />
             </div>
           </div>

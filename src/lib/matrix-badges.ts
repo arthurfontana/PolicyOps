@@ -1,15 +1,12 @@
 import type { MatrixVersion } from '@/core/document/schema';
 import type { BadgeVariant } from '@/components/ui/badge';
+import { formatDateBR } from '@/lib/format';
 
 /** Badges de estado de versão — docs/07-ux-e-editor.md §3. */
 export type VersionBadgeInfo = { label: string; variant: BadgeVariant; strike?: boolean };
 
 /** Só os campos que a decisão do badge usa — `MatrixVersion` inteira e `MatrixVersionSummary` cabem aqui. */
 export type VersionBadgeInput = Pick<MatrixVersion, 'state' | 'number' | 'effectiveFrom' | 'effectiveTo'>;
-
-function formatDateBR(iso: string): string {
-  return new Date(iso).toLocaleDateString('pt-BR');
-}
 
 export function versionBadge(version: VersionBadgeInput, now: Date = new Date()): VersionBadgeInfo {
   if (version.state === 'DRAFT') return { label: 'Rascunho', variant: 'amber' };

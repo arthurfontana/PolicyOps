@@ -154,6 +154,7 @@ export function AddLevelDialog({
               onChange={setVariableId}
               placeholder="Escolha uma variável…"
               emptyText="Nenhuma variável publicada disponível."
+              aria-label="Variável"
             />
           </div>
 

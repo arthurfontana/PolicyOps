@@ -99,3 +99,40 @@ html.dark .policy-diff-modified {
   outline: 2px dashed #dc2626;
   outline-offset: -2px;
 }
+
+/* Impressão — docs/07-ux-e-editor.md §12, docs/prompts/S17 Parte C: grid em
+   paisagem, cabeçalho e rodapé próprios repetidos em cada página. O chrome do
+   app (sidebar, inspector, barra de ferramentas, status bar) some via a
+   variante `print:` do Tailwind nos próprios componentes; aqui só fica o que
+   não tem como expressar como utilitário. */
+@media print {
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  /* `position: fixed` repete em cada página impressa — é o que faz cabeçalho
+     e rodapé aparecerem em todas as folhas, não só na primeira. */
+  .print-page-header,
+  .print-page-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    color: #000;
+    font-size: 9pt;
+  }
+  .print-page-header {
+    top: 0;
+  }
+  .print-page-footer {
+    bottom: 0;
+    border-top: 1px solid #000;
+    padding-top: 2mm;
+  }
+}

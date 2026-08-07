@@ -16,6 +16,7 @@ import {
   resolveCellColor,
   SELECTION_COLOR,
 } from '@/lib/colors';
+import { formatBRL, formatThousands } from '@/lib/format';
 
 /**
  * O grid com cabeçalhos aninhados — docs/07-ux-e-editor.md §4 e §5,
@@ -161,13 +162,6 @@ function readablePath(axisView: EditorAxisView, path: string): string {
       return domain?.label ?? code;
     })
     .join(' › ');
-}
-
-const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-
-function formatBRL(value: string): string {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? currencyFormatter.format(parsed) : value;
 }
 
 function modifiersOf(event: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }): GridModifiers {
@@ -977,7 +971,8 @@ export function Grid({
               {selectionLabel}
             </span>
             <span data-testid="grid-counters">
-              {stats.combinations} combinações · {stats.filledCells} preenchidas · {stats.pendingCells} pendentes
+              {formatThousands(stats.combinations)} combinações · {formatThousands(stats.filledCells)} preenchidas ·{' '}
+              {formatThousands(stats.pendingCells)} pendentes
             </span>
           </div>
         </div>

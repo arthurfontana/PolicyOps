@@ -230,7 +230,7 @@ export function CellInspector({ selection }: { selection: ReadonlySet<string> })
   const disabled = !isEditable;
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4" data-testid="cell-inspector">
+    <div className="flex h-full flex-col gap-3 overflow-y-auto p-4" tabIndex={0} data-testid="cell-inspector">
       <div>
         <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">{header}</h2>
         {!isSingle && <p className="text-xs text-neutral-500 dark:text-neutral-400">seleção múltipla</p>}
@@ -335,6 +335,7 @@ export function CellInspector({ selection }: { selection: ReadonlySet<string> })
           onChange={(value) => markTouched('offer', value)}
           placeholder={placeholderFor('offer') ?? 'Selecione…'}
           disabled={disabled}
+          aria-label="Oferta"
         />
       </FieldRow>
 
@@ -346,6 +347,7 @@ export function CellInspector({ selection }: { selection: ReadonlySet<string> })
             onChange={(value) => markTouched('limit', value)}
             placeholder={placeholderFor('limit') ?? 'Selecione…'}
             disabled={disabled}
+            aria-label="Limite"
           />
           <Input
             placeholder={placeholderFor('limitOverride') ?? 'Valor específico (BRL)'}

@@ -34,3 +34,17 @@ export function formatDateTimeBR(iso: string): string {
 export function formatDateBR(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR');
 }
+
+const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+/** Valor decimal (string, nunca `number` — docs/03 §1) em BRL, pt-BR. */
+export function formatBRL(value: string | undefined): string {
+  if (value === undefined || value === '') return '—';
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? currencyFormatter.format(parsed) : value;
+}
+
+/** Milhar com separador pt-BR, sem casas decimais — contadores e estatísticas. */
+export function formatThousands(value: number): string {
+  return new Intl.NumberFormat('pt-BR').format(value);
+}

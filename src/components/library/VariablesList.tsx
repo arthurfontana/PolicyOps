@@ -100,7 +100,7 @@ export function VariablesList({ onSelect }: VariablesListProps) {
               />
             </div>
             <Select value={type} onValueChange={(value) => setType(value as VariableType | 'ALL')}>
-              <SelectTrigger className="w-44">
+              <SelectTrigger className="w-44" aria-label="Filtrar por tipo">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

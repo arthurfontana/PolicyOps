@@ -88,8 +88,12 @@ test('compara v1 × v2 de MTZ_LIMITE_PF nos três modos', async ({ page }) => {
   await expect(
     page.getByRole('cell', { name: 'Restritivo baixo × R1 — Risco muito baixo' }),
   ).toBeVisible();
-  // A exportação do diff só chega na S17.
-  await expect(page.getByRole('button', { name: 'Exportar' })).toBeDisabled();
+  // Exportação do diff — docs/prompts/S17 Parte C.
+  await page.getByRole('button', { name: 'Exportar', exact: true }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('menuitem', { name: 'Exportar CSV do diff' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^diff_.*_v\d+_v\d+\.csv$/);
 });
 
 test('comparar matrizes de estruturas diferentes mostra o banner e força o lado a lado', async ({

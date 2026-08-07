@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
-  Download,
   FilePlus2,
   GitCompare,
   History,
@@ -25,10 +24,14 @@ import { AddNoteDialog } from '@/components/dialogs/AddNoteDialog';
 import { DiscardDraftDialog } from '@/components/dialogs/DiscardDraftDialog';
 import { PublishVersionDialog } from '@/components/dialogs/PublishVersionDialog';
 import { VersionHistoryDialog } from '@/components/dialogs/VersionHistoryDialog';
+import { ExportMenu } from '@/components/shell/ExportMenu';
 import { decodeCellKey, encodeCellKey } from '@/core/axes/paths';
 import { orderForCompare } from '@/core/diff';
 import { Grid, MAX_ZOOM, MIN_ZOOM, type GridSelectionApi } from '@/components/grid/Grid';
+import { GridExportSnapshot } from '@/components/grid/GridExportSnapshot';
 import { getErrorMessage } from '@/core/error-messages';
+import { canonicalFileName, exportVersionCanonical } from '@/core/export/canonical';
+import { csvFileName, exportVersionCsv } from '@/core/export/csv';
 import {
   getEditorView,
   getOpenDraft,
@@ -40,6 +43,9 @@ import { CELL_FIELDS, applyCellPatch } from '@/core/versioning/cells';
 import { createDraft, pendingCoords } from '@/core/versioning/lifecycle';
 import { extractTemplateSeed } from '@/core/templates/extract';
 import { useGridSelection } from '@/hooks/useGridSelection';
+import { usePngExportPortal } from '@/hooks/usePngExportPortal';
+import { downloadCsv, downloadJson } from '@/lib/download';
+import { pngFileName } from '@/lib/export-png';
 import { formatDateBR } from '@/lib/format';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
@@ -85,6 +91,18 @@ export function MatrixScreen() {
   const undoLabel = useDocumentStore((s) => s.undoStack[s.undoStack.length - 1]?.label);
   const redoLabel = useDocumentStore((s) => s.redoStack[s.redoStack.length - 1]?.label);
   const { toast } = useToast();
+
+  const {
+    nodeRef: pngNodeRef,
+    pending: pngPending,
+    requestExport: requestPngExport,
+  } = usePngExportPortal((error) => {
+    toast({
+      variant: 'destructive',
+      title: 'Não foi possível gerar o PNG',
+      description: error instanceof Error ? error.message : String(error),
+    });
+  });
 
   const [pendingClear, setPendingClear] = useState<{ coords: { xPath: string; yPath: string }[] } | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -275,9 +293,47 @@ export function MatrixScreen() {
     setView('templates');
   }
 
+  // --- Exportação — docs/08 §5, docs/07 §12 --------------------------------
+  // Só para versões imutáveis (publicada ou histórica): o canônico é "estável
+  // e versionado", o que não faz sentido para um rascunho ainda em edição.
+
+  function handleExportJson() {
+    const canonical = exportVersionCanonical(document!, matrix!, version);
+    downloadJson(canonicalFileName(matrix!.code, version.number), canonical);
+  }
+
+  function handleExportCsv() {
+    downloadCsv(csvFileName(matrix!.code, version.number), exportVersionCsv(document!, version));
+  }
+
+  function handleExportPng() {
+    requestPngExport(pngFileName(matrix!.code, version.number));
+  }
+
+  const exportItems = [
+    { key: 'json', label: 'Exportar JSON', onSelect: handleExportJson },
+    { key: 'csv', label: 'Exportar CSV', onSelect: handleExportCsv },
+    { key: 'png', label: 'Exportar PNG', onSelect: handleExportPng, disabled: pngPending !== null },
+  ];
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 p-2 dark:border-neutral-800">
+      {/* Cabeçalho e rodapé só de impressão — docs/07 §12: matriz, versão e
+          vigência em toda página, via `position: fixed` (src/index.css). */}
+      <div className="print-page-header hidden print:flex print:items-baseline print:gap-2">
+        <strong>{matrix.name}</strong>
+        <span>({matrix.code})</span>
+        <span>· Versão {version.number}</span>
+        <span>· {badge.label}</span>
+      </div>
+      <div className="print-page-footer hidden print:flex print:items-center print:justify-between">
+        <span>
+          {matrix.code} · v{version.number}
+        </span>
+        <span>Impresso em {formatDateBR(new Date().toISOString())}</span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 p-2 print:hidden dark:border-neutral-800">
         <Button variant="ghost" size="icon" aria-label="Voltar ao projeto" onClick={backToProject}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -336,16 +392,7 @@ export function MatrixScreen() {
               >
                 <GitCompare className="mr-1.5 h-3.5 w-3.5" /> Comparar
               </Button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button type="button" variant="outline" size="sm" disabled>
-                      <Download className="mr-1.5 h-3.5 w-3.5" /> Exportar
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>chega na Sessão 17</TooltipContent>
-              </Tooltip>
+              <ExportMenu items={exportItems} />
             </>
           )}
 
@@ -360,16 +407,7 @@ export function MatrixScreen() {
               >
                 <GitCompare className="mr-1.5 h-3.5 w-3.5" /> Comparar
               </Button>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button type="button" variant="outline" size="sm" disabled>
-                      <Download className="mr-1.5 h-3.5 w-3.5" /> Exportar
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>chega na Sessão 17</TooltipContent>
-              </Tooltip>
+              <ExportMenu items={exportItems} />
             </>
           )}
 
@@ -425,7 +463,7 @@ export function MatrixScreen() {
       {isDraft && view.stats.pendingCells > 0 && (
         <div
           data-testid="pending-cells-bar"
-          className="flex flex-wrap items-center gap-2 border-b border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+          className="flex flex-wrap items-center gap-2 border-b border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 print:hidden dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
         >
           <span className="font-medium">
             {view.stats.pendingCells === 1
@@ -444,7 +482,7 @@ export function MatrixScreen() {
       {isSuperseded && (
         <div
           data-testid="historical-banner"
-          className="flex flex-wrap items-center gap-2 border-b border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
+          className="flex flex-wrap items-center gap-2 border-b border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-800 print:hidden dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
         >
           <span>
             Você está vendo a versão {version.number}, vigente de{' '}
@@ -474,7 +512,7 @@ export function MatrixScreen() {
           <div
             aria-hidden
             data-testid="historical-watermark"
-            className="pointer-events-none absolute inset-0 z-40 flex select-none items-center justify-center overflow-hidden"
+            className="pointer-events-none absolute inset-0 z-40 flex select-none items-center justify-center overflow-hidden print:hidden"
           >
             <span className="rotate-[-25deg] whitespace-nowrap text-7xl font-black uppercase tracking-widest text-neutral-900/[0.06] dark:text-neutral-100/[0.08]">
               HISTÓRICO
@@ -538,6 +576,12 @@ export function MatrixScreen() {
           onOpenVersion={setVersion}
           onCompare={handleCompare}
         />
+      )}
+
+      {pngPending !== null && matrix !== null && (
+        <div style={{ position: 'fixed', left: -99999, top: 0 }} aria-hidden>
+          <GridExportSnapshot ref={pngNodeRef} matrix={matrix} version={version} view={view} />
+        </div>
       )}
     </div>
   );

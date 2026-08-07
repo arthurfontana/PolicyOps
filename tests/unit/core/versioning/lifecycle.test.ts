@@ -200,6 +200,24 @@ describe('matrix/create (§1.1)', () => {
     ).toBe(true);
   });
 
+  it('recusa templateId que não existe no documento', () => {
+    const ctx = testCtx();
+    const doc = baseDocument();
+    expectFailure(
+      doc,
+      ctx,
+      createMatrix({
+        projectId: IDS.projectA,
+        code: 'MTZ_A',
+        name: 'Matriz A',
+        x: { levels: [{ variableId: IDS.score }] },
+        y: { levels: [{ variableId: IDS.restritivo }] },
+        templateId: 'nao-existe',
+      }),
+      'NOT_FOUND',
+    );
+  });
+
   it('recusa variável inexistente e variável sem versão publicada', () => {
     const ctx = testCtx();
     const doc = baseDocument();

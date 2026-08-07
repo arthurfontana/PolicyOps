@@ -4,7 +4,30 @@ Fonte oficial das matrizes de política de crédito — os "cineminhas" — com 
 
 **Um único arquivo `.html`.** Sem instalar nada, sem servidor, sem banco de dados. Você coloca `PolicyOps.html` numa biblioteca do SharePoint, o time abre no navegador, edita e salva.
 
-> **Status: em implementação — marco M1 alcançado.** Sessões 01 a 05 concluídas: scaffold e shell, modelo do documento, eixos aninhados, camada de comandos com undo/redo e a camada de persistência (abrir, salvar, detecção de conflito, bloqueio consultivo, autosave e recuperação). A partir daqui o arquivo já pode ir para o SharePoint e ser testado pelo time. As telas de biblioteca e de matriz chegam nas próximas sessões (veja o roadmap abaixo).
+> **Status: MVP completo — marco M5 alcançado.** As 17 sessões do roadmap estão implementadas: bibliotecas, editor com eixos aninhados, seleção hierárquica e edição em massa, ciclo de vida e histórico, comparação de versões, vigência por data, reconciliação da biblioteca, templates, merge de documentos e exportação (JSON, CSV e PNG). Veja o [Guia do Usuário](docs/10-guia-do-usuario.md) para aprender a usar, e [Operação](docs/11-operacao.md) para manter a pasta compartilhada.
+
+## Capturas de tela
+
+| Grid aninhado, com export e legenda | Comparação de versões |
+|---|---|
+| ![Grid aninhado de Segmento › Faturamento × Score, com legenda e estatísticas](docs/screenshots/02-grid-aninhado.png) | ![Comparação sobreposta entre duas versões, com resumo semântico](docs/screenshots/04-comparacao.png) |
+
+| Tela inicial | Inspector de célula |
+|---|---|
+| ![Tela inicial com os quatro caminhos de abertura e a faixa de modo](docs/screenshots/01-tela-inicial.png) | ![Inspector de célula selecionada, com decisão, oferta e limite](docs/screenshots/03-inspector.png) |
+
+## Guia de 5 minutos
+
+1. **Baixe** `dist/PolicyOps.html` deste repositório (veja "Como baixar e usar" logo abaixo) e coloque numa pasta do SharePoint.
+2. **Abra** o arquivo pelo endereço da biblioteca (não por duplo clique — veja por quê na seção seguinte). Na primeira vez, diga como quer ser identificado.
+3. **Explore com dados de exemplo** — sem precisar de arquivo nenhum, para conhecer a ferramenta sem risco. Ou **Novo documento**, se já quiser começar do zero.
+4. Em **Biblioteca › Variáveis**, confira as variáveis já existentes (ou crie uma nova e publique a primeira versão — só variáveis publicadas entram numa matriz).
+5. Em **Projetos**, crie um projeto e, dentro dele, **Nova matriz** — escolha as variáveis dos eixos X e Y (ou parta de um template pronto).
+6. Preencha as células (clique único ou selecione várias de uma vez) com decisão, oferta e limite pelo painel à direita.
+7. **Publique** a versão — é obrigatório descrever o que mudou. A partir daí ela é imutável e vira a vigente.
+8. Use o menu **Exportar** (no editor, na comparação ou na tela de vigência) para gerar JSON, CSV ou PNG — o PNG já sai pronto para virar slide de comitê.
+
+O [Guia do Usuário](docs/10-guia-do-usuario.md) cobre cada um desses passos em detalhe, com um glossário para quem chega sem contexto técnico.
 
 ## O problema
 
@@ -61,6 +84,8 @@ Abrir o arquivo por duplo clique funciona, mas cai no modo somente download: o n
 
 O autosave local (IndexedDB, a cada 3 segundos) vale nos dois modos: se o navegador cair antes de você salvar, a aplicação oferece recuperar o trabalho na próxima abertura.
 
+Para backup, resolução de conflito, atualização do `.html` sem perder dados e o que responder quando pedirem uma alteração retroativa, veja [docs/11 — Operação](docs/11-operacao.md).
+
 ## Como desenvolver
 
 Pré-requisitos: Node 22, pnpm.
@@ -93,6 +118,8 @@ Toda sessão de implementação termina com `pnpm lint && pnpm typecheck && pnpm
 | [07 — UX e editor](docs/07-ux-e-editor.md)                                 | Shell, grid, seleção hierárquica, edição em massa          |
 | [08 — Camada de comandos](docs/08-camada-de-comandos.md)                   | Contrato interno, catálogo de comandos, formatos de export |
 | [09 — Roadmap](docs/09-roadmap-de-entregas.md)                             | As 17 sessões, modelos recomendados, marcos                |
+| [10 — Guia do usuário](docs/10-guia-do-usuario.md)                         | Glossário e passo a passo para o time de política, sem jargão técnico |
+| [11 — Operação](docs/11-operacao.md)                                       | Onde ficam os arquivos, backup, conflito, atualização, alteração retroativa |
 | [Prompts](docs/prompts/)                                                   | Um prompt pronto por sessão                                |
 
 ## Como executar o plano

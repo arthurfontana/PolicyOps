@@ -84,6 +84,27 @@ describe('getAxisStaleness — os três motivos de §5.2', () => {
     });
   });
 
+  it('1) a variável continua na biblioteca, mas a versão pinada em si sumiu (texto "sumiu da biblioteca")', () => {
+    const ctx = testCtx();
+    const { document, draft } = simpleScenario(ctx);
+    const evoluido = publishVariableWith(document, ctx, IDS.score, domainsOf('R1', 'R2', 'R3', 'R4'));
+
+    const semVersaoPinada: PolicyOpsDocument = structuredClone(evoluido);
+    const variable = semVersaoPinada.variables.find((candidate) => candidate.id === IDS.score)!;
+    variable.versions = variable.versions.filter((candidate) => candidate.id !== IDS.scoreV1);
+
+    const { version } = locateVersion(semVersaoPinada, draft);
+    const staleness = getAxisStaleness(semVersaoPinada, version.axes.x);
+    expect(staleness.stale).toBe(true);
+    const [reason] = staleness.reasons;
+    expect(reason).toMatchObject({
+      kind: 'LEVEL_PIN_OUTDATED',
+      pinnedNumber: null,
+      availableNumber: 2,
+    });
+    expect(reason!.message).toBe('Score — a versão pinada sumiu da biblioteca, v2 disponível.');
+  });
+
   it('2) regra usada nas tuplas que deixou de estar publicada, com o texto do badge', () => {
     const ctx = testCtx();
     const { document, draft } = nestedScenario(ctx);

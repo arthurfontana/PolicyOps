@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { renameDocument } from '@/core/document/commands';
+import { formatDateTimeBR } from '@/lib/format';
 import { useDocumentStore } from '@/store/document-store';
 import { usePersistenceStore } from '@/store/persistence-store';
 import { useUiStore } from '@/store/ui-store';
@@ -99,7 +100,7 @@ export function DocumentScreen() {
             <span>
               {document.meta.savedAt === null
                 ? 'nunca salvo'
-                : `salvo em ${new Date(document.meta.savedAt).toLocaleString('pt-BR')} por ${document.meta.savedBy ?? '—'}`}
+                : `salvo em ${formatDateTimeBR(document.meta.savedAt)} por ${document.meta.savedBy ?? '—'}`}
             </span>
           </div>
           <div className="flex gap-2">

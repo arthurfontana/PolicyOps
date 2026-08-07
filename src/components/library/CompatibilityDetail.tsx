@@ -24,6 +24,7 @@ import {
 } from '@/core/library/compatibility';
 import { getCompatibilityUsage } from '@/core/queries';
 import { getDraftsAdoptingRule } from '@/core/reconcile/stale';
+import { formatDateTimeBR } from '@/lib/format';
 import { useDocumentStore } from '@/store/document-store';
 import { AdoptionList } from './AdoptionList';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -43,9 +44,6 @@ const STATE_BADGE: Record<CompatibilityVersionState, BadgeVariant> = {
   SUPERSEDED: 'secondary',
 };
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('pt-BR');
-}
 
 function pickDefaultVersion(versions: CompatibilityVersion[]): CompatibilityVersion | null {
   if (versions.length === 0) return null;
@@ -271,7 +269,7 @@ export function CompatibilityDetail({ ruleId, onBack }: CompatibilityDetailProps
                     </Badge>
                   </div>
                   <span className="text-neutral-500 dark:text-neutral-400">
-                    {formatDate(version.publishedAt ?? version.createdAt)}
+                    {formatDateTimeBR(version.publishedAt ?? version.createdAt)}
                   </span>
                   {version.notes !== undefined && (
                     <span className="text-neutral-500 dark:text-neutral-400">{version.notes}</span>
