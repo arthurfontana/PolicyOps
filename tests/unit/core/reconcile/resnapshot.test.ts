@@ -436,9 +436,43 @@ describe('§5.4 — domínios', () => {
       'VARIABLE_HAS_NO_PUBLISHED_VERSION',
     );
   });
+
+  it('recusa com NOT_FOUND quando a variável do nível não existe mais no documento', () => {
+    const ctx = testCtx();
+    const { document, draft } = simpleScenario(ctx);
+    const semVariavel: PolicyOpsDocument = structuredClone(document);
+    semVariavel.variables = semVariavel.variables.filter((variable) => variable.id !== IDS.score);
+
+    expectFailure(
+      semVariavel,
+      ctx,
+      resnapshotAxisCommand({ versionId: draft, role: 'X' }),
+      'NOT_FOUND',
+    );
+  });
 });
 
 describe('§5.4 — compatibilidade', () => {
+  it('regra usada pelo eixo removida por inteiro da biblioteca não aparece como mudança de compatibilidade', () => {
+    // Caso de borda deliberado, não um objetivo de negócio: com a regra
+    // inteira fora da biblioteca, o "antes" cai no ramo de fallback de
+    // `slotFor` (nenhuma regra é dona da versão pinada) e o "depois" nunca
+    // referencia esse mesmo id (sem regra, o par vira produto cartesiano
+    // livre) — os dois lados do par ficam em slots diferentes do mapa
+    // interno, `from`/`to` ficam `null`/`null`, e a entrada é descartada
+    // pelo filtro `if (slot.from === slot.to) continue`. As tuplas em si
+    // continuam refletindo a perda da regra (`addedTuples`); só o resumo de
+    // compatibilidade fica em branco para este caso específico.
+    const ctx = testCtx();
+    const { document, draft } = nestedScenario(ctx);
+    const semRegra: PolicyOpsDocument = structuredClone(document);
+    semRegra.compatibility = [];
+
+    const { plan } = previewResnapshot(semRegra, draft, 'Y');
+    expect(plan.compatibility).toEqual([]);
+    expect(plan.addedTuples.length).toBeGreaterThan(0);
+  });
+
   it('regra que passa a incluir combinações gera addedTuples pendentes', () => {
     const ctx = testCtx();
     const { document, draft } = nestedScenario(ctx);

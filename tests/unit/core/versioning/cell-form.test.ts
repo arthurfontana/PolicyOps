@@ -5,6 +5,10 @@ import type { Cell } from '@/core/document/schema';
 const COORDS = [{ xPath: 'VAREJO', yPath: 'R1' }];
 
 describe('computeFieldState', () => {
+  it('vazio quando não há célula nenhuma selecionada', () => {
+    expect(computeFieldState([], 'decision')).toEqual({ kind: 'empty' });
+  });
+
   it('vazio quando nenhuma célula tem o campo', () => {
     const cells: Array<Cell | undefined> = [undefined, {}];
     expect(computeFieldState(cells, 'decision')).toEqual({ kind: 'empty' });
