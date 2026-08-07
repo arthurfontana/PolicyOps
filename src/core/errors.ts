@@ -42,6 +42,7 @@ export const DOMAIN_ERROR_CODES = [
   'RANGE_REGIONAL_NOT_CONTIGUOUS',
   'REGIONAL_CODE_DUPLICATE',
   'REGIONAL_IMPORT_PARSE_ERROR',
+  'DOMAIN_TABLE_PARSE_ERROR',
 ] as const;
 
 export type DomainErrorCode = (typeof DOMAIN_ERROR_CODES)[number];
