@@ -50,6 +50,7 @@ export default tseslint.config(
       'src/core/versioning/**/*.ts',
       'src/core/document/commands.ts',
       'src/core/library/**/*.ts',
+      'src/core/merge/**/*.ts',
     ],
     rules: {
       'no-restricted-properties': [

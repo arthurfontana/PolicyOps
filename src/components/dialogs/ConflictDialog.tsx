@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useDocumentStore } from '@/store/document-store';
 import { usePersistenceStore } from '@/store/persistence-store';
-import { MERGE_COMING_LATER } from '@/storage/conflict';
+import { MERGE_EXPLANATION } from '@/storage/conflict';
 import { ConflictChangesDialog } from './ConflictChangesDialog';
 
 /**
@@ -28,6 +28,7 @@ export function ConflictDialog() {
   const mine = useDocumentStore((s) => s.document);
   const saveConflictCopy = usePersistenceStore((s) => s.saveConflictCopy);
   const overwriteAnyway = usePersistenceStore((s) => s.overwriteAnyway);
+  const startMerge = usePersistenceStore((s) => s.startMerge);
   const dismissConflict = usePersistenceStore((s) => s.dismissConflict);
 
   const [showChanges, setShowChanges] = useState(false);
@@ -66,14 +67,23 @@ export function ConflictDialog() {
             >
               Ver o que mudou
             </Button>
-            <Button variant="secondary" disabled title={MERGE_COMING_LATER}>
+            <Button
+              variant="secondary"
+              disabled={mine === null}
+              title={MERGE_EXPLANATION}
+              onClick={() => {
+                setShowChanges(false);
+                setTypedName('');
+                startMerge();
+              }}
+            >
               Mesclar
             </Button>
             <Button variant="secondary" onClick={() => void saveConflictCopy()}>
               Salvar como cópia
             </Button>
           </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">{MERGE_COMING_LATER}</p>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">{MERGE_EXPLANATION}</p>
 
           <div className="flex flex-col gap-1.5 rounded-md border border-red-200 p-3 dark:border-red-900">
             <Label htmlFor="overwrite-confirm" className="text-red-700 dark:text-red-400">

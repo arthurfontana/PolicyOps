@@ -17,6 +17,7 @@ import { TimelineScreen } from '@/components/timeline/TimelineScreen';
 import { TemplatesScreen } from '@/components/templates/TemplatesScreen';
 import { IdentityDialog } from '@/components/dialogs/IdentityDialog';
 import { ConflictDialog } from '@/components/dialogs/ConflictDialog';
+import { MergeDialog } from '@/components/dialogs/MergeDialog';
 import { RecoveryDialog } from '@/components/dialogs/RecoveryDialog';
 import { InvalidDocumentDialog } from '@/components/dialogs/InvalidDocumentDialog';
 import { BufferRecoveryDialog } from '@/components/dialogs/BufferRecoveryDialog';
@@ -76,6 +77,7 @@ function App() {
         </Shell>
         <IdentityDialog />
         <ConflictDialog />
+        <MergeDialog />
         <RecoveryDialog />
         <InvalidDocumentDialog />
         <BufferRecoveryDialog />
