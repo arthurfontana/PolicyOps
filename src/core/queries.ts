@@ -20,6 +20,7 @@ import type {
   VariableType,
   VariableVersion,
 } from './document/schema';
+import { getAxisStaleness, type AxisStaleness } from './reconcile/stale';
 import { locateMatrix, locateVersion } from './versioning/lifecycle';
 
 /**
@@ -179,127 +180,24 @@ export function countPending(doc: PolicyOpsDocument, versionId: string): number 
 // Defasagem de eixo — docs/05 §5.2
 // ---------------------------------------------------------------------------
 
-export type StaleReasonKind = 'LEVEL_PIN_OUTDATED' | 'RULE_OUTDATED' | 'NEW_RULE_AVAILABLE';
-
-export type StaleReason = {
-  kind: StaleReasonKind;
-  /** Frase pronta em pt-BR. */
-  message: string;
-  levelIndex?: number;
-  variableCode?: string;
-  ruleCode?: string;
-};
-
-export type AxisStaleness = { role: AxisRole; stale: boolean; reasons: StaleReason[] };
-
-function publishedCompatibilityFor(
-  rules: CompatibilityRule[],
-  parentVariableId: string,
-  childVariableId: string,
-): { rule: CompatibilityRule; versionId: string } | undefined {
-  for (const rule of rules) {
-    if (rule.archivedAt !== undefined) continue;
-    if (rule.parentVariableId !== parentVariableId) continue;
-    if (rule.childVariableId !== childVariableId) continue;
-    const version = rule.versions.find((candidate) => candidate.state === 'PUBLISHED');
-    if (version !== undefined) return { rule, versionId: version.id };
-  }
-  return undefined;
-}
-
 /**
- * Um eixo está defasado quando qualquer uma destas for verdadeira (§5.2):
- * um pin de variável não aponta mais para uma versão `PUBLISHED`; uma regra
- * usada para gerar as tuplas não está mais `PUBLISHED`; ou passou a existir
- * regra publicada para um par adjacente que não tinha regra na geração.
+ * A detecção vive em `src/core/reconcile/stale.ts` (S16): é regra de
+ * reconciliação, não consulta de leitura. Reexportada aqui porque a interface
+ * já a consome por `@/core/queries` desde a S12 — um único ponto de entrada
+ * para o que a tela precisa saber sobre uma versão.
  */
-export function getAxisStaleness(doc: PolicyOpsDocument, axis: Axis): AxisStaleness {
-  const reasons: StaleReason[] = [];
-
-  axis.levels.forEach((level, levelIndex) => {
-    const variable = doc.variables.find((candidate) => candidate.id === level.variableId);
-    const pinned = variable?.versions.find(
-      (candidate) => candidate.id === level.variableVersionId,
-    );
-    if (pinned === undefined || pinned.state !== 'PUBLISHED') {
-      reasons.push({
-        kind: 'LEVEL_PIN_OUTDATED',
-        levelIndex,
-        variableCode: variable === undefined ? level.label : variable.code,
-        message: `O nível ${levelIndex + 1} usa uma versão de "${level.label}" que não é mais a publicada.`,
-      });
-    }
-  });
-
-  // Regras usadas na geração das tuplas que já não estão publicadas.
-  const usedRuleIds = new Set<string>();
-  for (const versionId of axis.derivedFrom.compatibilityVersionIds) {
-    const rule = doc.compatibility.find((candidate) =>
-      candidate.versions.some((version) => version.id === versionId),
-    );
-    const version = rule?.versions.find((candidate) => candidate.id === versionId);
-    if (rule !== undefined) usedRuleIds.add(rule.id);
-    if (version === undefined || version.state !== 'PUBLISHED') {
-      reasons.push({
-        kind: 'RULE_OUTDATED',
-        ruleCode: rule === undefined ? versionId : rule.code,
-        message:
-          rule === undefined
-            ? 'Uma regra de compatibilidade usada por este eixo não existe mais.'
-            : `A regra "${rule.code}" tem uma versão mais nova publicada que a usada por este eixo.`,
-      });
-    }
-  }
-
-  // Regra publicada que passou a existir para um par adjacente sem regra.
-  for (let index = 1; index < axis.levels.length; index++) {
-    const parent = axis.levels[index - 1]!;
-    const child = axis.levels[index]!;
-    const found = publishedCompatibilityFor(doc.compatibility, parent.variableId, child.variableId);
-    if (found === undefined || usedRuleIds.has(found.rule.id)) continue;
-    reasons.push({
-      kind: 'NEW_RULE_AVAILABLE',
-      levelIndex: index,
-      ruleCode: found.rule.code,
-      message: `Passou a existir a regra "${found.rule.code}" entre os níveis ${index} e ${index + 1}, ainda não aplicada neste eixo.`,
-    });
-  }
-
-  return { role: axis.role, stale: reasons.length > 0, reasons };
-}
-
-export type StaleAxisEntry = {
-  matrixId: string;
-  matrixCode: string;
-  versionId: string;
-  versionNumber: number;
-  staleness: AxisStaleness;
-};
-
-/**
- * Todos os rascunhos com eixo defasado. Só `DRAFT`: em publicadas e históricas
- * a defasagem não é pendência, é registro (§5.2).
- */
-export function getStaleAxes(doc: PolicyOpsDocument): StaleAxisEntry[] {
-  const entries: StaleAxisEntry[] = [];
-  for (const matrix of doc.matrices) {
-    for (const version of matrix.versions) {
-      if (version.state !== 'DRAFT') continue;
-      for (const axis of [version.axes.x, version.axes.y]) {
-        const staleness = getAxisStaleness(doc, axis);
-        if (!staleness.stale) continue;
-        entries.push({
-          matrixId: matrix.id,
-          matrixCode: matrix.code,
-          versionId: version.id,
-          versionNumber: version.number,
-          staleness,
-        });
-      }
-    }
-  }
-  return entries;
-}
+export {
+  getAxisStaleness,
+  getDraftsAdoptingRule,
+  getDraftsAdoptingVariable,
+  getStaleAxes,
+  reasonsForLevel,
+  reasonsForRules,
+  type AxisStaleness,
+  type StaleAxisEntry,
+  type StaleReason,
+  type StaleReasonKind,
+} from './reconcile/stale';
 
 /** A versão `PUBLISHED` vigente da matriz, se houver — I2 garante no máximo uma. */
 export function getPublishedVersion(matrix: Matrix): MatrixVersion | null {

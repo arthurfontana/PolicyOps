@@ -68,7 +68,7 @@ test('cria variável RANGE com 4 faixas, publica, e ela fica vigente na lista', 
   await expect(page.getByText(/não são contíguas/)).not.toBeVisible();
 
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
-  await expect(page.getByText('Domínios salvos')).toBeVisible();
+  await expect(page.getByText('Domínios salvos').first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Publicar', exact: true }).click();

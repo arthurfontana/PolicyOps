@@ -38,9 +38,10 @@ function openDocument(): { doc: PolicyOpsDocument; versionId: string } {
 
 function renderEditor(versionId: string) {
   const doc = useDocumentStore.getState().document!;
+  const view = getEditorView(doc, versionId);
   return render(
     <>
-      <AxisEditor role="X" view={getEditorView(doc, versionId)} stale={false} />
+      <AxisEditor role="X" view={view} staleness={view.staleness?.x ?? null} />
       <Toaster />
     </>,
   );

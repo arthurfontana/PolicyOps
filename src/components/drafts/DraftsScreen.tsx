@@ -3,6 +3,7 @@ import { PencilLine } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { listOpenDrafts } from '@/core/queries';
+import { getStaleAxes } from '@/core/reconcile/stale';
 import { formatDateTimeBR } from '@/lib/format';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
@@ -18,6 +19,19 @@ export function DraftsScreen() {
   const setView = useUiStore((s) => s.setView);
 
   const drafts = useMemo(() => (document === null ? [] : listOpenDrafts(document)), [document]);
+
+  /**
+   * Rascunhos com eixo defasado — docs/05 §5.2. A tela de rascunhos é onde o
+   * time vê o que está em andamento; a defasagem é parte disso.
+   */
+  const staleByVersion = useMemo(() => {
+    const byVersion = new Map<string, number>();
+    if (document === null) return byVersion;
+    for (const entry of getStaleAxes(document)) {
+      byVersion.set(entry.versionId, (byVersion.get(entry.versionId) ?? 0) + 1);
+    }
+    return byVersion;
+  }, [document]);
 
   if (document === null) {
     return (
@@ -72,6 +86,13 @@ export function DraftsScreen() {
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <Badge variant="amber">Rascunho</Badge>
+                {(staleByVersion.get(version.id) ?? 0) > 0 && (
+                  <Badge variant="amber" data-testid="draft-stale-badge">
+                    {staleByVersion.get(version.id) === 1
+                      ? '1 eixo defasado'
+                      : `${staleByVersion.get(version.id)} eixos defasados`}
+                  </Badge>
+                )}
                 {pendingCells > 0 && (
                   <Badge variant="secondary">
                     {pendingCells} {pendingCells === 1 ? 'pendência' : 'pendências'}
