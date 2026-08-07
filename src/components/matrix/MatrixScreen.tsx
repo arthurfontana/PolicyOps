@@ -1,14 +1,41 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Minus, Plus, Redo2, RotateCcw, Undo2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Download,
+  FilePlus2,
+  GitCompare,
+  History,
+  Minus,
+  Plus,
+  Redo2,
+  RotateCcw,
+  StickyNote,
+  Trash2,
+  Undo2,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { decodeCellKey } from '@/core/axes/paths';
+import { useToast } from '@/components/ui/use-toast';
+import { AddNoteDialog } from '@/components/dialogs/AddNoteDialog';
+import { DiscardDraftDialog } from '@/components/dialogs/DiscardDraftDialog';
+import { PublishVersionDialog } from '@/components/dialogs/PublishVersionDialog';
+import { VersionHistoryDialog } from '@/components/dialogs/VersionHistoryDialog';
+import { decodeCellKey, encodeCellKey } from '@/core/axes/paths';
 import { Grid, MAX_ZOOM, MIN_ZOOM, type GridSelectionApi } from '@/components/grid/Grid';
-import { getEditorView, listMatrixVersions } from '@/core/queries';
+import { getErrorMessage } from '@/core/error-messages';
+import {
+  getEditorView,
+  getOpenDraft,
+  getPrecedingVersion,
+  getPublishedVersion,
+  listMatrixVersions,
+} from '@/core/queries';
 import { CELL_FIELDS, applyCellPatch } from '@/core/versioning/cells';
+import { createDraft, pendingCoords } from '@/core/versioning/lifecycle';
 import { useGridSelection } from '@/hooks/useGridSelection';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
@@ -41,6 +68,9 @@ export function MatrixScreen() {
   const setEditable = useEditorStore((s) => s.setEditable);
   const setView = useUiStore((s) => s.setView);
   const isEditable = useEditorStore((s) => s.isEditable);
+  const selectSingle = useEditorStore((s) => s.selectSingle);
+  const selectCoords = useEditorStore((s) => s.selectCoords);
+  const setCompareVersions = useEditorStore((s) => s.setCompareVersions);
 
   const dispatch = useDocumentStore((s) => s.dispatch);
   const undo = useDocumentStore((s) => s.undo);
@@ -49,8 +79,21 @@ export function MatrixScreen() {
   const canRedo = useDocumentStore((s) => s.canRedo);
   const undoLabel = useDocumentStore((s) => s.undoStack[s.undoStack.length - 1]?.label);
   const redoLabel = useDocumentStore((s) => s.redoStack[s.redoStack.length - 1]?.label);
+  const { toast } = useToast();
 
   const [pendingClear, setPendingClear] = useState<{ coords: { xPath: string; yPath: string }[] } | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [pulsePending, setPulsePending] = useState(false);
+  const pulseTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (pulseTimeoutRef.current !== null) window.clearTimeout(pulseTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -145,6 +188,77 @@ export function MatrixScreen() {
   const badge = versionBadge(view.version);
   const zoomPercent = Math.round(zoom * 100);
 
+  // --- Ciclo de vida — docs/prompts/S13-ciclo-de-vida.md item 1 ------------
+
+  const { version } = view;
+  const isDraft = version.state === 'DRAFT';
+  const isSuperseded = version.state === 'SUPERSEDED';
+  const isPublished = version.state === 'PUBLISHED';
+  const publishedVersion = getPublishedVersion(matrix);
+  const openDraft = getOpenDraft(matrix);
+  const compareTarget =
+    publishedVersion !== null && publishedVersion.id !== version.id
+      ? publishedVersion
+      : getPrecedingVersion(matrix, version);
+
+  function handleCreateOrOpenDraft() {
+    if (openDraft !== null) {
+      setVersion(openDraft.id);
+      return;
+    }
+    const result = dispatch(createDraft({ matrixId: matrix!.id }));
+    if (!result.ok) {
+      toast({
+        variant: 'destructive',
+        title: 'Não foi possível criar o rascunho',
+        description: result.error.message || getErrorMessage(result.error.code),
+      });
+      return;
+    }
+    setVersion((result.data as { versionId: string }).versionId);
+  }
+
+  function handleRestoreAsDraft() {
+    const result = dispatch(createDraft({ matrixId: matrix!.id, baseVersionId: version.id }));
+    if (!result.ok) {
+      toast({
+        variant: 'destructive',
+        title: 'Não foi possível restaurar',
+        description: result.error.message || getErrorMessage(result.error.code),
+      });
+      return;
+    }
+    setVersion((result.data as { versionId: string }).versionId);
+  }
+
+  function handleCompare(versionAId: string, versionBId: string) {
+    setCompareVersions(versionAId, versionBId);
+    setView('compare');
+  }
+
+  function triggerPendingPulse() {
+    setPulsePending(true);
+    if (pulseTimeoutRef.current !== null) window.clearTimeout(pulseTimeoutRef.current);
+    pulseTimeoutRef.current = window.setTimeout(() => setPulsePending(false), 3200);
+  }
+
+  function goToFirstPending() {
+    const [first] = pendingCoords(version);
+    if (first === undefined) return;
+    selectSingle(first);
+    requestAnimationFrame(() => {
+      // `document` aqui em cima é o `PolicyOpsDocument` do store — o DOM é
+      // `window.document`, explícito para não colidir com o nome.
+      window.document
+        .querySelector<HTMLElement>(`[data-cell-key="${encodeCellKey(first.xPath, first.yPath)}"]`)
+        ?.focus();
+    });
+  }
+
+  function selectAllPending() {
+    selectCoords(pendingCoords(version));
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 p-2 dark:border-neutral-800">
@@ -169,6 +283,91 @@ export function MatrixScreen() {
             ))}
           </SelectContent>
         </Select>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {isDraft && (
+            <>
+              <Button type="button" size="sm" onClick={() => setPublishOpen(true)}>
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Publicar
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setDiscardOpen(true)}>
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Descartar rascunho
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={compareTarget === null}
+                onClick={() => compareTarget !== null && handleCompare(compareTarget.id, version.id)}
+              >
+                <GitCompare className="mr-1.5 h-3.5 w-3.5" /> Comparar com a vigente
+              </Button>
+            </>
+          )}
+
+          {isPublished && (
+            <>
+              <Button type="button" variant="secondary" size="sm" onClick={handleCreateOrOpenDraft}>
+                <FilePlus2 className="mr-1.5 h-3.5 w-3.5" />
+                {openDraft !== null ? 'Abrir rascunho' : 'Criar rascunho'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={compareTarget === null}
+                onClick={() => compareTarget !== null && handleCompare(compareTarget.id, version.id)}
+              >
+                <GitCompare className="mr-1.5 h-3.5 w-3.5" /> Comparar
+              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button type="button" variant="outline" size="sm" disabled>
+                      <Download className="mr-1.5 h-3.5 w-3.5" /> Exportar
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>chega na Sessão 17</TooltipContent>
+              </Tooltip>
+            </>
+          )}
+
+          {isSuperseded && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={compareTarget === null}
+                onClick={() => compareTarget !== null && handleCompare(compareTarget.id, version.id)}
+              >
+                <GitCompare className="mr-1.5 h-3.5 w-3.5" /> Comparar
+              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button type="button" variant="outline" size="sm" disabled>
+                      <Download className="mr-1.5 h-3.5 w-3.5" /> Exportar
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>chega na Sessão 17</TooltipContent>
+              </Tooltip>
+              <Button type="button" variant="secondary" size="sm" onClick={handleRestoreAsDraft}>
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Restaurar como rascunho
+              </Button>
+            </>
+          )}
+
+          <span aria-hidden className="mx-0.5 h-4 w-px bg-neutral-200 dark:bg-neutral-800" />
+          <Button type="button" variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
+            <History className="mr-1.5 h-3.5 w-3.5" /> Histórico
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setNoteOpen(true)}>
+            <StickyNote className="mr-1.5 h-3.5 w-3.5" /> Adicionar nota
+          </Button>
+        </div>
 
         <div className="ml-auto flex items-center gap-1">
           <Tooltip>
@@ -207,8 +406,27 @@ export function MatrixScreen() {
         </div>
       </div>
 
+      {isDraft && view.stats.pendingCells > 0 && (
+        <div
+          data-testid="pending-cells-bar"
+          className="flex flex-wrap items-center gap-2 border-b border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+        >
+          <span className="font-medium">
+            {view.stats.pendingCells === 1
+              ? '1 combinação ainda não preenchida'
+              : `${view.stats.pendingCells} combinações ainda não preenchidas`}
+          </span>
+          <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={goToFirstPending}>
+            Ir para a primeira
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={selectAllPending}>
+            Selecionar todas as pendentes
+          </Button>
+        </div>
+      )}
+
       <div className="min-h-0 flex-1">
-        <Grid view={view} zoom={zoom} onZoomChange={setZoom} selection={selectionApi} />
+        <Grid view={view} zoom={zoom} onZoomChange={setZoom} selection={selectionApi} highlightPending={pulsePending} />
       </div>
 
       <ConfirmDialog
@@ -225,6 +443,47 @@ export function MatrixScreen() {
           setPendingClear(null);
         }}
       />
+
+      {publishOpen && (
+        <PublishVersionDialog
+          open
+          onOpenChange={setPublishOpen}
+          matrix={matrix}
+          version={version}
+          publishedVersion={publishedVersion}
+          onPublished={() => {
+            toast({ title: 'Versão publicada', description: `A versão ${version.number} agora é a vigente.` });
+          }}
+          onUnsetCellsRemain={triggerPendingPulse}
+        />
+      )}
+
+      {discardOpen && (
+        <DiscardDraftDialog
+          open
+          onOpenChange={setDiscardOpen}
+          version={version}
+          onDiscarded={() => {
+            // Sem vigente (ex.: descartar o v1 de uma matriz nova), fica na
+            // própria versão — agora "Descartado" — que continua um estado
+            // válido para exibir (docs/07 §3).
+            if (publishedVersion !== null) setVersion(publishedVersion.id);
+          }}
+        />
+      )}
+
+      {noteOpen && <AddNoteDialog open onOpenChange={setNoteOpen} version={version} />}
+
+      {historyOpen && document !== null && (
+        <VersionHistoryDialog
+          open
+          onOpenChange={setHistoryOpen}
+          doc={document}
+          matrix={matrix}
+          onOpenVersion={setVersion}
+          onCompare={handleCompare}
+        />
+      )}
     </div>
   );
 }

@@ -2,17 +2,22 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { PolicyOpsDocument } from '@/core/document/schema';
 import {
   axisStructureLabel,
+  countChangedCells,
   countPending,
   getAxisStaleness,
   getEditorView,
   getEditorViewComputations,
   getEffectiveVersion,
+  getOpenDraft,
   getPortfolioAt,
+  getPrecedingVersion,
+  getPublishedVersion,
   getStaleAxes,
   getVariableUsage,
   getVersionEvents,
   latestVersionOf,
   listMatrixVersions,
+  listOpenDrafts,
   listProjectMatrices,
   listProjects,
   listVariables,
@@ -536,5 +541,97 @@ describe('listProjects e listProjectMatrices', () => {
   it('projeto sem nenhuma matriz devolve lista vazia', () => {
     const { document } = nestedMatrix();
     expect(listProjectMatrices(document, IDS.projectB)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S13 — ciclo de vida na interface
+// ---------------------------------------------------------------------------
+
+describe('countChangedCells', () => {
+  it('conta 0 quando o rascunho é clone idêntico da vigente', () => {
+    const ctx = testCtx();
+    const states = documentWithAllStates(ctx);
+    const { matrix } = locateVersion(states.document, states.draft);
+    const draftVersion = matrix.versions.find((version) => version.id === states.draft)!;
+    const publishedVersion = matrix.versions.find((version) => version.id === states.published)!;
+    expect(countChangedCells(draftVersion, publishedVersion)).toBe(0);
+  });
+
+  it('conta uma célula alterada depois de um patch no rascunho', () => {
+    const ctx = testCtx();
+    const states = documentWithAllStates(ctx);
+    const coord = coordsOf(states.document, states.draft)[0]!;
+    const patched = apply(
+      states.document,
+      ctx,
+      applyCellPatch({ versionId: states.draft, patch: { coords: [coord], set: { decision: 'REPROVADO' } } }),
+    ).document;
+
+    const { matrix } = locateVersion(patched, states.draft);
+    const draftVersion = matrix.versions.find((version) => version.id === states.draft)!;
+    const publishedVersion = matrix.versions.find((version) => version.id === states.published)!;
+    expect(countChangedCells(draftVersion, publishedVersion)).toBe(1);
+  });
+
+  it('sem referência (matriz nova, sem vigente), conta todas as células preenchidas do rascunho', () => {
+    const ctx = testCtx();
+    const created = createTestMatrix(baseDocument(), ctx);
+    const filled = fillAllCells(created.document, ctx, created.data.versionId);
+    const { matrix } = locateVersion(filled, created.data.versionId);
+    const draftVersion = matrix.versions.find((version) => version.id === created.data.versionId)!;
+    expect(countChangedCells(draftVersion, null)).toBe(6);
+  });
+});
+
+describe('getPublishedVersion, getOpenDraft e getPrecedingVersion', () => {
+  it('resolve a vigente, o rascunho aberto e a versão que ela substituiu', () => {
+    const ctx = testCtx();
+    const states = documentWithAllStates(ctx);
+    const { matrix } = locateVersion(states.document, states.draft);
+
+    expect(getPublishedVersion(matrix)?.id).toBe(states.published);
+    expect(getOpenDraft(matrix)?.id).toBe(states.draft);
+
+    const publishedVersion = matrix.versions.find((version) => version.id === states.published)!;
+    expect(getPrecedingVersion(matrix, publishedVersion)?.id).toBe(states.superseded);
+  });
+
+  it('sem vigente publicada, devolve nulo para vigente e para a precedente', () => {
+    const ctx = testCtx();
+    const created = createTestMatrix(baseDocument(), ctx);
+    const { matrix } = locateVersion(created.document, created.data.versionId);
+
+    expect(getPublishedVersion(matrix)).toBeNull();
+    // O próprio v1, ainda em DRAFT, é o "rascunho aberto".
+    expect(getOpenDraft(matrix)?.id).toBe(created.data.versionId);
+    const draftVersion = matrix.versions[0]!;
+    expect(getPrecedingVersion(matrix, draftVersion)).toBeNull();
+  });
+});
+
+describe('listOpenDrafts', () => {
+  it('lista os rascunhos abertos de todos os projetos, com o projeto e as pendências', () => {
+    const ctx = testCtx();
+    const states = documentWithAllStates(ctx);
+    const entries = listOpenDrafts(states.document);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.version.id).toBe(states.draft);
+    expect(entries[0]!.matrix.id).toBe(states.matrixId);
+    expect(entries[0]!.project?.id).toBe(IDS.projectA);
+    expect(entries[0]!.pendingCells).toBe(0);
+  });
+
+  it('sem nenhum rascunho aberto em nenhuma matriz, devolve lista vazia', () => {
+    const ctx = testCtx();
+    const created = createTestMatrix(baseDocument(), ctx);
+    const filled = fillAllCells(created.document, ctx, created.data.versionId);
+    const published = apply(
+      filled,
+      ctx,
+      publishVersion({ versionId: created.data.versionId, notes: 'Publicação inicial.' }),
+    ).document;
+    expect(listOpenDrafts(published)).toEqual([]);
   });
 });

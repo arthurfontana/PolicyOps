@@ -41,15 +41,7 @@ export function VariablesList({ onSelect }: VariablesListProps) {
     });
   }, [document, search, type]);
 
-  if (document === null) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-8">
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">Nenhum documento aberto.</p>
-      </div>
-    );
-  }
-
-  const isEmpty = document.variables.filter((v) => v.archivedAt === undefined).length === 0;
+  const isEmpty = document === null || document.variables.filter((v) => v.archivedAt === undefined).length === 0;
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4 p-8">
@@ -62,12 +54,16 @@ export function VariablesList({ onSelect }: VariablesListProps) {
             Domínios versionados usados nos eixos das matrizes.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" /> Nova variável
-        </Button>
+        {document !== null && (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> Nova variável
+          </Button>
+        )}
       </div>
 
-      {isEmpty ? (
+      {document === null ? (
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">Nenhum documento aberto.</p>
+      ) : isEmpty ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <ListTree className="h-8 w-8 text-neutral-300 dark:text-neutral-700" />

@@ -10,6 +10,7 @@ const VIEW_LABELS: Partial<Record<View, string>> = {
   timeline: 'Vigência',
   drafts: 'Rascunhos',
   matrix: 'Matriz',
+  compare: 'Comparação de versões',
 };
 
 export function UnderConstruction({ view }: { view: View }) {
