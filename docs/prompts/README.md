@@ -21,6 +21,7 @@ Um arquivo por sessão. Abra uma conversa nova do Claude Code na raiz do reposit
 | 15 | [S15-vigencia-por-data.md](S15-vigencia-por-data.md) | `Sonnet` | Vigência, linha do tempo, portfólio |
 | 16 | [S16-reconciliacao.md](S16-reconciliacao.md) | `Opus` | Evolução da biblioteca e resnapshot |
 | 17 | [S17-templates-merge-export.md](S17-templates-merge-export.md) | `Opus` | Templates, merge, export, polimento |
+| 18 | [S18-faixa-regional.md](S18-faixa-regional.md) | `Sonnet` | Faixas regionais e duplicação de variáveis (pós-MVP, depende de 06) |
 
 ## Regras válidas para todas as sessões
 

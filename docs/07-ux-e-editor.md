@@ -164,9 +164,20 @@ Rota interna `compare?a=&b=`.
 
 ## 11. Bibliotecas
 
-**Variáveis** — lista com busca, filtro por tipo, contagem de uso (vigentes × rascunhos). Detalhe: timeline de versões, editor de domínios com drag para reordenar, campos de faixa com validação de contiguidade em tempo real, e painel "Impacto" com o aviso literal:
+**Variáveis** — lista com busca, filtro por tipo, contagem de uso (vigentes × rascunhos). Estado vazio e cabeçalho da lista trazem, junto de "Nova variável", a ação **"Criar a partir de existente"**: abre um seletor de variável + versão de origem, pede código/nome/descrição da nova, e chama `variable/duplicate` — a variável nasce com os domínios (e a dimensão regional, se houver) já copiados, pronta para ajustar em vez de montar do zero.
+
+Detalhe: timeline de versões, editor de domínios com drag para reordenar, campos de faixa com validação de contiguidade em tempo real, e painel "Impacto" com o aviso literal:
 
 > Publicar esta versão **não altera** nenhuma matriz já publicada. Rascunhos poderão adotar a nova versão manualmente.
+
+**Dimensão regional (só `RANGE`, só em `DRAFT`).** No topo do editor de domínios, um toggle "Esta faixa varia por regional". Desligado, o editor é o de sempre (mín/máx únicos por faixa). Ligado:
+
+- um editor de lista acima da tabela de domínios, para os regionais (`code` + `label`, reordenável por drag — a ordem vira a ordem das colunas);
+- a tabela de domínios vira um grid: uma linha por faixa (código, rótulo, cor — como hoje), e um par de colunas mín/máx **por regional**, no mesmo layout do Excel de origem do usuário (faixa nas linhas, regional nas colunas);
+- validação de contiguidade roda **por coluna regional**, com a mensagem inline indicando qual regional e qual par de faixas está com problema — não é possível confundir um erro de BASE com um de SP;
+- botão **"Colar tabela"** abre uma caixa de texto; o usuário cola direto do Excel (linhas de cabeçalho com regional e MIN/MAX, uma linha por faixa — contrato exato em `05-regras-de-negocio.md` §5.6.2); ao confirmar, a tabela do grid é preenchida e o usuário revisa/corrige antes de salvar — nada é gravado sem passar pelo Salvar normal do editor;
+- erros de parsing da colagem aparecem como lista, cada um apontando linha/coluna do texto colado, sem fechar a caixa;
+- o aviso de Impacto (acima) continua valendo: mudar a dimensão regional de uma variável nunca afeta versões de matriz já publicadas — só o rascunho da variável.
 
 **Compatibilidade** — lista de regras por par. Editor em **matriz de marcação**: domínios do pai nas linhas, do filho nas colunas, caixas de seleção. Ações de linha ("todos"/"nenhum"), contador de combinações válidas, e preview do eixo resultante. Aviso do mesmo teor sobre não afetar publicadas.
 

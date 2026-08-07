@@ -23,8 +23,11 @@
 | 15 | Vigência por data e portfólio | **Sonnet** | "Como estava em 15/03/2026" | 13 |
 | 16 | Reconciliação da biblioteca | **Opus** | Adotar nova versão de variável ou de regra | 13 |
 | 17 | Templates, merge, export e polimento | **Opus** | Fechamento do MVP | 16 |
+| 18 | Faixas regionais e duplicação de variáveis | **Sonnet** | Variável `RANGE` com threshold por regional, colar tabela, duplicar variável | 06 |
 
 > A sessão 17 acumula três frentes. Se ficar grande, quebre em 17a (templates), 17b (merge de documentos) e 17c (export e polimento) — o prompt já vem dividido nessas três partes, com critérios de aceite independentes.
+
+> **Sessão 18 é pós-MVP**, adicionada depois do fechamento das 17 originais, a pedido de um caso real de score B2B com corte por regional (ver `docs/prompts/S18-faixa-regional.md`). Não bloqueia nem depende de nenhum marco M1–M5; só precisa da Biblioteca de Variáveis (06) pronta.
 
 ## Por que cada modelo
 
@@ -39,6 +42,8 @@
 **Haiku (1)** — 08. CRUD de uma entidade só.
 
 > Se numa sessão Sonnet/Haiku aparecer decisão de arquitetura não coberta pela documentação, a instrução é **parar e perguntar**. Isso está escrito em todos os prompts.
+
+**18** é Sonnet pelo mesmo motivo de 06/07: transcrição fiel de um contrato já fechado em `docs/03` e `docs/05` §5.6 (schema, validação, formato de colagem), sem combinatória nova de eixo/tupla — a parte que exigiria Opus (motor de eixos) não é tocada, porque a dimensão regional é explicitamente removida do snapshot antes de chegar lá.
 
 ## Marcos utilizáveis
 
