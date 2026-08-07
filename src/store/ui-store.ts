@@ -41,8 +41,10 @@ const VIEW_BY_HASH: Partial<Record<string, View>> = Object.fromEntries(
   Object.entries(HASH_BY_VIEW).map(([view, hash]) => [hash, view as View]),
 );
 
+/** Ignora a query string (`?date=...&project=...`) — só a rota decide a `View`. */
 export function viewFromHash(hash: string): View {
-  return VIEW_BY_HASH[hash] ?? 'home';
+  const base = hash.split('?')[0] ?? hash;
+  return VIEW_BY_HASH[base] ?? 'home';
 }
 
 function readLocalStorage(key: string): string | null {

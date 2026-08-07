@@ -38,6 +38,7 @@ import {
 import { CELL_FIELDS, applyCellPatch } from '@/core/versioning/cells';
 import { createDraft, pendingCoords } from '@/core/versioning/lifecycle';
 import { useGridSelection } from '@/hooks/useGridSelection';
+import { formatDateBR } from '@/lib/format';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
@@ -361,9 +362,6 @@ export function MatrixScreen() {
                 </TooltipTrigger>
                 <TooltipContent>chega na Sessão 17</TooltipContent>
               </Tooltip>
-              <Button type="button" variant="secondary" size="sm" onClick={handleRestoreAsDraft}>
-                <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Restaurar como rascunho
-              </Button>
             </>
           )}
 
@@ -432,7 +430,46 @@ export function MatrixScreen() {
         </div>
       )}
 
-      <div className="min-h-0 flex-1">
+      {isSuperseded && (
+        <div
+          data-testid="historical-banner"
+          className="flex flex-wrap items-center gap-2 border-b border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
+        >
+          <span>
+            Você está vendo a versão {version.number}, vigente de{' '}
+            {version.effectiveFrom !== undefined ? formatDateBR(version.effectiveFrom) : '?'} a{' '}
+            {version.effectiveTo !== undefined ? formatDateBR(version.effectiveTo) : '?'}. Esta é uma versão
+            histórica.
+          </span>
+          {publishedVersion !== null && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setVersion(publishedVersion.id)}
+            >
+              Ir para a vigente
+            </Button>
+          )}
+          <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={handleRestoreAsDraft}>
+            <RotateCcw className="mr-1 h-3 w-3" /> Restaurar como rascunho
+          </Button>
+        </div>
+      )}
+
+      <div className="relative min-h-0 flex-1">
+        {isSuperseded && (
+          <div
+            aria-hidden
+            data-testid="historical-watermark"
+            className="pointer-events-none absolute inset-0 z-40 flex select-none items-center justify-center overflow-hidden"
+          >
+            <span className="rotate-[-25deg] whitespace-nowrap text-7xl font-black uppercase tracking-widest text-neutral-900/[0.06] dark:text-neutral-100/[0.08]">
+              HISTÓRICO
+            </span>
+          </div>
+        )}
         <Grid view={view} zoom={zoom} onZoomChange={setZoom} selection={selectionApi} highlightPending={pulsePending} />
       </div>
 

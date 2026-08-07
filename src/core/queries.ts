@@ -74,6 +74,45 @@ export function getPortfolioAt(
 }
 
 // ---------------------------------------------------------------------------
+// Linha do tempo de vigência — docs/07-ux-e-editor.md §10, docs/prompts/S15
+// ---------------------------------------------------------------------------
+
+export type TimelineSegment = {
+  versionId: string;
+  number: number;
+  state: 'PUBLISHED' | 'SUPERSEDED';
+  effectiveFrom: string;
+  /** `null`: ainda vigente (ou agendada, sem sucessora ainda) — a faixa desenha até "agora". */
+  effectiveTo: string | null;
+  publishedBy?: string;
+};
+
+/**
+ * Os segmentos de vigência da matriz, em ordem cronológica — um por versão
+ * que já teve `effectiveFrom` (`PUBLISHED` ou `SUPERSEDED`; rascunho e
+ * descartada nunca vigoraram). É a base da faixa de linha do tempo por
+ * matriz (docs/07 §10): largura proporcional à duração, um segmento por
+ * versão publicada.
+ */
+export function getMatrixTimeline(matrix: Matrix): TimelineSegment[] {
+  const segments: TimelineSegment[] = [];
+  for (const version of matrix.versions) {
+    if (version.state !== 'PUBLISHED' && version.state !== 'SUPERSEDED') continue;
+    if (version.effectiveFrom === undefined) continue;
+    const segment: TimelineSegment = {
+      versionId: version.id,
+      number: version.number,
+      state: version.state,
+      effectiveFrom: version.effectiveFrom,
+      effectiveTo: version.effectiveTo ?? null,
+    };
+    if (version.publishedBy !== undefined) segment.publishedBy = version.publishedBy;
+    segments.push(segment);
+  }
+  return segments.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+}
+
+// ---------------------------------------------------------------------------
 // Histórico e auditoria
 // ---------------------------------------------------------------------------
 

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MatrixScreen } from '@/components/matrix/MatrixScreen';
 import { Toaster } from '@/components/ui/toaster';
@@ -113,5 +114,36 @@ describe('MatrixScreen — ações de ciclo de vida por estado', () => {
     expect(screen.getByRole('button', { name: /Restaurar como rascunho/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Criar rascunho$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Publicar$/ })).not.toBeInTheDocument();
+  });
+
+  it('SUPERSEDED: banner de versão histórica com "Ir para a vigente", e marca d\'água no grid (S15)', async () => {
+    const user = userEvent.setup();
+    const doc = createSampleDocument();
+    const matrix = matrixByCode(doc, 'MTZ_LIMITE_PJ');
+    const published = matrix.versions.find((version) => version.state === 'PUBLISHED')!;
+    // Torna a v1 histórica e injeta uma v2 vigente, para exercitar "Ir para a vigente".
+    published.state = 'SUPERSEDED';
+    published.effectiveTo = new Date().toISOString();
+    const v2: MatrixVersion = {
+      ...published,
+      id: 'v2-vigente-hoje',
+      number: 2,
+      state: 'PUBLISHED',
+      effectiveFrom: published.effectiveTo,
+    };
+    delete v2.effectiveTo;
+    matrix.versions.push(v2);
+
+    renderMatrixScreen(doc, matrix.id, published.id);
+
+    const banner = screen.getByTestId('historical-banner');
+    expect(banner).toHaveTextContent(/versão histórica/);
+    expect(banner).toHaveTextContent(`versão ${published.number}`);
+    expect(screen.getByTestId('historical-watermark')).toHaveTextContent('HISTÓRICO');
+
+    await user.click(within(banner).getByRole('button', { name: 'Ir para a vigente' }));
+    expect(screen.getByLabelText('Selecionar versão')).toHaveTextContent('v2');
+    expect(screen.queryByTestId('historical-banner')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('historical-watermark')).not.toBeInTheDocument();
   });
 });

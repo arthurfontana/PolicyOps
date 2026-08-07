@@ -19,7 +19,11 @@ export function useHashRouting(): void {
 
   useEffect(() => {
     const nextHash = HASH_BY_VIEW[view];
-    if (window.location.hash !== nextHash) {
+    // Compara só a rota, sem a query string: a tela de vigência anexa
+    // `?date=&project=` ao hash (docs/07 §10) e esse efeito não pode apagar
+    // esses parâmetros toda vez que `view` é recalculado.
+    const currentBase = window.location.hash.split('?')[0];
+    if (currentBase !== nextHash) {
       window.location.hash = nextHash;
     }
   }, [view]);

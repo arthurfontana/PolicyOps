@@ -66,3 +66,35 @@ describe('Grid — MTZ_LIMITE_PF (grid simples de 1 nível)', () => {
     expect(screen.getAllByRole('rowheader')).toHaveLength(view.y.axis.tuples.length);
   });
 });
+
+/**
+ * `variant="thumbnail"` — docs/prompts/S15-vigencia-por-data.md, item 3: a
+ * miniatura de portfólio reaproveita o grid da S09, célula de 12px só cor,
+ * sem texto, mas com os separadores de nível preservados.
+ */
+describe('Grid — variant="thumbnail" (miniatura de portfólio, S15)', () => {
+  const doc = createSampleDocument();
+  const view = getEditorView(doc, openVersionId(doc, 'MTZ_LIMITE_PJ'));
+
+  it('não tem cabeçalhos nem rodapé, e vira `role="img"`', () => {
+    render(<Grid view={view} zoom={1} variant="thumbnail" />);
+    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
+    expect(screen.queryByRole('rowheader')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('grid-counters')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Miniatura da matriz/ })).toBeInTheDocument();
+  });
+
+  it('as células não têm papel de gridcell nem texto — só cor', () => {
+    render(<Grid view={view} zoom={1} variant="thumbnail" />);
+    expect(screen.queryAllByRole('gridcell')).toHaveLength(0);
+    const img = screen.getByRole('img');
+    expect(img.textContent).toBe('');
+  });
+
+  it('preserva os separadores de nível de um eixo aninhado (Segmento › Faturamento)', () => {
+    const { container } = render(<Grid view={view} zoom={1} variant="thumbnail" />);
+    // `isYBoundary` continua marcando os limites de "Varejo"/"Atacado"/"Corporate" mesmo sem cabeçalho de texto.
+    expect(container.querySelectorAll('.border-b-2').length).toBeGreaterThan(0);
+  });
+});
