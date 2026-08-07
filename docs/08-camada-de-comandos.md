@@ -64,10 +64,11 @@ type DocumentStore = {
 | `variable/create` | `{ code, name, type, description? }` |
 | `variable/updateMeta` | `{ variableId, name?, description? }` |
 | `variable/createDraft` | `{ variableId }` |
-| `variable/saveDomains` | `{ variableId, versionId, domains }` |
+| `variable/saveDomains` | `{ variableId, versionId, domains, regionalDimension? }` — `regionalDimension` só para `RANGE` (`05-regras-de-negocio.md` §5.6.1) |
 | `variable/publish` | `{ variableId, versionId, notes? }` |
 | `variable/discardDraft` | `{ variableId, versionId }` |
 | `variable/archive` | `{ variableId }` — falha se em uso por versão publicada |
+| `variable/duplicate` | `{ sourceVariableId, sourceVersionId, code, name, description? }` — cria variável nova com v1 `DRAFT` copiando domínios e `regionalDimension` da origem (§5.6.3) |
 
 ### Biblioteca de compatibilidade
 | Comando | Entrada |
@@ -133,6 +134,7 @@ Funções de leitura em `src/core/`, chamadas direto pelos componentes:
 | `getPortfolioAt(doc, projectId, at)` | matrizes com a versão vigente |
 | `listVariables(doc, filtro)` | variáveis com contagem de uso |
 | `getVariableUsage(doc, variableId)` | quem pina cada versão |
+| `parseRegionalRangeTable(text, regions?)` | `{ domains, warnings, errors }` — traduz texto colado (TSV) em domínios prontos para `variable/saveDomains`; não toca no documento (`05-regras-de-negocio.md` §5.6.2) |
 | `getStaleAxes(doc)` | todos os rascunhos com eixo defasado |
 | `countPending(doc, versionId)` | combinações sem decisão |
 

@@ -48,7 +48,7 @@ input: {
 1. Valida unicidade de `code` no projeto (`DUPLICATE_CODE`).
 2. Para cada nível, resolve a `VariableVersion` **PUBLISHED** da variável → senão `VARIABLE_HAS_NO_PUBLISHED_VERSION`.
 3. Valida I13 e I14 (1–3 níveis, sem variável repetida no eixo nem entre eixos).
-4. Monta cada `Axis`: copia os domínios para o snapshot de cada nível, resolve as regras de compatibilidade **publicadas** aplicáveis e chama `generateTuples`.
+4. Monta cada `Axis`: copia os domínios para o snapshot de cada nível (só os campos de identidade — `regionalRanges`/`regionalDimension` nunca entram no snapshot, ver `03-modelo-do-documento.md` §6.1), resolve as regras de compatibilidade **publicadas** aplicáveis e chama `generateTuples`.
 5. Valida I16 (teto de 6.000 combinações).
 6. Cria `MatrixVersion` v1 em `DRAFT` com `cells: {}` — nenhuma célula é materializada.
 7. Se veio de template, aplica defaults e `seedRules` (§8).
@@ -289,6 +289,61 @@ Depois disso, I6 bloqueia a publicação até as novas combinações serem preen
 
 **Decisão deliberada:** rótulos de catálogo são referência viva, não snapshot. Renomear "Oferta 8" para "Oferta 8 — Renda Alta" muda a exibição em versões históricas. Isso é aceito porque é correção de nomenclatura. Mudar o **significado** exige criar item novo — e a interface diz isso ao lado do botão de editar.
 
+### 5.6 Dimensão regional de faixas
+
+Resolve o caso de modelo de score cujo corte numérico de cada faixa (R01…R20) varia por regional, mas cujo **código** de faixa é o mesmo em todo lugar — é o mecanismo de normalização de risco entre regionais. Ver `03-modelo-do-documento.md` §2 para o schema (`VariableVersion.regionalDimension`, `Domain.regionalRanges`).
+
+**Editar.** `regionalDimension` e `regionalRanges` são editados **junto** dos domínios, no mesmo `variable/saveDomains` (§5.6.1) — não existe comando separado para eles. Ligar/desligar `regionalDimension` numa versão `DRAFT` é uma escolha binária: ligado, todo domínio `RANGE` da versão usa `regionalRanges`; desligado, usa `rangeMin`/`rangeMax` como antes. Alternar o interruptor não converte valores automaticamente — o usuário parte de faixas vazias no modo para o qual mudou.
+
+#### 5.6.1 `variable/saveDomains` — entrada estendida
+
+```ts
+input: {
+  variableId: string;
+  versionId: string;
+  domains: Domain[];
+  regionalDimension?: RegionalDimension;   // ausente = variável não usa regional
+}
+```
+
+Continua substituindo o conjunto inteiro (domínios **e** dimensão regional), só em `DRAFT` (`VARIABLE_VERSION_IMMUTABLE` senão), e roda `validateDomains` antes de gravar — agora ciente de `regionalDimension` (I9, I19):
+
+- sem `regionalDimension`: validação igual à de hoje;
+- com `regionalDimension`: `regions` não pode ser vazio nem ter `code` repetido (`REGIONAL_CODE_DUPLICATE`); para cada domínio `RANGE`, precisa haver uma entrada em `regionalRanges` para cada `region.code` (`RANGE_REGIONAL_INCOMPLETE` apontando o domínio e o regional faltante); dentro de **cada** regional, a mesma regra de contiguidade/sobreposição/catch-all de hoje, aplicada independentemente coluna a coluna (`RANGE_REGIONAL_NOT_CONTIGUOUS`, com `{ regionCode, domainCode }` no `details`).
+
+#### 5.6.2 Importar tabela colada
+
+Resolve o problema de digitar 20 faixas × 9 regionais × 2 números campo a campo. `parseRegionalRangeTable(text, regions)` — função **pura** em `src/core/library/regional-import.ts`, sem comando associado: só traduz texto em `{ domains, warnings, errors }`, que o usuário revisa na tela antes de virarem entrada de `saveDomains`. Nada é gravado no documento por esta função.
+
+**Contrato de colagem** (o usuário cola direto do Excel, TSV com tabulação como separador de coluna):
+
+1. **Linha 1** — um código de regional por bloco de colunas. Célula de Excel mesclada vira, ao colar, a primeira coluna do bloco preenchida e as demais vazias: o parser faz *carry-forward* (repete o último valor não vazio) para reconstruir o regional de cada coluna.
+2. **Linha 2** — `MIN` / `MAX` (case-insensitive, aceita `Mín`/`Máx`) alternado, uma marca por coluna de dado.
+3. **Linhas seguintes** — uma por domínio. Primeira coluna é o texto completo do domínio (ex.: `R20 - Altíssimo`); vira `label` verbatim, e `code` é o trecho antes do primeiro `" - "` (ou `–`/`—`), maiúsculo, validado contra `^[A-Z0-9_]+$` — falha em `REGIONAL_IMPORT_PARSE_ERROR` se não bater. As colunas seguintes são os pares min/max de cada regional, na ordem da linha 1/2.
+4. `position` de cada domínio = ordem das linhas na colagem. A ordem pode ser ajustada depois no editor de domínios (drag), como qualquer variável.
+5. Todo domínio precisa ter valor para todo regional presente no cabeçalho — célula vazia é aviso, não erro: o domínio some da lista pronta e o usuário completa manualmente ou recola.
+6. Número de colunas de dado inconsistente com o cabeçalho, ou header ausente/incompleto → `REGIONAL_IMPORT_PARSE_ERROR`, sem gravar nada.
+
+O resultado alimenta `regionalDimension.regions` (na ordem da linha 1) e `domains[].regionalRanges` — o usuário ainda passa pela validação normal de `saveDomains` antes de poder publicar.
+
+#### 5.6.3 Duplicar variável
+
+Resolve "criar a partir desta" na tela de nova variável — não é exclusivo de `RANGE`, mas é o que evita recriar a estrutura de HVI1 para desenhar HVI2.
+
+```ts
+variable/duplicate: {
+  sourceVariableId: string;
+  sourceVersionId: string;    // qual versão da origem copiar
+  code: string;               // da variável nova, único (DUPLICATE_CODE senão)
+  name: string;
+  description?: string;
+}
+```
+
+Cria uma `Variable` nova (novo `id`, novo `code`) com `type` igual ao da origem e uma v1 `DRAFT` cujos `domains` e `regionalDimension` são cópia integral da versão de origem (novos `id`s de domínio se existirem, mesmos `code`/`label`/`position`/`color`/faixas). A variável de origem não é tocada, e nada liga as duas depois — é ponto de partida, não vínculo. Sem evento próprio, mesmo padrão de `variable/create`.
+
+**Por que isso substitui "criar 9 variáveis regionais".** Com `regionalDimension`, um único `variable/saveDomains` (ou uma colagem) preenche as 9 regionais de uma vez dentro de uma variável só; `variable/duplicate` só entra em cena quando o usuário quer de fato uma variável nova e distinta (HVI1 → HVI2), não para replicar a mesma faixa por regional.
+
 ## 6. Consulta por data de vigência
 
 ```ts
@@ -348,7 +403,9 @@ LIMIT_NEEDS_NUMERIC_VALUE, EFFECTIVE_DATE_INVALID, PATCH_TOO_LARGE,
 TOO_MANY_LEVELS, DUPLICATE_VARIABLE_IN_AXIS, VARIABLE_ON_BOTH_AXES,
 AXIS_NEEDS_ONE_LEVEL, NO_VALID_TUPLES, GRID_TOO_LARGE,
 AXIS_NOT_STALE, VERSIONS_NOT_COMPARABLE,
-DOCUMENT_SCHEMA_TOO_NEW, DOCUMENT_INVALID, SAVE_CONFLICT
+DOCUMENT_SCHEMA_TOO_NEW, DOCUMENT_INVALID, SAVE_CONFLICT,
+RANGE_REGIONAL_INCOMPLETE, RANGE_REGIONAL_NOT_CONTIGUOUS,
+REGIONAL_CODE_DUPLICATE, REGIONAL_IMPORT_PARSE_ERROR
 ```
 
 Cada código tem mensagem pt-BR em `src/core/error-messages.ts`. A interface nunca exibe o código cru. Um teste percorre o enum e falha se faltar mensagem.

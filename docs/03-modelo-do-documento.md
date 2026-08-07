@@ -62,6 +62,20 @@ type VariableVersion = {
   publishedAt?: string;
   publishedBy?: string;
   domains: Domain[];               // ordenados por position
+  // apenas quando type = RANGE, e opcional mesmo assim
+  regionalDimension?: RegionalDimension;
+};
+
+// Presença de regionalDimension muda a leitura de TODOS os domínios RANGE
+// da versão: eles passam a usar `regionalRanges` em vez de `rangeMin`/`rangeMax`.
+// É um interruptor por versão, não por domínio — nunca mistura os dois modos.
+type RegionalDimension = {
+  regions: RegionalOption[];       // ao menos 1; ordem = ordem de exibição nas colunas
+};
+
+type RegionalOption = {
+  code: string;                    // BASE, CO, MG… único dentro da versão
+  label: string;                   // rótulo de exibição
 };
 
 type Domain = {
@@ -70,14 +84,25 @@ type Domain = {
   shortLabel?: string;             // "R1" — usado no cabeçalho do grid
   position: number;                // 0-based, sem buracos
   color?: string;                  // #RRGGBB
-  // apenas quando type = RANGE
+  // apenas quando type = RANGE e a versão NÃO declara regionalDimension
   rangeMin?: string;               // decimal como string
   rangeMax?: string;
   minInclusive?: boolean;          // default true
   maxInclusive?: boolean;          // default false
   isCatchAll?: boolean;            // "acima de X" / "demais casos"
+  // apenas quando type = RANGE e a versão DECLARA regionalDimension
+  regionalRanges?: Record<string, RegionalRange>;   // chave = RegionalOption.code
+};
+
+type RegionalRange = {
+  min: string;                     // decimal como string
+  max?: string;                    // ausente quando o domínio é isCatchAll
+  minInclusive?: boolean;          // default true
+  maxInclusive?: boolean;          // default false
 };
 ```
+
+**Por que isso fica na variável, não na matriz.** `code`, `label`, `shortLabel`, `position` e `color` são a **identidade** da faixa — é o que a matriz referencia, e R01 é o mesmo R01 em qualquer regional. `regionalRanges` é só o **threshold numérico** que cada regional usa para classificar um score bruto em R01 — informação de governança da variável, nunca uma dimensão do grid. Um documento com `regionalDimension` continua tendo, por matriz, o mesmo número de colunas/linhas que teria sem ele: a diferença fica só na biblioteca.
 
 ## 3. Biblioteca de Compatibilidade
 
@@ -224,6 +249,8 @@ type AxisLevel = {
 };
 ```
 
+**Domínios com `regionalRanges` entram no snapshot sem esse campo.** `matrix/create`, `axis/addLevel` e `axis/resnapshot` copiam de `VariableVersion.domains` apenas os campos de identidade (`code`, `label`, `shortLabel`, `position`, `color`, `isCatchAll`, e `rangeMin`/`rangeMax` quando existirem) — nunca `regionalRanges` nem `regionalDimension`. É o mecanismo que garante, no schema, que a matriz nunca carrega a dimensão regional: o snapshot de uma variável com 20 faixas × 9 regionais tem o mesmo tamanho que teria sem regional nenhum.
+
 **`tuples` é o snapshot definitivo da estrutura do eixo.** É uma lista de caminhos, cada um com tantos códigos quantos forem os níveis, separados por `|`:
 
 ```json
@@ -330,7 +357,7 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I6 | Publicar exige zero combinações sem `decision` |
 | I7 | `CatalogItem` de kind `LIMIT` tem `numericValue` |
 | I8 | `BOOLEAN` tem exatamente 2 domínios; demais tipos, ao menos 2 |
-| I9 | `RANGE`: faixas contíguas, sem sobreposição, ordenadas por `position`; no máximo um `isCatchAll`, e ele é o último |
+| I9 | `RANGE` sem `regionalDimension`: faixas contíguas, sem sobreposição, ordenadas por `position`, usando `rangeMin`/`rangeMax`; no máximo um `isCatchAll`, e ele é o último. `RANGE` **com** `regionalDimension`: a mesma regra de contiguidade/sobreposição/catch-all vale **independentemente para cada regional**, usando `regionalRanges[region]` no lugar de `rangeMin`/`rangeMax` |
 | I10 | `VariableVersion` / `CompatibilityVersion` publicada é imutável |
 | I11 | No máximo uma versão `DRAFT` e uma `PUBLISHED` por variável e por regra de compatibilidade |
 | I12 | Uma única regra de compatibilidade publicada por par (parent, child) |
@@ -340,6 +367,7 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I16 | `xTuples.length * yTuples.length ≤ 6.000` |
 | I17 | Toda referência a catálogo em `cells` aponta para um `code` existente do kind correto |
 | I18 | Todo `code` é único no seu escopo |
+| I19 | Se `regionalDimension` está presente: `regions` tem ao menos 1 item com `code` único; **todo** domínio `RANGE` da versão tem uma entrada em `regionalRanges` para **cada** `region.code` declarado — sem buracos |
 
 Falha de invariante na leitura **não descarta o arquivo**: a aplicação abre em modo de recuperação, lista os problemas em português e oferece as correções possíveis (§10).
 
