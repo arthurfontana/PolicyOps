@@ -6,7 +6,7 @@
 
 ```ts
 type PolicyOpsDocument = {
-  schemaVersion: 1;
+  schemaVersion: 2;                // 1 até a sessão 18; migrado na leitura (§10)
   meta: DocumentMeta;
   variables: Variable[];
   compatibility: CompatibilityRule[];
@@ -62,30 +62,40 @@ type VariableVersion = {
   publishedAt?: string;
   publishedBy?: string;
   domains: Domain[];               // ordenados por position
-  // apenas quando type = RANGE, e opcional mesmo assim
-  regionalDimension?: RegionalDimension;
+  // apenas quando type = RANGE, e opcional mesmo assim; 1 a 4 níveis
+  groupingDimensions?: GroupingDimension[];
   // apenas quando type = RANGE, e opcional mesmo assim; default HALF_OPEN
   boundaryMode?: 'HALF_OPEN' | 'INCLUSIVE_INTEGER';
 };
 
-// Presença de regionalDimension muda a leitura de TODOS os domínios RANGE
-// da versão: eles passam a usar `regionalRanges` em vez de `rangeMin`/`rangeMax`.
+// Presença de groupingDimensions muda a leitura de TODOS os domínios RANGE
+// da versão: eles passam a usar `groupingRanges` em vez de `rangeMin`/`rangeMax`.
 // É um interruptor por versão, não por domínio — nunca mistura os dois modos.
 //
 // boundaryMode é outro interruptor por versão (independente de
-// regionalDimension, vale tanto para rangeMin/rangeMax quanto para
-// regionalRanges): ausente ou 'HALF_OPEN' é o [mín, máx) de sempre —
+// groupingDimensions, vale tanto para rangeMin/rangeMax quanto para
+// groupingRanges): ausente ou 'HALF_OPEN' é o [mín, máx) de sempre —
 // I9 exige atual.máx == próxima.mín. 'INCLUSIVE_INTEGER' é [mín, máx] com
 // passo 1 — os valores precisam ser inteiros, e I9 passa a exigir
 // atual.máx + 1 == próxima.mín. Resolve faixas coladas direto do Excel no
 // formato fechado-fechado (ex.: 0–357, 358–437) sem o usuário precisar
 // reescrever o máximo de cada faixa para repetir o mínimo da seguinte.
-type RegionalDimension = {
-  regions: RegionalOption[];       // ao menos 1; ordem = ordem de exibição nas colunas
+//
+// GroupingDimension generaliza o que até a sessão 18 era só "regional":
+// em vez de um único nível fixo, a variável pode declarar de 1 a 4 níveis
+// de agrupamento, com nome e opções livres (Regional, Porte, Tipo de
+// Empresa, Canal, Produto…). O teto é 4, não os 3 de `AxisLevel` (I13) —
+// os dois limites são independentes por design, porque agrupamento nunca
+// vira eixo nem tupla (ver §6.1): o custo de mais um nível aqui é só
+// leitura da tabela pelo usuário, não combinatória de matriz.
+type GroupingDimension = {
+  code: string;                    // REGIONAL, PORTE, TIPO_EMPRESA… único entre os níveis da versão
+  label: string;                   // rótulo de exibição — "Regional", "Porte da empresa"
+  options: GroupingOption[];       // ao menos 1; ordem = ordem de exibição nas colunas
 };
 
-type RegionalOption = {
-  code: string;                    // BASE, CO, MG… único dentro da versão
+type GroupingOption = {
+  code: string;                    // SP, MEI, NAO_MEI_1_SOCIO… único dentro do seu nível
   label: string;                   // rótulo de exibição
 };
 
@@ -95,17 +105,25 @@ type Domain = {
   shortLabel?: string;             // "R1" — usado no cabeçalho do grid
   position: number;                // 0-based, sem buracos
   color?: string;                  // #RRGGBB
-  // apenas quando type = RANGE e a versão NÃO declara regionalDimension
+  // apenas quando type = RANGE e a versão NÃO declara groupingDimensions
   rangeMin?: string;               // decimal como string
   rangeMax?: string;
   minInclusive?: boolean;          // default true
   maxInclusive?: boolean;          // default false
   isCatchAll?: boolean;            // "acima de X" / "demais casos"
-  // apenas quando type = RANGE e a versão DECLARA regionalDimension
-  regionalRanges?: Record<string, RegionalRange>;   // chave = RegionalOption.code
+  // apenas quando type = RANGE e a versão DECLARA groupingDimensions
+  groupingRanges?: GroupingRange[];
 };
 
-type RegionalRange = {
+// path tem o mesmo comprimento de VariableVersion.groupingDimensions, na
+// mesma ordem — path[i] é sempre um GroupingOption.code válido do nível i.
+// Não existe uma entrada para cada combinação possível de opções: só para
+// as combinações que o usuário efetivamente definiu (ver I19). É o que
+// permite modelar hierarquias assimétricas — nem toda Regional tem MEI,
+// por exemplo — sem forçar o preenchimento de combinações que não existem
+// no negócio.
+type GroupingRange = {
+  path: string[];                  // um código por nível de groupingDimensions
   min: string;                     // decimal como string
   max?: string;                    // ausente quando o domínio é isCatchAll
   minInclusive?: boolean;          // default true
@@ -113,7 +131,7 @@ type RegionalRange = {
 };
 ```
 
-**Por que isso fica na variável, não na matriz.** `code`, `label`, `shortLabel`, `position` e `color` são a **identidade** da faixa — é o que a matriz referencia, e R01 é o mesmo R01 em qualquer regional. `regionalRanges` é só o **threshold numérico** que cada regional usa para classificar um score bruto em R01 — informação de governança da variável, nunca uma dimensão do grid. Um documento com `regionalDimension` continua tendo, por matriz, o mesmo número de colunas/linhas que teria sem ele: a diferença fica só na biblioteca.
+**Por que isso fica na variável, não na matriz.** `code`, `label`, `shortLabel`, `position` e `color` são a **identidade** da faixa — é o que a matriz referencia, e R01 é o mesmo R01 em qualquer combinação de agrupamento. `groupingRanges` é só o **threshold numérico** que cada combinação (ex.: São Paulo × MEI) usa para classificar um score bruto em R01 — informação de governança da variável, nunca uma dimensão do grid. Um documento com `groupingDimensions` continua tendo, por matriz, o mesmo número de colunas/linhas que teria sem ele: a diferença fica só na biblioteca. Isso vale mesmo quando os agrupamentos representam a mesma dimensão de negócio que hoje existe como variável separada num eixo (ex.: Segmento) — o uso pretendido de `groupingDimensions` é documentar **variações do corte de uma única variável**, não substituir a composição de variáveis distintas em eixos aninhados (`04-eixos-aninhados.md`); as duas coisas são mecanismos independentes e não competem entre si.
 
 ## 3. Biblioteca de Compatibilidade
 
@@ -260,7 +278,7 @@ type AxisLevel = {
 };
 ```
 
-**Domínios com `regionalRanges` entram no snapshot sem esse campo.** `matrix/create`, `axis/addLevel` e `axis/resnapshot` copiam de `VariableVersion.domains` apenas os campos de identidade (`code`, `label`, `shortLabel`, `position`, `color`, `isCatchAll`, e `rangeMin`/`rangeMax` quando existirem) — nunca `regionalRanges` nem `regionalDimension`. É o mecanismo que garante, no schema, que a matriz nunca carrega a dimensão regional: o snapshot de uma variável com 20 faixas × 9 regionais tem o mesmo tamanho que teria sem regional nenhum.
+**Domínios com `groupingRanges` entram no snapshot sem esse campo.** `matrix/create`, `axis/addLevel` e `axis/resnapshot` copiam de `VariableVersion.domains` apenas os campos de identidade (`code`, `label`, `shortLabel`, `position`, `color`, `isCatchAll`, e `rangeMin`/`rangeMax` quando existirem) — nunca `groupingRanges` nem `groupingDimensions`. É o mecanismo que garante, no schema, que a matriz nunca carrega os agrupamentos hierárquicos da variável: o snapshot de uma variável com 20 faixas × 9 regionais × 3 portes tem o mesmo tamanho que teria sem agrupamento nenhum.
 
 **`tuples` é o snapshot definitivo da estrutura do eixo.** É uma lista de caminhos, cada um com tantos códigos quantos forem os níveis, separados por `|`:
 
@@ -368,7 +386,7 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I6 | Publicar exige zero combinações sem `decision` |
 | I7 | `CatalogItem` de kind `LIMIT` tem `numericValue` |
 | I8 | `BOOLEAN` tem exatamente 2 domínios; demais tipos, ao menos 2 |
-| I9 | `RANGE` sem `regionalDimension`: faixas contíguas, sem sobreposição, ordenadas por `position`, usando `rangeMin`/`rangeMax`; no máximo um `isCatchAll`, e ele é o último. `RANGE` **com** `regionalDimension`: a mesma regra de contiguidade/sobreposição/catch-all vale **independentemente para cada regional**, usando `regionalRanges[region]` no lugar de `rangeMin`/`rangeMax`. Em ambos os casos, a contiguidade lê `boundaryMode` da versão: `HALF_OPEN` (default) exige `atual.máx == próxima.mín`; `INCLUSIVE_INTEGER` exige valores inteiros e `atual.máx + 1 == próxima.mín` |
+| I9 | `RANGE` sem `groupingDimensions`: faixas contíguas, sem sobreposição, ordenadas por `position`, usando `rangeMin`/`rangeMax`; no máximo um `isCatchAll`, e ele é o último. `RANGE` **com** `groupingDimensions`: a mesma regra de contiguidade/sobreposição/catch-all vale **independentemente para cada `path` distinto** presente em `domains[].groupingRanges` — não para toda combinação possível de opções, só para as que o usuário efetivamente definiu (ver I19). Em ambos os casos, a contiguidade lê `boundaryMode` da versão: `HALF_OPEN` (default) exige `atual.máx == próxima.mín`; `INCLUSIVE_INTEGER` exige valores inteiros e `atual.máx + 1 == próxima.mín` |
 | I10 | `VariableVersion` / `CompatibilityVersion` publicada é imutável |
 | I11 | No máximo uma versão `DRAFT` e uma `PUBLISHED` por variável e por regra de compatibilidade |
 | I12 | Uma única regra de compatibilidade publicada por par (parent, child) |
@@ -378,7 +396,9 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I16 | `xTuples.length * yTuples.length ≤ 6.000` |
 | I17 | Toda referência a catálogo em `cells` aponta para um `code` existente do kind correto |
 | I18 | Todo `code` é único no seu escopo |
-| I19 | Se `regionalDimension` está presente: `regions` tem ao menos 1 item com `code` único; **todo** domínio `RANGE` da versão tem uma entrada em `regionalRanges` para **cada** `region.code` declarado — sem buracos |
+| I19 | Se `groupingDimensions` está presente: 1 a 4 níveis; `code` único entre os níveis da versão; cada nível tem `options` não vazio com `code` único dentro do próprio nível; todo `GroupingRange.path` tem o mesmo comprimento de `groupingDimensions` e cada `path[i]` existe em `groupingDimensions[i].options` |
+
+**I19 é deliberadamente mais fraca que a antiga regra de completude regional.** Não existe invariante exigindo que todo domínio `RANGE` tenha uma entrada em `groupingRanges` para toda combinação possível de opções — hierarquias reais são assimétricas (nem toda Regional tem MEI, por exemplo), e forçar o preenchimento de combinações que não existem no negócio seria pior do que não validar nada. O editor de domínios (`07-ux-e-editor.md` §11) ainda **avisa** (não bloqueia) quando um `path` usado por alguns domínios está ausente por completo de outros — o caso provável de "esqueci de colar uma linha" — mas isso é um aviso de UX, não uma falha de I19.
 
 Falha de invariante na leitura **não descarta o arquivo**: a aplicação abre em modo de recuperação, lista os problemas em português e oferece as correções possíveis (§10).
 
@@ -387,6 +407,14 @@ Falha de invariante na leitura **não descarta o arquivo**: a aplicação abre e
 `schemaVersion` no topo. `src/core/document/migrate.ts` aplica migrações em cadeia (`1 → 2 → 3`) ao abrir um arquivo mais antigo, e recusa arquivos mais novos que a aplicação, com a mensagem: *"Este arquivo foi salvo por uma versão mais nova do PolicyOps. Atualize o PolicyOps.html."*
 
 Migrações são funções puras, testadas com fixtures reais em `tests/fixtures/`.
+
+**Migração 1 → 2 (sessão 20): generalização de `regionalDimension` em `groupingDimensions`.** Diferente das mudanças anteriores (campos novos e opcionais, sem necessidade de migração), esta é uma **renomeação com mudança de forma** — `Domain.regionalRanges` era `Record<string, RegionalRange>` (uma entrada por regional), e `Domain.groupingRanges` é `GroupingRange[]` (cada entrada carrega o próprio `path`). Por isso exige migração explícita, não é compatível por omissão. Para toda `VariableVersion` com `regionalDimension` presente:
+
+- `groupingDimensions = [{ code: 'REGIONAL', label: 'Regional', options: regionalDimension.regions }]` — um único nível, preservando os `RegionalOption` existentes tal como estavam;
+- para cada domínio, `groupingRanges = Object.entries(domain.regionalRanges).map(([regionCode, r]) => ({ path: [regionCode], ...r }))`;
+- os campos `regionalDimension` e `regionalRanges` são removidos do documento migrado.
+
+Documentos sem `regionalDimension` em nenhuma variável passam por `schemaVersion: 2` sem qualquer alteração de conteúdo. Testado com a fixture real que já existia para `regionalDimension` (S18), comparando o documento migrado contra o formato novo esperado.
 
 ## 11. Documento de exemplo
 

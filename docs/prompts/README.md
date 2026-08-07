@@ -22,6 +22,8 @@ Um arquivo por sessão. Abra uma conversa nova do Claude Code na raiz do reposit
 | 16 | [S16-reconciliacao.md](S16-reconciliacao.md) | `Opus` | Evolução da biblioteca e resnapshot |
 | 17 | [S17-templates-merge-export.md](S17-templates-merge-export.md) | `Opus` | Templates, merge, export, polimento |
 | 18 | [S18-faixa-regional.md](S18-faixa-regional.md) | `Sonnet` | Faixas regionais e duplicação de variáveis (pós-MVP, depende de 06) |
+| 19 | [S19-import-generico-e-paletas.md](S19-import-generico-e-paletas.md) | `Sonnet` | Importação genérica de domínios e paletas de cor (pós-MVP, depende de 18) |
+| 20 | [S20-agrupamentos-hierarquicos.md](S20-agrupamentos-hierarquicos.md) | `Opus` | Agrupamentos hierárquicos de faixas — generaliza regional em N níveis (pós-MVP, depende de 19) |
 
 ## Regras válidas para todas as sessões
 

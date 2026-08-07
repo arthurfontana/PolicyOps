@@ -64,11 +64,11 @@ type DocumentStore = {
 | `variable/create` | `{ code, name, type, description? }` |
 | `variable/updateMeta` | `{ variableId, name?, description? }` |
 | `variable/createDraft` | `{ variableId }` |
-| `variable/saveDomains` | `{ variableId, versionId, domains, regionalDimension? }` — `regionalDimension` só para `RANGE` (`05-regras-de-negocio.md` §5.6.1) |
+| `variable/saveDomains` | `{ variableId, versionId, domains, groupingDimensions?, boundaryMode? }` — `groupingDimensions` só para `RANGE` (`05-regras-de-negocio.md` §5.6.1) |
 | `variable/publish` | `{ variableId, versionId, notes? }` |
 | `variable/discardDraft` | `{ variableId, versionId }` |
 | `variable/archive` | `{ variableId }` — falha se em uso por versão publicada |
-| `variable/duplicate` | `{ sourceVariableId, sourceVersionId, code, name, description? }` — cria variável nova com v1 `DRAFT` copiando domínios e `regionalDimension` da origem (§5.6.3) |
+| `variable/duplicate` | `{ sourceVariableId, sourceVersionId, code, name, description? }` — cria variável nova com v1 `DRAFT` copiando domínios (cor inclusive) e `groupingDimensions` da origem (§5.6.5) |
 
 ### Biblioteca de compatibilidade
 | Comando | Entrada |
@@ -134,7 +134,9 @@ Funções de leitura em `src/core/`, chamadas direto pelos componentes:
 | `getPortfolioAt(doc, projectId, at)` | matrizes com a versão vigente |
 | `listVariables(doc, filtro)` | variáveis com contagem de uso |
 | `getVariableUsage(doc, variableId)` | quem pina cada versão |
-| `parseRegionalRangeTable(text, regions?)` | `{ domains, warnings, errors }` — traduz texto colado (TSV) em domínios prontos para `variable/saveDomains`; não toca no documento (`05-regras-de-negocio.md` §5.6.2) |
+| `parseDomainTable(text)` | `{ domains, groupingDimensions, columns, warnings, errors }` — traduz texto colado (TSV, tabela tidy genérica) em domínios prontos para `variable/saveDomains`; não toca no documento (`05-regras-de-negocio.md` §5.6.2) |
+| `mergeImportedDomains(existingDomains, parsed)` | `Domain[]` — combina o resultado de `parseDomainTable` com os domínios já existentes na tela, preservando campos que a colagem não trouxe coluna para atualizar (`05-regras-de-negocio.md` §5.6.3) |
+| `suggestPaletteColors(domains, paletteId)` | `Domain[]` — aplica a cor de uma paleta oficial (`05-regras-de-negocio.md` §5.6.4) aos domínios cujo código/rótulo bate; não toca no documento |
 | `getStaleAxes(doc)` | todos os rascunhos com eixo defasado |
 | `countPending(doc, versionId)` | combinações sem decisão |
 

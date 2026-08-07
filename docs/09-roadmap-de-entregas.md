@@ -24,10 +24,12 @@
 | 16 | Reconciliação da biblioteca | **Opus** | Adotar nova versão de variável ou de regra | 13 |
 | 17 | Templates, merge, export e polimento | **Opus** | Fechamento do MVP | 16 |
 | 18 | Faixas regionais e duplicação de variáveis | **Sonnet** | Variável `RANGE` com threshold por regional, colar tabela, duplicar variável | 06 |
+| 19 | Importação genérica de domínios e paletas de cor | **Sonnet** | Colar tabela para qualquer tipo de variável, continuidade automática por padrão, preservação de cor ao recolar, paletas oficiais | 18 |
+| 20 | Agrupamentos hierárquicos de faixas | **Opus** | `regionalDimension` generalizado em `groupingDimensions` de 1 a 4 níveis, migração de schema, colagem com colunas de agrupamento, editor tidy | 19 |
 
 > A sessão 17 acumula três frentes. Se ficar grande, quebre em 17a (templates), 17b (merge de documentos) e 17c (export e polimento) — o prompt já vem dividido nessas três partes, com critérios de aceite independentes.
 
-> **Sessão 18 é pós-MVP**, adicionada depois do fechamento das 17 originais, a pedido de um caso real de score B2B com corte por regional (ver `docs/prompts/S18-faixa-regional.md`). Não bloqueia nem depende de nenhum marco M1–M5; só precisa da Biblioteca de Variáveis (06) pronta.
+> **Sessões 18–20 são pós-MVP**, adicionadas depois do fechamento das 17 originais, a pedido de um caso real de score B2B com corte por regional e, na sequência, por Regional × Porte × Tipo de Empresa (ver `docs/prompts/S18-faixa-regional.md`, `S19-import-generico-e-paletas.md`, `S20-agrupamentos-hierarquicos.md`). Não bloqueiam nem dependem de nenhum marco M1–M5; só precisam da Biblioteca de Variáveis (06) pronta. **19 e 20 evoluem o que a 18 entregou** — a colagem específica de "regional" e o schema `regionalDimension` da sessão 18 são substituídos (não mantidos em paralelo) pela colagem genérica e por `groupingDimensions` ao final da 20; ver a nota de migração em `docs/03-modelo-do-documento.md` §10.
 
 ## Por que cada modelo
 
@@ -44,6 +46,10 @@
 > Se numa sessão Sonnet/Haiku aparecer decisão de arquitetura não coberta pela documentação, a instrução é **parar e perguntar**. Isso está escrito em todos os prompts.
 
 **18** é Sonnet pelo mesmo motivo de 06/07: transcrição fiel de um contrato já fechado em `docs/03` e `docs/05` §5.6 (schema, validação, formato de colagem), sem combinatória nova de eixo/tupla — a parte que exigiria Opus (motor de eixos) não é tocada, porque a dimensão regional é explicitamente removida do snapshot antes de chegar lá.
+
+**19** é Sonnet pelo mesmo motivo: generaliza a colagem e adiciona paletas sem tocar no schema do documento (`groupingDimensions` continua não existindo até a 20) nem em invariante nenhum — é composição de tela e um parser novo sobre um contrato que este pacote de documentação já fecha.
+
+**20** é Opus: renomeia e reestrutura um campo do schema já publicado (exige migração de `schemaVersion`, `docs/03` §10), generaliza uma invariante (I9/I19) para combinatória de caminhos que **não** é fixa (hierarquias assimétricas, sem completude obrigatória) e reescreve o editor de domínios de grid pivotado para tabela tidy — é exatamente o perfil "invariante que corrompe dado em silêncio se sair errada" que justifica Opus em 03/12/16.
 
 ## Marcos utilizáveis
 

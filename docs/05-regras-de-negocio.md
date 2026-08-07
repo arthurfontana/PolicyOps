@@ -48,7 +48,7 @@ input: {
 1. Valida unicidade de `code` no projeto (`DUPLICATE_CODE`).
 2. Para cada nível, resolve a `VariableVersion` **PUBLISHED** da variável → senão `VARIABLE_HAS_NO_PUBLISHED_VERSION`.
 3. Valida I13 e I14 (1–3 níveis, sem variável repetida no eixo nem entre eixos).
-4. Monta cada `Axis`: copia os domínios para o snapshot de cada nível (só os campos de identidade — `regionalRanges`/`regionalDimension` nunca entram no snapshot, ver `03-modelo-do-documento.md` §6.1), resolve as regras de compatibilidade **publicadas** aplicáveis e chama `generateTuples`.
+4. Monta cada `Axis`: copia os domínios para o snapshot de cada nível (só os campos de identidade — `groupingRanges`/`groupingDimensions` nunca entram no snapshot, ver `03-modelo-do-documento.md` §6.1), resolve as regras de compatibilidade **publicadas** aplicáveis e chama `generateTuples`.
 5. Valida I16 (teto de 6.000 combinações).
 6. Cria `MatrixVersion` v1 em `DRAFT` com `cells: {}` — nenhuma célula é materializada.
 7. Se veio de template, aplica defaults e `seedRules` (§8).
@@ -289,17 +289,21 @@ Depois disso, I6 bloqueia a publicação até as novas combinações serem preen
 
 **Decisão deliberada:** rótulos de catálogo são referência viva, não snapshot. Renomear "Oferta 8" para "Oferta 8 — Renda Alta" muda a exibição em versões históricas. Isso é aceito porque é correção de nomenclatura. Mudar o **significado** exige criar item novo — e a interface diz isso ao lado do botão de editar.
 
-### 5.6 Dimensão regional de faixas
+### 5.6 Agrupamentos hierárquicos de faixas
 
-Resolve o caso de modelo de score cujo corte numérico de cada faixa (R01…R20) varia por regional, mas cujo **código** de faixa é o mesmo em todo lugar — é o mecanismo de normalização de risco entre regionais. Ver `03-modelo-do-documento.md` §2 para o schema (`VariableVersion.regionalDimension`, `Domain.regionalRanges`).
+Resolve o caso de modelo de score cujo corte numérico de cada faixa (R01…R20) varia conforme uma ou mais dimensões de negócio (Regional, Porte, Tipo de Empresa…), mas cujo **código** de faixa é o mesmo em todo lugar — é o mecanismo de normalização de risco entre agrupamentos. Generaliza o que a sessão 18 introduziu como um único nível fixo chamado "regional" para **N níveis dinâmicos**, com nome livre, nenhum deles obrigatoriamente chamado Regional. Ver `03-modelo-do-documento.md` §2 para o schema (`VariableVersion.groupingDimensions`, `Domain.groupingRanges`).
 
-**Editar.** `regionalDimension` e `regionalRanges` são editados **junto** dos domínios, no mesmo `variable/saveDomains` (§5.6.1) — não existe comando separado para eles. Ligar/desligar `regionalDimension` numa versão `DRAFT` é uma escolha binária: ligado, todo domínio `RANGE` da versão usa `regionalRanges`; desligado, usa `rangeMin`/`rangeMax` como antes. Alternar o interruptor não converte valores automaticamente — o usuário parte de faixas vazias no modo para o qual mudou.
+**Por que isso não é um eixo aninhado.** `AxisLevel` (`04-eixos-aninhados.md`) combina **variáveis distintas** numa matriz, produzindo colunas/linhas reais. `groupingDimensions` documenta **variações internas de uma única variável** — nunca produz coluna, nunca produz tupla, nunca é visível na matriz. Um caso real de Regional × Porte × Tipo de Empresa que hoje exigiria três variáveis (ou um eixo de 3 níveis) para representar cortes diferentes do mesmo score passa a ser uma variável só, com `groupingDimensions` de até 4 níveis documentando cada combinação. Se o objetivo é de fato criar colunas/linhas na matriz (o valor "aparece nos cineminhas"), a ferramenta certa continua sendo eixo aninhado — os dois mecanismos não se substituem.
+
+**Editar.** `groupingDimensions` e `groupingRanges` são editados **junto** dos domínios, no mesmo `variable/saveDomains` (§5.6.1) — não existe comando separado para eles. Ligar/desligar `groupingDimensions` numa versão `DRAFT` é uma escolha binária: presente, todo domínio `RANGE` da versão usa `groupingRanges`; ausente, usa `rangeMin`/`rangeMax` como antes. Alternar o interruptor não converte valores automaticamente — o usuário parte de faixas vazias no modo para o qual mudou. Diferente da sessão 18, o número de níveis, seus nomes e suas opções não são digitados manualmente antes de usar a variável: o caminho principal é **colar uma tabela** (§5.6.2), que infere tudo — dimensões, opções e faixas — de uma vez.
 
 #### 5.6.0 `boundaryMode` — limites inclusivo-inclusivo com passo 1
 
-Interruptor por versão (`VariableVersion.boundaryMode`, independente de `regionalDimension` — vale tanto para `rangeMin`/`rangeMax` quanto para `regionalRanges`), ausente ou `'HALF_OPEN'` é o `[mín, máx)` de sempre. `'INCLUSIVE_INTEGER'` é `[mín, máx]` com passo 1, pensado para cortes de score que vêm do Excel já fechado-fechado (`R20: 0–357`, `R19: 358–437`, …): os valores são validados como inteiros, e a contiguidade (I9) passa a exigir `atual.máx + 1 == próxima.mín` em vez de `atual.máx == próxima.mín`. Sem esse modo, colar a tabela nesse formato acusa `RANGE_NOT_CONTIGUOUS`/`RANGE_REGIONAL_NOT_CONTIGUOUS` mesmo o dado estando correto — o contorno manual (reescrever o `máx` de cada faixa para repetir o `mín` da seguinte) deixa de ser necessário.
+Interruptor por versão (`VariableVersion.boundaryMode`, independente de `groupingDimensions` — vale tanto para `rangeMin`/`rangeMax` quanto para `groupingRanges`), ausente ou `'HALF_OPEN'` é o `[mín, máx)` de sempre. `'INCLUSIVE_INTEGER'` é `[mín, máx]` com passo 1, pensado para cortes de score que vêm do Excel já fechado-fechado (`R20: 0–357`, `R19: 358–437`, …): os valores são validados como inteiros, e a contiguidade (I9) passa a exigir `atual.máx + 1 == próxima.mín` em vez de `atual.máx == próxima.mín`. Sem esse modo, colar a tabela nesse formato acusa `RANGE_NOT_CONTIGUOUS`/`RANGE_GROUPING_NOT_CONTIGUOUS` mesmo o dado estando correto — o contorno manual (reescrever o `máx` de cada faixa para repetir o `mín` da seguinte) deixa de ser necessário.
 
-Documentos sem `boundaryMode` continuam se comportando exatamente como antes — não há migração, e o campo é ligado variável por variável, como o interruptor regional.
+Documentos sem `boundaryMode` continuam se comportando exatamente como antes — não há migração, e o campo é ligado variável por variável, como o interruptor de agrupamento.
+
+`HALF_OPEN` é também o modo que sustenta a **continuidade automática** (§5.6.2): como o padrão da aplicação passa a ser não expor os checkboxes "mín. inclusivo"/"máx. inclusivo" na edição normal, o comportamento assumido é sempre `[mín, máx)` — o usuário só vê os checkboxes, e só precisa pensar em `boundaryMode`, ao entrar explicitamente nas "opções avançadas" do editor de domínios (`07-ux-e-editor.md` §11).
 
 #### 5.6.1 `variable/saveDomains` — entrada estendida
 
@@ -308,33 +312,105 @@ input: {
   variableId: string;
   versionId: string;
   domains: Domain[];
-  regionalDimension?: RegionalDimension;   // ausente = variável não usa regional
+  groupingDimensions?: GroupingDimension[];   // ausente = variável não usa agrupamento
   boundaryMode?: 'HALF_OPEN' | 'INCLUSIVE_INTEGER';   // ausente = HALF_OPEN (§5.6.0)
 }
 ```
 
-Continua substituindo o conjunto inteiro (domínios, dimensão regional **e** `boundaryMode`), só em `DRAFT` (`VARIABLE_VERSION_IMMUTABLE` senão), e roda `validateDomains` antes de gravar — agora ciente de `regionalDimension` (I9, I19) e de `boundaryMode` (I9):
+Continua substituindo o conjunto inteiro (domínios, agrupamentos **e** `boundaryMode`), só em `DRAFT` (`VARIABLE_VERSION_IMMUTABLE` senão), e roda `validateDomains` antes de gravar — agora ciente de `groupingDimensions` (I9, I19) e de `boundaryMode` (I9):
 
-- sem `regionalDimension`: validação igual à de hoje;
-- com `regionalDimension`: `regions` não pode ser vazio nem ter `code` repetido (`REGIONAL_CODE_DUPLICATE`); para cada domínio `RANGE`, precisa haver uma entrada em `regionalRanges` para cada `region.code` (`RANGE_REGIONAL_INCOMPLETE` apontando o domínio e o regional faltante); dentro de **cada** regional, a mesma regra de contiguidade/sobreposição/catch-all de hoje, aplicada independentemente coluna a coluna (`RANGE_REGIONAL_NOT_CONTIGUOUS`, com `{ regionCode, domainCode }` no `details`);
-- com `boundaryMode: 'INCLUSIVE_INTEGER'` (com ou sem `regionalDimension`): mínimo/máximo de cada faixa precisam ser inteiros (mesmo código de erro que a contiguidade, `RANGE_NOT_CONTIGUOUS`/`RANGE_REGIONAL_NOT_CONTIGUOUS`, mensagem específica), e a contiguidade compara `atual.máx + 1` com `próxima.mín` em vez de igualdade direta.
+- sem `groupingDimensions`: validação igual à de hoje;
+- com `groupingDimensions`: estrutura válida por I19 — 1 a 4 níveis (`TOO_MANY_GROUPING_LEVELS` acima disso), `code` de nível único (`GROUPING_DIMENSION_CODE_DUPLICATE`), `code` de opção único dentro do próprio nível (`GROUPING_OPTION_CODE_DUPLICATE`), todo `path` de `groupingRanges` com o comprimento certo e apontando para opções existentes (`GROUPING_PATH_INVALID`); dentro de **cada `path` distinto** presente nos dados (não em toda combinação possível — ver I19 em `03-modelo-do-documento.md` §9), a mesma regra de contiguidade/sobreposição/catch-all de hoje, aplicada independentemente (`RANGE_GROUPING_NOT_CONTIGUOUS`, com `{ path, domainCode }` no `details`);
+- com `boundaryMode: 'INCLUSIVE_INTEGER'` (com ou sem `groupingDimensions`): mínimo/máximo de cada faixa precisam ser inteiros (mesmo código de erro que a contiguidade, `RANGE_NOT_CONTIGUOUS`/`RANGE_GROUPING_NOT_CONTIGUOUS`, mensagem específica), e a contiguidade compara `atual.máx + 1` com `próxima.mín` em vez de igualdade direta.
 
-#### 5.6.2 Importar tabela colada
+#### 5.6.2 Importação genérica de tabela colada
 
-Resolve o problema de digitar 20 faixas × 9 regionais × 2 números campo a campo. `parseRegionalRangeTable(text, regions)` — função **pura** em `src/core/library/regional-import.ts`, sem comando associado: só traduz texto em `{ domains, warnings, errors }`, que o usuário revisa na tela antes de virarem entrada de `saveDomains`. Nada é gravado no documento por esta função — a colagem em si nunca valida contiguidade, só extrai os números das colunas MIN/MAX; é `saveDomains` (via `validateDomains`) que decide se o resultado é contíguo, e o faz respeitando o `boundaryMode` corrente da versão (§5.6.0). Por isso uma tabela colada no formato fechado-fechado original do Excel (`0-357`, `358-437`, …) passa sem ajuste manual quando `boundaryMode: 'INCLUSIVE_INTEGER'` está ligado antes de colar.
+Substitui a colagem específica de regional da sessão 18 por uma funcionalidade **genérica da Biblioteca de Variáveis**: qualquer tipo de variável (`RANGE`, `CATEGORICAL`, `ORDINAL`, `BOOLEAN`), com ou sem agrupamento, importa domínios colando uma tabela — inclusive só para atualizar cores de domínios existentes (o caso "colei uma tabela Domínio + RGB por cima de uma variável que já tinha as faixas certas").
 
-**Contrato de colagem** (o usuário cola direto do Excel, TSV com tabulação como separador de coluna):
+`parseDomainTable(text)` — função **pura** em `src/core/library/domain-import.ts` (substitui `regional-import.ts`), sem comando associado: traduz texto em `{ domains, groupingDimensions, columns, warnings, errors }`, onde `columns` registra quais campos (`min`, `max`, `color`, agrupamento) estavam de fato presentes no cabeçalho colado — é o que orienta o merge de §5.6.3. Nada é gravado no documento por esta função; quem grava é `saveDomains`, depois de `mergeImportedDomains` (mesmo arquivo) combinar o resultado com os domínios já existentes na tela.
 
-1. **Linha 1** — um código de regional por bloco de colunas. Célula de Excel mesclada vira, ao colar, a primeira coluna do bloco preenchida e as demais vazias: o parser faz *carry-forward* (repete o último valor não vazio) para reconstruir o regional de cada coluna.
-2. **Linha 2** — `MIN` / `MAX` (case-insensitive, aceita `Mín`/`Máx`) alternado, uma marca por coluna de dado.
-3. **Linhas seguintes** — uma por domínio. Primeira coluna é o texto completo do domínio (ex.: `R20 - Altíssimo`); vira `label` verbatim, e `code` é o trecho antes do primeiro `" - "` (ou `–`/`—`), maiúsculo, validado contra `^[A-Z0-9_]+$` — falha em `REGIONAL_IMPORT_PARSE_ERROR` se não bater. As colunas seguintes são os pares min/max de cada regional, na ordem da linha 1/2.
-4. `position` de cada domínio = ordem das linhas na colagem. A ordem pode ser ajustada depois no editor de domínios (drag), como qualquer variável.
-5. Todo domínio precisa ter valor para todo regional presente no cabeçalho — célula vazia é aviso, não erro: o domínio some da lista pronta e o usuário completa manualmente ou recola.
-6. Número de colunas de dado inconsistente com o cabeçalho, ou header ausente/incompleto → `REGIONAL_IMPORT_PARSE_ERROR`, sem gravar nada.
+**Contrato de colagem — tabela tidy, uma linha por combinação** (o usuário cola direto do Excel, TSV com tabulação como separador de coluna):
 
-O resultado alimenta `regionalDimension.regions` (na ordem da linha 1) e `domains[].regionalRanges` — o usuário ainda passa pela validação normal de `saveDomains` antes de poder publicar.
+1. **Linha 1 é cabeçalho, sempre obrigatória.** Colunas reconhecidas por nome, sem diferenciar maiúsculas/acentos: `Domínio` (aceita também `Código`) é a **âncora obrigatória**; `Mínimo` (aceita `Min`/`Mín`) e `Máximo` (aceita `Max`/`Máx`) só são obrigatórias quando `type = RANGE` — se ausentes do cabeçalho, a colagem não toca em faixas, só em identidade/cor (ver item 6); `Cor` (aceita `RGB`/`Hex`) é sempre opcional. Qualquer coluna à **esquerda** de `Domínio` que não bata com um nome reconhecido é uma **coluna de agrupamento**, na ordem em que aparece — de 0 a 4 colunas (I19). Cabeçalho sem a coluna `Domínio`, ou mais de 4 colunas de agrupamento → `DOMAIN_TABLE_PARSE_ERROR`.
+2. **Cada linha seguinte é uma combinação**: valor de cada coluna de agrupamento (se houver), domínio, faixa (se as colunas existirem) e cor (se a coluna existir). Número de colunas de dado inconsistente com o cabeçalho → `DOMAIN_TABLE_PARSE_ERROR`, sem gravar nada.
+3. **`Domínio`**: mesmo formato de hoje — texto livre; `code` é o trecho antes do primeiro `" - "` (ou `–`/`—`), maiúsculo, validado contra `^[A-Z0-9_]+$`; sem separador, o texto inteiro vira `code` e `label`.
+4. **`Cor`**: aceita `#RRGGBB` ou `R G B` / `R, G, B` (0–255, como no relatório de risco colado direto de uma planilha de cores) — convertida para `#RRGGBB` internamente.
+5. **Colunas de agrupamento**: o texto de cada célula vira o `code` da `GroupingOption` daquele nível (normalizado: maiúsculo, sem acento, espaço vira `_`); o cabeçalho da coluna vira o `label` da `GroupingDimension`; a ordem das opções dentro de cada nível é a ordem de primeira aparição do valor na tabela.
+6. **Identidade e cor por domínio**: capturadas na **primeira linha** em que o `code` aparece. Se uma linha posterior trouxer uma cor diferente e não vazia para o mesmo `code`, é **aviso**, não erro — mantém a primeira. `position` de cada domínio = ordem da primeira aparição do `code` na tabela colada; pode ser ajustada depois no editor (drag), como qualquer variável.
+7. **Sem colunas de agrupamento** (0 antes de `Domínio`): cada `code` deve aparecer em no máximo uma linha — repetição sem uma dimensão para diferenciar é `DOMAIN_TABLE_PARSE_ERROR`. Quando `Mínimo`/`Máximo` estão no cabeçalho, o resultado alimenta `rangeMin`/`rangeMax` diretamente.
+8. **Com 1+ colunas de agrupamento**: quando `Mínimo`/`Máximo` estão no cabeçalho, o resultado alimenta `groupingRanges` — uma entrada por `(path, domínio)`. Célula de `Mínimo`/`Máximo` vazia numa linha com agrupamento é **aviso**: a combinação fica incompleta e não entra no resultado pronto, o usuário completa manualmente ou recola.
+9. **A colagem em si nunca valida contiguidade** — só extrai os dados. É `saveDomains` (via `validateDomains`, §5.6.1) que decide se o resultado é contíguo, respeitando o `boundaryMode` corrente da versão (§5.6.0). Por isso uma tabela colada no formato fechado-fechado original do Excel (`0-357`, `358-437`, …) passa sem ajuste manual quando `boundaryMode: 'INCLUSIVE_INTEGER'` já está ligado antes de colar.
 
-#### 5.6.3 Duplicar variável
+**Exemplo — o caso real de Regional × Porte:**
+
+```
+Regional	Porte	Domínio	Mínimo	Máximo
+São Paulo	MEI	R1	0	357
+São Paulo	MEI	R2	358	420
+São Paulo	Não MEI	R1	0	340
+Sul	MEI	R1	0	360
+```
+
+Produz `groupingDimensions` com 2 níveis (`REGIONAL` com opções `SAO_PAULO`/`SUL` na ordem de aparição, `PORTE` com `MEI`/`NAO_MEI`) e `groupingRanges` só para as combinações que de fato aparecem na tabela — sem exigir que "Sul" tenha uma linha para "Não MEI" (I19, §5.6).
+
+**Exemplo — só atualizar cores** (formato do relatório de risco colado pelo usuário: um domínio já existente por linha, sem tocar faixa):
+
+```
+Risco	RGB
+R20	255 0 0
+R19	255 32 32
+```
+
+Sem `Mínimo`/`Máximo` no cabeçalho, o merge (§5.6.3) preserva as faixas já salvas de R20/R19 e só substitui a cor.
+
+#### 5.6.3 Preservação de atributos existentes ao recolar
+
+Regra que evita o usuário perder trabalho manual (cor, principalmente) sempre que o `code` de um domínio colado já existe na variável: `mergeImportedDomains(existingDomains, parsed)` — função **pura** no mesmo `domain-import.ts` — decide, campo a campo, **só a partir das colunas que a colagem trouxe** (`parsed.columns`, item 1 de §5.6.2):
+
+- `label`/`shortLabel`: sempre vêm da colagem (a coluna `Domínio` é a âncora obrigatória, está sempre presente) — recolar sempre atualiza o rótulo.
+- `color`: só é sobrescrita se a coluna `Cor` estava presente nesta colagem; senão, herda a cor do domínio existente de mesmo `code`, se houver.
+- `rangeMin`/`rangeMax`/`groupingRanges`: só são sobrescritos se `Mínimo`/`Máximo` estavam presentes; senão, herdam os valores existentes.
+- Domínio colado sem correspondência de `code` na lista atual: entra como novo, só com os campos que a colagem de fato trouxe.
+
+O resultado do merge é o que aparece no editor para revisão — nada é gravado até o usuário confirmar `saveDomains` (mesmo fluxo de sempre). **Isso resolve tanto "dupliquei uma variável e perdi as cores" quanto "recolei a tabela de score e perdi as cores"**: em ambos os casos, o domínio de destino já tinha `color`, e a colagem/duplicação que não menciona cor explicitamente nunca a apaga.
+
+#### 5.6.4 Paletas de cor
+
+Complementa a seleção manual de `color` com três mecanismos, nenhum deles exigindo `groupingDimensions`:
+
+- **Paletas pré-definidas.** `src/lib/color-palettes.ts` exporta `ColorPalette[]` — dados estáticos, não fazem parte do documento. Duas paletas oficiais nesta versão (valores fornecidos pelo usuário, §5.6.4.1): `RISCO_R01_R20` (escala de 20 pontos) e `RISCO_SIMPLIFICADO` (5 classificações: Baixíssimo, Baixo, Médio, Alto, Altíssimo). Cada entrada casa por `code` **ou** `label` do domínio, normalizado (maiúsculo, sem acento) — a escala R01-R20 casa tanto `R1` quanto `R01` (regex tolerante a zero à esquerda), a simplificada casa o texto exato das 5 classificações.
+- **Aplicar paleta** — ação no editor de domínios: usuário escolhe uma paleta, o sistema aplica `color` a todo domínio cujo `code`/`label` bater, mostra quantos bateram (`"18 de 20 domínios coloridos"`), e deixa os que não bateram como estavam. É uma alteração local no editor, como qualquer edição de domínio — só grava ao confirmar `saveDomains`.
+- **Sugestão automática.** Ao criar domínios novos (digitando ou via §5.6.2) sem `color` explícita, se o `code`/`label` bater com uma paleta oficial, o campo já nasce preenchido com a cor sugerida — continua sendo um campo comum, o usuário sobrescreve quando quiser. Cor vinda explicitamente da colagem (coluna `Cor`) sempre vence a sugestão.
+- **Importar tabela de cores.** É só um caso particular de §5.6.2 — colar `Domínio` + `Cor` sem `Mínimo`/`Máximo` aplica cores a domínios existentes pelo mesmo mecanismo de merge (§5.6.3), sem exigir uma paleta nomeada.
+
+Paletas customizadas e salvas pelo usuário (além das duas oficiais) ficam **fora do escopo** desta evolução — `ColorPalette[]` é uma lista estática hoje; se no futuro o usuário quiser definir e reutilizar as próprias paletas, isso exige um novo campo no documento (persistência) e é uma decisão de arquitetura própria, não implícita nesta sessão.
+
+##### 5.6.4.1 Paleta oficial `RISCO_R01_R20`
+
+| Domínio | RGB | Domínio | RGB |
+|---|---|---|---|
+| R01 | `0,255,42` | R11 | `255,186,64` |
+| R02 | `36,255,72` | R12 | `255,162,0` |
+| R03 | `72,255,102` | R13 | `255,224,224` |
+| R04 | `108,255,132` | R14 | `255,192,192` |
+| R05 | `144,255,162` | R15 | `255,160,160` |
+| R06 | `180,255,192` | R16 | `255,128,128` |
+| R07 | `216,255,222` | R17 | `255,96,96` |
+| R08 | `240,255,246` | R18 | `255,64,64` |
+| R09 | `255,234,192` | R19 | `255,32,32` |
+| R10 | `255,210,128` | R20 | `255,0,0` |
+
+##### 5.6.4.2 Paleta oficial `RISCO_SIMPLIFICADO`
+
+| Classificação | RGB |
+|---|---|
+| Baixíssimo | `0,255,42` |
+| Baixo | `240,255,246` |
+| Médio | `255,162,0` |
+| Alto | `255,128,128` |
+| Altíssimo | `255,0,0` |
+
+#### 5.6.5 Duplicar variável
 
 Resolve "criar a partir desta" na tela de nova variável — não é exclusivo de `RANGE`, mas é o que evita recriar a estrutura de HVI1 para desenhar HVI2.
 
@@ -348,9 +424,9 @@ variable/duplicate: {
 }
 ```
 
-Cria uma `Variable` nova (novo `id`, novo `code`) com `type` igual ao da origem e uma v1 `DRAFT` cujos `domains` e `regionalDimension` são cópia integral da versão de origem (novos `id`s de domínio se existirem, mesmos `code`/`label`/`position`/`color`/faixas). A variável de origem não é tocada, e nada liga as duas depois — é ponto de partida, não vínculo. Sem evento próprio, mesmo padrão de `variable/create`.
+Cria uma `Variable` nova (novo `id`, novo `code`) com `type` igual ao da origem e uma v1 `DRAFT` cujos `domains` e `groupingDimensions` são cópia integral da versão de origem, **incluindo `color`** — `structuredClone`, sem regenerar nem descartar nenhum campo de domínio. A variável de origem não é tocada, e nada liga as duas depois — é ponto de partida, não vínculo. Sem evento próprio, mesmo padrão de `variable/create`.
 
-**Por que isso substitui "criar 9 variáveis regionais".** Com `regionalDimension`, um único `variable/saveDomains` (ou uma colagem) preenche as 9 regionais de uma vez dentro de uma variável só; `variable/duplicate` só entra em cena quando o usuário quer de fato uma variável nova e distinta (HVI1 → HVI2), não para replicar a mesma faixa por regional.
+**Por que isso substitui "criar 9 variáveis regionais" (ou 3 variáveis de Regional × Porte).** Com `groupingDimensions`, um único `variable/saveDomains` (ou uma colagem) preenche todas as combinações de uma vez dentro de uma variável só; `variable/duplicate` só entra em cena quando o usuário quer de fato uma variável nova e distinta (HVI1 → HVI2), não para replicar a mesma faixa por agrupamento.
 
 ## 6. Consulta por data de vigência
 
@@ -412,8 +488,11 @@ TOO_MANY_LEVELS, DUPLICATE_VARIABLE_IN_AXIS, VARIABLE_ON_BOTH_AXES,
 AXIS_NEEDS_ONE_LEVEL, NO_VALID_TUPLES, GRID_TOO_LARGE,
 AXIS_NOT_STALE, VERSIONS_NOT_COMPARABLE,
 DOCUMENT_SCHEMA_TOO_NEW, DOCUMENT_INVALID, SAVE_CONFLICT,
-RANGE_REGIONAL_INCOMPLETE, RANGE_REGIONAL_NOT_CONTIGUOUS,
-REGIONAL_CODE_DUPLICATE, REGIONAL_IMPORT_PARSE_ERROR
+RANGE_GROUPING_NOT_CONTIGUOUS, GROUPING_DIMENSION_CODE_DUPLICATE,
+GROUPING_OPTION_CODE_DUPLICATE, GROUPING_PATH_INVALID,
+TOO_MANY_GROUPING_LEVELS, DOMAIN_TABLE_PARSE_ERROR
 ```
+
+`RANGE_REGIONAL_INCOMPLETE`, `RANGE_REGIONAL_NOT_CONTIGUOUS`, `REGIONAL_CODE_DUPLICATE` e `REGIONAL_IMPORT_PARSE_ERROR` (sessão 18) são removidos na sessão 20 — substituídos pelos códigos genéricos acima. `RANGE_REGIONAL_INCOMPLETE` não tem substituto direto: a completude por combinação deixou de ser invariante (`03-modelo-do-documento.md` §9, nota após I19) e virou aviso não bloqueante na interface, não um `DomainError`.
 
 Cada código tem mensagem pt-BR em `src/core/error-messages.ts`. A interface nunca exibe o código cru. Um teste percorre o enum e falha se faltar mensagem.
