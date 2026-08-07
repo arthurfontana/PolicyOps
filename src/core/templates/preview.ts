@@ -1,4 +1,5 @@
 import { nanoid } from 'nanoid';
+import { snapshotDomains } from '../axes/domain-snapshot';
 import { collectPublishedCompatibility, generateTuples } from '../axes/tuples';
 import type { Axis, AxisLevel, AxisRole, Cell, PolicyOpsDocument, Template } from '../document/schema';
 import { DomainError } from '../errors';
@@ -40,7 +41,8 @@ function resolveTemplateLevel(
     variableId: variable.id,
     variableVersionId: published.id,
     label: ref.label ?? variable.name,
-    domains: structuredClone(published.domains),
+    // Só identidade — nunca `regionalRanges` (docs/03 §6.1).
+    domains: snapshotDomains(published.domains),
   };
 }
 

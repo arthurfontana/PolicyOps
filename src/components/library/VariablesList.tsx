@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ListTree, Plus, Search } from 'lucide-react';
+import { Copy, ListTree, Plus, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import type { VariableType } from '@/core/document/schema';
 import { VARIABLE_TYPE_LABELS } from '@/lib/variable-types';
 import { useDocumentStore } from '@/store/document-store';
 import { CreateVariableDialog } from './CreateVariableDialog';
+import { DuplicateVariableDialog } from './DuplicateVariableDialog';
 
 function usageLabel(publishedMatrixCount: number, draftMatrixCount: number): string {
   if (publishedMatrixCount === 0 && draftMatrixCount === 0) return 'sem uso em nenhuma matriz';
@@ -32,6 +33,7 @@ export function VariablesList({ onSelect }: VariablesListProps) {
   const [search, setSearch] = useState('');
   const [type, setType] = useState<VariableType | 'ALL'>('ALL');
   const [createOpen, setCreateOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
 
   const summaries = useMemo(() => {
     if (document === null) return [];
@@ -55,9 +57,14 @@ export function VariablesList({ onSelect }: VariablesListProps) {
           </p>
         </div>
         {document !== null && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> Nova variável
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setDuplicateOpen(true)}>
+              <Copy className="mr-1.5 h-4 w-4" /> Criar a partir de existente
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" /> Nova variável
+            </Button>
+          </div>
         )}
       </div>
 
@@ -70,9 +77,14 @@ export function VariablesList({ onSelect }: VariablesListProps) {
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
               Nenhuma variável ainda. Crie a primeira para montar os eixos de uma matriz.
             </p>
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-1.5 h-4 w-4" /> Nova variável
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus className="mr-1.5 h-4 w-4" /> Nova variável
+              </Button>
+              <Button variant="outline" onClick={() => setDuplicateOpen(true)}>
+                <Copy className="mr-1.5 h-4 w-4" /> Criar a partir de existente
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
@@ -147,7 +159,13 @@ export function VariablesList({ onSelect }: VariablesListProps) {
         </>
       )}
 
-      <CreateVariableDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={onSelect} />
+      <CreateVariableDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={onSelect}
+        onWantDuplicate={() => setDuplicateOpen(true)}
+      />
+      <DuplicateVariableDialog open={duplicateOpen} onOpenChange={setDuplicateOpen} onCreated={onSelect} />
     </div>
   );
 }

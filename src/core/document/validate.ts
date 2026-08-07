@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PolicyOpsDocumentSchema, type CatalogItemKind, type PolicyOpsDocument } from './schema';
+import { PolicyOpsDocumentSchema, type CatalogItemKind, type Domain, type PolicyOpsDocument } from './schema';
 
 /**
  * Validação do documento — schema estrutural (Zod) + invariantes de negócio
@@ -300,8 +300,72 @@ export function checkI8(doc: PolicyOpsDocument): ValidationIssue[] {
 
 // ---------------------------------------------------------------------------
 // I9 — RANGE: faixas contíguas, sem sobreposição, ordenadas por position;
-// no máximo um isCatchAll, e ele é o último
+// no máximo um isCatchAll, e ele é o último. Com `regionalDimension`, a
+// mesma regra vale independentemente para cada regional, usando
+// `regionalRanges[region]` no lugar de `rangeMin`/`rangeMax`.
 // ---------------------------------------------------------------------------
+
+function checkCatchAllIdentity(
+  domains: Domain[],
+  variableCode: string,
+  path: string,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const catchAlls = domains.filter((d) => d.isCatchAll);
+  if (catchAlls.length > 1) {
+    issues.push({
+      severity: 'ERROR',
+      invariant: 'I9',
+      path,
+      message: `A variável "${variableCode}" tem ${catchAlls.length} domínios isCatchAll — no máximo um é permitido.`,
+    });
+  }
+  if (catchAlls.length === 1 && domains[domains.length - 1] !== catchAlls[0]) {
+    issues.push({
+      severity: 'ERROR',
+      invariant: 'I9',
+      path,
+      message: `O domínio isCatchAll de "${variableCode}" precisa ser o último por position.`,
+    });
+  }
+  return issues;
+}
+
+function checkValueContiguity(
+  domains: Domain[],
+  accessor: { min: (d: Domain) => string | undefined; max: (d: Domain) => string | undefined },
+  variableCode: string,
+  path: string,
+  regionCode: string | undefined,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const regionSuffix = regionCode === undefined ? '' : ` no regional "${regionCode}"`;
+  for (let i = 0; i < domains.length - 1; i++) {
+    const current = domains[i]!;
+    const next = domains[i + 1]!;
+    if (current.isCatchAll) continue;
+    const currentMax = accessor.max(current);
+    const nextMin = accessor.min(next);
+    if (currentMax === undefined || nextMin === undefined) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I9',
+        path,
+        message: `Os domínios "${current.code}" e "${next.code}" de "${variableCode}" precisam ter mínimo/máximo definidos${regionSuffix} para checar contiguidade.`,
+      });
+      continue;
+    }
+    if (currentMax !== nextMin) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I9',
+        path,
+        message: `As faixas "${current.code}" e "${next.code}" de "${variableCode}" não são contíguas${regionSuffix} (máx=${currentMax} ≠ mín=${nextMin}).`,
+      });
+    }
+  }
+  return issues;
+}
 
 export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -311,46 +375,88 @@ export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
       const path = `variables[${vari}].versions[${vi}]`;
       const domains = [...version.domains].sort((a, b) => a.position - b.position);
 
-      const catchAlls = domains.filter((d) => d.isCatchAll);
-      if (catchAlls.length > 1) {
-        issues.push({
-          severity: 'ERROR',
-          invariant: 'I9',
-          path,
-          message: `A variável "${variable.code}" tem ${catchAlls.length} domínios isCatchAll — no máximo um é permitido.`,
-        });
+      issues.push(...checkCatchAllIdentity(domains, variable.code, path));
+
+      if (version.regionalDimension === undefined) {
+        issues.push(
+          ...checkValueContiguity(
+            domains,
+            { min: (d) => d.rangeMin, max: (d) => d.rangeMax },
+            variable.code,
+            path,
+            undefined,
+          ),
+        );
+      } else {
+        for (const region of version.regionalDimension.regions) {
+          const present = domains.filter((d) => d.regionalRanges?.[region.code] !== undefined);
+          issues.push(
+            ...checkValueContiguity(
+              present,
+              {
+                min: (d) => d.regionalRanges?.[region.code]?.min,
+                max: (d) => d.regionalRanges?.[region.code]?.max,
+              },
+              variable.code,
+              path,
+              region.code,
+            ),
+          );
+        }
       }
-      if (catchAlls.length === 1 && domains[domains.length - 1] !== catchAlls[0]) {
+    });
+  });
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// I19 — regionalDimension: regions não vazio com code único; todo domínio
+// RANGE da versão tem entrada em regionalRanges para cada region.code
+// ---------------------------------------------------------------------------
+
+export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  doc.variables.forEach((variable, vari) => {
+    if (variable.type !== 'RANGE') return;
+    variable.versions.forEach((version, vi) => {
+      if (version.regionalDimension === undefined) return;
+      const path = `variables[${vari}].versions[${vi}].regionalDimension`;
+      const { regions } = version.regionalDimension;
+
+      if (regions.length === 0) {
         issues.push({
           severity: 'ERROR',
-          invariant: 'I9',
+          invariant: 'I19',
           path,
-          message: `O domínio isCatchAll de "${variable.code}" precisa ser o último por position.`,
+          message: `A dimensão regional da variável "${variable.code}" precisa ter ao menos um regional.`,
         });
       }
 
-      for (let i = 0; i < domains.length - 1; i++) {
-        const current = domains[i]!;
-        const next = domains[i + 1]!;
-        if (current.isCatchAll) continue;
-        if (current.rangeMax === undefined || next.rangeMin === undefined) {
+      const seen = new Map<string, number>();
+      regions.forEach((region) => seen.set(region.code, (seen.get(region.code) ?? 0) + 1));
+      for (const [code, count] of seen) {
+        if (count > 1) {
           issues.push({
             severity: 'ERROR',
-            invariant: 'I9',
+            invariant: 'I19',
             path,
-            message: `Os domínios "${current.code}" e "${next.code}" de "${variable.code}" precisam ter rangeMax/rangeMin definidos para checar contiguidade.`,
-          });
-          continue;
-        }
-        if (current.rangeMax !== next.rangeMin) {
-          issues.push({
-            severity: 'ERROR',
-            invariant: 'I9',
-            path,
-            message: `As faixas "${current.code}" e "${next.code}" de "${variable.code}" não são contíguas (rangeMax=${current.rangeMax} ≠ rangeMin=${next.rangeMin}).`,
+            message: `O código de regional "${code}" aparece ${count} vezes na variável "${variable.code}" — precisa ser único.`,
           });
         }
       }
+
+      version.domains.forEach((domain, di) => {
+        for (const region of regions) {
+          if (domain.regionalRanges?.[region.code] === undefined) {
+            issues.push({
+              severity: 'ERROR',
+              invariant: 'I19',
+              path: `variables[${vari}].versions[${vi}].domains[${di}]`,
+              message: `O domínio "${domain.code}" da variável "${variable.code}" não tem faixa definida para o regional "${region.code}".`,
+            });
+          }
+        }
+      });
     });
   });
   return issues;
@@ -835,6 +941,7 @@ function runAllChecks(doc: PolicyOpsDocument): ValidationIssue[] {
     ...checkI16(doc),
     ...checkI17(doc),
     ...checkI18(doc),
+    ...checkI19(doc),
     ...checkPositions(doc),
   ];
 }

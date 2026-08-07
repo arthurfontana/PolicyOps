@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   CellSchema,
   CODE_REGEX,
@@ -8,7 +10,16 @@ import {
   DomainSchema,
   ISO_DATE_REGEX,
   isoDateSchema,
+  PolicyOpsDocumentSchema,
+  RegionalDimensionSchema,
+  RegionalOptionSchema,
+  RegionalRangeSchema,
 } from '@/core/document/schema';
+
+function loadRawFixture(name: string): unknown {
+  const path = fileURLToPath(new URL(`../../../fixtures/${name}`, import.meta.url));
+  return JSON.parse(readFileSync(path, 'utf-8'));
+}
 
 describe('codeSchema', () => {
   it('aceita letras maiúsculas, dígitos e underscore', () => {
@@ -70,6 +81,55 @@ describe('DomainSchema — campos opcionais omitidos, nunca null', () => {
   it('rejeita null em campo opcional (shortLabel) — só ausência é permitida', () => {
     const result = DomainSchema.safeParse({ code: 'R1', label: 'R1', position: 0, shortLabel: null });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('RegionalDimension/RegionalOption/RegionalRange (docs/03 §2, S18)', () => {
+  it('RegionalOptionSchema aceita code + label, rejeita code fora de ^[A-Z0-9_]+$', () => {
+    expect(RegionalOptionSchema.safeParse({ code: 'BASE', label: 'Base' }).success).toBe(true);
+    expect(RegionalOptionSchema.safeParse({ code: 'base', label: 'Base' }).success).toBe(false);
+  });
+
+  it('RegionalRangeSchema exige min, aceita max ausente (catch-all) e rejeita null em opcional', () => {
+    expect(RegionalRangeSchema.safeParse({ min: '0', max: '100' }).success).toBe(true);
+    expect(RegionalRangeSchema.safeParse({ min: '0' }).success).toBe(true);
+    expect(RegionalRangeSchema.safeParse({ max: '100' }).success).toBe(false);
+    expect(RegionalRangeSchema.safeParse({ min: '0', max: null }).success).toBe(false);
+  });
+
+  it('RegionalDimensionSchema é uma lista de regions', () => {
+    expect(
+      RegionalDimensionSchema.safeParse({ regions: [{ code: 'BASE', label: 'Base' }] }).success,
+    ).toBe(true);
+    expect(RegionalDimensionSchema.safeParse({ regions: [] }).success).toBe(true);
+  });
+
+  it('DomainSchema aceita regionalRanges opcional', () => {
+    const result = DomainSchema.safeParse({
+      code: 'R1',
+      label: 'R1',
+      position: 0,
+      regionalRanges: { BASE: { min: '0', max: '100' } },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('documentos anteriores à Sessão 18 (sem regionalDimension) continuam válidos sem migração', () => {
+    for (const name of ['valid-base.json', 'sample-document.json']) {
+      const raw = loadRawFixture(name);
+      const parsed = PolicyOpsDocumentSchema.safeParse(raw);
+      expect(parsed.success, `${name} deveria validar sem alteração de schema`).toBe(true);
+      if (parsed.success) {
+        for (const variable of parsed.data.variables) {
+          for (const version of variable.versions) {
+            expect(version.regionalDimension).toBeUndefined();
+            for (const domain of version.domains) {
+              expect(domain.regionalRanges).toBeUndefined();
+            }
+          }
+        }
+      }
+    }
   });
 });
 

@@ -78,6 +78,23 @@ export const LifecycleState3Schema: z.ZodType<LifecycleState3> = z.enum([
   'SUPERSEDED',
 ]);
 
+/** Threshold numérico de uma faixa RANGE para um regional específico (docs/03 §2). */
+export type RegionalRange = {
+  min: string;
+  max?: string;
+  minInclusive?: boolean;
+  maxInclusive?: boolean;
+};
+
+export const RegionalRangeSchema: z.ZodType<RegionalRange> = z
+  .object({
+    min: decimalSchema,
+    max: decimalSchema.optional(),
+    minInclusive: z.boolean().optional(),
+    maxInclusive: z.boolean().optional(),
+  })
+  .strict();
+
 export type Domain = {
   code: string;
   label: string;
@@ -89,6 +106,7 @@ export type Domain = {
   minInclusive?: boolean;
   maxInclusive?: boolean;
   isCatchAll?: boolean;
+  regionalRanges?: Record<string, RegionalRange>;
 };
 
 export const DomainSchema: z.ZodType<Domain> = z
@@ -103,6 +121,34 @@ export const DomainSchema: z.ZodType<Domain> = z
     minInclusive: z.boolean().optional(),
     maxInclusive: z.boolean().optional(),
     isCatchAll: z.boolean().optional(),
+    regionalRanges: z.record(z.string(), RegionalRangeSchema).optional(),
+  })
+  .strict();
+
+/** Um `code` por regional (BASE, CO, MG…), único dentro da versão (docs/03 §2). */
+export type RegionalOption = {
+  code: string;
+  label: string;
+};
+
+export const RegionalOptionSchema: z.ZodType<RegionalOption> = z
+  .object({
+    code: codeSchema,
+    label: z.string().min(1),
+  })
+  .strict();
+
+/**
+ * Interruptor por versão (não por domínio): presente, todo domínio RANGE da
+ * versão usa `regionalRanges` em vez de `rangeMin`/`rangeMax` (docs/03 §2).
+ */
+export type RegionalDimension = {
+  regions: RegionalOption[];
+};
+
+export const RegionalDimensionSchema: z.ZodType<RegionalDimension> = z
+  .object({
+    regions: z.array(RegionalOptionSchema),
   })
   .strict();
 
@@ -116,6 +162,7 @@ export type VariableVersion = {
   publishedAt?: string;
   publishedBy?: string;
   domains: Domain[];
+  regionalDimension?: RegionalDimension;
 };
 
 export const VariableVersionSchema: z.ZodType<VariableVersion> = z
@@ -129,6 +176,7 @@ export const VariableVersionSchema: z.ZodType<VariableVersion> = z
     publishedAt: isoDateSchema.optional(),
     publishedBy: z.string().min(1).optional(),
     domains: z.array(DomainSchema),
+    regionalDimension: RegionalDimensionSchema.optional(),
   })
   .strict();
 

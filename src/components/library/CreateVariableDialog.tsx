@@ -21,9 +21,11 @@ export interface CreateVariableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (variableId: string) => void;
+  /** Só aparece o link "Criar a partir de existente" quando informado (docs/07 §11). */
+  onWantDuplicate?: () => void;
 }
 
-export function CreateVariableDialog({ open, onOpenChange, onCreated }: CreateVariableDialogProps) {
+export function CreateVariableDialog({ open, onOpenChange, onCreated, onWantDuplicate }: CreateVariableDialogProps) {
   const dispatch = useDocumentStore((s) => s.dispatch);
   const { toast } = useToast();
 
@@ -118,6 +120,19 @@ export function CreateVariableDialog({ open, onOpenChange, onCreated }: CreateVa
               onChange={(event) => setDescription(event.target.value)}
             />
           </div>
+          {onWantDuplicate !== undefined && (
+            <button
+              type="button"
+              className="self-start text-xs text-neutral-500 underline-offset-2 hover:underline dark:text-neutral-400"
+              onClick={() => {
+                reset();
+                onOpenChange(false);
+                onWantDuplicate();
+              }}
+            >
+              Ou crie a partir de uma variável existente
+            </button>
+          )}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar
