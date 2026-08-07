@@ -245,7 +245,7 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
     expect(issues[0]!.invariant).toBe('I9');
   });
 
-  it('I9 regional: contíguo em todas as regionais é válido', () => {
+  it('I9 com agrupamento: contíguo em todos os caminhos é válido', () => {
     const doc = base();
     doc.variables.push(
       rangeVariable([
@@ -253,23 +253,36 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
           code: 'A',
           label: 'A',
           position: 0,
-          regionalRanges: { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '120' } },
+          groupingRanges: [
+            { path: ['BASE'], min: '0', max: '100' },
+            { path: ['SP'], min: '0', max: '120' },
+          ],
         },
         {
           code: 'B',
           label: 'B',
           position: 1,
-          regionalRanges: { BASE: { min: '100', max: '200' }, SP: { min: '120', max: '240' } },
+          groupingRanges: [
+            { path: ['BASE'], min: '100', max: '200' },
+            { path: ['SP'], min: '120', max: '240' },
+          ],
         },
       ]),
     );
-    doc.variables[doc.variables.length - 1]!.versions[0]!.regionalDimension = {
-      regions: [{ code: 'BASE', label: 'Base' }, { code: 'SP', label: 'São Paulo' }],
-    };
+    doc.variables[doc.variables.length - 1]!.versions[0]!.groupingDimensions = [
+      {
+        code: 'REGIONAL',
+        label: 'Regional',
+        options: [
+          { code: 'BASE', label: 'Base' },
+          { code: 'SP', label: 'São Paulo' },
+        ],
+      },
+    ];
     expect(checkI9(doc)).toEqual([]);
   });
 
-  it('I9 regional: buraco numa única regional é inválido', () => {
+  it('I9 com agrupamento: buraco num único caminho é inválido, e a mensagem aponta o caminho', () => {
     const doc = base();
     doc.variables.push(
       rangeVariable([
@@ -277,23 +290,67 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
           code: 'A',
           label: 'A',
           position: 0,
-          regionalRanges: { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '120' } },
+          groupingRanges: [
+            { path: ['BASE'], min: '0', max: '100' },
+            { path: ['SP'], min: '0', max: '120' },
+          ],
         },
         {
           code: 'B',
           label: 'B',
           position: 1,
           // SP tem buraco (120 -> 150); BASE continua contíguo.
-          regionalRanges: { BASE: { min: '100', max: '200' }, SP: { min: '150', max: '240' } },
+          groupingRanges: [
+            { path: ['BASE'], min: '100', max: '200' },
+            { path: ['SP'], min: '150', max: '240' },
+          ],
         },
       ]),
     );
-    doc.variables[doc.variables.length - 1]!.versions[0]!.regionalDimension = {
-      regions: [{ code: 'BASE', label: 'Base' }, { code: 'SP', label: 'São Paulo' }],
-    };
+    doc.variables[doc.variables.length - 1]!.versions[0]!.groupingDimensions = [
+      {
+        code: 'REGIONAL',
+        label: 'Regional',
+        options: [
+          { code: 'BASE', label: 'Base' },
+          { code: 'SP', label: 'São Paulo' },
+        ],
+      },
+    ];
     const issues = checkI9(doc);
-    expect(issues.length).toBeGreaterThan(0);
+    expect(issues).toHaveLength(1);
     expect(issues[0]!.invariant).toBe('I9');
+    expect(issues[0]!.message).toContain('"SP"');
+  });
+
+  it('I9 com agrupamento: domínio ausente de um caminho não vira erro de contiguidade', () => {
+    const doc = base();
+    doc.variables.push(
+      rangeVariable([
+        {
+          code: 'A',
+          label: 'A',
+          position: 0,
+          groupingRanges: [
+            { path: ['BASE'], min: '0', max: '100' },
+            { path: ['SP'], min: '0', max: '120' },
+          ],
+        },
+        // B só existe em BASE — assimetria legítima (I19, nota após a tabela).
+        { code: 'B', label: 'B', position: 1, groupingRanges: [{ path: ['BASE'], min: '100', max: '200' }] },
+      ]),
+    );
+    doc.variables[doc.variables.length - 1]!.versions[0]!.groupingDimensions = [
+      {
+        code: 'REGIONAL',
+        label: 'Regional',
+        options: [
+          { code: 'BASE', label: 'Base' },
+          { code: 'SP', label: 'São Paulo' },
+        ],
+      },
+    ];
+    expect(checkI9(doc)).toEqual([]);
   });
 
   it('boundaryMode INCLUSIVE_INTEGER: faixas com salto de 1 (formato fechado-fechado do Excel) são válidas', () => {
@@ -360,12 +417,15 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
   });
 });
 
-describe('I19 — regionalDimension: regions não vazio/único; todo domínio RANGE tem entrada por regional', () => {
-  function rangeVariableWithRegional(domains: Domain[], regions: Array<{ code: string; label: string }>): Variable {
+describe('I19 — groupingDimensions: 1 a 4 níveis, codes únicos, paths válidos', () => {
+  function rangeVariableWithGrouping(
+    domains: Domain[],
+    groupingDimensions: Variable['versions'][number]['groupingDimensions'],
+  ): Variable {
     return {
       id: 'var000000004',
-      code: 'FAIXA_REG',
-      name: 'Faixa Regional',
+      code: 'FAIXA_AGRUP',
+      name: 'Faixa agrupada',
       type: 'RANGE',
       createdAt: '2026-01-01T00:00:00.000Z',
       versions: [
@@ -378,30 +438,34 @@ describe('I19 — regionalDimension: regions não vazio/único; todo domínio RA
           publishedAt: '2026-01-01T00:00:00.000Z',
           publishedBy: 'Arthur',
           domains,
-          regionalDimension: { regions },
+          groupingDimensions,
         },
       ],
     };
   }
 
-  it('válido: todo domínio tem entrada para todo regional', () => {
+  const REGIONAL = [
+    { code: 'REGIONAL', label: 'Regional', options: [{ code: 'BASE', label: 'Base' }] },
+  ];
+
+  it('válido: um nível, paths apontando para opções existentes', () => {
     const doc = base();
     doc.variables.push(
-      rangeVariableWithRegional(
+      rangeVariableWithGrouping(
         [
-          { code: 'A', label: 'A', position: 0, regionalRanges: { BASE: { min: '0', max: '100' } } },
-          { code: 'B', label: 'B', position: 1, regionalRanges: { BASE: { min: '100', max: '200' } } },
+          { code: 'A', label: 'A', position: 0, groupingRanges: [{ path: ['BASE'], min: '0', max: '100' }] },
+          { code: 'B', label: 'B', position: 1, groupingRanges: [{ path: ['BASE'], min: '100', max: '200' }] },
         ],
-        [{ code: 'BASE', label: 'Base' }],
+        REGIONAL,
       ),
     );
     expect(checkI19(doc)).toEqual([]);
   });
 
-  it('inválido: regions vazio', () => {
+  it('inválido: nenhum nível', () => {
     const doc = base();
     doc.variables.push(
-      rangeVariableWithRegional(
+      rangeVariableWithGrouping(
         [
           { code: 'A', label: 'A', position: 0 },
           { code: 'B', label: 'B', position: 1 },
@@ -409,48 +473,119 @@ describe('I19 — regionalDimension: regions não vazio/único; todo domínio RA
         [],
       ),
     );
-    const issues = checkI19(doc);
-    expect(issues.some((i) => i.invariant === 'I19')).toBe(true);
+    expect(checkI19(doc).some((i) => i.invariant === 'I19')).toBe(true);
   });
 
-  it('inválido: code de regional duplicado', () => {
+  it('inválido: mais de 4 níveis', () => {
     const doc = base();
     doc.variables.push(
-      rangeVariableWithRegional(
+      rangeVariableWithGrouping(
         [
-          { code: 'A', label: 'A', position: 0, regionalRanges: { BASE: { min: '0', max: '100' } } },
-          { code: 'B', label: 'B', position: 1, regionalRanges: { BASE: { min: '100', max: '200' } } },
+          { code: 'A', label: 'A', position: 0 },
+          { code: 'B', label: 'B', position: 1 },
         ],
-        [{ code: 'BASE', label: 'Base 1' }, { code: 'BASE', label: 'Base 2' }],
+        ['N1', 'N2', 'N3', 'N4', 'N5'].map((code) => ({
+          code,
+          label: code,
+          options: [{ code: 'X', label: 'X' }],
+        })),
+      ),
+    );
+    expect(checkI19(doc).some((i) => i.message.includes('de 1 a 4 níveis'))).toBe(true);
+  });
+
+  it('inválido: código de nível duplicado', () => {
+    const doc = base();
+    doc.variables.push(
+      rangeVariableWithGrouping(
+        [
+          { code: 'A', label: 'A', position: 0 },
+          { code: 'B', label: 'B', position: 1 },
+        ],
+        [
+          { code: 'REGIONAL', label: 'Regional 1', options: [{ code: 'BASE', label: 'Base' }] },
+          { code: 'REGIONAL', label: 'Regional 2', options: [{ code: 'SP', label: 'SP' }] },
+        ],
+      ),
+    );
+    expect(checkI19(doc).some((i) => i.invariant === 'I19')).toBe(true);
+  });
+
+  it('inválido: opção duplicada dentro do nível, e nível sem opção', () => {
+    const doc = base();
+    doc.variables.push(
+      rangeVariableWithGrouping(
+        [
+          { code: 'A', label: 'A', position: 0 },
+          { code: 'B', label: 'B', position: 1 },
+        ],
+        [
+          {
+            code: 'REGIONAL',
+            label: 'Regional',
+            options: [
+              { code: 'BASE', label: 'Base 1' },
+              { code: 'BASE', label: 'Base 2' },
+            ],
+          },
+          { code: 'PORTE', label: 'Porte', options: [] },
+        ],
       ),
     );
     const issues = checkI19(doc);
-    expect(issues.some((i) => i.invariant === 'I19')).toBe(true);
+    expect(issues.some((i) => i.message.includes('aparece 2 vezes no agrupamento'))).toBe(true);
+    expect(issues.some((i) => i.message.includes('ao menos uma opção'))).toBe(true);
   });
 
-  it('inválido: domínio sem entrada para uma regional', () => {
+  it('inválido: path com comprimento errado ou apontando opção inexistente', () => {
     const doc = base();
     doc.variables.push(
-      rangeVariableWithRegional(
+      rangeVariableWithGrouping(
+        [
+          { code: 'A', label: 'A', position: 0, groupingRanges: [{ path: ['BASE', 'MEI'], min: '0', max: '1' }] },
+          { code: 'B', label: 'B', position: 1, groupingRanges: [{ path: ['SP'], min: '0', max: '1' }] },
+        ],
+        REGIONAL,
+      ),
+    );
+    const issues = checkI19(doc);
+    expect(issues.some((i) => i.message.includes('nível(is) de agrupamento'))).toBe(true);
+    expect(issues.some((i) => i.message.includes('"SP"'))).toBe(true);
+  });
+
+  it('válido: domínio sem entrada num caminho que outros preenchem — completude não é invariante', () => {
+    const doc = base();
+    doc.variables.push(
+      rangeVariableWithGrouping(
         [
           {
             code: 'A',
             label: 'A',
             position: 0,
-            regionalRanges: { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '100' } },
+            groupingRanges: [
+              { path: ['BASE'], min: '0', max: '100' },
+              { path: ['SP'], min: '0', max: '100' },
+            ],
           },
-          // B não tem entrada para SP.
-          { code: 'B', label: 'B', position: 1, regionalRanges: { BASE: { min: '100', max: '200' } } },
+          // B não tem entrada para SP — deliberadamente aceito (docs/03 §9).
+          { code: 'B', label: 'B', position: 1, groupingRanges: [{ path: ['BASE'], min: '100', max: '200' }] },
         ],
-        [{ code: 'BASE', label: 'Base' }, { code: 'SP', label: 'São Paulo' }],
+        [
+          {
+            code: 'REGIONAL',
+            label: 'Regional',
+            options: [
+              { code: 'BASE', label: 'Base' },
+              { code: 'SP', label: 'São Paulo' },
+            ],
+          },
+        ],
       ),
     );
-    const issues = checkI19(doc);
-    expect(issues.length).toBeGreaterThan(0);
-    expect(issues.every((i) => i.invariant === 'I19')).toBe(true);
+    expect(checkI19(doc)).toEqual([]);
   });
 
-  it('variável sem regionalDimension não é afetada', () => {
+  it('variável sem groupingDimensions não é afetada', () => {
     expect(checkI19(base())).toEqual([]);
   });
 });

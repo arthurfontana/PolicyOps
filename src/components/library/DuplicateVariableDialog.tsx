@@ -20,7 +20,7 @@ import { useDocumentStore } from '@/store/document-store';
  * "Criar a partir de existente" — docs/07-ux-e-editor.md §11, docs/05 §5.6.3.
  * Seletor de variável + versão de origem, formulário de código/nome/descrição
  * da nova, e chama `variable/duplicate`. A variável nasce com os domínios (e
- * a dimensão regional, se houver) já copiados.
+ * os agrupamentos, se houver) já copiados.
  */
 
 export interface DuplicateVariableDialogProps {
@@ -104,7 +104,7 @@ export function DuplicateVariableDialog({ open, onOpenChange, onCreated }: Dupli
         <DialogHeader>
           <DialogTitle>Criar a partir de existente</DialogTitle>
           <DialogDescription>
-            Copia os domínios (e a dimensão regional, se houver) de uma versão de outra variável, pronta
+            Copia os domínios (e os agrupamentos, se houver) de uma versão de outra variável, pronta
             para ajustar em vez de montar do zero.
           </DialogDescription>
         </DialogHeader>

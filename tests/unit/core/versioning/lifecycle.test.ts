@@ -975,20 +975,39 @@ describe('snapshot: evolução da biblioteca não altera matriz nenhuma (§5.1)'
 });
 
 // ---------------------------------------------------------------------------
-// Snapshot do eixo nunca carrega regionalRanges/regionalDimension (S18)
+// Snapshot do eixo nunca carrega groupingRanges/groupingDimensions (S20)
 // ---------------------------------------------------------------------------
 
-describe('snapshot do eixo exclui regionalRanges/regionalDimension (docs/03 §6.1)', () => {
-  const REGION_CODES = ['BASE', 'SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'PE'];
+describe('snapshot do eixo exclui groupingRanges/groupingDimensions (docs/03 §6.1)', () => {
+  const REGIONS = ['BASE', 'SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'PE'];
+  const PORTES = ['MEI', 'NAO_MEI_1', 'NAO_MEI_N'];
+  const TIPOS = ['LTDA', 'SA'];
 
-  function buildRegionalDomains(count: number) {
+  /** Todos os caminhos do produto dos níveis passados — 1, 2 ou 3 níveis. */
+  function paths(levels: string[][]): string[][] {
+    return levels.reduce<string[][]>((acc, options) => acc.flatMap((prefix) => options.map((option) => [...prefix, option])), [[]]);
+  }
+
+  function groupingDimensionsFor(levels: string[][]) {
+    const codes = ['REGIONAL', 'PORTE', 'TIPO_EMPRESA'];
+    return levels.map((options, index) => ({
+      code: codes[index]!,
+      label: codes[index]!,
+      options: options.map((code) => ({ code, label: code })),
+    }));
+  }
+
+  function buildGroupedDomains(count: number, levels: string[][]) {
+    const allPaths = paths(levels);
     return Array.from({ length: count }, (_unused, i) => ({
       code: `R${i}`,
       label: `Faixa ${i}`,
       position: i,
-      regionalRanges: Object.fromEntries(
-        REGION_CODES.map((region) => [region, { min: String(i * 10), max: String((i + 1) * 10) }]),
-      ),
+      groupingRanges: allPaths.map((path) => ({
+        path,
+        min: String(i * 10),
+        max: String((i + 1) * 10),
+      })),
     }));
   }
 
@@ -1002,80 +1021,105 @@ describe('snapshot do eixo exclui regionalRanges/regionalDimension (docs/03 §6.
     }));
   }
 
-  it('variável com 20 domínios × 9 regionais gera snapshot do mesmo tamanho que sem regional', () => {
-    const ctx = testCtx();
-    let doc = baseDocument();
-
-    const regional = apply(doc, ctx, createVariable({ code: 'HVI_REGIONAL', name: 'HVI regional', type: 'RANGE' }));
-    doc = apply(
-      regional.document,
+  /** Publica uma variável RANGE e devolve o documento + o id da variável. */
+  function publishRangeVariable(
+    doc: ReturnType<typeof baseDocument>,
+    ctx: ReturnType<typeof testCtx>,
+    code: string,
+    domains: ReturnType<typeof buildPlainDomains>,
+    groupingDimensions?: ReturnType<typeof groupingDimensionsFor>,
+  ) {
+    const created = apply(doc, ctx, createVariable({ code, name: code, type: 'RANGE' }));
+    let next = apply(
+      created.document,
       ctx,
       saveVariableDomains({
-        variableId: regional.data.variableId,
-        versionId: regional.data.versionId,
-        domains: buildRegionalDomains(20),
-        regionalDimension: { regions: REGION_CODES.map((code) => ({ code, label: code })) },
+        variableId: created.data.variableId,
+        versionId: created.data.versionId,
+        domains,
+        ...(groupingDimensions === undefined ? {} : { groupingDimensions }),
       }),
     ).document;
-    doc = apply(doc, ctx, publishVariable({ variableId: regional.data.variableId, versionId: regional.data.versionId }))
-      .document;
-
-    const plain = apply(doc, ctx, createVariable({ code: 'HVI_PLAIN', name: 'HVI simples', type: 'RANGE' }));
-    doc = apply(
-      plain.document,
+    next = apply(
+      next,
       ctx,
-      saveVariableDomains({
-        variableId: plain.data.variableId,
-        versionId: plain.data.versionId,
-        domains: buildPlainDomains(20),
-      }),
+      publishVariable({ variableId: created.data.variableId, versionId: created.data.versionId }),
     ).document;
-    doc = apply(doc, ctx, publishVariable({ variableId: plain.data.variableId, versionId: plain.data.versionId }))
-      .document;
+    return { document: next, variableId: created.data.variableId };
+  }
 
-    const withRegional = apply(
-      doc,
-      ctx,
-      createMatrix({
-        projectId: IDS.projectA,
-        code: 'MTZ_REGIONAL',
-        name: 'Matriz regional',
-        x: { levels: [{ variableId: regional.data.variableId }] },
-        y: { levels: [{ variableId: IDS.restritivo }] },
-      }),
-    );
-    const withoutRegional = apply(
-      withRegional.document,
-      ctx,
-      createMatrix({
-        projectId: IDS.projectA,
-        code: 'MTZ_PLAIN',
-        name: 'Matriz simples',
-        x: { levels: [{ variableId: plain.data.variableId }] },
-        y: { levels: [{ variableId: IDS.restritivo }] },
-      }),
-    );
+  it.each([
+    ['1 nível (9 regionais)', [REGIONS]],
+    ['2 níveis (9 regionais × 3 portes)', [REGIONS, PORTES]],
+    ['3 níveis (9 regionais × 3 portes × 2 tipos)', [REGIONS, PORTES, TIPOS]],
+  ])(
+    'variável com 20 domínios e %s gera snapshot do mesmo tamanho que sem agrupamento',
+    (_label, levels) => {
+      const ctx = testCtx();
+      let doc = baseDocument();
 
-    const regionalLevel = locateVersion(withoutRegional.document, withRegional.data.versionId).version.axes.x
-      .levels[0]!;
-    const plainLevel = locateVersion(withoutRegional.document, withoutRegional.data.versionId).version.axes.x
-      .levels[0]!;
+      const grouped = publishRangeVariable(
+        doc,
+        ctx,
+        'HVI_AGRUPADO',
+        buildGroupedDomains(20, levels as string[][]),
+        groupingDimensionsFor(levels as string[][]),
+      );
+      doc = grouped.document;
 
-    // Mesmo tamanho de snapshot (20 domínios), independente de a variável de
-    // origem ter 1 ou 9 regionais — é o que garante que a matriz não carrega
-    // a dimensão regional.
-    expect(regionalLevel.domains).toHaveLength(plainLevel.domains.length);
-    expect(withRegional.data.combinations).toBe(withoutRegional.data.combinations);
-    expect(regionalLevel.domains.map((d) => d.code)).toEqual(plainLevel.domains.map((d) => d.code));
+      const plain = publishRangeVariable(doc, ctx, 'HVI_PLAIN', buildPlainDomains(20));
+      doc = plain.document;
 
-    for (const domain of regionalLevel.domains) {
-      expect(domain).not.toHaveProperty('regionalRanges');
-      expect(Object.keys(domain).sort()).toEqual(['code', 'label', 'position'].sort());
-    }
-    expect(regionalLevel).not.toHaveProperty('regionalDimension');
+      const withGrouping = apply(
+        doc,
+        ctx,
+        createMatrix({
+          projectId: IDS.projectA,
+          code: 'MTZ_AGRUPADA',
+          name: 'Matriz agrupada',
+          x: { levels: [{ variableId: grouped.variableId }] },
+          y: { levels: [{ variableId: IDS.restritivo }] },
+        }),
+      );
+      const withoutGrouping = apply(
+        withGrouping.document,
+        ctx,
+        createMatrix({
+          projectId: IDS.projectA,
+          code: 'MTZ_PLAIN',
+          name: 'Matriz simples',
+          x: { levels: [{ variableId: plain.variableId }] },
+          y: { levels: [{ variableId: IDS.restritivo }] },
+        }),
+      );
 
-    expect(validateDocument(withoutRegional.document).ok).toBe(true);
-  });
+      const groupedLevel = locateVersion(withoutGrouping.document, withGrouping.data.versionId).version.axes.x
+        .levels[0]!;
+      const plainLevel = locateVersion(withoutGrouping.document, withoutGrouping.data.versionId).version.axes
+        .x.levels[0]!;
+
+      // Mesmo tamanho de snapshot (20 domínios) e mesmo conjunto de tuplas,
+      // independente de quantos níveis de agrupamento a variável tem — é o que
+      // garante que a matriz nunca sabe que existe agrupamento.
+      expect(groupedLevel.domains).toHaveLength(plainLevel.domains.length);
+      expect(withGrouping.data.combinations).toBe(withoutGrouping.data.combinations);
+      expect(groupedLevel.domains.map((d) => d.code)).toEqual(plainLevel.domains.map((d) => d.code));
+
+      const groupedTuples = locateVersion(withoutGrouping.document, withGrouping.data.versionId).version.axes.x
+        .tuples;
+      const plainTuples = locateVersion(withoutGrouping.document, withoutGrouping.data.versionId).version.axes
+        .x.tuples;
+      expect(groupedTuples).toEqual(plainTuples);
+
+      for (const domain of groupedLevel.domains) {
+        expect(domain).not.toHaveProperty('groupingRanges');
+        expect(Object.keys(domain).sort()).toEqual(['code', 'label', 'position'].sort());
+      }
+      expect(groupedLevel).not.toHaveProperty('groupingDimensions');
+
+      expect(validateDocument(withoutGrouping.document).ok).toBe(true);
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { mergeImportedDomains, parseDomainTable } from '@/core/library/domain-import';
+import { validateDomains } from '@/core/library/validate-domains';
 import type { Domain } from '@/core/document/schema';
 
 /**
  * `parseDomainTable` / `mergeImportedDomains` — docs/05-regras-de-negocio.md
- * §5.6.2/§5.6.3. Restrito nesta sessão a 0 colunas de agrupamento.
+ * §5.6.2/§5.6.3, de 0 a 4 colunas de agrupamento.
  */
 
 function tsv(rows: string[][]): string {
@@ -42,15 +43,16 @@ describe('parseDomainTable', () => {
     ]);
   });
 
-  it('coluna de agrupamento presente antes de Domínio vira erro', () => {
-    const text = tsv([
-      ['Regional', 'Domínio', 'Mínimo', 'Máximo'],
-      ['São Paulo', 'R1', '0', '100'],
-    ]);
-    const result = parseDomainTable(text);
-    expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain('sessão futura');
-    expect(result.domains).toEqual([]);
+  it('sem colunas de agrupamento, groupingDimensions vem vazio', () => {
+    const result = parseDomainTable(
+      tsv([
+        ['Domínio', 'Mínimo', 'Máximo'],
+        ['R1', '0', '100'],
+        ['R2', '100', '200'],
+      ]),
+    );
+    expect(result.groupingDimensions).toEqual([]);
+    expect(result.columns.has('grouping')).toBe(false);
   });
 
   it('code repetido sem colunas de agrupamento vira erro', () => {
@@ -132,6 +134,179 @@ describe('parseDomainTable', () => {
   });
 });
 
+/**
+ * Colunas de agrupamento — docs/05-regras-de-negocio.md §5.6.2 itens 1, 5 e 8.
+ */
+describe('parseDomainTable com colunas de agrupamento', () => {
+  /** O exemplo literal de docs/05 §5.6.2: 4 linhas, combinações assimétricas. */
+  const regionalPorte = tsv([
+    ['Regional', 'Porte', 'Domínio', 'Mínimo', 'Máximo'],
+    ['São Paulo', 'MEI', 'R1', '0', '357'],
+    ['São Paulo', 'MEI', 'R2', '358', '420'],
+    ['São Paulo', 'Não MEI', 'R1', '0', '340'],
+    ['Sul', 'MEI', 'R1', '0', '360'],
+  ]);
+
+  it('o exemplo real de Regional × Porte produz 2 níveis na ordem de aparição', () => {
+    const result = parseDomainTable(regionalPorte);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+    expect(result.groupingDimensions).toEqual([
+      {
+        code: 'REGIONAL',
+        label: 'Regional',
+        options: [
+          { code: 'SAO_PAULO', label: 'São Paulo' },
+          { code: 'SUL', label: 'Sul' },
+        ],
+      },
+      {
+        code: 'PORTE',
+        label: 'Porte',
+        options: [
+          { code: 'MEI', label: 'MEI' },
+          { code: 'NAO_MEI', label: 'Não MEI' },
+        ],
+      },
+    ]);
+    expect(result.columns.has('grouping')).toBe(true);
+  });
+
+  it('produz groupingRanges só para as combinações que aparecem, sem exigir simetria', () => {
+    const result = parseDomainTable(regionalPorte);
+    expect(result.domains).toEqual([
+      {
+        code: 'R1',
+        label: 'R1',
+        position: 0,
+        groupingRanges: [
+          { path: ['SAO_PAULO', 'MEI'], min: '0', max: '357' },
+          { path: ['SAO_PAULO', 'NAO_MEI'], min: '0', max: '340' },
+          { path: ['SUL', 'MEI'], min: '0', max: '360' },
+        ],
+      },
+      {
+        code: 'R2',
+        label: 'R2',
+        position: 1,
+        groupingRanges: [{ path: ['SAO_PAULO', 'MEI'], min: '358', max: '420' }],
+      },
+    ]);
+  });
+
+  it('o resultado do exemplo passa por validateDomains sem erro (formato fechado-fechado do Excel)', () => {
+    // A tabela do §5.6.2 vem no formato 0–357, 358–420: é `INCLUSIVE_INTEGER`
+    // (§5.6.0/§5.6.2 item 9) que a torna contígua, sem ajuste manual.
+    const result = parseDomainTable(regionalPorte);
+    expect(
+      validateDomains('RANGE', result.domains, result.groupingDimensions, 'INCLUSIVE_INTEGER').ok,
+    ).toBe(true);
+  });
+
+  it('mais de 4 colunas de agrupamento vira erro', () => {
+    const result = parseDomainTable(
+      tsv([
+        ['A', 'B', 'C', 'D', 'E', 'Domínio', 'Mínimo', 'Máximo'],
+        ['1', '2', '3', '4', '5', 'R1', '0', '100'],
+      ]),
+    );
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0]).toContain('máximo é 4');
+    expect(result.domains).toEqual([]);
+  });
+
+  it('exatamente 4 colunas de agrupamento é aceito', () => {
+    const result = parseDomainTable(
+      tsv([
+        ['A', 'B', 'C', 'D', 'Domínio', 'Mínimo', 'Máximo'],
+        ['1', '2', '3', '4', 'R1', '0', '100'],
+        ['1', '2', '3', '4', 'R2', '100', '200'],
+      ]),
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.groupingDimensions).toHaveLength(4);
+    expect(result.domains[0]!.groupingRanges).toEqual([
+      { path: ['1', '2', '3', '4'], min: '0', max: '100' },
+    ]);
+  });
+
+  it('o código da opção é normalizado: maiúsculo, sem acento, espaço vira _', () => {
+    const result = parseDomainTable(
+      tsv([
+        ['Porte da empresa', 'Domínio', 'Mínimo', 'Máximo'],
+        ['Não MEI com 1 sócio', 'R1', '0', '100'],
+      ]),
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.groupingDimensions[0]!.code).toBe('PORTE_DA_EMPRESA');
+    expect(result.groupingDimensions[0]!.options).toEqual([
+      { code: 'NAO_MEI_COM_1_SOCIO', label: 'Não MEI com 1 sócio' },
+    ]);
+  });
+
+  it('identidade e cor vêm da primeira linha; cor divergente depois é aviso, não erro', () => {
+    const result = parseDomainTable(
+      tsv([
+        ['Regional', 'Domínio', 'Mínimo', 'Máximo', 'Cor'],
+        ['São Paulo', 'R1 - Risco baixo', '0', '100', '#00FF2A'],
+        ['Sul', 'R1 - outro rótulo', '0', '120', '#FF0000'],
+      ]),
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.domains[0]!.label).toBe('R1 - Risco baixo');
+    expect(result.domains[0]!.color).toBe('#00FF2A');
+  });
+
+  it('faixa vazia numa linha com agrupamento é aviso — a combinação não entra', () => {
+    const result = parseDomainTable(
+      tsv([
+        ['Regional', 'Domínio', 'Mínimo', 'Máximo'],
+        ['São Paulo', 'R1', '0', '100'],
+        ['Sul', 'R1', '', ''],
+      ]),
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.domains[0]!.groupingRanges).toEqual([{ path: ['SAO_PAULO'], min: '0', max: '100' }]);
+  });
+
+  it('mesma combinação repetida para o mesmo domínio vira erro', () => {
+    const result = parseDomainTable(
+      tsv([
+        ['Regional', 'Domínio', 'Mínimo', 'Máximo'],
+        ['São Paulo', 'R1', '0', '100'],
+        ['São Paulo', 'R1', '0', '120'],
+      ]),
+    );
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  it('célula de agrupamento vazia vira erro', () => {
+    const result = parseDomainTable(
+      tsv([
+        ['Regional', 'Domínio', 'Mínimo', 'Máximo'],
+        ['', 'R1', '0', '100'],
+      ]),
+    );
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  it('sem Mínimo/Máximo, as colunas de agrupamento ainda são detectadas e a faixa não é tocada', () => {
+    const result = parseDomainTable(
+      tsv([
+        ['Regional', 'Domínio', 'Cor'],
+        ['São Paulo', 'R1', '#FF0000'],
+        ['Sul', 'R1', '#FF0000'],
+      ]),
+    );
+    expect(result.errors).toEqual([]);
+    expect(result.groupingDimensions).toHaveLength(1);
+    expect(result.domains).toHaveLength(1);
+    expect(result.domains[0]!.groupingRanges).toBeUndefined();
+  });
+});
+
 describe('mergeImportedDomains', () => {
   const existing: Domain[] = [
     { code: 'R1', label: 'R1 antigo', position: 0, color: '#123456', rangeMin: '0', rangeMax: '100' },
@@ -199,5 +374,65 @@ describe('mergeImportedDomains', () => {
     const merged = mergeImportedDomains(existing, parsed);
     expect(merged).toHaveLength(1);
     expect(merged.some((domain) => domain.code === 'R2')).toBe(false);
+  });
+
+  it('recolar só o caminho ["SP","MEI"] não afeta ["SP","NAO_MEI"] do mesmo domínio', () => {
+    const existingGrouped: Domain[] = [
+      {
+        code: 'R1',
+        label: 'R1 antigo',
+        position: 0,
+        color: '#123456',
+        groupingRanges: [
+          { path: ['SP', 'MEI'], min: '0', max: '357' },
+          { path: ['SP', 'NAO_MEI'], min: '0', max: '340' },
+          { path: ['SUL', 'MEI'], min: '0', max: '360' },
+        ],
+      },
+    ];
+    const parsed = parseDomainTable(
+      tsv([
+        ['Regional', 'Porte', 'Domínio', 'Mínimo', 'Máximo'],
+        ['SP', 'MEI', 'R1 - novo rótulo', '0', '400'],
+      ]),
+    );
+    const merged = mergeImportedDomains(existingGrouped, parsed);
+    expect(merged).toEqual([
+      {
+        code: 'R1',
+        label: 'R1 - novo rótulo',
+        position: 0,
+        color: '#123456',
+        groupingRanges: [
+          { path: ['SP', 'MEI'], min: '0', max: '400' },
+          { path: ['SP', 'NAO_MEI'], min: '0', max: '340' },
+          { path: ['SUL', 'MEI'], min: '0', max: '360' },
+        ],
+      },
+    ]);
+  });
+
+  it('recolar só com Cor sobre um domínio agrupado preserva todas as faixas por caminho', () => {
+    const existingGrouped: Domain[] = [
+      {
+        code: 'R1',
+        label: 'R1 antigo',
+        position: 0,
+        color: '#123456',
+        groupingRanges: [
+          { path: ['SP', 'MEI'], min: '0', max: '357' },
+          { path: ['SUL', 'MEI'], min: '0', max: '360' },
+        ],
+      },
+    ];
+    const parsed = parseDomainTable(
+      tsv([
+        ['Domínio', 'Cor'],
+        ['R1', '#FF0000'],
+      ]),
+    );
+    const merged = mergeImportedDomains(existingGrouped, parsed);
+    expect(merged[0]!.color).toBe('#FF0000');
+    expect(merged[0]!.groupingRanges).toEqual(existingGrouped[0]!.groupingRanges);
   });
 });

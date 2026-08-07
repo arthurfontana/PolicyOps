@@ -11,9 +11,9 @@ import {
   ISO_DATE_REGEX,
   isoDateSchema,
   PolicyOpsDocumentSchema,
-  RegionalDimensionSchema,
-  RegionalOptionSchema,
-  RegionalRangeSchema,
+  GroupingDimensionSchema,
+  GroupingOptionSchema,
+  GroupingRangeSchema,
 } from '@/core/document/schema';
 
 function loadRawFixture(name: string): unknown {
@@ -84,47 +84,70 @@ describe('DomainSchema — campos opcionais omitidos, nunca null', () => {
   });
 });
 
-describe('RegionalDimension/RegionalOption/RegionalRange (docs/03 §2, S18)', () => {
-  it('RegionalOptionSchema aceita code + label, rejeita code fora de ^[A-Z0-9_]+$', () => {
-    expect(RegionalOptionSchema.safeParse({ code: 'BASE', label: 'Base' }).success).toBe(true);
-    expect(RegionalOptionSchema.safeParse({ code: 'base', label: 'Base' }).success).toBe(false);
+describe('GroupingDimension/GroupingOption/GroupingRange (docs/03 §2, S20)', () => {
+  it('GroupingOptionSchema aceita code + label, rejeita code fora de ^[A-Z0-9_]+$', () => {
+    expect(GroupingOptionSchema.safeParse({ code: 'SAO_PAULO', label: 'São Paulo' }).success).toBe(true);
+    expect(GroupingOptionSchema.safeParse({ code: 'sao paulo', label: 'São Paulo' }).success).toBe(false);
   });
 
-  it('RegionalRangeSchema exige min, aceita max ausente (catch-all) e rejeita null em opcional', () => {
-    expect(RegionalRangeSchema.safeParse({ min: '0', max: '100' }).success).toBe(true);
-    expect(RegionalRangeSchema.safeParse({ min: '0' }).success).toBe(true);
-    expect(RegionalRangeSchema.safeParse({ max: '100' }).success).toBe(false);
-    expect(RegionalRangeSchema.safeParse({ min: '0', max: null }).success).toBe(false);
+  it('GroupingRangeSchema exige path e min, aceita max ausente (catch-all) e rejeita null em opcional', () => {
+    expect(GroupingRangeSchema.safeParse({ path: ['SP', 'MEI'], min: '0', max: '100' }).success).toBe(true);
+    expect(GroupingRangeSchema.safeParse({ path: ['SP'], min: '0' }).success).toBe(true);
+    expect(GroupingRangeSchema.safeParse({ path: [], min: '0' }).success).toBe(true);
+    expect(GroupingRangeSchema.safeParse({ min: '0', max: '100' }).success).toBe(false);
+    expect(GroupingRangeSchema.safeParse({ path: ['SP'], max: '100' }).success).toBe(false);
+    expect(GroupingRangeSchema.safeParse({ path: ['SP'], min: '0', max: null }).success).toBe(false);
+    expect(GroupingRangeSchema.safeParse({ path: ['sp'], min: '0' }).success).toBe(false);
   });
 
-  it('RegionalDimensionSchema é uma lista de regions', () => {
+  it('GroupingDimensionSchema exige code, label e a lista de opções', () => {
     expect(
-      RegionalDimensionSchema.safeParse({ regions: [{ code: 'BASE', label: 'Base' }] }).success,
+      GroupingDimensionSchema.safeParse({
+        code: 'REGIONAL',
+        label: 'Regional',
+        options: [{ code: 'SP', label: 'São Paulo' }],
+      }).success,
     ).toBe(true);
-    expect(RegionalDimensionSchema.safeParse({ regions: [] }).success).toBe(true);
+    // Nível sem opções é estruturalmente aceito pelo Zod — quem reclama é I19.
+    expect(
+      GroupingDimensionSchema.safeParse({ code: 'REGIONAL', label: 'Regional', options: [] }).success,
+    ).toBe(true);
+    expect(
+      GroupingDimensionSchema.safeParse({ code: 'regional', label: 'Regional', options: [] }).success,
+    ).toBe(false);
   });
 
-  it('DomainSchema aceita regionalRanges opcional', () => {
-    const result = DomainSchema.safeParse({
-      code: 'R1',
-      label: 'R1',
-      position: 0,
-      regionalRanges: { BASE: { min: '0', max: '100' } },
-    });
-    expect(result.success).toBe(true);
+  it('DomainSchema aceita groupingRanges opcional e rejeita o regionalRanges da S18', () => {
+    expect(
+      DomainSchema.safeParse({
+        code: 'R1',
+        label: 'R1',
+        position: 0,
+        groupingRanges: [{ path: ['SP', 'MEI'], min: '0', max: '100' }],
+      }).success,
+    ).toBe(true);
+    expect(
+      DomainSchema.safeParse({
+        code: 'R1',
+        label: 'R1',
+        position: 0,
+        regionalRanges: { BASE: { min: '0', max: '100' } },
+      }).success,
+    ).toBe(false);
   });
 
-  it('documentos anteriores à Sessão 18 (sem regionalDimension) continuam válidos sem migração', () => {
+  it('documentos sem agrupamento continuam válidos, sem groupingDimensions nem groupingRanges', () => {
     for (const name of ['valid-base.json', 'sample-document.json']) {
       const raw = loadRawFixture(name);
       const parsed = PolicyOpsDocumentSchema.safeParse(raw);
       expect(parsed.success, `${name} deveria validar sem alteração de schema`).toBe(true);
       if (parsed.success) {
+        expect(parsed.data.schemaVersion).toBe(2);
         for (const variable of parsed.data.variables) {
           for (const version of variable.versions) {
-            expect(version.regionalDimension).toBeUndefined();
+            expect(version.groupingDimensions).toBeUndefined();
             for (const domain of version.domains) {
-              expect(domain.regionalRanges).toBeUndefined();
+              expect(domain.groupingRanges).toBeUndefined();
             }
           }
         }

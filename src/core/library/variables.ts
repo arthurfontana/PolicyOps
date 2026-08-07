@@ -11,7 +11,7 @@ import type {
   BoundaryMode,
   Domain,
   PolicyOpsDocument,
-  RegionalDimension,
+  GroupingDimension,
   Variable,
   VariableType,
   VariableVersion,
@@ -117,10 +117,10 @@ function assertVariableDraft(version: VariableVersion): void {
 function assertValidDomains(
   type: VariableType,
   domains: Domain[],
-  regionalDimension?: RegionalDimension,
+  groupingDimensions?: GroupingDimension[],
   boundaryMode?: BoundaryMode,
 ): void {
-  const result = validateDomains(type, domains, regionalDimension, boundaryMode);
+  const result = validateDomains(type, domains, groupingDimensions, boundaryMode);
   if (!result.ok) {
     const [first, ...rest] = result.issues;
     throw new DomainError(first!.code, first!.message, { issues: [first, ...rest] });
@@ -341,8 +341,8 @@ export function createVariableDraft(
         createdBy: ctx.actor,
         domains: structuredClone(publishedVersion.domains),
       };
-      if (publishedVersion.regionalDimension !== undefined) {
-        draft.regionalDimension = structuredClone(publishedVersion.regionalDimension);
+      if (publishedVersion.groupingDimensions !== undefined) {
+        draft.groupingDimensions = structuredClone(publishedVersion.groupingDimensions);
       }
       if (publishedVersion.boundaryMode !== undefined) {
         draft.boundaryMode = publishedVersion.boundaryMode;
@@ -426,15 +426,15 @@ export type SaveVariableDomainsInput = {
   variableId: string;
   versionId: string;
   domains: Domain[];
-  /** Ausente = variável não usa regional (docs/05 §5.6.1). */
-  regionalDimension?: RegionalDimension;
+  /** Ausente = variável não usa agrupamento (docs/05 §5.6.1). */
+  groupingDimensions?: GroupingDimension[];
   /** Ausente = `HALF_OPEN` (docs/03 §2). */
   boundaryMode?: BoundaryMode;
 };
 
-/** Valor anterior de `regionalDimension`, no formato que o inverso precisa. */
-function previousRegionalDimension(version: VariableVersion): RegionalDimension | null {
-  return version.regionalDimension === undefined ? null : structuredClone(version.regionalDimension);
+/** Valor anterior de `groupingDimensions`, no formato que o inverso precisa. */
+function previousGroupingDimensions(version: VariableVersion): GroupingDimension[] | null {
+  return version.groupingDimensions === undefined ? null : structuredClone(version.groupingDimensions);
 }
 
 /** Valor anterior de `boundaryMode`, no formato que o inverso precisa. */
@@ -442,7 +442,7 @@ function previousBoundaryMode(version: VariableVersion): BoundaryMode | null {
   return version.boundaryMode === undefined ? null : version.boundaryMode;
 }
 
-/** Substitui o conjunto inteiro de domínios (e a dimensão regional); só em DRAFT, senão `VARIABLE_VERSION_IMMUTABLE` (I10). */
+/** Substitui o conjunto inteiro de domínios (e os agrupamentos); só em DRAFT, senão `VARIABLE_VERSION_IMMUTABLE` (I10). */
 export function saveVariableDomains(
   input: SaveVariableDomainsInput,
 ): Command<SaveVariableDomainsInput, void> {
@@ -458,26 +458,27 @@ export function saveVariableDomains(
         input.versionId,
       );
       assertVariableDraft(version);
-      assertValidDomains(variable.type, input.domains, input.regionalDimension, input.boundaryMode);
+      assertValidDomains(variable.type, input.domains, input.groupingDimensions, input.boundaryMode);
 
       const previousDomains = structuredClone(version.domains);
-      const previousRegional = previousRegionalDimension(version);
+      const previousGrouping = previousGroupingDimensions(version);
       const previousBoundary = previousBoundaryMode(version);
       const nextDomains = structuredClone(input.domains);
-      const nextRegional = input.regionalDimension === undefined ? null : structuredClone(input.regionalDimension);
+      const nextGrouping =
+        input.groupingDimensions === undefined ? null : structuredClone(input.groupingDimensions);
       const nextBoundary = input.boundaryMode ?? null;
       return {
         document: applyToDocument(doc, [], (draft) => {
           const target = draft.variables[index]!.versions[versionIndex]!;
           target.domains = nextDomains;
-          if (nextRegional === null) delete target.regionalDimension;
-          else target.regionalDimension = nextRegional;
+          if (nextGrouping === null) delete target.groupingDimensions;
+          else target.groupingDimensions = nextGrouping;
           if (nextBoundary === null) delete target.boundaryMode;
           else target.boundaryMode = nextBoundary;
         }),
         data: undefined,
         events: [],
-        // O inverso restaura os domínios (e a dimensão regional/boundaryMode)
+        // O inverso restaura os domínios (e os agrupamentos/boundaryMode)
         // exatos de antes, sem revalidar: um conjunto anterior pode ter sido
         // salvo antes de outra regra existir, ou pode ser o `[]` inicial de
         // um rascunho recém-criado, e desfazer nunca pode falhar por causa
@@ -486,7 +487,7 @@ export function saveVariableDomains(
           variableId: variable.id,
           versionId: version.id,
           domains: previousDomains,
-          regionalDimension: previousRegional,
+          groupingDimensions: previousGrouping,
           boundaryMode: previousBoundary,
         }),
       };
@@ -499,7 +500,7 @@ function setVariableDomains(
     variableId: string;
     versionId: string;
     domains: Domain[];
-    regionalDimension: RegionalDimension | null;
+    groupingDimensions: GroupingDimension[] | null;
     boundaryMode: BoundaryMode | null;
   },
 ): Command<
@@ -507,7 +508,7 @@ function setVariableDomains(
     variableId: string;
     versionId: string;
     domains: Domain[];
-    regionalDimension: RegionalDimension | null;
+    groupingDimensions: GroupingDimension[] | null;
     boundaryMode: BoundaryMode | null;
   },
   void
@@ -525,14 +526,14 @@ function setVariableDomains(
       );
       assertVariableDraft(version);
       const previousDomains = structuredClone(version.domains);
-      const previousRegional = previousRegionalDimension(version);
+      const previousGrouping = previousGroupingDimensions(version);
       const previousBoundary = previousBoundaryMode(version);
       return {
         document: applyToDocument(doc, [], (draft) => {
           const target = draft.variables[index]!.versions[versionIndex]!;
           target.domains = structuredClone(input.domains);
-          if (input.regionalDimension === null) delete target.regionalDimension;
-          else target.regionalDimension = structuredClone(input.regionalDimension);
+          if (input.groupingDimensions === null) delete target.groupingDimensions;
+          else target.groupingDimensions = structuredClone(input.groupingDimensions);
           if (input.boundaryMode === null) delete target.boundaryMode;
           else target.boundaryMode = input.boundaryMode;
         }),
@@ -542,7 +543,7 @@ function setVariableDomains(
           variableId: variable.id,
           versionId: version.id,
           domains: previousDomains,
-          regionalDimension: previousRegional,
+          groupingDimensions: previousGrouping,
           boundaryMode: previousBoundary,
         }),
       };
@@ -577,7 +578,7 @@ export function publishVariable(
         input.versionId,
       );
       assertVariableDraft(version);
-      assertValidDomains(variable.type, version.domains, version.regionalDimension, version.boundaryMode);
+      assertValidDomains(variable.type, version.domains, version.groupingDimensions, version.boundaryMode);
 
       const current = variable.versions.find((candidate) => candidate.state === 'PUBLISHED');
       const currentIndex =
@@ -715,7 +716,7 @@ export type DuplicateVariableData = { variableId: string; versionId: string };
 /**
  * "Criar a partir de existente" — docs/05-regras-de-negocio.md §5.6.3. Cria
  * uma `Variable` nova (novo id, novo code) com o mesmo `type` da origem e uma
- * v1 `DRAFT` cujos `domains` e `regionalDimension` são cópia integral da
+ * v1 `DRAFT` cujos `domains` e `groupingDimensions` são cópia integral da
  * versão de origem. A origem não é tocada, e nada liga as duas depois — é
  * ponto de partida, não vínculo. Sem evento próprio, mesmo padrão de
  * `variable/create`.
@@ -759,8 +760,8 @@ export function duplicateVariable(
         createdBy: ctx.actor,
         domains: structuredClone(sourceVersion.domains),
       };
-      if (sourceVersion.regionalDimension !== undefined) {
-        version.regionalDimension = structuredClone(sourceVersion.regionalDimension);
+      if (sourceVersion.groupingDimensions !== undefined) {
+        version.groupingDimensions = structuredClone(sourceVersion.groupingDimensions);
       }
       if (sourceVersion.boundaryMode !== undefined) {
         version.boundaryMode = sourceVersion.boundaryMode;

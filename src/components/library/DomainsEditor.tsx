@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   DndContext,
   PointerSensor,
@@ -14,11 +14,21 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ClipboardPaste, Download, GripVertical, Plus, Trash2, TriangleAlert } from 'lucide-react';
+import { ClipboardPaste, Download, GripVertical, Info, Plus, Trash2, TriangleAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { BoundaryMode, Domain, RegionalDimension, RegionalOption, VariableType } from '@/core/document/schema';
-import type { DomainValidationIssue } from '@/core/library/validate-domains';
-import { parseRegionalRangeTable, type ParseRegionalRangeTableResult } from '@/core/library/regional-import';
+import type {
+  BoundaryMode,
+  Domain,
+  GroupingDimension,
+  GroupingRange,
+  VariableType,
+} from '@/core/document/schema';
+import { distinctGroupingPaths, formatGroupingPath, groupingPathKey } from '@/core/document/grouping';
+import {
+  findIncompleteGroupingPaths,
+  MAX_GROUPING_LEVELS,
+  type DomainValidationIssue,
+} from '@/core/library/validate-domains';
 import { mergeImportedDomains, parseDomainTable, type ParseDomainTableResult } from '@/core/library/domain-import';
 import { COLOR_PALETTES, suggestPaletteColors } from '@/lib/color-palettes';
 import { Button } from '@/components/ui/button';
@@ -33,6 +43,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { ConfirmDialog } from './ConfirmDialog';
 
 export interface DomainsEditorProps {
   type: VariableType;
@@ -40,19 +51,18 @@ export interface DomainsEditorProps {
   onChange: (domains: Domain[]) => void;
   issues: DomainValidationIssue[];
   disabled?: boolean;
-  /** Ausente = variável não usa regional (docs/07 §11, docs/05 §5.6). */
-  regionalDimension?: RegionalDimension;
+  /** Ausente = variável não usa agrupamento (docs/07 §11, docs/05 §5.6). */
+  groupingDimensions?: GroupingDimension[];
   /**
-   * Só quando definido o toggle "Esta faixa varia por regional" aparece —
-   * omitir mantém o editor no modo de sempre (usado por quem ainda não
-   * migrou para o fluxo regional).
+   * Só quando definido o editor de agrupamentos aparece — quem não usa
+   * agrupamento não precisa saber que a opção existe.
    */
-  onRegionalDimensionChange?: (regionalDimension: RegionalDimension | undefined) => void;
+  onGroupingDimensionsChange?: (groupingDimensions: GroupingDimension[] | undefined) => void;
   /** Ausente = `HALF_OPEN`, o comportamento de sempre (docs/03 §2). */
   boundaryMode?: BoundaryMode;
   /**
    * Só quando definido o toggle "Faixas com limites fechados nos dois
-   * lados" aparece — mesmo padrão de `onRegionalDimensionChange`.
+   * lados" aparece — mesmo padrão de `onGroupingDimensionsChange`.
    */
   onBoundaryModeChange?: (boundaryMode: BoundaryMode | undefined) => void;
 }
@@ -73,29 +83,16 @@ function toDomains(rows: Row[]): Domain[] {
   return rows.map((row) => row.domain);
 }
 
-function blankDomain(position: number, type: VariableType, regionalMode: boolean): Domain {
+function blankDomain(position: number, type: VariableType, groupingMode: boolean): Domain {
   const domain: Domain = { code: '', label: '', position };
   if (type === 'RANGE') {
-    if (regionalMode) domain.regionalRanges = {};
+    if (groupingMode) domain.groupingRanges = [];
     else {
       domain.rangeMin = '';
       domain.rangeMax = '';
     }
   }
   return domain;
-}
-
-/**
- * Alternar o interruptor regional não converte valores automaticamente
- * (docs/05 §5.6): domínios partem de faixas vazias no modo para o qual
- * mudou. Preserva só a identidade (code/label/shortLabel/color/isCatchAll).
- */
-function stripRangeFields(domain: Domain): Domain {
-  const next: Domain = { code: domain.code, label: domain.label, position: domain.position };
-  if (domain.shortLabel !== undefined) next.shortLabel = domain.shortLabel;
-  if (domain.color !== undefined) next.color = domain.color;
-  if (domain.isCatchAll !== undefined) next.isCatchAll = domain.isCatchAll;
-  return next;
 }
 
 /**
@@ -133,20 +130,32 @@ function domainTemplateRows(type: VariableType): string[][] {
   ];
 }
 
-function downloadDomainTemplate(type: VariableType): void {
-  const csv = domainTemplateRows(type)
-    .map((row) => row.join(','))
-    .join('\r\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+/**
+ * Modelo com agrupamentos — docs/07 §11: exatamente o caso real de
+ * Regional × Porte de docs/05 §5.6.2, combinações assimétricas inclusive.
+ */
+function groupingTemplateRows(): string[][] {
+  return [
+    ['Agrupamento 1', 'Agrupamento 2', 'Domínio', 'Mínimo', 'Máximo', 'Cor'],
+    ['São Paulo', 'MEI', 'R1 - Risco baixo', '0', '357', '#00FF2A'],
+    ['São Paulo', 'MEI', 'R2 - Risco médio', '358', '420', '#FFA200'],
+    ['São Paulo', 'Não MEI', 'R1 - Risco baixo', '0', '340', '#00FF2A'],
+    ['Sul', 'MEI', 'R1 - Risco baixo', '0', '360', '#00FF2A'],
+  ];
+}
+
+function downloadCsv(rows: string[][], filename: string): void {
+  const csv = rows.map((row) => row.join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'modelo-dominios.csv';
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
 }
 
-/** Lista de erros (vermelho) ou avisos (âmbar) de um resultado de colagem — reaproveitada pelos dois diálogos. */
+/** Lista de erros (vermelho) ou avisos (âmbar) de um resultado de colagem. */
 function ParseFeedback({ items, tone }: { items: string[]; tone: 'error' | 'warning' }) {
   if (items.length === 0) return null;
   const cls =
@@ -165,7 +174,7 @@ function ParseFeedback({ items, tone }: { items: string[]; tone: 'error' | 'warn
   );
 }
 
-/** Diálogo de "Colar tabela" — mesma estrutura para o caminho regional (S18) e o genérico (S19). */
+/** Diálogo único de "Colar tabela" — detecta agrupamento pela própria colagem (docs/07 §11). */
 function PasteDialog({
   open,
   onOpenChange,
@@ -229,31 +238,30 @@ function generalIssues(issues: DomainValidationIssue[]): DomainValidationIssue[]
   return issues.filter((issue) => issue.domainCodes === undefined);
 }
 
+/** Erros de contiguidade de um caminho específico — nunca confunde "SP › MEI" com "SUL › MEI". */
+function issuesForPath(issues: DomainValidationIssue[], key: string): DomainValidationIssue[] {
+  return issues.filter((issue) => issue.path !== undefined && groupingPathKey(issue.path) === key);
+}
+
 function SortableRow({
   row,
-  type,
-  regions,
+  showRangeFields,
   boundaryMode,
   showManualInclusion,
   disabled,
   issues,
   onUpdate,
-  onUpdateRegionalRange,
-  onToggleCatchAll,
   onRemove,
 }: {
   row: Row;
-  type: VariableType;
-  /** Presente = grid regional; ausente = par mín/máx único de sempre. */
-  regions: RegionalOption[] | undefined;
+  /** Falso no modo agrupado: as faixas moram na tabela tidy, não na linha de identidade. */
+  showRangeFields: boolean;
   boundaryMode: BoundaryMode;
   /** Só true quando o usuário abriu "Opções avançadas" e ligou o controle de inclusão manual (docs/07 §11). */
   showManualInclusion: boolean;
   disabled: boolean;
   issues: DomainValidationIssue[];
   onUpdate: (rowId: string, patch: Partial<Domain>) => void;
-  onUpdateRegionalRange: (rowId: string, regionCode: string, patch: { min?: string; max?: string }) => void;
-  onToggleCatchAll: (rowId: string, checked: boolean) => void;
   onRemove: (rowId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -261,7 +269,7 @@ function SortableRow({
     disabled,
   });
   const style = { transform: CSS.Transform.toString(transform), transition };
-  const rowIssues = issuesFor(issues, row.domain.code);
+  const rowIssues = issuesFor(issues, row.domain.code).filter((issue) => issue.path === undefined);
 
   return (
     <div
@@ -333,7 +341,7 @@ function SortableRow({
         </Button>
       </div>
 
-      {type === 'RANGE' && regions === undefined && (
+      {showRangeFields && (
         <div className="flex flex-wrap items-center gap-2 pl-6">
           <Input
             aria-label="Mínimo"
@@ -393,58 +401,6 @@ function SortableRow({
         </div>
       )}
 
-      {type === 'RANGE' && regions !== undefined && (
-        <div className="flex flex-wrap items-center gap-2 pl-6">
-          {regions.length === 0 && (
-            <span className="text-xs text-neutral-400">
-              Adicione ao menos um regional acima para definir as faixas.
-            </span>
-          )}
-          {regions.map((region) => {
-            const current = row.domain.regionalRanges?.[region.code];
-            return (
-              <div
-                key={region.code || region.label}
-                className="flex items-center gap-1.5 rounded border border-neutral-200 p-1.5 dark:border-neutral-800"
-              >
-                <span className="font-mono text-[10px] font-medium uppercase text-neutral-500 dark:text-neutral-400">
-                  {region.code || '—'}
-                </span>
-                <Input
-                  aria-label={`Mínimo (${region.code})`}
-                  placeholder="mín"
-                  value={current?.min ?? ''}
-                  disabled={disabled}
-                  onChange={(event) =>
-                    onUpdateRegionalRange(row.rowId, region.code, { min: event.target.value })
-                  }
-                  className="w-20"
-                />
-                <span className="text-xs text-neutral-400">até</span>
-                <Input
-                  aria-label={`Máximo (${region.code})`}
-                  placeholder="máx"
-                  value={current?.max ?? ''}
-                  disabled={disabled || row.domain.isCatchAll === true}
-                  onChange={(event) =>
-                    onUpdateRegionalRange(row.rowId, region.code, { max: event.target.value })
-                  }
-                  className="w-20"
-                />
-              </div>
-            );
-          })}
-          <label className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
-            <Checkbox
-              checked={row.domain.isCatchAll ?? false}
-              disabled={disabled}
-              onCheckedChange={(checked) => onToggleCatchAll(row.rowId, checked === true)}
-            />
-            demais casos (catch-all)
-          </label>
-        </div>
-      )}
-
       {rowIssues.length > 0 && (
         <ul className="flex flex-col gap-0.5 pl-6">
           {rowIssues.map((issue, index) => (
@@ -462,17 +418,17 @@ function SortableRow({
   );
 }
 
-function SortableRegionRow({
+function SortableGroupingRow({
   id,
-  region,
+  dimension,
   disabled,
   onUpdate,
   onRemove,
 }: {
   id: string;
-  region: RegionalOption;
+  dimension: GroupingDimension;
   disabled: boolean;
-  onUpdate: (patch: Partial<RegionalOption>) => void;
+  onUpdate: (patch: Partial<GroupingDimension>) => void;
   onRemove: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -485,41 +441,45 @@ function SortableRegionRow({
     <div
       ref={setNodeRef}
       style={style}
+      data-testid="grouping-dimension-row"
       className={cn('flex items-center gap-2', isDragging && 'opacity-60')}
     >
       <button
         type="button"
         className="shrink-0 cursor-grab touch-none text-neutral-400 disabled:cursor-not-allowed disabled:opacity-30"
         disabled={disabled}
-        aria-label={`Arrastar para reordenar o regional "${region.code || 'regional'}"`}
+        aria-label={`Arrastar para reordenar o agrupamento "${dimension.code || 'agrupamento'}"`}
         {...attributes}
         {...listeners}
       >
         <GripVertical className="h-4 w-4" />
       </button>
       <Input
-        aria-label="Código do regional"
-        placeholder="BASE"
-        value={region.code}
+        aria-label="Código do agrupamento"
+        placeholder="REGIONAL"
+        value={dimension.code}
         disabled={disabled}
         onChange={(event) => onUpdate({ code: event.target.value.toUpperCase() })}
-        className="w-28 font-mono text-xs"
+        className="w-32 font-mono text-xs"
       />
       <Input
-        aria-label="Rótulo do regional"
-        placeholder="Rótulo"
-        value={region.label}
+        aria-label="Nome do agrupamento"
+        placeholder="Regional"
+        value={dimension.label}
         disabled={disabled}
         onChange={(event) => onUpdate({ label: event.target.value })}
         className="min-w-32 flex-1"
       />
+      <span className="shrink-0 text-xs text-neutral-500 dark:text-neutral-400">
+        {dimension.options.length} opção(ões)
+      </span>
       <Button
         type="button"
         variant="ghost"
         size="icon"
         disabled={disabled}
         onClick={onRemove}
-        aria-label={`Remover regional "${region.code || 'regional'}"`}
+        aria-label={`Remover agrupamento "${dimension.code || 'agrupamento'}"`}
       >
         <Trash2 className="h-4 w-4" />
       </Button>
@@ -527,18 +487,24 @@ function SortableRegionRow({
   );
 }
 
-/** Editor de lista dos regionais — code/label, drag para reordenar (docs/07 §11). */
-function RegionalOptionsEditor({
-  regions,
+/**
+ * Lista dos agrupamentos da versão — nome, contagem de opções, drag para
+ * reordenar (docs/07 §11). Populada principalmente pela colagem; a edição
+ * manual aqui é complementar (renomear, reordenar, remover, adicionar vazio).
+ */
+function GroupingDimensionsEditor({
+  dimensions,
   disabled,
   onChange,
+  onRemoveAt,
 }: {
-  regions: RegionalOption[];
+  dimensions: GroupingDimension[];
   disabled: boolean;
-  onChange: (regions: RegionalOption[]) => void;
+  onChange: (dimensions: GroupingDimension[]) => void;
+  onRemoveAt: (index: number) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
-  const ids = regions.map((_region, index) => `region-${index}`);
+  const ids = dimensions.map((_dimension, index) => `grouping-${index}`);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -546,44 +512,108 @@ function RegionalOptionsEditor({
     const from = ids.indexOf(String(active.id));
     const to = ids.indexOf(String(over.id));
     if (from < 0 || to < 0) return;
-    onChange(arrayMove(regions, from, to));
+    onChange(arrayMove(dimensions, from, to));
   }
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
-      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Regionais</span>
+      <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+        Agrupamentos (hierarquia, da esquerda para a direita)
+      </span>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-1.5">
-            {regions.map((region, index) => (
-              <SortableRegionRow
+            {dimensions.map((dimension, index) => (
+              <SortableGroupingRow
                 key={ids[index]}
                 id={ids[index]!}
-                region={region}
+                dimension={dimension}
                 disabled={disabled}
-                onUpdate={(patch) => onChange(regions.map((r, i) => (i === index ? { ...r, ...patch } : r)))}
-                onRemove={() => onChange(regions.filter((_r, i) => i !== index))}
+                onUpdate={(patch) =>
+                  onChange(dimensions.map((d, i) => (i === index ? { ...d, ...patch } : d)))
+                }
+                onRemove={() => onRemoveAt(index)}
               />
             ))}
           </div>
         </SortableContext>
       </DndContext>
-      {regions.length === 0 && (
+      {dimensions.length === 0 && (
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
-          Nenhum regional ainda. Adicione ao menos um para definir as faixas.
+          Nenhum agrupamento ainda. Cole uma tabela com colunas de agrupamento ou adicione um nível vazio.
         </p>
       )}
-      {!disabled && (
+      {!disabled && dimensions.length < MAX_GROUPING_LEVELS && (
         <Button
           type="button"
           variant="secondary"
           size="sm"
-          onClick={() => onChange([...regions, { code: '', label: '' }])}
+          onClick={() => onChange([...dimensions, { code: '', label: '', options: [] }])}
           className="self-start"
         >
-          <Plus className="mr-1.5 h-4 w-4" /> Adicionar regional
+          <Plus className="mr-1.5 h-4 w-4" /> Adicionar agrupamento
         </Button>
       )}
+    </div>
+  );
+}
+
+/** Uma linha da tabela tidy: `(agrupamento…, domínio, mín, máx, cor)` dentro de um grupo. */
+function GroupingRangeRow({
+  domain,
+  range,
+  boundaryMode,
+  disabled,
+  onUpdate,
+  onRemove,
+}: {
+  domain: Domain;
+  range: GroupingRange;
+  boundaryMode: BoundaryMode;
+  disabled: boolean;
+  onUpdate: (patch: { min?: string; max?: string }) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div data-testid="grouping-range-row" className="flex flex-wrap items-center gap-2">
+      <span
+        className="h-4 w-4 shrink-0 rounded border border-neutral-300 dark:border-neutral-700"
+        style={{ backgroundColor: domain.color ?? 'transparent' }}
+        aria-hidden
+      />
+      <span className="w-24 shrink-0 truncate font-mono text-xs text-neutral-700 dark:text-neutral-300">
+        {domain.code || '—'}
+      </span>
+      <Input
+        aria-label={`Mínimo de ${domain.code} em ${formatGroupingPath(range.path)}`}
+        placeholder="mín"
+        value={range.min}
+        disabled={disabled}
+        onChange={(event) => onUpdate({ min: event.target.value })}
+        className="w-24"
+      />
+      <span className="text-xs text-neutral-400">até</span>
+      <Input
+        aria-label={`Máximo de ${domain.code} em ${formatGroupingPath(range.path)}`}
+        placeholder="máx"
+        value={range.max ?? ''}
+        disabled={disabled || domain.isCatchAll === true}
+        onChange={(event) => onUpdate({ max: event.target.value })}
+        className="w-24"
+      />
+      {boundaryMode === 'INCLUSIVE_INTEGER' && (
+        <span className="text-xs text-neutral-500 dark:text-neutral-400">inclusivo, passo 1</span>
+      )}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        disabled={disabled}
+        onClick={onRemove}
+        aria-label={`Remover ${domain.code} de ${formatGroupingPath(range.path)}`}
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
     </div>
   );
 }
@@ -594,9 +624,11 @@ function RegionalOptionsEditor({
  * Cada mudança chama `onChange` imediatamente — a validação em tempo real
  * (`issues`, calculada pelo pai com `validateDomains`) reage sem recarregar.
  *
- * Dimensão regional (só RANGE): o toggle "Esta faixa varia por regional" só
- * aparece quando o pai passa `onRegionalDimensionChange` — quem não usa
- * regional não precisa saber que a opção existe.
+ * Agrupamentos (só RANGE): quando a versão declara `groupingDimensions`, as
+ * faixas deixam de ser um par mín/máx por domínio e viram uma **tabela tidy**
+ * — uma linha por `(caminho, domínio)`, agrupada visualmente por caminho, com
+ * contiguidade validada por caminho distinto. O editor de agrupamentos é
+ * populado principalmente por "Colar tabela"; a edição manual é complementar.
  */
 export function DomainsEditor({
   type,
@@ -604,27 +636,27 @@ export function DomainsEditor({
   onChange,
   issues,
   disabled = false,
-  regionalDimension,
-  onRegionalDimensionChange,
+  groupingDimensions,
+  onGroupingDimensionsChange,
   boundaryMode,
   onBoundaryModeChange,
 }: DomainsEditorProps) {
-  const regionalMode = type === 'RANGE' && regionalDimension !== undefined;
+  const groupingMode = type === 'RANGE' && groupingDimensions !== undefined && groupingDimensions.length > 0;
   const effectiveBoundaryMode: BoundaryMode = boundaryMode ?? 'HALF_OPEN';
   const [rows, setRows] = useState<Row[]>(() => toRows(domains));
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasteText, setPasteText] = useState('');
-  const [pasteResult, setPasteResult] = useState<ParseRegionalRangeTableResult | null>(null);
 
   // "Opções avançadas" — docs/07 §11: boundaryMode e inclusão manual por
   // faixa ficam colapsados por padrão; o comportamento assumido é HALF_OPEN.
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showManualInclusion, setShowManualInclusion] = useState(false);
 
-  // Colagem genérica (fora do modo regional) — docs/05 §5.6.2.
-  const [genericPasteOpen, setGenericPasteOpen] = useState(false);
-  const [genericPasteText, setGenericPasteText] = useState('');
-  const [genericPasteResult, setGenericPasteResult] = useState<ParseDomainTableResult | null>(null);
+  // Colagem genérica — docs/05 §5.6.2: caminho único, detecta agrupamento sozinho.
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [pasteResult, setPasteResult] = useState<ParseDomainTableResult | null>(null);
+
+  // Remoção de nível apaga faixas: sempre passa por confirmação (docs/07 §11).
+  const [dimensionToRemove, setDimensionToRemove] = useState<number | null>(null);
 
   // Paletas de cor — docs/05 §5.6.4.
   const [paletteMatchInfo, setPaletteMatchInfo] = useState<{ name: string; matched: number; total: number } | null>(
@@ -632,6 +664,32 @@ export function DomainsEditor({
   );
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const currentDomains = useMemo(() => toDomains(rows), [rows]);
+
+  /** Grupos da tabela tidy, na ordem das opções de cada nível (docs/07 §11). */
+  const groups = useMemo(() => {
+    if (!groupingMode) return [];
+    const rankByLevel = groupingDimensions!.map(
+      (dimension) => new Map(dimension.options.map((option, index) => [option.code, index])),
+    );
+    const rankOf = (path: string[], level: number) =>
+      rankByLevel[level]?.get(path[level] ?? '') ?? Number.MAX_SAFE_INTEGER;
+    return distinctGroupingPaths(currentDomains)
+      .sort((a, b) => {
+        for (let level = 0; level < Math.max(a.length, b.length); level++) {
+          const diff = rankOf(a, level) - rankOf(b, level);
+          if (diff !== 0) return diff;
+        }
+        return 0;
+      })
+      .map((path) => ({ path, key: groupingPathKey(path) }));
+  }, [groupingMode, groupingDimensions, currentDomains]);
+
+  const incompletePaths = useMemo(
+    () => (groupingMode ? findIncompleteGroupingPaths(currentDomains, groupingDimensions!) : []),
+    [groupingMode, groupingDimensions, currentDomains],
+  );
 
   function commit(next: Row[]) {
     const renumbered = renumber(next);
@@ -645,29 +703,38 @@ export function DomainsEditor({
     commit(rows.map((row) => (row.rowId === rowId ? { ...row, domain: { ...row.domain, ...patch } } : row)));
   }
 
-  function handleUpdateRegionalRange(rowId: string, regionCode: string, patch: { min?: string; max?: string }) {
+  /** Edita a faixa de um domínio num caminho específico — as demais ficam intactas. */
+  function handleUpdateGroupingRange(code: string, key: string, patch: { min?: string; max?: string }) {
     commit(
       rows.map((row) => {
-        if (row.rowId !== rowId) return row;
-        const current = row.domain.regionalRanges?.[regionCode] ?? { min: '' };
-        const nextRanges = { ...(row.domain.regionalRanges ?? {}) };
-        nextRanges[regionCode] = { ...current, ...patch };
-        return { ...row, domain: { ...row.domain, regionalRanges: nextRanges } };
+        if (row.domain.code !== code) return row;
+        const nextRanges = (row.domain.groupingRanges ?? []).map((range) =>
+          groupingPathKey(range.path) === key ? { ...range, ...patch } : range,
+        );
+        return { ...row, domain: { ...row.domain, groupingRanges: nextRanges } };
       }),
     );
   }
 
-  function handleToggleCatchAll(rowId: string, checked: boolean) {
+  function handleRemoveGroupingRange(code: string, key: string) {
     commit(
       rows.map((row) => {
-        if (row.rowId !== rowId) return row;
-        const nextRanges = { ...(row.domain.regionalRanges ?? {}) };
-        if (checked) {
-          for (const code of Object.keys(nextRanges)) {
-            nextRanges[code] = { ...nextRanges[code]!, max: undefined };
-          }
-        }
-        return { ...row, domain: { ...row.domain, isCatchAll: checked, regionalRanges: nextRanges } };
+        if (row.domain.code !== code) return row;
+        const nextRanges = (row.domain.groupingRanges ?? []).filter(
+          (range) => groupingPathKey(range.path) !== key,
+        );
+        return { ...row, domain: { ...row.domain, groupingRanges: nextRanges } };
+      }),
+    );
+  }
+
+  /** Adiciona a combinação faltante de um domínio num caminho já existente. */
+  function handleAddGroupingRange(code: string, path: string[]) {
+    commit(
+      rows.map((row) => {
+        if (row.domain.code !== code) return row;
+        const nextRanges = [...(row.domain.groupingRanges ?? []), { path: [...path], min: '', max: '' }];
+        return { ...row, domain: { ...row.domain, groupingRanges: nextRanges } };
       }),
     );
   }
@@ -677,7 +744,7 @@ export function DomainsEditor({
   }
 
   function handleAdd() {
-    const domain = blankDomain(rows.length, type, regionalMode);
+    const domain = blankDomain(rows.length, type, groupingMode);
     commit([...rows, { rowId: `new-${rows.length}-${Date.now()}`, domain }]);
   }
 
@@ -690,37 +757,67 @@ export function DomainsEditor({
     commit(arrayMove(rows, from, to));
   }
 
-  function handleToggleRegional(checked: boolean) {
-    if (onRegionalDimensionChange === undefined) return;
-    commit(rows.map((row) => ({ ...row, domain: stripRangeFields(row.domain) })));
-    onRegionalDimensionChange(checked ? { regions: [] } : undefined);
-  }
-
-  function handlePasteConfirm() {
-    const result = parseRegionalRangeTable(pasteText);
-    setPasteResult(result);
-    if (result.errors.length > 0) return;
-    commit(toRows(result.domains));
-    onRegionalDimensionChange?.({ regions: result.regions });
-    setPasteOpen(false);
-    setPasteText('');
-    setPasteResult(null);
+  /**
+   * Ligar o agrupamento é um interruptor binário por versão (docs/05 §5.6):
+   * ao criar o primeiro nível, as faixas do modo simples são descartadas — o
+   * usuário parte de faixas vazias no modo para o qual mudou.
+   */
+  function handleGroupingDimensionsChange(next: GroupingDimension[]) {
+    if (onGroupingDimensionsChange === undefined) return;
+    const wasEmpty = (groupingDimensions ?? []).length === 0;
+    if (wasEmpty && next.length > 0) {
+      commit(
+        rows.map((row) => {
+          const domain: Domain = { ...row.domain };
+          delete domain.rangeMin;
+          delete domain.rangeMax;
+          domain.groupingRanges = [];
+          return { ...row, domain };
+        }),
+      );
+    }
+    onGroupingDimensionsChange(next.length === 0 ? undefined : next);
   }
 
   /**
-   * Colagem genérica (fora do modo regional) — docs/05 §5.6.2/§5.6.3: o
-   * resultado de `mergeImportedDomains` substitui o conteúdo do editor para
-   * revisão; nada é gravado até o "Salvar" normal do pai (`variable/saveDomains`).
+   * Remover um nível apaga as faixas daquele nível (docs/07 §11): sem o nível,
+   * nenhum `path` existente tem mais o comprimento certo (I19), então as
+   * faixas agrupadas são descartadas junto.
    */
-  function handleGenericPasteConfirm() {
-    const result = parseDomainTable(genericPasteText);
-    setGenericPasteResult(result);
+  function handleRemoveGroupingDimension(index: number) {
+    if (onGroupingDimensionsChange === undefined || groupingDimensions === undefined) return;
+    const next = groupingDimensions.filter((_dimension, i) => i !== index);
+    commit(
+      rows.map((row) => {
+        const domain: Domain = { ...row.domain };
+        delete domain.groupingRanges;
+        if (next.length > 0) domain.groupingRanges = [];
+        return { ...row, domain };
+      }),
+    );
+    onGroupingDimensionsChange(next.length === 0 ? undefined : next);
+  }
+
+  /**
+   * Colagem — docs/05 §5.6.2/§5.6.3: o resultado de `mergeImportedDomains`
+   * substitui o conteúdo do editor para revisão, e os `groupingDimensions`
+   * detectados passam a valer para a versão; nada é gravado até o "Salvar"
+   * normal do pai (`variable/saveDomains`).
+   */
+  function handlePasteConfirm() {
+    const result = parseDomainTable(pasteText);
+    setPasteResult(result);
     if (result.errors.length > 0) return;
     const merged = mergeImportedDomains(toDomains(rows), result);
     commit(toRows(merged));
-    setGenericPasteOpen(false);
-    setGenericPasteText('');
-    setGenericPasteResult(null);
+    if (type === 'RANGE' && onGroupingDimensionsChange !== undefined) {
+      onGroupingDimensionsChange(
+        result.groupingDimensions.length === 0 ? undefined : result.groupingDimensions,
+      );
+    }
+    setPasteOpen(false);
+    setPasteText('');
+    setPasteResult(null);
   }
 
   /** "Aplicar paleta" — docs/05 §5.6.4: sobrescreve a cor de todo domínio que bater, mostra quantos bateram. */
@@ -739,22 +836,10 @@ export function DomainsEditor({
   }
 
   const topIssues = generalIssues(issues);
-  const showGenericPaste = !regionalMode;
   const showPaletteButton = type === 'RANGE' || type === 'CATEGORICAL' || type === 'ORDINAL';
 
   return (
     <div className="flex flex-col gap-2">
-      {type === 'RANGE' && onRegionalDimensionChange !== undefined && (
-        <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
-          <Checkbox
-            checked={regionalMode}
-            disabled={disabled}
-            onCheckedChange={(checked) => handleToggleRegional(checked === true)}
-          />
-          Esta faixa varia por regional
-        </label>
-      )}
-
       {type === 'RANGE' && onBoundaryModeChange !== undefined && (
         <div className="flex flex-col gap-1.5">
           <button
@@ -789,40 +874,26 @@ export function DomainsEditor({
         </div>
       )}
 
-      {regionalMode && (
-        <>
-          <RegionalOptionsEditor
-            regions={regionalDimension.regions}
-            disabled={disabled}
-            onChange={(regions) => onRegionalDimensionChange?.({ regions })}
-          />
-          {!disabled && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setPasteOpen(true)}
-              className="self-start"
-            >
-              <ClipboardPaste className="mr-1.5 h-4 w-4" /> Colar tabela
-            </Button>
-          )}
-        </>
+      {type === 'RANGE' && onGroupingDimensionsChange !== undefined && (
+        <GroupingDimensionsEditor
+          dimensions={groupingDimensions ?? []}
+          disabled={disabled}
+          onChange={handleGroupingDimensionsChange}
+          onRemoveAt={setDimensionToRemove}
+        />
       )}
 
-      {!disabled && (showGenericPaste || showPaletteButton) && (
+      {!disabled && (
         <div className="flex flex-wrap gap-2">
-          {showGenericPaste && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setGenericPasteOpen(true)}
-              className="self-start"
-            >
-              <ClipboardPaste className="mr-1.5 h-4 w-4" /> Colar tabela
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setPasteOpen(true)}
+            className="self-start"
+          >
+            <ClipboardPaste className="mr-1.5 h-4 w-4" /> Colar tabela
+          </Button>
           {showPaletteButton && (
             <select
               aria-label="Aplicar paleta"
@@ -863,6 +934,27 @@ export function DomainsEditor({
         </ul>
       )}
 
+      {/* Aviso não-bloqueante de combinação provavelmente esquecida (docs/07 §11). */}
+      {incompletePaths.length > 0 && (
+        <div
+          data-testid="incomplete-grouping-banner"
+          className="flex flex-col gap-1 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
+        >
+          <span className="flex items-start gap-1.5 font-medium">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            Algumas combinações não têm faixa para todos os domínios. Isso pode ser intencional — não impede
+            salvar.
+          </span>
+          <ul className="flex flex-col gap-0.5 pl-5">
+            {incompletePaths.map((entry) => (
+              <li key={groupingPathKey(entry.path)}>
+                {formatGroupingPath(entry.path)}: sem faixa para {entry.missingDomainCodes.join(', ')}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={rows.map((row) => row.rowId)} strategy={verticalListSortingStrategy}>
           <div className="flex flex-col gap-2">
@@ -870,15 +962,12 @@ export function DomainsEditor({
               <SortableRow
                 key={row.rowId}
                 row={row}
-                type={type}
-                regions={regionalMode ? regionalDimension.regions : undefined}
+                showRangeFields={type === 'RANGE' && !groupingMode}
                 boundaryMode={effectiveBoundaryMode}
                 showManualInclusion={showManualInclusion}
                 disabled={disabled}
                 issues={issues}
                 onUpdate={handleUpdate}
-                onUpdateRegionalRange={handleUpdateRegionalRange}
-                onToggleCatchAll={handleToggleCatchAll}
                 onRemove={handleRemove}
               />
             ))}
@@ -898,6 +987,87 @@ export function DomainsEditor({
         </Button>
       )}
 
+      {/* Tabela tidy: uma linha por (caminho, domínio), agrupada por caminho. */}
+      {groupingMode && (
+        <div className="flex flex-col gap-3">
+          <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+            Faixas por combinação
+          </span>
+          {groups.length === 0 && (
+            <p className="rounded-md border border-dashed border-neutral-300 p-3 text-center text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
+              Nenhuma combinação ainda. Cole uma tabela com colunas de agrupamento para preencher as faixas.
+            </p>
+          )}
+          {groups.map((group) => {
+            const groupIssues = issuesForPath(issues, group.key);
+            const present = currentDomains.filter((domain) =>
+              (domain.groupingRanges ?? []).some((range) => groupingPathKey(range.path) === group.key),
+            );
+            const missing = currentDomains.filter(
+              (domain) =>
+                domain.code !== '' &&
+                !(domain.groupingRanges ?? []).some((range) => groupingPathKey(range.path) === group.key),
+            );
+            return (
+              <div
+                key={group.key}
+                data-testid="grouping-path-group"
+                data-path={group.key}
+                className="flex flex-col gap-1.5 rounded-md border border-neutral-200 p-2 dark:border-neutral-800"
+              >
+                <span className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                  {formatGroupingPath(group.path)}
+                </span>
+                {present.map((domain) => {
+                  const range = (domain.groupingRanges ?? []).find(
+                    (candidate) => groupingPathKey(candidate.path) === group.key,
+                  )!;
+                  return (
+                    <GroupingRangeRow
+                      key={domain.code}
+                      domain={domain}
+                      range={range}
+                      boundaryMode={effectiveBoundaryMode}
+                      disabled={disabled}
+                      onUpdate={(patch) => handleUpdateGroupingRange(domain.code, group.key, patch)}
+                      onRemove={() => handleRemoveGroupingRange(domain.code, group.key)}
+                    />
+                  );
+                })}
+                {groupIssues.length > 0 && (
+                  <ul className="flex flex-col gap-0.5">
+                    {groupIssues.map((issue, index) => (
+                      <li
+                        key={index}
+                        className="flex items-start gap-1 text-xs text-red-600 dark:text-red-400"
+                      >
+                        <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                        {issue.message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!disabled && missing.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {missing.map((domain) => (
+                      <Button
+                        key={domain.code}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleAddGroupingRange(domain.code, group.path)}
+                      >
+                        <Plus className="mr-1 h-3.5 w-3.5" /> {domain.code}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <PasteDialog
         open={pasteOpen}
         onOpenChange={(next) => {
@@ -907,31 +1077,13 @@ export function DomainsEditor({
             setPasteResult(null);
           }
         }}
-        title="Colar tabela de regionais"
-        description="Cole direto do Excel: regional nas colunas (linha de código + linha MIN/MAX), uma faixa por linha."
-        textareaLabel="Tabela colada"
+        title="Colar tabela de domínios"
+        description={`Cole direto do Excel: uma linha de cabeçalho ("Domínio"${type === 'RANGE' ? ', "Mínimo", "Máximo"' : ''} e "Cor" são reconhecidas) e uma linha por combinação. Colunas à esquerda de "Domínio" viram agrupamentos automaticamente.`}
+        textareaLabel="Tabela de domínios colada"
         text={pasteText}
         onTextChange={setPasteText}
         result={pasteResult}
         onConfirm={handlePasteConfirm}
-      />
-
-      <PasteDialog
-        open={genericPasteOpen}
-        onOpenChange={(next) => {
-          setGenericPasteOpen(next);
-          if (!next) {
-            setGenericPasteText('');
-            setGenericPasteResult(null);
-          }
-        }}
-        title="Colar tabela de domínios"
-        description={`Cole direto do Excel: uma linha de cabeçalho ("Domínio"${type === 'RANGE' ? ', "Mínimo", "Máximo"' : ''} e "Cor" são reconhecidas) e uma linha por domínio.`}
-        textareaLabel="Tabela de domínios colada"
-        text={genericPasteText}
-        onTextChange={setGenericPasteText}
-        result={genericPasteResult}
-        onConfirm={handleGenericPasteConfirm}
         extra={
           <div className="rounded-md border border-neutral-200 bg-neutral-50 p-2 text-[11px] text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900/40 dark:text-neutral-400">
             <p className="mb-1 font-medium text-neutral-600 dark:text-neutral-300">Exemplo:</p>
@@ -940,13 +1092,44 @@ export function DomainsEditor({
                 .map((row) => row.join('\t'))
                 .join('\n')}
             </pre>
-            <Button type="button" variant="ghost" size="sm" onClick={() => downloadDomainTemplate(type)}>
-              <Download className="mr-1.5 h-4 w-4" /> Baixar modelo simples (.csv)
-            </Button>
+            <div className="flex flex-wrap gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => downloadCsv(domainTemplateRows(type), 'modelo-dominios.csv')}
+              >
+                <Download className="mr-1.5 h-4 w-4" /> Baixar modelo simples (.csv)
+              </Button>
+              {type === 'RANGE' && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => downloadCsv(groupingTemplateRows(), 'modelo-dominios-agrupamentos.csv')}
+                >
+                  <Download className="mr-1.5 h-4 w-4" /> Baixar modelo com agrupamentos (.csv)
+                </Button>
+              )}
+            </div>
           </div>
         }
       />
 
+      <ConfirmDialog
+        open={dimensionToRemove !== null}
+        onOpenChange={(open) => {
+          if (!open) setDimensionToRemove(null);
+        }}
+        title="Remover agrupamento"
+        description={`Remover "${(groupingDimensions ?? [])[dimensionToRemove ?? 0]?.label || 'este agrupamento'}" apaga as faixas de todas as combinações que dependem desse nível. Os domínios e suas cores continuam como estão.`}
+        confirmLabel="Remover agrupamento"
+        destructive
+        onConfirm={() => {
+          if (dimensionToRemove !== null) handleRemoveGroupingDimension(dimensionToRemove);
+          setDimensionToRemove(null);
+        }}
+      />
     </div>
   );
 }

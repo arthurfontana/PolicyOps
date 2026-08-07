@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Domain, PolicyOpsDocument, RegionalDimension } from '@/core/document/schema';
+import type { Domain, GroupingDimension, PolicyOpsDocument } from '@/core/document/schema';
 import {
   archiveVariable,
   createVariable,
@@ -597,33 +597,74 @@ describe('variable/archive', () => {
 });
 
 describe('variable/duplicate (docs/05 §5.6.3)', () => {
-  it('copia domínios e regionalDimension fielmente, com o mesmo type e sem eventos', () => {
+  it('copia domínios e groupingDimensions de 3 níveis fielmente, com o mesmo type e sem eventos', () => {
     const ctx = testCtx();
-    const regionalDimension: RegionalDimension = {
-      regions: [{ code: 'BASE', label: 'Base' }, { code: 'SP', label: 'São Paulo' }],
-    };
+    const groupingDimensions: GroupingDimension[] = [
+      {
+        code: 'REGIONAL',
+        label: 'Regional',
+        options: [
+          { code: 'SAO_PAULO', label: 'São Paulo' },
+          { code: 'SUL', label: 'Sul' },
+        ],
+      },
+      {
+        code: 'PORTE',
+        label: 'Porte',
+        options: [
+          { code: 'MEI', label: 'MEI' },
+          { code: 'NAO_MEI', label: 'Não MEI' },
+        ],
+      },
+      {
+        code: 'TIPO_EMPRESA',
+        label: 'Tipo de empresa',
+        options: [{ code: 'LTDA', label: 'Ltda' }],
+      },
+    ];
     const created0 = apply(
       baseDocument(),
       ctx,
       createVariable({ code: 'HVI1', name: 'HVI1', type: 'RANGE' }),
     );
-    const withRegional = apply(
+    const withGrouping = apply(
       created0.document,
       ctx,
       saveVariableDomains({
         variableId: created0.data.variableId,
         versionId: created0.data.versionId,
         domains: [
-          { code: 'R1', label: 'R1', position: 0, regionalRanges: { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '120' } } },
-          { code: 'R2', label: 'R2', position: 1, regionalRanges: { BASE: { min: '100', max: '200' }, SP: { min: '120', max: '240' } } },
+          {
+            code: 'R1',
+            label: 'R1',
+            position: 0,
+            color: '#00FF2A',
+            groupingRanges: [
+              { path: ['SAO_PAULO', 'MEI', 'LTDA'], min: '0', max: '100' },
+              { path: ['SAO_PAULO', 'NAO_MEI', 'LTDA'], min: '0', max: '120' },
+              // Sul só tem MEI — hierarquia assimétrica, aceita por I19.
+              { path: ['SUL', 'MEI', 'LTDA'], min: '0', max: '90' },
+            ],
+          },
+          {
+            code: 'R2',
+            label: 'R2',
+            position: 1,
+            color: '#FFA200',
+            groupingRanges: [
+              { path: ['SAO_PAULO', 'MEI', 'LTDA'], min: '100', max: '200' },
+              { path: ['SAO_PAULO', 'NAO_MEI', 'LTDA'], min: '120', max: '240' },
+              { path: ['SUL', 'MEI', 'LTDA'], min: '90', max: '180' },
+            ],
+          },
         ],
-        regionalDimension,
+        groupingDimensions,
       }),
     ).document;
 
-    const before = structuredClone(withRegional);
+    const before = structuredClone(withGrouping);
     const { document, data } = apply(
-      withRegional,
+      withGrouping,
       ctx,
       duplicateVariable({
         sourceVariableId: created0.data.variableId,
@@ -639,11 +680,12 @@ describe('variable/duplicate (docs/05 §5.6.3)', () => {
     expect(created.versions).toHaveLength(1);
     expect(created.versions[0]!.state).toBe('DRAFT');
     expect(created.versions[0]!.number).toBe(1);
+    // Faixas e cores sobrevivem à duplicação, campo a campo.
     expect(created.versions[0]!.domains).toEqual(
-      withRegional.variables.find((v) => v.id === created0.data.variableId)!.versions[0]!.domains,
+      withGrouping.variables.find((v) => v.id === created0.data.variableId)!.versions[0]!.domains,
     );
-    expect(created.versions[0]!.regionalDimension).toEqual(regionalDimension);
-    expect(document.events).toEqual(withRegional.events);
+    expect(created.versions[0]!.groupingDimensions).toEqual(groupingDimensions);
+    expect(document.events).toEqual(withGrouping.events);
 
     // A origem não é tocada.
     expect(document.variables.find((v) => v.id === created0.data.variableId)).toEqual(
@@ -725,7 +767,7 @@ describe('variable/duplicate (docs/05 §5.6.3)', () => {
     );
   });
 
-  it('variável sem regionalDimension duplica sem o campo (omitido, não null)', () => {
+  it('variável sem groupingDimensions duplica sem o campo (omitido, não null)', () => {
     const ctx = testCtx();
     const { document, data } = apply(
       baseDocument(),
@@ -738,7 +780,7 @@ describe('variable/duplicate (docs/05 §5.6.3)', () => {
       }),
     );
     const created = document.variables.find((v) => v.id === data.variableId)!;
-    expect(created.versions[0]!.regionalDimension).toBeUndefined();
+    expect(created.versions[0]!.groupingDimensions).toBeUndefined();
     expect(created.versions[0]!.domains).toEqual(
       document.variables.find((v) => v.id === IDS.fat)!.versions[0]!.domains,
     );

@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "id": "regv1docaaaa",
+    "name": "Documento salvo pela sessão 18",
+    "revision": 3,
+    "savedAt": "2026-02-01T10:00:00.000Z",
+    "savedBy": "Arthur",
+    "appVersion": "0.1.0",
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  "variables": [
+    {
+      "id": "varhvi3aaaaa",
+      "code": "SCORE_HVI3",
+      "name": "Score HVI3",
+      "type": "RANGE",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "verhvi3v1aaa",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-01-02T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "domains": [
+            {
+              "code": "R1",
+              "label": "R1 - Risco baixo",
+              "position": 0,
+              "color": "#00FF2A",
+              "regionalRanges": {
+                "BASE": { "min": "0", "max": "100" },
+                "SP": { "min": "0", "max": "120" }
+              }
+            },
+            {
+              "code": "R2",
+              "label": "R2 - Risco médio",
+              "position": 1,
+              "color": "#FFA200",
+              "regionalRanges": {
+                "BASE": { "min": "100", "max": "200" },
+                "SP": { "min": "120", "max": "240" }
+              }
+            },
+            {
+              "code": "R3",
+              "label": "R3 - Risco alto",
+              "position": 2,
+              "color": "#FF0000",
+              "isCatchAll": true,
+              "regionalRanges": {
+                "BASE": { "min": "200" },
+                "SP": { "min": "240" }
+              }
+            }
+          ],
+          "regionalDimension": {
+            "regions": [
+              { "code": "BASE", "label": "Base" },
+              { "code": "SP", "label": "São Paulo" }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "varsegmentoa",
+      "code": "SEGMENTO",
+      "name": "Segmento",
+      "type": "CATEGORICAL",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "versegmentov",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-01-02T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "domains": [
+            { "code": "VAREJO", "label": "Varejo", "position": 0 },
+            { "code": "ATACADO", "label": "Atacado", "position": 1 }
+          ]
+        }
+      ]
+    }
+  ],
+  "compatibility": [],
+  "catalog": [],
+  "projects": [],
+  "matrices": [],
+  "templates": [],
+  "events": []
+}

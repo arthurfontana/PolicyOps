@@ -4,7 +4,7 @@ import type { Domain } from '@/core/document/schema';
 
 /**
  * docs/03-modelo-do-documento.md §6.1: o snapshot copia só os campos de
- * identidade, nunca `regionalRanges`.
+ * identidade, nunca `groupingRanges`.
  */
 describe('snapshotDomains', () => {
   it('copia os campos obrigatórios e omite os opcionais ausentes', () => {
@@ -43,16 +43,20 @@ describe('snapshotDomains', () => {
     ]);
   });
 
-  it('nunca copia regionalRanges — a matriz não carrega a dimensão regional', () => {
+  it('nunca copia groupingRanges — a matriz não carrega os agrupamentos', () => {
     const domains: Domain[] = [
       {
         code: 'FX1',
         label: 'Faixa 1',
         position: 0,
-        regionalRanges: { SP: { min: '0', max: '100' } },
+        groupingRanges: [
+          { path: ['SP', 'MEI'], min: '0', max: '100' },
+          { path: ['SUL', 'MEI'], min: '0', max: '120' },
+        ],
       },
     ];
     const [snapshot] = snapshotDomains(domains);
-    expect(snapshot).not.toHaveProperty('regionalRanges');
+    expect(snapshot).not.toHaveProperty('groupingRanges');
+    expect(snapshot).toEqual({ code: 'FX1', label: 'Faixa 1', position: 0 });
   });
 });

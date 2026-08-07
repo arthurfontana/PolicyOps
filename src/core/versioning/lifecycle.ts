@@ -200,7 +200,7 @@ export function resolveLevel(
     variableVersionId: published.id,
     label: ref.label === undefined ? variable.name : assertText(ref.label, 'O rótulo do nível'),
     // SNAPSHOT: cópia congelada dos domínios, só identidade — nunca
-    // `regionalRanges` (docs/03 §6.1). Publicar uma versão nova da variável
+    // `groupingRanges` (docs/03 §6.1). Publicar uma versão nova da variável
     // depois disso não mexe nesta matriz (docs/05 §5.1).
     domains: snapshotDomains(published.domains),
   };

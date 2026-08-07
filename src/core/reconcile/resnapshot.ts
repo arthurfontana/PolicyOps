@@ -247,7 +247,7 @@ function resolveLevel(doc: PolicyOpsDocument, axis: Axis, index: number): Resolv
     level: {
       ...level,
       variableVersionId: target.id,
-      // Só identidade — nunca `regionalRanges` (docs/03 §6.1).
+      // Só identidade — nunca `groupingRanges` (docs/03 §6.1).
       domains: snapshotDomains(target.domains),
     },
     change: {

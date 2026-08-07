@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { validateDomains } from '@/core/library/validate-domains';
-import type { Domain, RegionalDimension } from '@/core/document/schema';
+import { findIncompleteGroupingPaths, validateDomains } from '@/core/library/validate-domains';
+import type { Domain, GroupingDimension } from '@/core/document/schema';
 
 /**
  * `validateDomains` — docs/05-regras-de-negocio.md §5.1 (I8, I9, I18) e
- * §5.6.1 (I9 regional, I19).
+ * §5.6.1 (I9 por caminho de agrupamento, I19).
  * Exaustivo: cada regra e cada erro, docs/prompts/S06-biblioteca-variaveis.md.
  */
 
@@ -233,96 +233,333 @@ describe('validateDomains', () => {
     expect(result.ok).toBe(true);
   });
 
-  // -- regionalDimension (docs/05 §5.6.1, I9 regional, I19) -------------------
+  // -- groupingDimensions (docs/05 §5.6.1, I9 por caminho, I19) --------------
 
-  function regionalDomain(
+  function grouped(
     code: string,
     position: number,
-    ranges: Record<string, { min: string; max?: string }>,
+    ranges: Array<{ path: string[]; min: string; max?: string }>,
   ): Domain {
-    return { code, label: `Rótulo ${code}`, position, regionalRanges: ranges };
+    return { code, label: `Rótulo ${code}`, position, groupingRanges: ranges };
   }
 
-  const twoRegions: RegionalDimension = {
-    regions: [
-      { code: 'BASE', label: 'Base' },
-      { code: 'SP', label: 'São Paulo' },
-    ],
-  };
+  const regional: GroupingDimension[] = [
+    {
+      code: 'REGIONAL',
+      label: 'Regional',
+      options: [
+        { code: 'BASE', label: 'Base' },
+        { code: 'SP', label: 'São Paulo' },
+      ],
+    },
+  ];
 
-  it('aceita RANGE regional com contiguidade ok em todas as regionais', () => {
+  /** Regional × Porte — o caso real de docs/05 §5.6.2, com 3 caminhos. */
+  const regionalPorte: GroupingDimension[] = [
+    {
+      code: 'REGIONAL',
+      label: 'Regional',
+      options: [
+        { code: 'SAO_PAULO', label: 'São Paulo' },
+        { code: 'SUL', label: 'Sul' },
+      ],
+    },
+    {
+      code: 'PORTE',
+      label: 'Porte',
+      options: [
+        { code: 'MEI', label: 'MEI' },
+        { code: 'NAO_MEI', label: 'Não MEI' },
+      ],
+    },
+  ];
+
+  it('aceita RANGE agrupado com contiguidade ok em todos os caminhos', () => {
     const result = validateDomains(
       'RANGE',
       [
-        regionalDomain('A', 0, { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '120' } }),
-        regionalDomain('B', 1, { BASE: { min: '100', max: '200' }, SP: { min: '120', max: '240' } }),
+        grouped('A', 0, [
+          { path: ['BASE'], min: '0', max: '100' },
+          { path: ['SP'], min: '0', max: '120' },
+        ]),
+        grouped('B', 1, [
+          { path: ['BASE'], min: '100', max: '200' },
+          { path: ['SP'], min: '120', max: '240' },
+        ]),
       ],
-      twoRegions,
+      regional,
     );
     expect(result.ok).toBe(true);
   });
 
-  it('rejeita buraco numa regional só — RANGE_REGIONAL_NOT_CONTIGUOUS aponta a regional certa', () => {
+  it('aceita contiguidade independente em 3 caminhos (Regional × Porte)', () => {
     const result = validateDomains(
       'RANGE',
       [
-        regionalDomain('A', 0, { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '120' } }),
+        grouped('R1', 0, [
+          { path: ['SAO_PAULO', 'MEI'], min: '0', max: '358' },
+          { path: ['SAO_PAULO', 'NAO_MEI'], min: '0', max: '340' },
+          { path: ['SUL', 'MEI'], min: '0', max: '360' },
+        ]),
+        grouped('R2', 1, [
+          { path: ['SAO_PAULO', 'MEI'], min: '358', max: '420' },
+          { path: ['SAO_PAULO', 'NAO_MEI'], min: '340', max: '400' },
+          { path: ['SUL', 'MEI'], min: '360', max: '430' },
+        ]),
+      ],
+      regionalPorte,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejeita buraco num caminho só — RANGE_GROUPING_NOT_CONTIGUOUS aponta o caminho certo', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        grouped('A', 0, [
+          { path: ['BASE'], min: '0', max: '100' },
+          { path: ['SP'], min: '0', max: '120' },
+        ]),
         // SP tem um buraco (120 -> 150), BASE continua contíguo (100 -> 100).
-        regionalDomain('B', 1, { BASE: { min: '100', max: '200' }, SP: { min: '150', max: '240' } }),
+        grouped('B', 1, [
+          { path: ['BASE'], min: '100', max: '200' },
+          { path: ['SP'], min: '150', max: '240' },
+        ]),
       ],
-      twoRegions,
+      regional,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      const issue = result.issues.find((i) => i.code === 'RANGE_REGIONAL_NOT_CONTIGUOUS');
+      const issue = result.issues.find((i) => i.code === 'RANGE_GROUPING_NOT_CONTIGUOUS');
       expect(issue).toBeDefined();
-      expect(issue?.regionCode).toBe('SP');
-      expect(result.issues.some((i) => i.regionCode === 'BASE')).toBe(false);
+      expect(issue?.path).toEqual(['SP']);
+      expect(result.issues.some((i) => i.path?.[0] === 'BASE')).toBe(false);
     }
   });
 
-  it('rejeita sobreposição numa regional só', () => {
+  it('sobreposição num caminho de 2 níveis não afeta os demais caminhos', () => {
     const result = validateDomains(
       'RANGE',
       [
-        regionalDomain('A', 0, { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '150' } }),
-        // SP se sobrepõe (100 < 150), BASE continua contíguo.
-        regionalDomain('B', 1, { BASE: { min: '100', max: '200' }, SP: { min: '100', max: '240' } }),
+        grouped('R1', 0, [
+          { path: ['SAO_PAULO', 'MEI'], min: '0', max: '400' },
+          { path: ['SAO_PAULO', 'NAO_MEI'], min: '0', max: '340' },
+          { path: ['SUL', 'MEI'], min: '0', max: '360' },
+        ]),
+        // Só São Paulo › MEI se sobrepõe (400 > 358).
+        grouped('R2', 1, [
+          { path: ['SAO_PAULO', 'MEI'], min: '358', max: '420' },
+          { path: ['SAO_PAULO', 'NAO_MEI'], min: '340', max: '400' },
+          { path: ['SUL', 'MEI'], min: '360', max: '430' },
+        ]),
       ],
-      twoRegions,
+      regionalPorte,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      const issue = result.issues.find((i) => i.code === 'RANGE_REGIONAL_NOT_CONTIGUOUS');
-      expect(issue?.regionCode).toBe('SP');
+      const contiguity = result.issues.filter((i) => i.code === 'RANGE_GROUPING_NOT_CONTIGUOUS');
+      expect(contiguity).toHaveLength(1);
+      expect(contiguity[0]!.path).toEqual(['SAO_PAULO', 'MEI']);
     }
   });
 
-  it('rejeita regions vazio', () => {
-    const result = validateDomains(
-      'RANGE',
-      [
-        regionalDomain('A', 0, {}),
-        regionalDomain('B', 1, {}),
-      ],
-      { regions: [] },
-    );
+  it('rejeita groupingDimensions vazio', () => {
+    const result = validateDomains('RANGE', [grouped('A', 0, []), grouped('B', 1, [])], []);
     expect(result.ok).toBe(false);
   });
 
-  it('rejeita code de regional duplicado — REGIONAL_CODE_DUPLICATE', () => {
+  it('rejeita mais de 4 níveis — TOO_MANY_GROUPING_LEVELS', () => {
+    const fiveLevels: GroupingDimension[] = ['N1', 'N2', 'N3', 'N4', 'N5'].map((code) => ({
+      code,
+      label: code,
+      options: [{ code: 'X', label: 'X' }],
+    }));
+    const path = ['X', 'X', 'X', 'X', 'X'];
     const result = validateDomains(
       'RANGE',
       [
-        regionalDomain('A', 0, { BASE: { min: '0', max: '100' } }),
-        regionalDomain('B', 1, { BASE: { min: '100', max: '200' } }),
+        grouped('A', 0, [{ path, min: '0', max: '100' }]),
+        grouped('B', 1, [{ path, min: '100', max: '200' }]),
       ],
-      { regions: [{ code: 'BASE', label: 'Base 1' }, { code: 'BASE', label: 'Base 2' }] },
+      fiveLevels,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.issues.some((i) => i.code === 'REGIONAL_CODE_DUPLICATE')).toBe(true);
+      expect(result.issues.some((i) => i.code === 'TOO_MANY_GROUPING_LEVELS')).toBe(true);
     }
+  });
+
+  it('aceita exatamente 4 níveis', () => {
+    const fourLevels: GroupingDimension[] = ['N1', 'N2', 'N3', 'N4'].map((code) => ({
+      code,
+      label: code,
+      options: [{ code: 'X', label: 'X' }],
+    }));
+    const path = ['X', 'X', 'X', 'X'];
+    const result = validateDomains(
+      'RANGE',
+      [
+        grouped('A', 0, [{ path, min: '0', max: '100' }]),
+        grouped('B', 1, [{ path, min: '100', max: '200' }]),
+      ],
+      fourLevels,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejeita code de nível duplicado — GROUPING_DIMENSION_CODE_DUPLICATE', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        grouped('A', 0, [{ path: ['BASE', 'BASE'], min: '0', max: '100' }]),
+        grouped('B', 1, [{ path: ['BASE', 'BASE'], min: '100', max: '200' }]),
+      ],
+      [
+        { code: 'REGIONAL', label: 'Regional 1', options: [{ code: 'BASE', label: 'Base' }] },
+        { code: 'REGIONAL', label: 'Regional 2', options: [{ code: 'BASE', label: 'Base' }] },
+      ],
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.code === 'GROUPING_DIMENSION_CODE_DUPLICATE')).toBe(true);
+    }
+  });
+
+  it('rejeita code de opção duplicado dentro do nível — GROUPING_OPTION_CODE_DUPLICATE', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        grouped('A', 0, [{ path: ['BASE'], min: '0', max: '100' }]),
+        grouped('B', 1, [{ path: ['BASE'], min: '100', max: '200' }]),
+      ],
+      [
+        {
+          code: 'REGIONAL',
+          label: 'Regional',
+          options: [
+            { code: 'BASE', label: 'Base 1' },
+            { code: 'BASE', label: 'Base 2' },
+          ],
+        },
+      ],
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.code === 'GROUPING_OPTION_CODE_DUPLICATE')).toBe(true);
+    }
+  });
+
+  it('o mesmo code em níveis diferentes é válido — a unicidade de opção é por nível', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        grouped('A', 0, [{ path: ['X', 'X'], min: '0', max: '100' }]),
+        grouped('B', 1, [{ path: ['X', 'X'], min: '100', max: '200' }]),
+      ],
+      [
+        { code: 'REGIONAL', label: 'Regional', options: [{ code: 'X', label: 'X regional' }] },
+        { code: 'PORTE', label: 'Porte', options: [{ code: 'X', label: 'X porte' }] },
+      ],
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejeita path de comprimento errado — GROUPING_PATH_INVALID', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        grouped('A', 0, [{ path: ['BASE', 'MEI'], min: '0', max: '100' }]),
+        grouped('B', 1, [{ path: ['BASE'], min: '100', max: '200' }]),
+      ],
+      regional,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const issue = result.issues.find((i) => i.code === 'GROUPING_PATH_INVALID');
+      expect(issue?.domainCodes).toEqual(['A']);
+    }
+  });
+
+  it('rejeita path apontando para opção inexistente — GROUPING_PATH_INVALID', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        grouped('A', 0, [{ path: ['RJ'], min: '0', max: '100' }]),
+        grouped('B', 1, [{ path: ['RJ'], min: '100', max: '200' }]),
+      ],
+      regional,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const issue = result.issues.find((i) => i.code === 'GROUPING_PATH_INVALID');
+      expect(issue).toBeDefined();
+      expect(issue?.message).toContain('"RJ"');
+    }
+  });
+
+  it('domínio ausente de um caminho que outros preenchem NÃO falha a validação (intencional)', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        grouped('A', 0, [
+          { path: ['BASE'], min: '0', max: '100' },
+          { path: ['SP'], min: '0', max: '100' },
+        ]),
+        // B não tem entrada para SP — hierarquia assimétrica legítima.
+        grouped('B', 1, [{ path: ['BASE'], min: '100', max: '200' }]),
+      ],
+      regional,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  // -- findIncompleteGroupingPaths: aviso de UX, nunca invariante ------------
+
+  it('findIncompleteGroupingPaths detecta o caso do exemplo de docs/05 §5.6.2', () => {
+    // São Paulo tem R1/R2 em MEI, mas só R1 em Não MEI; Sul só tem R1 em MEI.
+    const domains = [
+      grouped('R1', 0, [
+        { path: ['SAO_PAULO', 'MEI'], min: '0', max: '357' },
+        { path: ['SAO_PAULO', 'NAO_MEI'], min: '0', max: '340' },
+        { path: ['SUL', 'MEI'], min: '0', max: '360' },
+      ]),
+      grouped('R2', 1, [{ path: ['SAO_PAULO', 'MEI'], min: '357', max: '420' }]),
+    ];
+
+    expect(findIncompleteGroupingPaths(domains, regionalPorte)).toEqual([
+      { path: ['SAO_PAULO', 'NAO_MEI'], missingDomainCodes: ['R2'] },
+      { path: ['SUL', 'MEI'], missingDomainCodes: ['R2'] },
+    ]);
+
+    // E não bloqueia o salvamento: a mesma configuração valida.
+    expect(validateDomains('RANGE', domains, regionalPorte).ok).toBe(true);
+  });
+
+  it('findIncompleteGroupingPaths não reporta nada quando todos os caminhos estão completos', () => {
+    const domains = [
+      grouped('R1', 0, [
+        { path: ['SAO_PAULO', 'MEI'], min: '0', max: '357' },
+        { path: ['SUL', 'MEI'], min: '0', max: '360' },
+      ]),
+      grouped('R2', 1, [
+        { path: ['SAO_PAULO', 'MEI'], min: '357', max: '420' },
+        { path: ['SUL', 'MEI'], min: '360', max: '430' },
+      ]),
+    ];
+    expect(findIncompleteGroupingPaths(domains, regionalPorte)).toEqual([]);
+  });
+
+  it('findIncompleteGroupingPaths ignora domínios sem nenhuma faixa agrupada', () => {
+    const domains = [
+      grouped('R1', 0, [{ path: ['BASE'], min: '0', max: '100' }]),
+      grouped('R2', 1, [{ path: ['SP'], min: '0', max: '100' }]),
+      // Domínio recém-adicionado, ainda sem faixa nenhuma — não conta.
+      { code: 'R3', label: 'R3', position: 2 },
+    ];
+    expect(findIncompleteGroupingPaths(domains, regional)).toEqual([
+      { path: ['BASE'], missingDomainCodes: ['R2'] },
+      { path: ['SP'], missingDomainCodes: ['R1'] },
+    ]);
   });
 
   // -- boundaryMode: HALF_OPEN (default) × INCLUSIVE_INTEGER (ajuste) --------
@@ -402,53 +639,46 @@ describe('validateDomains', () => {
     }
   });
 
-  it('INCLUSIVE_INTEGER regional: salto de 1 em todas as regionais é contíguo', () => {
+  it('INCLUSIVE_INTEGER com agrupamento: salto de 1 em todos os caminhos é contíguo', () => {
     const result = validateDomains(
       'RANGE',
       [
-        regionalDomain('R20', 0, { BASE: { min: '0', max: '357' }, SP: { min: '0', max: '400' } }),
-        regionalDomain('R19', 1, { BASE: { min: '358', max: '437' }, SP: { min: '401', max: '480' } }),
+        grouped('R20', 0, [
+          { path: ['BASE'], min: '0', max: '357' },
+          { path: ['SP'], min: '0', max: '400' },
+        ]),
+        grouped('R19', 1, [
+          { path: ['BASE'], min: '358', max: '437' },
+          { path: ['SP'], min: '401', max: '480' },
+        ]),
       ],
-      twoRegions,
+      regional,
       'INCLUSIVE_INTEGER',
     );
     expect(result.ok).toBe(true);
   });
 
-  it('INCLUSIVE_INTEGER regional: buraco numa regional só aponta a regional certa', () => {
+  it('INCLUSIVE_INTEGER com agrupamento: buraco num caminho só aponta o caminho certo', () => {
     const result = validateDomains(
       'RANGE',
       [
-        regionalDomain('R20', 0, { BASE: { min: '0', max: '357' }, SP: { min: '0', max: '400' } }),
+        grouped('R20', 0, [
+          { path: ['BASE'], min: '0', max: '357' },
+          { path: ['SP'], min: '0', max: '400' },
+        ]),
         // SP tem buraco real (401 esperado, veio 402); BASE segue contíguo com +1.
-        regionalDomain('R19', 1, { BASE: { min: '358', max: '437' }, SP: { min: '402', max: '480' } }),
+        grouped('R19', 1, [
+          { path: ['BASE'], min: '358', max: '437' },
+          { path: ['SP'], min: '402', max: '480' },
+        ]),
       ],
-      twoRegions,
+      regional,
       'INCLUSIVE_INTEGER',
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      const issue = result.issues.find((i) => i.code === 'RANGE_REGIONAL_NOT_CONTIGUOUS');
-      expect(issue?.regionCode).toBe('SP');
-    }
-  });
-
-  it('rejeita domínio sem entrada para uma regional — RANGE_REGIONAL_INCOMPLETE', () => {
-    const result = validateDomains(
-      'RANGE',
-      [
-        regionalDomain('A', 0, { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '100' } }),
-        // B não tem entrada para SP.
-        regionalDomain('B', 1, { BASE: { min: '100', max: '200' } }),
-      ],
-      twoRegions,
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      const issue = result.issues.find((i) => i.code === 'RANGE_REGIONAL_INCOMPLETE');
-      expect(issue).toBeDefined();
-      expect(issue?.domainCodes).toEqual(['B']);
-      expect(issue?.regionCode).toBe('SP');
+      const issue = result.issues.find((i) => i.code === 'RANGE_GROUPING_NOT_CONTIGUOUS');
+      expect(issue?.path).toEqual(['SP']);
     }
   });
 });
