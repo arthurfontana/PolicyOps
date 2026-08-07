@@ -15,9 +15,11 @@ import {
   pendingCoords,
   publishVersion,
 } from '@/core/versioning/lifecycle';
+import { applyCellPatch } from '@/core/versioning/cells';
 import {
   apply,
   baseDocument,
+  coordsOf,
   createTestMatrix,
   DAY,
   documentWithAllStates,
@@ -421,7 +423,13 @@ describe('version/publish (§1.3)', () => {
     expect(version.notes).toBe('Primeira publicação da matriz.');
     expect(data.supersededVersionId).toBeNull();
     expect(result.events.map((event) => event.type)).toEqual(['VERSION_PUBLISHED']);
-    expect(result.events[0]!.payload).toEqual({ effectiveFrom: T0, diffSummary: null });
+    // Primeira publicação da matriz: não há vigente anterior, logo não há
+    // "antes" a resumir (docs/05 §1.3, §4).
+    expect(result.events[0]!.payload).toEqual({
+      effectiveFrom: T0,
+      diffSummary: null,
+      diffSummaryText: [],
+    });
     expect(validateDocument(published).ok).toBe(true);
   });
 
@@ -457,6 +465,40 @@ describe('version/publish (§1.3)', () => {
       'A versão 1 de "MTZ_A" foi substituída pela versão 2.',
     );
     expect(validateDocument(v2Published).ok).toBe(true);
+  });
+
+  it('grava o resumo semântico do diff contra a vigente no payload de VERSION_PUBLISHED', () => {
+    const ctx = testCtx();
+    const { document, versionId, matrixId } = readyToPublish(ctx);
+    const v1Published = apply(
+      document,
+      ctx,
+      publishVersion({ versionId, notes: 'Primeira publicação.' }),
+    ).document;
+
+    // `readyToPublish` decide tudo como APROVADO; o rascunho reprova duas.
+    const v2 = apply(v1Published, ctx, createDraft({ matrixId }));
+    const coords = coordsOf(v2.document, v2.data.versionId).slice(0, 2);
+    const edited = apply(
+      v2.document,
+      ctx,
+      applyCellPatch({ versionId: v2.data.versionId, patch: { coords, set: { decision: 'REPROVADO' } } }),
+    ).document;
+
+    ctx.advance(DAY);
+    const { result } = apply(
+      edited,
+      ctx,
+      publishVersion({ versionId: v2.data.versionId, notes: 'Segunda publicação.' }),
+    );
+
+    const payload = result.events[1]!.payload as {
+      diffSummary: { cellsClosed: number; cellsOpened: number };
+      diffSummaryText: string[];
+    };
+    expect(payload.diffSummary.cellsClosed).toBe(2);
+    expect(payload.diffSummary.cellsOpened).toBe(0);
+    expect(payload.diffSummaryText).toEqual(['2 células fechadas']);
   });
 
   it('I4: três publicações produzem intervalos contíguos, e a vigência acerta no instante exato da troca', () => {

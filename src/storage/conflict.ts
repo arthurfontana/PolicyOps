@@ -1,14 +1,14 @@
 import type { PolicyOpsDocument } from '@/core/document/schema';
 
 /**
- * Resumo textual de um conflito de salvamento —
+ * Resumo de topo de um conflito de salvamento —
  * docs/06-persistencia-e-concorrencia.md §5.
  *
- * A tela de comparação de verdade (grid sobreposto, lado a lado, lista) é da
- * Sessão 14, e é ela que o conflito vai reutilizar. Até lá, "Ver o que
- * mudou" mostra esta lista textual: quem salvou, quando, e o que entrou ou
- * saiu em cada coleção do documento. É pouco, mas é honesto — e é o
- * suficiente para a pessoa decidir entre salvar uma cópia e sobrescrever.
+ * Quem salvou, quando, e o que entrou ou saiu em cada coleção do documento.
+ * A comparação célula a célula é outra coisa e mora em `src/core/diff/`
+ * (S14): "Ver o que mudou" abre a tela de comparação de verdade, e esta lista
+ * fica lá dentro como cabeçalho — é o contexto que o diff de uma versão de
+ * matriz não dá.
  */
 
 export type ConflictLine = {

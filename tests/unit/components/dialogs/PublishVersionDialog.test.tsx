@@ -65,4 +65,46 @@ describe('PublishVersionDialog', () => {
     await user.type(screen.getByLabelText(/digite o número da versão/i), String(draft.number));
     expect(confirmButton).toBeEnabled();
   });
+
+  it('mostra o resumo semântico do diff contra a vigente, não uma contagem crua', () => {
+    const { matrix, draft, published } = setup();
+
+    render(
+      <PublishVersionDialog
+        open
+        onOpenChange={() => {}}
+        matrix={matrix}
+        version={draft}
+        publishedVersion={published}
+        onPublished={() => {}}
+        onUnsetCellsRemain={() => {}}
+      />,
+    );
+
+    // As 3 células alteradas do exemplo: 1 fechada, 2 para análise manual e as
+    // 3 perdendo o limite que tinham (docs/03 §11, docs/05 §4.3).
+    const summary = screen.getByTestId('publish-diff-summary');
+    expect(summary).toHaveTextContent('1 célula fechada');
+    expect(summary).toHaveTextContent('2 células enviadas para análise manual');
+    expect(summary).toHaveTextContent('3 limites reduzidos');
+  });
+
+  it('sem versão vigente, diz que é a primeira publicação', () => {
+    const { matrix, draft } = setup();
+
+    render(
+      <PublishVersionDialog
+        open
+        onOpenChange={() => {}}
+        matrix={matrix}
+        version={draft}
+        publishedVersion={null}
+        onPublished={() => {}}
+        onUnsetCellsRemain={() => {}}
+      />,
+    );
+
+    expect(screen.getByText(/primeira publicação desta matriz/)).toBeInTheDocument();
+    expect(screen.queryByTestId('publish-diff-summary')).not.toBeInTheDocument();
+  });
 });

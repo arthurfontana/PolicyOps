@@ -17,6 +17,7 @@ import {
   type Command,
   type Ctx,
 } from '../command';
+import { diffVersionPair } from '../diff/versions';
 import { CODE_REGEX, ISO_DATE_REGEX } from '../document/schema';
 import type {
   Axis,
@@ -666,14 +667,24 @@ export function publishVersion(input: PublishInput): Command<PublishInput, Publi
           }),
         );
       }
+      // `diffSummary` contra a versão que está sendo substituída — o resumo
+      // semântico de §4.3, calculado com as duas versões ainda no estado
+      // anterior à publicação. Sem vigente para comparar (a v1 de uma matriz
+      // nova), fica `null`: não há "antes".
+      const diff = current === undefined
+        ? null
+        : diffVersionPair({ a: doc, b: doc }, { matrix, version: current }, { matrix, version });
+
       events.push(
         makeEvent(ctx, {
           type: 'VERSION_PUBLISHED',
           scope: versionScope(matrix, version.id),
           summary: `${ctx.actor} publicou a versão ${version.number} de "${matrix.code}", vigente a partir de ${effectiveFromISO}.`,
-          // `diffSummary` contra a versão anterior é calculado pelo motor de
-          // diff (docs/05 §4), que chega em S14.
-          payload: { effectiveFrom: effectiveFromISO, diffSummary: null },
+          payload: {
+            effectiveFrom: effectiveFromISO,
+            diffSummary: diff === null || !diff.comparable ? null : diff.summary,
+            diffSummaryText: diff === null ? [] : diff.summaryText,
+          },
         }),
       );
 
