@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { FilePlus2, FolderOpen, History, Info, Sparkles, Trash2, TriangleAlert } from 'lucide-react';
+import { FilePlus2, FolderOpen, History, Info, Loader2, Sparkles, Trash2, TriangleAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ListSkeleton } from '@/components/ui/list-skeleton';
 import { usePersistenceStore } from '@/store/persistence-store';
 import {
   MODE_DETAIL,
@@ -69,6 +70,18 @@ function RecentsList() {
 
   const [entries, setEntries] = useState<RecentEntry[]>(recents);
   useEffect(() => setEntries(recents), [recents]);
+  // Reabrir pelo handle é assíncrono (permissão + leitura do arquivo) — um
+  // skeleton no lugar da lista é melhor do que o botão parecer sem resposta.
+  const [openingId, setOpeningId] = useState<string | null>(null);
+
+  async function handleOpenRecent(entry: RecentEntry) {
+    setOpeningId(entry.id);
+    try {
+      await openRecent(entry);
+    } finally {
+      setOpeningId(null);
+    }
+  }
 
   if (entries.length === 0) {
     return (
@@ -78,13 +91,17 @@ function RecentsList() {
     );
   }
 
+  if (openingId !== null) {
+    return <ListSkeleton rows={entries.length} label="Reabrindo arquivo recente" />;
+  }
+
   return (
     <ul className="flex flex-col gap-1">
       {entries.map((entry) => (
         <li key={entry.id} className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => void openRecent(entry)}
+            onClick={() => void handleOpenRecent(entry)}
             className="flex min-w-0 flex-1 flex-col rounded-md px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <span className="truncate text-sm text-neutral-900 dark:text-neutral-100">
@@ -119,6 +136,16 @@ export function HomeScreen() {
   const errorMessage = usePersistenceStore((s) => s.errorMessage);
 
   const [newName, setNewName] = useState('Políticas');
+  const [isOpeningFile, setIsOpeningFile] = useState(false);
+
+  async function handleOpenWithPicker() {
+    setIsOpeningFile(true);
+    try {
+      await openWithPicker();
+    } finally {
+      setIsOpeningFile(false);
+    }
+  }
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 p-8">
@@ -150,8 +177,14 @@ export function HomeScreen() {
             <CardDescription>Escolha um politicas.json existente.</CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-2">
-            <Button className="w-full" onClick={() => void openWithPicker()}>
-              Abrir
+            <Button className="w-full" onClick={() => void handleOpenWithPicker()} disabled={isOpeningFile}>
+              {isOpeningFile ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> Abrindo…
+                </>
+              ) : (
+                'Abrir'
+              )}
             </Button>
           </CardContent>
         </Card>
