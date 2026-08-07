@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Domain, PolicyOpsDocument } from '@/core/document/schema';
+import type { Domain, PolicyOpsDocument, RegionalDimension } from '@/core/document/schema';
 import {
   archiveVariable,
   createVariable,
   createVariableDraft,
   discardVariableDraft,
+  duplicateVariable,
   publishVariable,
   saveVariableDomains,
   updateVariableMeta,
@@ -482,6 +483,134 @@ describe('variable/archive', () => {
     expect(redone.document.variables.find((v) => v.id === IDS.fat)!.archivedAt).toBe(
       document.variables.find((v) => v.id === IDS.fat)!.archivedAt,
     );
+  });
+});
+
+describe('variable/duplicate (docs/05 §5.6.3)', () => {
+  it('copia domínios e regionalDimension fielmente, com o mesmo type e sem eventos', () => {
+    const ctx = testCtx();
+    const regionalDimension: RegionalDimension = {
+      regions: [{ code: 'BASE', label: 'Base' }, { code: 'SP', label: 'São Paulo' }],
+    };
+    const created0 = apply(
+      baseDocument(),
+      ctx,
+      createVariable({ code: 'HVI1', name: 'HVI1', type: 'RANGE' }),
+    );
+    const withRegional = apply(
+      created0.document,
+      ctx,
+      saveVariableDomains({
+        variableId: created0.data.variableId,
+        versionId: created0.data.versionId,
+        domains: [
+          { code: 'R1', label: 'R1', position: 0, regionalRanges: { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '120' } } },
+          { code: 'R2', label: 'R2', position: 1, regionalRanges: { BASE: { min: '100', max: '200' }, SP: { min: '120', max: '240' } } },
+        ],
+        regionalDimension,
+      }),
+    ).document;
+
+    const before = structuredClone(withRegional);
+    const { document, data } = apply(
+      withRegional,
+      ctx,
+      duplicateVariable({
+        sourceVariableId: created0.data.variableId,
+        sourceVersionId: created0.data.versionId,
+        code: 'HVI2',
+        name: 'HVI2',
+      }),
+    );
+
+    const created = document.variables.find((v) => v.id === data.variableId)!;
+    expect(created.code).toBe('HVI2');
+    expect(created.type).toBe('RANGE');
+    expect(created.versions).toHaveLength(1);
+    expect(created.versions[0]!.state).toBe('DRAFT');
+    expect(created.versions[0]!.number).toBe(1);
+    expect(created.versions[0]!.domains).toEqual(
+      withRegional.variables.find((v) => v.id === created0.data.variableId)!.versions[0]!.domains,
+    );
+    expect(created.versions[0]!.regionalDimension).toEqual(regionalDimension);
+    expect(document.events).toEqual(withRegional.events);
+
+    // A origem não é tocada.
+    expect(document.variables.find((v) => v.id === created0.data.variableId)).toEqual(
+      before.variables.find((v) => v.id === created0.data.variableId),
+    );
+  });
+
+  it('falha com DUPLICATE_CODE quando o código novo já existe', () => {
+    expectFailure(
+      baseDocument(),
+      testCtx(),
+      duplicateVariable({
+        sourceVariableId: IDS.fat,
+        sourceVersionId: IDS.fatV1,
+        code: 'SCORE',
+        name: 'Duplicada',
+      }),
+      'DUPLICATE_CODE',
+    );
+  });
+
+  it('falha com NOT_FOUND quando a variável de origem não existe', () => {
+    expectFailure(
+      baseDocument(),
+      testCtx(),
+      duplicateVariable({
+        sourceVariableId: 'inexistente__',
+        sourceVersionId: IDS.fatV1,
+        code: 'NOVA',
+        name: 'Nova',
+      }),
+      'NOT_FOUND',
+    );
+  });
+
+  it('falha com NOT_FOUND quando a versão de origem não existe', () => {
+    expectFailure(
+      baseDocument(),
+      testCtx(),
+      duplicateVariable({
+        sourceVariableId: IDS.fat,
+        sourceVersionId: 'inexistente__',
+        code: 'NOVA',
+        name: 'Nova',
+      }),
+      'NOT_FOUND',
+    );
+  });
+
+  it('variável sem regionalDimension duplica sem o campo (omitido, não null)', () => {
+    const ctx = testCtx();
+    const { document, data } = apply(
+      baseDocument(),
+      ctx,
+      duplicateVariable({
+        sourceVariableId: IDS.fat,
+        sourceVersionId: IDS.fatV1,
+        code: 'FAT2',
+        name: 'Faturamento 2',
+      }),
+    );
+    const created = document.variables.find((v) => v.id === data.variableId)!;
+    expect(created.versions[0]!.regionalDimension).toBeUndefined();
+    expect(created.versions[0]!.domains).toEqual(
+      document.variables.find((v) => v.id === IDS.fat)!.versions[0]!.domains,
+    );
+  });
+
+  it('o inverso desfaz a duplicação', () => {
+    const ctx = testCtx();
+    const { document, result } = apply(
+      baseDocument(),
+      ctx,
+      duplicateVariable({ sourceVariableId: IDS.fat, sourceVersionId: IDS.fatV1, code: 'FAT2', name: 'F2' }),
+    );
+    const undone = apply(document, ctx, result.inverse);
+    expect(undone.document.variables.some((v) => v.code === 'FAT2')).toBe(false);
   });
 });
 

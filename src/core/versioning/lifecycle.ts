@@ -1,4 +1,5 @@
 import { allCombinations, listPending, type CellCoord } from '../axes/combinations';
+import { snapshotDomains } from '../axes/domain-snapshot';
 import { decodeCellKey } from '../axes/paths';
 import {
   assertGridFits,
@@ -198,9 +199,10 @@ export function resolveLevel(
     variableId: variable.id,
     variableVersionId: published.id,
     label: ref.label === undefined ? variable.name : assertText(ref.label, 'O rótulo do nível'),
-    // SNAPSHOT: cópia congelada dos domínios. Publicar uma versão nova da
-    // variável depois disso não mexe nesta matriz (docs/05 §5.1).
-    domains: structuredClone(published.domains),
+    // SNAPSHOT: cópia congelada dos domínios, só identidade — nunca
+    // `regionalRanges` (docs/03 §6.1). Publicar uma versão nova da variável
+    // depois disso não mexe nesta matriz (docs/05 §5.1).
+    domains: snapshotDomains(published.domains),
   };
 }
 

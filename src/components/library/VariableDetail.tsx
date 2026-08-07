@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import type { Domain, VariableVersion } from '@/core/document/schema';
+import type { Domain, RegionalDimension, VariableVersion } from '@/core/document/schema';
 import { validateDomains } from '@/core/library/validate-domains';
 import {
   archiveVariable,
@@ -63,6 +63,10 @@ function domainsEqual(a: Domain[], b: Domain[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function regionalDimensionEqual(a: RegionalDimension | undefined, b: RegionalDimension | undefined): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
 export interface VariableDetailProps {
   variableId: string;
   onBack: () => void;
@@ -86,8 +90,12 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
   const selectedVersion = variable?.versions.find((v) => v.id === selectedVersionId) ?? null;
 
   const [editingDomains, setEditingDomains] = useState<Domain[]>(selectedVersion?.domains ?? []);
+  const [editingRegionalDimension, setEditingRegionalDimension] = useState<RegionalDimension | undefined>(
+    selectedVersion?.regionalDimension,
+  );
   useEffect(() => {
     setEditingDomains(selectedVersion?.domains ?? []);
+    setEditingRegionalDimension(selectedVersion?.regionalDimension);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVersionId]);
 
@@ -105,8 +113,8 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
 
   const validation = useMemo(() => {
     if (variable === null) return { ok: true as const };
-    return validateDomains(variable.type, editingDomains);
-  }, [variable, editingDomains]);
+    return validateDomains(variable.type, editingDomains, editingRegionalDimension);
+  }, [variable, editingDomains, editingRegionalDimension]);
   const issues = validation.ok ? [] : validation.issues;
 
   const usage = useMemo(() => (document === null ? [] : getVariableUsage(document, variableId)), [
@@ -138,7 +146,10 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
   }
 
   const isDraft = selectedVersion?.state === 'DRAFT';
-  const dirty = selectedVersion !== null && !domainsEqual(editingDomains, selectedVersion.domains);
+  const dirty =
+    selectedVersion !== null &&
+    (!domainsEqual(editingDomains, selectedVersion.domains) ||
+      !regionalDimensionEqual(editingRegionalDimension, selectedVersion.regionalDimension));
   const hasOpenDraft = variable.versions.some((v) => v.state === 'DRAFT');
   const hasPublished = variable.versions.some((v) => v.state === 'PUBLISHED');
 
@@ -166,7 +177,12 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
   function handleSaveDomains() {
     if (selectedVersion === null) return;
     const result = dispatch(
-      saveVariableDomains({ variableId, versionId: selectedVersion.id, domains: editingDomains }),
+      saveVariableDomains({
+        variableId,
+        versionId: selectedVersion.id,
+        domains: editingDomains,
+        ...(editingRegionalDimension === undefined ? {} : { regionalDimension: editingRegionalDimension }),
+      }),
     );
     if (!result.ok) {
       toast({ title: 'Não foi possível salvar os domínios', description: result.error.message });
@@ -316,6 +332,8 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
                   onChange={setEditingDomains}
                   issues={issues}
                   disabled={!isDraft}
+                  regionalDimension={editingRegionalDimension}
+                  onRegionalDimensionChange={setEditingRegionalDimension}
                 />
               )}
 

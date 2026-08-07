@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { validateDomains } from '@/core/library/validate-domains';
-import type { Domain } from '@/core/document/schema';
+import type { Domain, RegionalDimension } from '@/core/document/schema';
 
 /**
- * `validateDomains` — docs/05-regras-de-negocio.md §5.1 (I8, I9, I18).
+ * `validateDomains` — docs/05-regras-de-negocio.md §5.1 (I8, I9, I18) e
+ * §5.6.1 (I9 regional, I19).
  * Exaustivo: cada regra e cada erro, docs/prompts/S06-biblioteca-variaveis.md.
  */
 
@@ -230,5 +231,116 @@ describe('validateDomains', () => {
     ]);
     // "10.10" e "10.1" são o mesmo decimal — contíguo.
     expect(result.ok).toBe(true);
+  });
+
+  // -- regionalDimension (docs/05 §5.6.1, I9 regional, I19) -------------------
+
+  function regionalDomain(
+    code: string,
+    position: number,
+    ranges: Record<string, { min: string; max?: string }>,
+  ): Domain {
+    return { code, label: `Rótulo ${code}`, position, regionalRanges: ranges };
+  }
+
+  const twoRegions: RegionalDimension = {
+    regions: [
+      { code: 'BASE', label: 'Base' },
+      { code: 'SP', label: 'São Paulo' },
+    ],
+  };
+
+  it('aceita RANGE regional com contiguidade ok em todas as regionais', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        regionalDomain('A', 0, { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '120' } }),
+        regionalDomain('B', 1, { BASE: { min: '100', max: '200' }, SP: { min: '120', max: '240' } }),
+      ],
+      twoRegions,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejeita buraco numa regional só — RANGE_REGIONAL_NOT_CONTIGUOUS aponta a regional certa', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        regionalDomain('A', 0, { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '120' } }),
+        // SP tem um buraco (120 -> 150), BASE continua contíguo (100 -> 100).
+        regionalDomain('B', 1, { BASE: { min: '100', max: '200' }, SP: { min: '150', max: '240' } }),
+      ],
+      twoRegions,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const issue = result.issues.find((i) => i.code === 'RANGE_REGIONAL_NOT_CONTIGUOUS');
+      expect(issue).toBeDefined();
+      expect(issue?.regionCode).toBe('SP');
+      expect(result.issues.some((i) => i.regionCode === 'BASE')).toBe(false);
+    }
+  });
+
+  it('rejeita sobreposição numa regional só', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        regionalDomain('A', 0, { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '150' } }),
+        // SP se sobrepõe (100 < 150), BASE continua contíguo.
+        regionalDomain('B', 1, { BASE: { min: '100', max: '200' }, SP: { min: '100', max: '240' } }),
+      ],
+      twoRegions,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const issue = result.issues.find((i) => i.code === 'RANGE_REGIONAL_NOT_CONTIGUOUS');
+      expect(issue?.regionCode).toBe('SP');
+    }
+  });
+
+  it('rejeita regions vazio', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        regionalDomain('A', 0, {}),
+        regionalDomain('B', 1, {}),
+      ],
+      { regions: [] },
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejeita code de regional duplicado — REGIONAL_CODE_DUPLICATE', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        regionalDomain('A', 0, { BASE: { min: '0', max: '100' } }),
+        regionalDomain('B', 1, { BASE: { min: '100', max: '200' } }),
+      ],
+      { regions: [{ code: 'BASE', label: 'Base 1' }, { code: 'BASE', label: 'Base 2' }] },
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.code === 'REGIONAL_CODE_DUPLICATE')).toBe(true);
+    }
+  });
+
+  it('rejeita domínio sem entrada para uma regional — RANGE_REGIONAL_INCOMPLETE', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        regionalDomain('A', 0, { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '100' } }),
+        // B não tem entrada para SP.
+        regionalDomain('B', 1, { BASE: { min: '100', max: '200' } }),
+      ],
+      twoRegions,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const issue = result.issues.find((i) => i.code === 'RANGE_REGIONAL_INCOMPLETE');
+      expect(issue).toBeDefined();
+      expect(issue?.domainCodes).toEqual(['B']);
+      expect(issue?.regionCode).toBe('SP');
+    }
   });
 });

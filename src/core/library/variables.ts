@@ -10,6 +10,7 @@ import { CODE_REGEX } from '../document/schema';
 import type {
   Domain,
   PolicyOpsDocument,
+  RegionalDimension,
   Variable,
   VariableType,
   VariableVersion,
@@ -111,9 +112,13 @@ function assertVariableDraft(version: VariableVersion): void {
   }
 }
 
-/** Reaproveita `validateDomains` (I8, I9, I18) e embrulha o primeiro problema numa `DomainError`. */
-function assertValidDomains(type: VariableType, domains: Domain[]): void {
-  const result = validateDomains(type, domains);
+/** Reaproveita `validateDomains` (I8, I9, I18, I19) e embrulha o primeiro problema numa `DomainError`. */
+function assertValidDomains(
+  type: VariableType,
+  domains: Domain[],
+  regionalDimension?: RegionalDimension,
+): void {
+  const result = validateDomains(type, domains, regionalDimension);
   if (!result.ok) {
     const [first, ...rest] = result.issues;
     throw new DomainError(first!.code, first!.message, { issues: [first, ...rest] });
@@ -334,6 +339,9 @@ export function createVariableDraft(
         createdBy: ctx.actor,
         domains: structuredClone(publishedVersion.domains),
       };
+      if (publishedVersion.regionalDimension !== undefined) {
+        draft.regionalDimension = structuredClone(publishedVersion.regionalDimension);
+      }
 
       return {
         document: applyToDocument(doc, [], (draftDoc) => {
@@ -413,9 +421,16 @@ export type SaveVariableDomainsInput = {
   variableId: string;
   versionId: string;
   domains: Domain[];
+  /** Ausente = variável não usa regional (docs/05 §5.6.1). */
+  regionalDimension?: RegionalDimension;
 };
 
-/** Substitui o conjunto inteiro de domínios; só em DRAFT, senão `VARIABLE_VERSION_IMMUTABLE` (I10). */
+/** Valor anterior de `regionalDimension`, no formato que o inverso precisa. */
+function previousRegionalDimension(version: VariableVersion): RegionalDimension | null {
+  return version.regionalDimension === undefined ? null : structuredClone(version.regionalDimension);
+}
+
+/** Substitui o conjunto inteiro de domínios (e a dimensão regional); só em DRAFT, senão `VARIABLE_VERSION_IMMUTABLE` (I10). */
 export function saveVariableDomains(
   input: SaveVariableDomainsInput,
 ): Command<SaveVariableDomainsInput, void> {
@@ -431,24 +446,30 @@ export function saveVariableDomains(
         input.versionId,
       );
       assertVariableDraft(version);
-      assertValidDomains(variable.type, input.domains);
+      assertValidDomains(variable.type, input.domains, input.regionalDimension);
 
       const previousDomains = structuredClone(version.domains);
+      const previousRegional = previousRegionalDimension(version);
       const nextDomains = structuredClone(input.domains);
+      const nextRegional = input.regionalDimension === undefined ? null : structuredClone(input.regionalDimension);
       return {
         document: applyToDocument(doc, [], (draft) => {
-          draft.variables[index]!.versions[versionIndex]!.domains = nextDomains;
+          const target = draft.variables[index]!.versions[versionIndex]!;
+          target.domains = nextDomains;
+          if (nextRegional === null) delete target.regionalDimension;
+          else target.regionalDimension = nextRegional;
         }),
         data: undefined,
         events: [],
-        // O inverso restaura os domínios exatos de antes, sem revalidar: um
-        // conjunto anterior pode ter sido salvo antes de outra regra existir,
-        // ou pode ser o `[]` inicial de um rascunho recém-criado, e desfazer
-        // nunca pode falhar por causa disso.
+        // O inverso restaura os domínios (e a dimensão regional) exatos de
+        // antes, sem revalidar: um conjunto anterior pode ter sido salvo antes
+        // de outra regra existir, ou pode ser o `[]` inicial de um rascunho
+        // recém-criado, e desfazer nunca pode falhar por causa disso.
         inverse: setVariableDomains({
           variableId: variable.id,
           versionId: version.id,
           domains: previousDomains,
+          regionalDimension: previousRegional,
         }),
       };
     },
@@ -456,8 +477,16 @@ export function saveVariableDomains(
 }
 
 function setVariableDomains(
-  input: { variableId: string; versionId: string; domains: Domain[] },
-): Command<{ variableId: string; versionId: string; domains: Domain[] }, void> {
+  input: {
+    variableId: string;
+    versionId: string;
+    domains: Domain[];
+    regionalDimension: RegionalDimension | null;
+  },
+): Command<
+  { variableId: string; versionId: string; domains: Domain[]; regionalDimension: RegionalDimension | null },
+  void
+> {
   return defineCommand({
     type: 'variable/_setDomains',
     input,
@@ -471,9 +500,13 @@ function setVariableDomains(
       );
       assertVariableDraft(version);
       const previousDomains = structuredClone(version.domains);
+      const previousRegional = previousRegionalDimension(version);
       return {
         document: applyToDocument(doc, [], (draft) => {
-          draft.variables[index]!.versions[versionIndex]!.domains = structuredClone(input.domains);
+          const target = draft.variables[index]!.versions[versionIndex]!;
+          target.domains = structuredClone(input.domains);
+          if (input.regionalDimension === null) delete target.regionalDimension;
+          else target.regionalDimension = structuredClone(input.regionalDimension);
         }),
         data: undefined,
         events: [],
@@ -481,6 +514,7 @@ function setVariableDomains(
           variableId: variable.id,
           versionId: version.id,
           domains: previousDomains,
+          regionalDimension: previousRegional,
         }),
       };
     },
@@ -514,7 +548,7 @@ export function publishVariable(
         input.versionId,
       );
       assertVariableDraft(version);
-      assertValidDomains(variable.type, version.domains);
+      assertValidDomains(variable.type, version.domains, version.regionalDimension);
 
       const current = variable.versions.find((candidate) => candidate.state === 'PUBLISHED');
       const currentIndex =
@@ -631,6 +665,93 @@ function setVariableArchived(
         data: undefined,
         events: [],
         inverse,
+      };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// variable/duplicate
+// ---------------------------------------------------------------------------
+
+export type DuplicateVariableInput = {
+  sourceVariableId: string;
+  sourceVersionId: string;
+  code: string;
+  name: string;
+  description?: string;
+};
+export type DuplicateVariableData = { variableId: string; versionId: string };
+
+/**
+ * "Criar a partir de existente" — docs/05-regras-de-negocio.md §5.6.3. Cria
+ * uma `Variable` nova (novo id, novo code) com o mesmo `type` da origem e uma
+ * v1 `DRAFT` cujos `domains` e `regionalDimension` são cópia integral da
+ * versão de origem. A origem não é tocada, e nada liga as duas depois — é
+ * ponto de partida, não vínculo. Sem evento próprio, mesmo padrão de
+ * `variable/create`.
+ */
+export function duplicateVariable(
+  input: DuplicateVariableInput,
+): Command<DuplicateVariableInput, DuplicateVariableData> {
+  return defineCommand({
+    type: 'variable/duplicate',
+    input,
+    label: `Criar "${input.code}" a partir de variável existente`,
+    execute(doc, ctx) {
+      const { variable: source } = locateVariable(doc, input.sourceVariableId);
+      const sourceVersion = source.versions.find((candidate) => candidate.id === input.sourceVersionId);
+      if (sourceVersion === undefined) {
+        throw new DomainError(
+          'NOT_FOUND',
+          'A versão de origem informada não pertence a essa variável.',
+          { variableId: source.id, versionId: input.sourceVersionId },
+        );
+      }
+
+      assertCode(input.code);
+      const name = assertText(input.name, 'O nome da variável');
+      if (doc.variables.some((candidate) => candidate.code === input.code)) {
+        throw new DomainError(
+          'DUPLICATE_CODE',
+          `Já existe uma variável com o código "${input.code}".`,
+          { code: input.code },
+        );
+      }
+
+      const now = isoFrom(ctx.now());
+      const variableId = ctx.newId();
+      const versionId = ctx.newId();
+      const version: VariableVersion = {
+        id: versionId,
+        number: 1,
+        state: 'DRAFT',
+        createdAt: now,
+        createdBy: ctx.actor,
+        domains: structuredClone(sourceVersion.domains),
+      };
+      if (sourceVersion.regionalDimension !== undefined) {
+        version.regionalDimension = structuredClone(sourceVersion.regionalDimension);
+      }
+      const variable: Variable = {
+        id: variableId,
+        code: input.code,
+        name,
+        type: source.type,
+        createdAt: now,
+        versions: [version],
+      };
+      if (input.description !== undefined) {
+        variable.description = assertText(input.description, 'A descrição da variável');
+      }
+
+      return {
+        document: applyToDocument(doc, [], (draft) => {
+          draft.variables.push(variable);
+        }),
+        data: { variableId, versionId },
+        events: [],
+        inverse: removeCreatedVariable({ variableId, code: input.code }),
       };
     },
   });

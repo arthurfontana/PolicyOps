@@ -15,6 +15,7 @@ import {
   pendingCoords,
   publishVersion,
 } from '@/core/versioning/lifecycle';
+import { createVariable, publishVariable, saveVariableDomains } from '@/core/library/variables';
 import { applyCellPatch } from '@/core/versioning/cells';
 import {
   apply,
@@ -952,6 +953,110 @@ describe('snapshot: evolução da biblioteca não altera matriz nenhuma (§5.1)'
     const clone = versionOf(novoRascunho.document, novoRascunho.data.versionId);
     expect(clone.axes.x.levels[0]!.variableVersionId).toBe(IDS.scoreV1);
     expect(clone.axes.x.tuples).toEqual(['R1', 'R2', 'R3']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Snapshot do eixo nunca carrega regionalRanges/regionalDimension (S18)
+// ---------------------------------------------------------------------------
+
+describe('snapshot do eixo exclui regionalRanges/regionalDimension (docs/03 §6.1)', () => {
+  const REGION_CODES = ['BASE', 'SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'PE'];
+
+  function buildRegionalDomains(count: number) {
+    return Array.from({ length: count }, (_unused, i) => ({
+      code: `R${i}`,
+      label: `Faixa ${i}`,
+      position: i,
+      regionalRanges: Object.fromEntries(
+        REGION_CODES.map((region) => [region, { min: String(i * 10), max: String((i + 1) * 10) }]),
+      ),
+    }));
+  }
+
+  function buildPlainDomains(count: number) {
+    return Array.from({ length: count }, (_unused, i) => ({
+      code: `R${i}`,
+      label: `Faixa ${i}`,
+      position: i,
+      rangeMin: String(i * 10),
+      rangeMax: String((i + 1) * 10),
+    }));
+  }
+
+  it('variável com 20 domínios × 9 regionais gera snapshot do mesmo tamanho que sem regional', () => {
+    const ctx = testCtx();
+    let doc = baseDocument();
+
+    const regional = apply(doc, ctx, createVariable({ code: 'HVI_REGIONAL', name: 'HVI regional', type: 'RANGE' }));
+    doc = apply(
+      regional.document,
+      ctx,
+      saveVariableDomains({
+        variableId: regional.data.variableId,
+        versionId: regional.data.versionId,
+        domains: buildRegionalDomains(20),
+        regionalDimension: { regions: REGION_CODES.map((code) => ({ code, label: code })) },
+      }),
+    ).document;
+    doc = apply(doc, ctx, publishVariable({ variableId: regional.data.variableId, versionId: regional.data.versionId }))
+      .document;
+
+    const plain = apply(doc, ctx, createVariable({ code: 'HVI_PLAIN', name: 'HVI simples', type: 'RANGE' }));
+    doc = apply(
+      plain.document,
+      ctx,
+      saveVariableDomains({
+        variableId: plain.data.variableId,
+        versionId: plain.data.versionId,
+        domains: buildPlainDomains(20),
+      }),
+    ).document;
+    doc = apply(doc, ctx, publishVariable({ variableId: plain.data.variableId, versionId: plain.data.versionId }))
+      .document;
+
+    const withRegional = apply(
+      doc,
+      ctx,
+      createMatrix({
+        projectId: IDS.projectA,
+        code: 'MTZ_REGIONAL',
+        name: 'Matriz regional',
+        x: { levels: [{ variableId: regional.data.variableId }] },
+        y: { levels: [{ variableId: IDS.restritivo }] },
+      }),
+    );
+    const withoutRegional = apply(
+      withRegional.document,
+      ctx,
+      createMatrix({
+        projectId: IDS.projectA,
+        code: 'MTZ_PLAIN',
+        name: 'Matriz simples',
+        x: { levels: [{ variableId: plain.data.variableId }] },
+        y: { levels: [{ variableId: IDS.restritivo }] },
+      }),
+    );
+
+    const regionalLevel = locateVersion(withoutRegional.document, withRegional.data.versionId).version.axes.x
+      .levels[0]!;
+    const plainLevel = locateVersion(withoutRegional.document, withoutRegional.data.versionId).version.axes.x
+      .levels[0]!;
+
+    // Mesmo tamanho de snapshot (20 domínios), independente de a variável de
+    // origem ter 1 ou 9 regionais — é o que garante que a matriz não carrega
+    // a dimensão regional.
+    expect(regionalLevel.domains).toHaveLength(plainLevel.domains.length);
+    expect(withRegional.data.combinations).toBe(withoutRegional.data.combinations);
+    expect(regionalLevel.domains.map((d) => d.code)).toEqual(plainLevel.domains.map((d) => d.code));
+
+    for (const domain of regionalLevel.domains) {
+      expect(domain).not.toHaveProperty('regionalRanges');
+      expect(Object.keys(domain).sort()).toEqual(['code', 'label', 'position'].sort());
+    }
+    expect(regionalLevel).not.toHaveProperty('regionalDimension');
+
+    expect(validateDocument(withoutRegional.document).ok).toBe(true);
   });
 });
 

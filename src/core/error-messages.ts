@@ -51,6 +51,13 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
   DOCUMENT_INVALID: 'O arquivo de dados está corrompido ou não é um documento válido do PolicyOps.',
   SAVE_CONFLICT:
     'Outra pessoa salvou este arquivo enquanto você editava. Revise as mudanças antes de salvar novamente.',
+  RANGE_REGIONAL_INCOMPLETE:
+    'Todo domínio desta variável precisa ter uma faixa definida para cada regional — há domínio(s) sem faixa em algum regional.',
+  RANGE_REGIONAL_NOT_CONTIGUOUS:
+    'As faixas desta variável precisam ser contíguas, ordenadas e ter no máximo uma "demais casos" — dentro de cada regional, independentemente.',
+  REGIONAL_CODE_DUPLICATE: 'Há regionais com o mesmo código — cada regional precisa de um código único nesta versão.',
+  REGIONAL_IMPORT_PARSE_ERROR:
+    'Não foi possível interpretar a tabela colada — confira o cabeçalho de regionais e o número de colunas.',
 };
 
 export function getErrorMessage(code: DomainErrorCode): string {

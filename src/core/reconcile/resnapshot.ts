@@ -1,3 +1,4 @@
+import { snapshotDomains } from '../axes/domain-snapshot';
 import { decodeCellKey, decodePath } from '../axes/paths';
 import {
   assertGridFits,
@@ -246,7 +247,8 @@ function resolveLevel(doc: PolicyOpsDocument, axis: Axis, index: number): Resolv
     level: {
       ...level,
       variableVersionId: target.id,
-      domains: structuredClone(target.domains),
+      // Só identidade — nunca `regionalRanges` (docs/03 §6.1).
+      domains: snapshotDomains(target.domains),
     },
     change: {
       index,
