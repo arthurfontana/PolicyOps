@@ -6,6 +6,7 @@ import {
   FilePlus2,
   GitCompare,
   History,
+  LayoutTemplate,
   Minus,
   Plus,
   Redo2,
@@ -37,6 +38,7 @@ import {
 } from '@/core/queries';
 import { CELL_FIELDS, applyCellPatch } from '@/core/versioning/cells';
 import { createDraft, pendingCoords } from '@/core/versioning/lifecycle';
+import { extractTemplateSeed } from '@/core/templates/extract';
 import { useGridSelection } from '@/hooks/useGridSelection';
 import { formatDateBR } from '@/lib/format';
 import { versionBadge } from '@/lib/matrix-badges';
@@ -73,6 +75,7 @@ export function MatrixScreen() {
   const selectSingle = useEditorStore((s) => s.selectSingle);
   const selectCoords = useEditorStore((s) => s.selectCoords);
   const setCompareVersions = useEditorStore((s) => s.setCompareVersions);
+  const requestTemplateFromMatrix = useEditorStore((s) => s.requestTemplateFromMatrix);
 
   const dispatch = useDocumentStore((s) => s.dispatch);
   const undo = useDocumentStore((s) => s.undo);
@@ -267,6 +270,11 @@ export function MatrixScreen() {
     selectCoords(pendingCoords(version));
   }
 
+  function handleCreateTemplateFromMatrix() {
+    requestTemplateFromMatrix(extractTemplateSeed(version));
+    setView('templates');
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 p-2 dark:border-neutral-800">
@@ -371,6 +379,9 @@ export function MatrixScreen() {
           </Button>
           <Button type="button" variant="ghost" size="sm" onClick={() => setNoteOpen(true)}>
             <StickyNote className="mr-1.5 h-3.5 w-3.5" /> Adicionar nota
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={handleCreateTemplateFromMatrix}>
+            <LayoutTemplate className="mr-1.5 h-3.5 w-3.5" /> Criar template a partir desta matriz
           </Button>
         </div>
 

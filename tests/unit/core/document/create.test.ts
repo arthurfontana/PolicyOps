@@ -3,6 +3,7 @@ import { countPending } from '@/core/axes/combinations';
 import { collectPublishedCompatibility, generateTuples } from '@/core/axes/tuples';
 import { createEmptyDocument, createSampleDocument } from '@/core/document/create';
 import { validateDocument } from '@/core/document/validate';
+import { previewTemplate } from '@/core/templates/preview';
 
 describe('createEmptyDocument', () => {
   it('cria um documento vazio e válido', () => {
@@ -98,5 +99,38 @@ describe('createSampleDocument', () => {
         expect(countPending(version)).toBe(0);
       }
     }
+  });
+
+  it('contém os 2 templates do exemplo, "Matriz padrão PF" e "Limite PJ segmentado"', () => {
+    const doc = createSampleDocument();
+    expect(doc.templates).toHaveLength(2);
+    expect(doc.templates.map((t) => t.code).sort()).toEqual(['TPL_PF_PADRAO', 'TPL_PJ_SEGMENTADO']);
+  });
+
+  it('"Matriz padrão PF" tem defaults e seedRules com a última vencendo em R1×ALTO', () => {
+    const doc = createSampleDocument();
+    const template = doc.templates.find((t) => t.code === 'TPL_PF_PADRAO')!;
+    const preview = previewTemplate(doc, template.id);
+    expect(preview.combinations).toBe(24);
+    expect(preview.pendingCount).toBe(0);
+    expect(preview.skippedRules).toEqual([]);
+    expect(preview.cells['R1::SEM']!.decision).toBe('APROVADO');
+    expect(preview.cells['R1::ALTO']!.decision).toBe('ANALISE_MANUAL');
+    expect(preview.cells['R2::ALTO']!.decision).toBe('REPROVADO');
+  });
+
+  it('"Limite PJ segmentado" tem eixo Y aninhado e regras por segmento, a última (por score) vencendo', () => {
+    const doc = createSampleDocument();
+    const template = doc.templates.find((t) => t.code === 'TPL_PJ_SEGMENTADO')!;
+    const preview = previewTemplate(doc, template.id);
+    expect(preview.y.tuples).toHaveLength(8);
+    expect(preview.combinations).toBe(48);
+    expect(preview.pendingCount).toBe(0);
+    expect(preview.skippedRules).toEqual([]);
+    expect(preview.cells['R2::CORPORATE|1M_10M']!.decision).toBe('APROVADO');
+    expect(preview.cells['R2::VAREJO|ATE_100K']!.decision).toBe('ANALISE_MANUAL');
+    // R6 é sempre reprovado, mesmo em Corporate — a regra por score vence por
+    // vir depois das regras por segmento.
+    expect(preview.cells['R6::CORPORATE|1M_10M']!.decision).toBe('REPROVADO');
   });
 });

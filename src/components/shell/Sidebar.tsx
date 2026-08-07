@@ -30,7 +30,7 @@ const LIBRARY_ITEMS: NavItem[] = [
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [
-  { view: 'templates', label: 'Templates', icon: LayoutTemplate },
+  { view: 'templates', label: 'Templates', icon: LayoutTemplate, implemented: true },
   { view: 'timeline', label: 'Vigência', icon: CalendarClock, implemented: true },
   { view: 'drafts', label: 'Rascunhos', icon: PencilLine, implemented: true },
 ];

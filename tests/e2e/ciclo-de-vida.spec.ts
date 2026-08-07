@@ -121,6 +121,7 @@ test('caminho de erro: matriz nova com tudo pendente → publicar dá barra dedi
 
   await page.getByRole('button', { name: 'Nova matriz' }).click();
   const createDialog = page.getByRole('dialog');
+  await createDialog.getByRole('button', { name: 'Começar do zero' }).click();
   await createDialog.getByLabel('Nome').fill('Matriz de Teste de Pendências');
   await createDialog.getByRole('button', { name: 'Avançar' }).click();
 
