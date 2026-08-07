@@ -262,27 +262,6 @@ export function getStaleAxes(doc: PolicyOpsDocument): StaleAxisEntry[] {
   return entries;
 }
 
-/**
- * Contagem simples de células alteradas entre um rascunho e a versão de
- * referência (a vigente, tipicamente) — docs/prompts/S13-ciclo-de-vida.md
- * item 2: "contagem simples por ora; a S14 substitui pelo resumo semântico".
- * Célula adicionada, removida ou com qualquer campo diferente conta uma vez.
- */
-export function countChangedCells(
-  draft: MatrixVersion,
-  reference: MatrixVersion | null,
-): number {
-  if (reference === null) return Object.keys(draft.cells).length;
-  const keys = new Set([...Object.keys(draft.cells), ...Object.keys(reference.cells)]);
-  let changed = 0;
-  for (const key of keys) {
-    const before = reference.cells[key];
-    const after = draft.cells[key];
-    if (JSON.stringify(before) !== JSON.stringify(after)) changed += 1;
-  }
-  return changed;
-}
-
 /** A versão `PUBLISHED` vigente da matriz, se houver — I2 garante no máximo uma. */
 export function getPublishedVersion(matrix: Matrix): MatrixVersion | null {
   return matrix.versions.find((version) => version.state === 'PUBLISHED') ?? null;
@@ -306,6 +285,28 @@ export function getPrecedingVersion(matrix: Matrix, version: MatrixVersion): Mat
       (candidate) => candidate.state === 'SUPERSEDED' && candidate.effectiveTo === version.effectiveFrom,
     ) ?? null
   );
+}
+
+/**
+ * O par pré-selecionado da tela de comparação (docs/07 §9), quando ninguém
+ * escolheu ainda: o rascunho contra a vigente da primeira matriz que tiver as
+ * duas — o caso de uso central — ou, na falta disso, as duas versões mais
+ * recentes de alguma matriz. `null` quando o documento não tem dois pontos de
+ * comparação. `aId` é sempre a base.
+ */
+export function defaultComparePair(
+  doc: PolicyOpsDocument,
+): { aId: string; bId: string } | null {
+  for (const matrix of doc.matrices) {
+    const draft = getOpenDraft(matrix);
+    const published = getPublishedVersion(matrix);
+    if (draft !== null && published !== null) return { aId: published.id, bId: draft.id };
+  }
+  for (const matrix of doc.matrices) {
+    const byNumber = [...matrix.versions].sort((a, b) => b.number - a.number);
+    if (byNumber.length >= 2) return { aId: byNumber[1]!.id, bId: byNumber[0]!.id };
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------

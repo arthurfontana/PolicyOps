@@ -93,11 +93,19 @@ interface EditorState {
   zoom: number;
 
   /**
-   * As duas versões escolhidas para comparação — os links "Comparar" desta
-   * sessão (S13) só preenchem isso e navegam para `compare`; a tela em si é
-   * da S14 (docs/07-ux-e-editor.md §9, rota `compare?a=&b=`).
+   * As duas versões escolhidas para comparação — os links "Comparar" (S13)
+   * preenchem isso e navegam para `compare` (docs/07-ux-e-editor.md §9).
+   * `aId` é sempre a base (a mais antiga): quem chama passa por
+   * `orderForCompare`.
    */
   compareVersionIds: { aId: string; bId: string } | null;
+
+  /**
+   * Célula aberta no inspector da tela de comparação. Fica aqui, e não dentro
+   * da tela, porque quem a renderiza é o inspector do shell — o mesmo painel
+   * que mostra a célula selecionada no editor (docs/07 §6).
+   */
+  compareSelectedKey: string | null;
 
   /**
    * `false` em versão publicada, superada ou descartada. A **seleção continua
@@ -117,6 +125,7 @@ interface EditorState {
   setVersion: (versionId: string) => void;
   closeMatrix: () => void;
   setCompareVersions: (aId: string, bId: string) => void;
+  setCompareSelectedKey: (key: string | null) => void;
   setEditable: (isEditable: boolean) => void;
   setZoom: (zoom: number) => void;
   zoomIn: () => void;
@@ -147,6 +156,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   currentVersionId: null,
   zoom: 1,
   compareVersionIds: null,
+  compareSelectedKey: null,
   isEditable: false,
   selection: new Set<string>(),
   anchor: null,
@@ -165,7 +175,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   closeMatrix: () => set({ currentMatrixId: null, currentVersionId: null, ...emptySelection() }),
 
-  setCompareVersions: (aId, bId) => set({ compareVersionIds: { aId, bId } }),
+  // Trocar o par comparado invalida a célula aberta: a chave pode nem
+  // existir no novo grid.
+  setCompareVersions: (aId, bId) => set({ compareVersionIds: { aId, bId }, compareSelectedKey: null }),
+
+  setCompareSelectedKey: (key) => set({ compareSelectedKey: key }),
 
   setEditable: (isEditable) => set({ isEditable }),
 
@@ -184,6 +198,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       currentVersionId: null,
       zoom: 1,
       compareVersionIds: null,
+      compareSelectedKey: null,
       isEditable: false,
       ...emptySelection(),
     }),

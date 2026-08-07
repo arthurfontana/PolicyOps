@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { getErrorMessage } from '@/core/error-messages';
-import { countChangedCells } from '@/core/queries';
+import { diffVersions, type VersionDiff } from '@/core/diff';
 import { MIN_NOTES_LENGTH, publishVersion } from '@/core/versioning/lifecycle';
 import type { Matrix, MatrixVersion } from '@/core/document/schema';
 import { useDocumentStore } from '@/store/document-store';
@@ -33,6 +33,16 @@ export interface PublishVersionDialogProps {
    * dedicada. Este diálogo só entrega as coordenadas.
    */
   onUnsetCellsRemain: (coords: Array<{ xPath: string; yPath: string }>) => void;
+}
+
+/** A frase de abertura do diálogo, em linguagem de negócio (docs/05 §4.3). */
+function describeDiff(diff: VersionDiff | null): string {
+  if (diff === null) return 'primeira publicação desta matriz, sem versão anterior para comparar.';
+  if (!diff.comparable) {
+    return 'a estrutura dos eixos mudou em relação à vigente, e as duas versões não são comparáveis célula a célula.';
+  }
+  if (diff.summaryText.length === 0) return 'nenhuma alteração em relação à vigente.';
+  return `em relação à versão ${diff.a.number}:`;
 }
 
 /** `YYYY-MM-DD` local, para o `min` do seletor de data e o valor inicial. */
@@ -63,6 +73,7 @@ export function PublishVersionDialog({
   onPublished,
   onUnsetCellsRemain,
 }: PublishVersionDialogProps) {
+  const document = useDocumentStore((s) => s.document);
   const dispatch = useDocumentStore((s) => s.dispatch);
   const { toast } = useToast();
 
@@ -80,9 +91,17 @@ export function PublishVersionDialog({
     setConfirmNumber('');
   }, [open, minScheduledDate]);
 
-  const changedCells = useMemo(
-    () => countChangedCells(version, publishedVersion),
-    [version, publishedVersion],
+  /**
+   * O resumo semântico contra a vigente — docs/05 §4.3. É o mesmo motor da
+   * tela de comparação, e é exatamente o que vai para o payload do evento
+   * `VERSION_PUBLISHED` na hora de publicar.
+   */
+  const diff = useMemo(
+    () =>
+      document === null || publishedVersion === null
+        ? null
+        : diffVersions(document, publishedVersion.id, version.id),
+    [document, publishedVersion, version.id],
   );
 
   const notesValid = notes.trim().length >= MIN_NOTES_LENGTH;
@@ -128,11 +147,25 @@ export function PublishVersionDialog({
         <DialogHeader>
           <DialogTitle>Publicar a versão {version.number}</DialogTitle>
           <DialogDescription>
-            "{matrix.name}" — {changedCells === 0
-              ? 'nenhuma célula alterada em relação à vigente.'
-              : `${changedCells} célula${changedCells === 1 ? '' : 's'} alterada${changedCells === 1 ? '' : 's'} em relação à vigente.`}
+            "{matrix.name}" — {describeDiff(diff)}
           </DialogDescription>
         </DialogHeader>
+
+        {diff !== null && diff.comparable && diff.summaryText.length > 0 && (
+          <ul
+            data-testid="publish-diff-summary"
+            className="flex flex-wrap gap-1.5 text-xs text-neutral-700 dark:text-neutral-300"
+          >
+            {diff.summaryText.map((phrase) => (
+              <li
+                key={phrase}
+                className="rounded-full bg-neutral-100 px-2.5 py-0.5 dark:bg-neutral-800"
+              >
+                {phrase}
+              </li>
+            ))}
+          </ul>
+        )}
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">

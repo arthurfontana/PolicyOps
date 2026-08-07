@@ -3,6 +3,7 @@ import { decodePath } from '@/core/axes/paths';
 import { coordIndex, toKey, type Coord, type Direction } from '@/core/axes/selection';
 import type { HeaderRow } from '@/core/axes/header-layout';
 import type { AxisRole } from '@/core/document/schema';
+import type { CellChangeKind } from '@/core/diff/types';
 import type { EditorAxisView, EditorView } from '@/core/queries';
 import {
   cellRingShadow,
@@ -34,8 +35,13 @@ export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 2;
 const BASE_CELL_WIDTH = 88;
 const BASE_CELL_HEIGHT = 56;
-const HEADER_ROW_HEIGHT = 32;
-const Y_HEADER_COL_WIDTH = 120;
+/**
+ * Altura da faixa de cabeçalho de X e largura da coluna de cabeçalho de Y.
+ * Exportadas porque a tela de comparação precisa delas para alinhar a rolagem
+ * de dois grids com **números de níveis diferentes** (S14, modo lado a lado).
+ */
+export const HEADER_ROW_HEIGHT = 32;
+export const Y_HEADER_COL_WIDTH = 120;
 
 /** Modificadores do gesto, já normalizados (`Cmd` no macOS é `Ctrl` aqui). */
 export interface GridModifiers {
@@ -75,6 +81,33 @@ export interface GridSelectionApi {
   clearCells?: () => void;
 }
 
+/**
+ * Sobreposição de diff — docs/07-ux-e-editor.md §9, S14.
+ *
+ * É o que evita duplicar o grid para a tela de comparação: o mesmo componente
+ * ganha marca diagonal, badge do tipo e esmaecimento das inalteradas, e
+ * continua sendo o grid da S09 em tudo o mais.
+ */
+export interface GridDiffOverlay {
+  /** Tipo de mudança por chave de célula (`xPath::yPath`). */
+  marks: ReadonlyMap<string, CellChangeKind>;
+  /** Célula aberta no inspector — recebe o anel de foco. */
+  selectedKey?: string | null;
+  /**
+   * Clique numa célula **alterada**: mostra antes → depois. Só as marcadas
+   * ficam clicáveis e recebem parada de tabulação — 1.500 paradas de tab num
+   * grid de leitura seriam ruído puro.
+   */
+  onSelectKey?: (key: string) => void;
+  /** Esconde o conteúdo das células inalteradas ("mostrar apenas alteradas"). */
+  onlyChanged?: boolean;
+  /** Chave sob o ponteiro, compartilhada entre os dois grids do lado a lado. */
+  hoverKey?: string | null;
+  onHoverKey?: (key: string | null) => void;
+  /** Recebe o contêiner de rolagem, para a sincronização do modo lado a lado. */
+  registerScrollElement?: (element: HTMLDivElement | null) => void;
+}
+
 export interface GridProps {
   view: EditorView;
   zoom: number;
@@ -88,6 +121,10 @@ export interface GridProps {
    * seleção nem foco.
    */
   highlightPending?: boolean;
+  /** Marca as células alteradas entre duas versões (S14). */
+  diffOverlay?: GridDiffOverlay;
+  /** Esconde o rodapé de legenda e contadores — a tela de comparação tem os seus. */
+  hideFooter?: boolean;
 }
 
 function clampZoom(zoom: number): number {
@@ -164,7 +201,30 @@ interface GridCellProps {
   interactive: boolean;
   onPress?: (coord: Coord, modifiers: GridModifiers) => void;
   onHover?: (coord: Coord) => void;
+  /** --- Sobreposição de diff (S14) --- */
+  diffKind?: CellChangeKind;
+  /** Célula inalterada num diff: 40% de opacidade (docs/07 §9). */
+  diffDimmed?: boolean;
+  /** "Mostrar apenas alteradas": a inalterada perde o conteúdo, não a posição. */
+  diffBlank?: boolean;
+  diffSelected?: boolean;
+  diffHovered?: boolean;
+  onDiffSelect?: (key: string) => void;
+  onDiffHover?: (key: string | null) => void;
 }
+
+/** Letra do badge do tipo de mudança — cor nunca é o único portador (docs/05 §3). */
+const DIFF_BADGE: Record<CellChangeKind, string> = {
+  ADDED: '+',
+  REMOVED: '−',
+  MODIFIED: '~',
+};
+
+const DIFF_CELL_CLASS: Record<CellChangeKind, string> = {
+  ADDED: 'policy-diff-added',
+  REMOVED: 'policy-diff-removed',
+  MODIFIED: 'policy-diff-modified',
+};
 
 function GridCellImpl(props: GridCellProps) {
   const {
@@ -191,6 +251,13 @@ function GridCellImpl(props: GridCellProps) {
     interactive,
     onPress,
     onHover,
+    diffKind,
+    diffDimmed = false,
+    diffBlank = false,
+    diffSelected = false,
+    diffHovered = false,
+    onDiffSelect,
+    onDiffHover,
   } = props;
 
   const handleMouseDown = useCallback(
@@ -208,37 +275,74 @@ function GridCellImpl(props: GridCellProps) {
 
   const handleMouseEnter = useCallback(() => {
     onHover?.({ xPath, yPath });
-  }, [onHover, xPath, yPath]);
+    onDiffHover?.(cellKey);
+  }, [onHover, onDiffHover, cellKey, xPath, yPath]);
+
+  const handleDiffClick = useCallback(() => {
+    onDiffSelect?.(cellKey);
+  }, [onDiffSelect, cellKey]);
+
+  const handleDiffKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (onDiffSelect === undefined || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      onDiffSelect(cellKey);
+    },
+    [onDiffSelect, cellKey],
+  );
+
+  const diffClickable = onDiffSelect !== undefined;
+  const showContent = !diffBlank;
 
   return (
     <div
       role="gridcell"
       data-cell-key={cellKey}
-      aria-selected={interactive ? selected : undefined}
-      tabIndex={interactive ? (isFocused || isTabStop ? 0 : -1) : undefined}
+      data-diff={diffKind}
+      aria-selected={interactive ? selected : diffClickable ? diffSelected : undefined}
+      tabIndex={interactive ? (isFocused || isTabStop ? 0 : -1) : diffClickable ? 0 : undefined}
       title={title}
       onMouseDown={interactive ? handleMouseDown : undefined}
-      onMouseEnter={interactive ? handleMouseEnter : undefined}
+      onMouseEnter={interactive || onDiffHover !== undefined ? handleMouseEnter : undefined}
+      onClick={diffClickable ? handleDiffClick : undefined}
+      onKeyDown={diffClickable ? handleDiffKeyDown : undefined}
       style={{
         gridColumn: column,
         gridRow: row,
         backgroundColor: background,
         color,
         boxShadow: cellRingShadow({ selected, isAnchor }),
-        outline: isFocused ? `2px solid ${FOCUS_RING_COLOR}` : undefined,
-        outlineOffset: isFocused ? '-4px' : undefined,
-        zIndex: selected || isFocused ? 5 : undefined,
+        outline: isFocused
+          ? `2px solid ${FOCUS_RING_COLOR}`
+          : diffSelected
+            ? `2px solid ${FOCUS_RING_COLOR}`
+            : diffHovered
+              ? `2px solid ${SELECTION_COLOR}`
+              : undefined,
+        outlineOffset: isFocused || diffSelected || diffHovered ? '-4px' : undefined,
+        opacity: diffDimmed ? 0.4 : undefined,
+        zIndex: selected || isFocused || diffSelected ? 5 : undefined,
       }}
-      className={`relative flex min-w-0 flex-col justify-center gap-0.5 overflow-hidden border-b border-r border-neutral-200 px-1.5 py-1 text-[11px] leading-tight dark:border-neutral-800 ${isXBoundary ? 'border-r-2 border-r-neutral-400 dark:border-r-neutral-600' : ''} ${isYBoundary ? 'border-b-2 border-b-neutral-400 dark:border-b-neutral-600' : ''} ${pending ? 'policy-grid-pending' : ''} ${pending && pulsePending ? 'policy-grid-pending-pulse' : ''}`}
+      className={`relative flex min-w-0 flex-col justify-center gap-0.5 overflow-hidden border-b border-r border-neutral-200 px-1.5 py-1 text-[11px] leading-tight dark:border-neutral-800 ${isXBoundary ? 'border-r-2 border-r-neutral-400 dark:border-r-neutral-600' : ''} ${isYBoundary ? 'border-b-2 border-b-neutral-400 dark:border-b-neutral-600' : ''} ${pending ? 'policy-grid-pending' : ''} ${pending && pulsePending ? 'policy-grid-pending-pulse' : ''} ${diffKind !== undefined ? DIFF_CELL_CLASS[diffKind] : ''} ${diffClickable ? 'cursor-pointer' : ''}`}
     >
-      {decisionLabel !== undefined && <span className="truncate font-semibold">{decisionLabel}</span>}
-      {offerLabel !== undefined && <span className="truncate">{offerLabel}</span>}
-      {limitDisplay !== undefined && <span className="truncate">{limitDisplay}</span>}
-      {hasNote && (
+      {showContent && decisionLabel !== undefined && (
+        <span className="truncate font-semibold">{decisionLabel}</span>
+      )}
+      {showContent && offerLabel !== undefined && <span className="truncate">{offerLabel}</span>}
+      {showContent && limitDisplay !== undefined && <span className="truncate">{limitDisplay}</span>}
+      {showContent && hasNote && (
         <span
           aria-hidden
           className="absolute right-0 top-0 h-0 w-0 border-b-[8px] border-l-[8px] border-b-transparent border-l-neutral-900/60 dark:border-l-white/60"
         />
+      )}
+      {diffKind !== undefined && (
+        <span
+          data-testid="diff-badge"
+          className="absolute left-0 top-0 flex h-3.5 w-3.5 items-center justify-center rounded-br-sm bg-neutral-900/80 text-[9px] font-bold leading-none text-white dark:bg-white/85 dark:text-neutral-900"
+        >
+          {DIFF_BADGE[diffKind]}
+        </span>
       )}
     </div>
   );
@@ -272,7 +376,14 @@ const GridCell = memo(GridCellImpl, (prev, next) => {
     prev.isYBoundary === next.isYBoundary &&
     prev.title === next.title &&
     prev.onPress === next.onPress &&
-    prev.onHover === next.onHover
+    prev.onHover === next.onHover &&
+    prev.diffKind === next.diffKind &&
+    prev.diffDimmed === next.diffDimmed &&
+    prev.diffBlank === next.diffBlank &&
+    prev.diffSelected === next.diffSelected &&
+    prev.diffHovered === next.diffHovered &&
+    prev.onDiffSelect === next.onDiffSelect &&
+    prev.onDiffHover === next.onDiffHover
   );
 });
 
@@ -280,10 +391,39 @@ const GridCell = memo(GridCellImpl, (prev, next) => {
 // Grid
 // ---------------------------------------------------------------------------
 
-export function Grid({ view, zoom, onZoomChange, selection: api, highlightPending = false }: GridProps) {
+export function Grid({
+  view,
+  zoom,
+  onZoomChange,
+  selection: api,
+  highlightPending = false,
+  diffOverlay,
+  hideFooter = false,
+}: GridProps) {
   const { x, y, cells, catalog, stats } = view;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+
+  // Os handlers do diff precisam de identidade estável pelo mesmo motivo dos
+  // de seleção: senão o `React.memo` vê "props mudaram" a cada quadro.
+  const overlayRef = useRef(diffOverlay);
+  overlayRef.current = diffOverlay;
+  const registerScroll = diffOverlay?.registerScrollElement;
+
+  const selectDiffKey = useCallback((key: string) => {
+    overlayRef.current?.onSelectKey?.(key);
+  }, []);
+  const hoverDiffKey = useCallback((key: string | null) => {
+    overlayRef.current?.onHoverKey?.(key);
+  }, []);
+  const onDiffSelect = diffOverlay?.onSelectKey === undefined ? undefined : selectDiffKey;
+  const onDiffHover = diffOverlay?.onHoverKey === undefined ? undefined : hoverDiffKey;
+
+  useEffect(() => {
+    if (registerScroll === undefined) return;
+    registerScroll(scrollRef.current);
+    return () => registerScroll(null);
+  }, [registerScroll]);
 
   const interactive = api !== undefined;
   const cellWidth = BASE_CELL_WIDTH * zoom;
@@ -572,6 +712,7 @@ export function Grid({ view, zoom, onZoomChange, selection: api, highlightPendin
       <div
         ref={scrollRef}
         onWheel={handleWheel}
+        onMouseLeave={onDiffHover === undefined ? undefined : () => onDiffHover(null)}
         className="min-h-0 flex-1 overflow-auto"
         data-testid="policy-grid-scroll"
       >
@@ -716,6 +857,8 @@ export function Grid({ view, zoom, onZoomChange, selection: api, highlightPendin
               const selected = interactive && isSelectedAt(xIndex, yIndex, key);
               const anchor = api?.anchor ?? null;
               const isAnchor = anchor !== null && anchor.xPath === xPath && anchor.yPath === yPath;
+              const diffKind = diffOverlay?.marks.get(key);
+              const diffUnchanged = diffOverlay !== undefined && diffKind === undefined;
 
               return (
                 <GridCell
@@ -743,6 +886,13 @@ export function Grid({ view, zoom, onZoomChange, selection: api, highlightPendin
                   interactive={interactive}
                   {...(onPressCell !== undefined ? { onPress: onPressCell } : {})}
                   {...(onHoverCell !== undefined ? { onHover: onHoverCell } : {})}
+                  {...(diffKind !== undefined ? { diffKind } : {})}
+                  diffDimmed={diffUnchanged}
+                  diffBlank={diffUnchanged && diffOverlay?.onlyChanged === true}
+                  diffSelected={diffOverlay?.selectedKey === key}
+                  diffHovered={diffOverlay?.hoverKey === key}
+                  {...(onDiffSelect !== undefined && diffKind !== undefined ? { onDiffSelect } : {})}
+                  {...(onDiffHover !== undefined ? { onDiffHover } : {})}
                 />
               );
             }),
@@ -766,34 +916,36 @@ export function Grid({ view, zoom, onZoomChange, selection: api, highlightPendin
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-        <div className="flex flex-wrap items-center gap-2">
-          {legendItems.map((item) => (
-            <span key={item.code} className="flex items-center gap-1">
-              <span
-                aria-hidden
-                className="h-2.5 w-2.5 rounded-sm border border-black/10"
-                style={{ backgroundColor: item.color ?? '#E5E7EB' }}
-              />
-              {item.label}
+      {!hideFooter && (
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-neutral-200 px-3 py-1.5 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+          <div className="flex flex-wrap items-center gap-2">
+            {legendItems.map((item) => (
+              <span key={item.code} className="flex items-center gap-1">
+                <span
+                  aria-hidden
+                  className="h-2.5 w-2.5 rounded-sm border border-black/10"
+                  style={{ backgroundColor: item.color ?? '#E5E7EB' }}
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Contador flutuante + anúncio polido da seleção (§5). */}
+            <span
+              role="status"
+              aria-live="polite"
+              data-testid="selection-counter"
+              className="font-medium text-neutral-700 dark:text-neutral-200"
+            >
+              {selectionLabel}
             </span>
-          ))}
+            <span data-testid="grid-counters">
+              {stats.combinations} combinações · {stats.filledCells} preenchidas · {stats.pendingCells} pendentes
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Contador flutuante + anúncio polido da seleção (§5). */}
-          <span
-            role="status"
-            aria-live="polite"
-            data-testid="selection-counter"
-            className="font-medium text-neutral-700 dark:text-neutral-200"
-          >
-            {selectionLabel}
-          </span>
-          <span data-testid="grid-counters">
-            {stats.combinations} combinações · {stats.filledCells} preenchidas · {stats.pendingCells} pendentes
-          </span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

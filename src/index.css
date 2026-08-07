@@ -58,3 +58,44 @@ html.dark .policy-grid-pending {
 .policy-grid-pending-pulse {
   animation: policy-grid-pending-pulse 1s ease-in-out 3;
 }
+
+/* Marcas de diff da tela de comparação (docs/07-ux-e-editor.md §9): hachura
+   diagonal sobre a cor resolvida da célula, mais um anel colorido por tipo.
+   A cor nunca é o único portador — o badge com "+", "−" ou "~" fica no canto
+   e a legenda repete os nomes por extenso. */
+.policy-diff-added,
+.policy-diff-removed,
+.policy-diff-modified {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgb(0 0 0 / 0.14),
+    rgb(0 0 0 / 0.14) 3px,
+    transparent 3px,
+    transparent 9px
+  );
+}
+html.dark .policy-diff-added,
+html.dark .policy-diff-removed,
+html.dark .policy-diff-modified {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgb(255 255 255 / 0.18),
+    rgb(255 255 255 / 0.18) 3px,
+    transparent 3px,
+    transparent 9px
+  );
+}
+
+/* Adicionada: azul. Removida: vermelho tracejado. Modificada: âmbar. */
+.policy-diff-added {
+  box-shadow: inset 0 0 0 2px #2563eb;
+}
+.policy-diff-modified {
+  box-shadow: inset 0 0 0 2px #d97706;
+}
+.policy-diff-removed {
+  box-shadow: inset 0 0 0 2px #dc2626;
+  /* O tracejado da removida vem de uma borda desenhada por cima do fundo. */
+  outline: 2px dashed #dc2626;
+  outline-offset: -2px;
+}

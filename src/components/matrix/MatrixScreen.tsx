@@ -25,6 +25,7 @@ import { DiscardDraftDialog } from '@/components/dialogs/DiscardDraftDialog';
 import { PublishVersionDialog } from '@/components/dialogs/PublishVersionDialog';
 import { VersionHistoryDialog } from '@/components/dialogs/VersionHistoryDialog';
 import { decodeCellKey, encodeCellKey } from '@/core/axes/paths';
+import { orderForCompare } from '@/core/diff';
 import { Grid, MAX_ZOOM, MIN_ZOOM, type GridSelectionApi } from '@/components/grid/Grid';
 import { getErrorMessage } from '@/core/error-messages';
 import {
@@ -231,8 +232,14 @@ export function MatrixScreen() {
     setVersion((result.data as { versionId: string }).versionId);
   }
 
+  /**
+   * A tela mostra sempre a mais antiga à esquerda (docs/07 §9), então o par é
+   * ordenado aqui — os botões passam "a outra ponta" e a versão atual sem se
+   * preocupar com qual das duas é a base.
+   */
   function handleCompare(versionAId: string, versionBId: string) {
-    setCompareVersions(versionAId, versionBId);
+    const ordered = orderForCompare(document!, versionAId, versionBId);
+    setCompareVersions(ordered.aId, ordered.bId);
     setView('compare');
   }
 

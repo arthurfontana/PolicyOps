@@ -11,6 +11,7 @@ import { CompatibilityScreen } from '@/components/library/CompatibilityScreen';
 import { CatalogScreen } from '@/components/library/CatalogScreen';
 import { ProjectsScreen } from '@/components/projects/ProjectsScreen';
 import { MatrixScreen } from '@/components/matrix/MatrixScreen';
+import { CompareScreen } from '@/components/compare/CompareScreen';
 import { DraftsScreen } from '@/components/drafts/DraftsScreen';
 import { IdentityDialog } from '@/components/dialogs/IdentityDialog';
 import { ConflictDialog } from '@/components/dialogs/ConflictDialog';
@@ -54,6 +55,7 @@ function CurrentView() {
   if (view === 'projects') return <ProjectsScreen />;
   if (view === 'matrix') return <MatrixScreen />;
   if (view === 'drafts') return <DraftsScreen />;
+  if (view === 'compare') return <CompareScreen />;
   return <UnderConstruction view={view} />;
 }
 

@@ -73,8 +73,10 @@ async function createEditAndPublishDraft(page: Page): Promise<void> {
 
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  // O resumo do diálogo prova que a edição das 3 células foi registrada.
-  await expect(dialog.getByText('3 células alteradas em relação à vigente.')).toBeVisible();
+  // O resumo semântico do diálogo (S14) prova que a edição das 3 células foi
+  // registrada — e na linguagem do negócio: elas passaram de análise manual a
+  // aprovadas, logo foram abertas.
+  await expect(dialog.getByTestId('publish-diff-summary')).toContainText('3 células abertas');
   await dialog.getByLabel('Notas desta publicação').fill('Ajuste pontual na política de crédito PJ.');
   await dialog.getByLabel(/digite o número da versão/i).fill('2');
   await dialog.getByRole('button', { name: 'Publicar versão 2' }).click();

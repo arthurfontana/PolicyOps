@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { PolicyOpsDocument } from '@/core/document/schema';
 import {
   axisStructureLabel,
-  countChangedCells,
   countPending,
   getAxisStaleness,
   getEditorView,
@@ -547,42 +546,6 @@ describe('listProjects e listProjectMatrices', () => {
 // ---------------------------------------------------------------------------
 // S13 — ciclo de vida na interface
 // ---------------------------------------------------------------------------
-
-describe('countChangedCells', () => {
-  it('conta 0 quando o rascunho é clone idêntico da vigente', () => {
-    const ctx = testCtx();
-    const states = documentWithAllStates(ctx);
-    const { matrix } = locateVersion(states.document, states.draft);
-    const draftVersion = matrix.versions.find((version) => version.id === states.draft)!;
-    const publishedVersion = matrix.versions.find((version) => version.id === states.published)!;
-    expect(countChangedCells(draftVersion, publishedVersion)).toBe(0);
-  });
-
-  it('conta uma célula alterada depois de um patch no rascunho', () => {
-    const ctx = testCtx();
-    const states = documentWithAllStates(ctx);
-    const coord = coordsOf(states.document, states.draft)[0]!;
-    const patched = apply(
-      states.document,
-      ctx,
-      applyCellPatch({ versionId: states.draft, patch: { coords: [coord], set: { decision: 'REPROVADO' } } }),
-    ).document;
-
-    const { matrix } = locateVersion(patched, states.draft);
-    const draftVersion = matrix.versions.find((version) => version.id === states.draft)!;
-    const publishedVersion = matrix.versions.find((version) => version.id === states.published)!;
-    expect(countChangedCells(draftVersion, publishedVersion)).toBe(1);
-  });
-
-  it('sem referência (matriz nova, sem vigente), conta todas as células preenchidas do rascunho', () => {
-    const ctx = testCtx();
-    const created = createTestMatrix(baseDocument(), ctx);
-    const filled = fillAllCells(created.document, ctx, created.data.versionId);
-    const { matrix } = locateVersion(filled, created.data.versionId);
-    const draftVersion = matrix.versions.find((version) => version.id === created.data.versionId)!;
-    expect(countChangedCells(draftVersion, null)).toBe(6);
-  });
-});
 
 describe('getPublishedVersion, getOpenDraft e getPrecedingVersion', () => {
   it('resolve a vigente, o rascunho aberto e a versão que ela substituiu', () => {
