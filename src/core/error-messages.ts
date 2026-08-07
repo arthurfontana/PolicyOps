@@ -51,13 +51,15 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
   DOCUMENT_INVALID: 'O arquivo de dados está corrompido ou não é um documento válido do PolicyOps.',
   SAVE_CONFLICT:
     'Outra pessoa salvou este arquivo enquanto você editava. Revise as mudanças antes de salvar novamente.',
-  RANGE_REGIONAL_INCOMPLETE:
-    'Todo domínio desta variável precisa ter uma faixa definida para cada regional — há domínio(s) sem faixa em algum regional.',
-  RANGE_REGIONAL_NOT_CONTIGUOUS:
-    'As faixas desta variável precisam ser contíguas, ordenadas e ter no máximo uma "demais casos" — dentro de cada regional, independentemente.',
-  REGIONAL_CODE_DUPLICATE: 'Há regionais com o mesmo código — cada regional precisa de um código único nesta versão.',
-  REGIONAL_IMPORT_PARSE_ERROR:
-    'Não foi possível interpretar a tabela colada — confira o cabeçalho de regionais e o número de colunas.',
+  RANGE_GROUPING_NOT_CONTIGUOUS:
+    'As faixas desta variável precisam ser contíguas, ordenadas e ter no máximo uma "demais casos" — dentro de cada combinação de agrupamento, independentemente.',
+  GROUPING_DIMENSION_CODE_DUPLICATE:
+    'Há níveis de agrupamento com o mesmo código — cada nível precisa de um código único nesta versão.',
+  GROUPING_OPTION_CODE_DUPLICATE:
+    'Há opções com o mesmo código dentro de um nível de agrupamento — cada opção precisa de um código único no próprio nível.',
+  GROUPING_PATH_INVALID:
+    'Há faixas apontando para uma combinação de agrupamento que não existe nesta versão — confira os níveis e as opções.',
+  TOO_MANY_GROUPING_LEVELS: 'Uma variável pode ter no máximo 4 níveis de agrupamento.',
   DOMAIN_TABLE_PARSE_ERROR:
     'Não foi possível interpretar a tabela colada — confira o cabeçalho (Domínio é obrigatório) e o número de colunas.',
 };

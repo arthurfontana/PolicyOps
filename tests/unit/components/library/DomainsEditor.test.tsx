@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import type { BoundaryMode, Domain, RegionalDimension, VariableType } from '@/core/document/schema';
+import type { BoundaryMode, Domain, GroupingDimension, VariableType } from '@/core/document/schema';
 import { validateDomains } from '@/core/library/validate-domains';
 import { DomainsEditor } from '@/components/library/DomainsEditor';
 
@@ -58,21 +58,23 @@ describe('DomainsEditor — validação de contiguidade em tempo real', () => {
 });
 
 /**
- * Harness com dimensão regional — exercita o toggle, o grid por regional e a
- * colagem de tabela (docs/07 §11, docs/05 §5.6).
+ * Harness com agrupamentos — exercita o editor de níveis, a tabela tidy e a
+ * colagem que os detecta sozinha (docs/07 §11, docs/05 §5.6).
  */
-function RegionalHarness({
+function GroupingHarness({
   initialDomains,
-  initialRegional,
+  initialGrouping,
 }: {
   initialDomains: Domain[];
-  initialRegional: RegionalDimension | undefined;
+  initialGrouping: GroupingDimension[] | undefined;
 }) {
   const [domains, setDomains] = useState<Domain[]>(initialDomains);
-  const [regionalDimension, setRegionalDimension] = useState<RegionalDimension | undefined>(initialRegional);
+  const [groupingDimensions, setGroupingDimensions] = useState<GroupingDimension[] | undefined>(
+    initialGrouping,
+  );
   const validation = useMemo(
-    () => validateDomains('RANGE', domains, regionalDimension),
-    [domains, regionalDimension],
+    () => validateDomains('RANGE', domains, groupingDimensions),
+    [domains, groupingDimensions],
   );
   const issues = validation.ok ? [] : validation.issues;
   return (
@@ -81,116 +83,220 @@ function RegionalHarness({
       domains={domains}
       onChange={setDomains}
       issues={issues}
-      regionalDimension={regionalDimension}
-      onRegionalDimensionChange={setRegionalDimension}
+      groupingDimensions={groupingDimensions}
+      onGroupingDimensionsChange={setGroupingDimensions}
     />
   );
 }
 
-const REGIONAL_CONTIGUOUS: Domain[] = [
+const REGIONAL_PORTE: GroupingDimension[] = [
   {
-    code: 'A',
-    label: 'A',
-    position: 0,
-    regionalRanges: { BASE: { min: '0', max: '100' }, SP: { min: '0', max: '120' } },
+    code: 'REGIONAL',
+    label: 'Regional',
+    options: [
+      { code: 'SAO_PAULO', label: 'São Paulo' },
+      { code: 'SUL', label: 'Sul' },
+    ],
   },
   {
-    code: 'B',
-    label: 'B',
-    position: 1,
-    regionalRanges: { BASE: { min: '100', max: '200' }, SP: { min: '120', max: '240' } },
+    code: 'PORTE',
+    label: 'Porte',
+    options: [
+      { code: 'MEI', label: 'MEI' },
+      { code: 'NAO_MEI', label: 'Não MEI' },
+    ],
   },
 ];
 
-const TWO_REGIONS: RegionalDimension = {
-  regions: [
-    { code: 'BASE', label: 'Base' },
-    { code: 'SP', label: 'São Paulo' },
-  ],
-};
+const GROUPED_CONTIGUOUS: Domain[] = [
+  {
+    code: 'R1',
+    label: 'R1',
+    position: 0,
+    groupingRanges: [
+      { path: ['SAO_PAULO', 'MEI'], min: '0', max: '100' },
+      { path: ['SUL', 'MEI'], min: '0', max: '120' },
+    ],
+  },
+  {
+    code: 'R2',
+    label: 'R2',
+    position: 1,
+    groupingRanges: [
+      { path: ['SAO_PAULO', 'MEI'], min: '100', max: '200' },
+      { path: ['SUL', 'MEI'], min: '120', max: '240' },
+    ],
+  },
+];
 
-describe('DomainsEditor — dimensão regional (docs/07 §11)', () => {
-  it('sem onRegionalDimensionChange, o toggle não aparece (modo de sempre)', () => {
+describe('DomainsEditor — agrupamentos hierárquicos (docs/07 §11)', () => {
+  it('sem groupingDimensions, o editor de agrupamentos e a tabela tidy não aparecem', () => {
     render(<Harness initial={CONTIGUOUS} />);
-    expect(screen.queryByText(/varia por regional/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Agrupamentos \(hierarquia/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Faixas por combinação')).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('Mínimo')).toHaveLength(2);
   });
 
-  it('alternar o toggle limpa o modo anterior sem erro (RANGE simples → regional)', async () => {
-    const user = userEvent.setup();
-    render(<RegionalHarness initialDomains={CONTIGUOUS} initialRegional={undefined} />);
+  it('lista os níveis com a contagem de opções, na ordem da hierarquia', () => {
+    render(<GroupingHarness initialDomains={GROUPED_CONTIGUOUS} initialGrouping={REGIONAL_PORTE} />);
+    const rows = screen.getAllByTestId('grouping-dimension-row');
+    expect(rows).toHaveLength(2);
+    const names = screen.getAllByLabelText('Nome do agrupamento').map((el) => (el as HTMLInputElement).value);
+    expect(names).toEqual(['Regional', 'Porte']);
+    expect(rows[0]!).toHaveTextContent('2 opção(ões)');
+  });
 
-    expect(screen.getAllByLabelText('Mínimo')).toHaveLength(2);
-    await user.click(screen.getByRole('checkbox', { name: /varia por regional/ }));
-
-    // Modo trocou: os campos "Mínimo"/"Máximo" únicos somem, e nenhum erro é lançado.
+  it('agrupa a tabela visualmente por caminho, um bloco por combinação usada', () => {
+    render(<GroupingHarness initialDomains={GROUPED_CONTIGUOUS} initialGrouping={REGIONAL_PORTE} />);
+    const groups = screen.getAllByTestId('grouping-path-group');
+    expect(groups.map((group) => group.getAttribute('data-path'))).toEqual([
+      'SAO_PAULO|MEI',
+      'SUL|MEI',
+    ]);
+    expect(groups[0]!).toHaveTextContent('SAO_PAULO › MEI');
+    // Duas linhas (R1 e R2) dentro de cada caminho.
+    expect(screen.getAllByTestId('grouping-range-row')).toHaveLength(4);
+    // No modo agrupado a linha de identidade não tem mais mín/máx únicos.
     expect(screen.queryByLabelText('Mínimo')).not.toBeInTheDocument();
-    expect(screen.getByText('Regionais')).toBeInTheDocument();
-    expect(screen.getByText(/Nenhum regional ainda/)).toBeInTheDocument();
   });
 
-  it('alternar de volta (regional → simples) também limpa sem erro', async () => {
-    const user = userEvent.setup();
-    render(<RegionalHarness initialDomains={REGIONAL_CONTIGUOUS} initialRegional={TWO_REGIONS} />);
-
-    expect(screen.getAllByLabelText(/Mínimo \(BASE\)/)).toHaveLength(2);
-    await user.click(screen.getByRole('checkbox', { name: /varia por regional/ }));
-
-    expect(screen.queryByText(/Regionais/)).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText('Mínimo')).toHaveLength(2);
-    expect(screen.getAllByLabelText('Mínimo').every((input) => (input as HTMLInputElement).value === '')).toBe(
-      true,
-    );
-  });
-
-  it('erro de contiguidade regional aponta a regional certa, sem confundir BASE com SP', () => {
+  it('erro de contiguidade aponta o caminho certo, sem confundir São Paulo com Sul', () => {
     const withHole: Domain[] = [
-      REGIONAL_CONTIGUOUS[0]!,
+      GROUPED_CONTIGUOUS[0]!,
       {
-        code: 'B',
-        label: 'B',
+        code: 'R2',
+        label: 'R2',
         position: 1,
-        // SP tem um buraco (120 -> 150); BASE segue contíguo.
-        regionalRanges: { BASE: { min: '100', max: '200' }, SP: { min: '150', max: '240' } },
+        groupingRanges: [
+          { path: ['SAO_PAULO', 'MEI'], min: '100', max: '200' },
+          // Só Sul › MEI tem buraco (120 -> 150).
+          { path: ['SUL', 'MEI'], min: '150', max: '240' },
+        ],
       },
     ];
-    render(<RegionalHarness initialDomains={withHole} initialRegional={TWO_REGIONS} />);
-    expect(screen.getAllByText(/não são contíguas.*no regional "SP"/).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/no regional "BASE"/)).not.toBeInTheDocument();
+    render(<GroupingHarness initialDomains={withHole} initialGrouping={REGIONAL_PORTE} />);
+    expect(screen.getAllByText(/não são contíguas em "SUL › MEI"/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/em "SAO_PAULO › MEI"/)).not.toBeInTheDocument();
   });
 
-  it('colar tabela mal formada mostra erro sem fechar a caixa nem gravar', async () => {
-    const user = userEvent.setup();
-    render(<RegionalHarness initialDomains={[]} initialRegional={{ regions: [] }} />);
-
-    await user.click(screen.getByRole('button', { name: /Colar tabela/ }));
-    const textarea = screen.getByLabelText('Tabela colada');
-    await user.type(textarea, 'uma linha só, sem cabeçalho completo');
-    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
-
-    // A caixa continua aberta, mostrando o erro — nada foi aplicado ao grid.
-    expect(screen.getByLabelText('Tabela colada')).toBeInTheDocument();
-    expect(screen.getByText(/Cabeçalho ausente/)).toBeInTheDocument();
-    expect(screen.getByText(/Nenhum regional ainda/)).toBeInTheDocument();
+  it('editar o mínimo de um caminho não toca o mesmo domínio nos outros caminhos', () => {
+    render(<GroupingHarness initialDomains={GROUPED_CONTIGUOUS} initialGrouping={REGIONAL_PORTE} />);
+    fireEvent.change(screen.getByLabelText('Mínimo de R2 em SAO_PAULO › MEI'), {
+      target: { value: '150' },
+    });
+    expect(screen.getByLabelText('Mínimo de R2 em SAO_PAULO › MEI')).toHaveValue('150');
+    expect(screen.getByLabelText('Mínimo de R2 em SUL › MEI')).toHaveValue('120');
   });
 
-  it('colar tabela bem formada preenche o grid e fecha a caixa', async () => {
-    const user = userEvent.setup();
-    render(<RegionalHarness initialDomains={[]} initialRegional={{ regions: [] }} />);
+  it('banner de combinação incompleta aparece, nomeia o domínio faltante e não bloqueia salvar', () => {
+    const asymmetric: Domain[] = [
+      {
+        code: 'R1',
+        label: 'R1',
+        position: 0,
+        groupingRanges: [
+          { path: ['SAO_PAULO', 'MEI'], min: '0', max: '100' },
+          { path: ['SAO_PAULO', 'NAO_MEI'], min: '0', max: '120' },
+        ],
+      },
+      // R2 só existe em São Paulo › MEI.
+      {
+        code: 'R2',
+        label: 'R2',
+        position: 1,
+        groupingRanges: [{ path: ['SAO_PAULO', 'MEI'], min: '100', max: '200' }],
+      },
+    ];
+    render(<GroupingHarness initialDomains={asymmetric} initialGrouping={REGIONAL_PORTE} />);
 
-    await user.click(screen.getByRole('button', { name: /Colar tabela/ }));
-    const textarea = screen.getByLabelText('Tabela colada');
-    const table = ['\tBASE\t', '\tMIN\tMAX', 'R1 - Baixo\t0\t100'].join('\n');
+    const banner = screen.getByTestId('incomplete-grouping-banner');
+    expect(banner).toHaveTextContent('SAO_PAULO › NAO_MEI');
+    expect(banner).toHaveTextContent('R2');
+    // Não é erro de validação: nada em vermelho no topo bloqueando o salvamento.
+    expect(validateDomains('RANGE', asymmetric, REGIONAL_PORTE).ok).toBe(true);
+  });
+
+  it('colar uma tabela com colunas de agrupamento configura tudo sozinha', async () => {
+    const user = userEvent.setup();
+    render(<GroupingHarness initialDomains={[]} initialGrouping={undefined} />);
+
+    expect(screen.queryByText('Faixas por combinação')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Colar tabela' }));
+    const textarea = screen.getByLabelText('Tabela de domínios colada');
+    const table = [
+      'Regional\tPorte\tDomínio\tMínimo\tMáximo',
+      'São Paulo\tMEI\tR1\t0\t357',
+      'São Paulo\tMEI\tR2\t357\t420',
+      'São Paulo\tNão MEI\tR1\t0\t340',
+      'Sul\tMEI\tR1\t0\t360',
+    ].join('\n');
     fireEvent.change(textarea, { target: { value: table } });
     await user.click(screen.getByRole('button', { name: 'Aplicar' }));
 
-    expect(screen.queryByLabelText('Tabela colada')).not.toBeInTheDocument();
-    expect(screen.getByDisplayValue('R1')).toBeInTheDocument();
-    expect(screen.getByLabelText('Mínimo (BASE)')).toHaveValue('0');
+    expect(screen.queryByLabelText('Tabela de domínios colada')).not.toBeInTheDocument();
+
+    // Dois níveis detectados, sem nenhuma configuração manual prévia.
+    expect(screen.getAllByTestId('grouping-dimension-row')).toHaveLength(2);
+    expect(
+      screen.getAllByLabelText('Nome do agrupamento').map((el) => (el as HTMLInputElement).value),
+    ).toEqual(['Regional', 'Porte']);
+    expect(
+      screen.getAllByLabelText('Código do agrupamento').map((el) => (el as HTMLInputElement).value),
+    ).toEqual(['REGIONAL', 'PORTE']);
+
+    // Três caminhos, só as combinações que a tabela trouxe.
+    expect(
+      screen.getAllByTestId('grouping-path-group').map((group) => group.getAttribute('data-path')),
+    ).toEqual(['SAO_PAULO|MEI', 'SAO_PAULO|NAO_MEI', 'SUL|MEI']);
+    expect(screen.getByLabelText('Mínimo de R1 em SUL › MEI')).toHaveValue('0');
+  });
+
+  it('oferece o modelo com agrupamentos para download só em RANGE', async () => {
+    const user = userEvent.setup();
+    render(<GroupingHarness initialDomains={[]} initialGrouping={undefined} />);
+    await user.click(screen.getByRole('button', { name: 'Colar tabela' }));
+    expect(
+      screen.getByRole('button', { name: /Baixar modelo com agrupamentos/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('remover o último nível volta ao modo simples e limpa as faixas agrupadas', async () => {
+    const user = userEvent.setup();
+    render(
+      <GroupingHarness
+        initialDomains={GROUPED_CONTIGUOUS}
+        initialGrouping={[REGIONAL_PORTE[0]!]}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /Remover agrupamento "REGIONAL"/ }));
+    // Remover apaga faixas: passa por confirmação (docs/07 §11).
+    await user.click(screen.getByRole('button', { name: 'Remover agrupamento', exact: true }));
+
+    expect(screen.queryByText('Faixas por combinação')).not.toBeInTheDocument();
+    expect(screen.getAllByLabelText('Mínimo')).toHaveLength(2);
+  });
+
+  it('adiciona um nível vazio manualmente e a versão entra no modo agrupado com faixas em branco', async () => {
+    const user = userEvent.setup();
+    render(<GroupingHarness initialDomains={CONTIGUOUS} initialGrouping={undefined} />);
+
+    // Antes: modo simples, com mín/máx por domínio.
+    expect(screen.getAllByLabelText('Mínimo')).toHaveLength(2);
+    expect(screen.getByText(/Nenhum agrupamento ainda/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Adicionar agrupamento/ }));
+
+    // O interruptor é binário: as faixas do modo simples são descartadas.
+    expect(screen.queryByLabelText('Mínimo')).not.toBeInTheDocument();
+    expect(screen.getByText('Faixas por combinação')).toBeInTheDocument();
+    expect(screen.getByText(/Nenhuma combinação ainda/)).toBeInTheDocument();
   });
 });
 
 /**
- * Colagem genérica (fora do modo regional), continuidade automática de
+ * Colagem genérica (sem agrupamento), continuidade automática de
  * faixas e paletas de cor — docs/07-ux-e-editor.md §11, docs/05 §5.6.2/§5.6.4.
  */
 function GenericHarness({
@@ -221,7 +327,7 @@ function GenericHarness({
   );
 }
 
-describe('DomainsEditor — colagem genérica fora do modo regional (docs/05 §5.6.2)', () => {
+describe('DomainsEditor — colagem genérica sem agrupamento (docs/05 §5.6.2)', () => {
   it('colar tabela simples (Domínio, Cor) fora do modo regional preenche o editor', async () => {
     const user = userEvent.setup();
     render(<GenericHarness type="CATEGORICAL" initial={[]} />);

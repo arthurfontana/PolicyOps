@@ -8,6 +8,7 @@ import {
   type Domain,
   type PolicyOpsDocument,
 } from './schema';
+import { distinctGroupingPaths, formatGroupingPath, groupingPathKey, groupingRangeAt } from './grouping';
 
 /**
  * Validação do documento — schema estrutural (Zod) + invariantes de negócio
@@ -308,9 +309,10 @@ export function checkI8(doc: PolicyOpsDocument): ValidationIssue[] {
 
 // ---------------------------------------------------------------------------
 // I9 — RANGE: faixas contíguas, sem sobreposição, ordenadas por position;
-// no máximo um isCatchAll, e ele é o último. Com `regionalDimension`, a
-// mesma regra vale independentemente para cada regional, usando
-// `regionalRanges[region]` no lugar de `rangeMin`/`rangeMax`.
+// no máximo um isCatchAll, e ele é o último. Com `groupingDimensions`, a
+// mesma regra vale independentemente para cada `path` distinto presente em
+// `groupingRanges`, no lugar de `rangeMin`/`rangeMax` — e só para os caminhos
+// que o usuário definiu, nunca para o produto cartesiano das opções.
 // ---------------------------------------------------------------------------
 
 function checkCatchAllIdentity(
@@ -344,11 +346,11 @@ function checkValueContiguity(
   accessor: { min: (d: Domain) => string | undefined; max: (d: Domain) => string | undefined },
   variableCode: string,
   path: string,
-  regionCode: string | undefined,
+  groupingPath: string[] | undefined,
   boundaryMode: BoundaryMode,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const regionSuffix = regionCode === undefined ? '' : ` no regional "${regionCode}"`;
+  const regionSuffix = groupingPath === undefined ? '' : ` em "${formatGroupingPath(groupingPath)}"`;
   const isInclusiveInteger = boundaryMode === 'INCLUSIVE_INTEGER';
   for (let i = 0; i < domains.length - 1; i++) {
     const current = domains[i]!;
@@ -402,7 +404,7 @@ export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
 
       issues.push(...checkCatchAllIdentity(domains, variable.code, path));
 
-      if (version.regionalDimension === undefined) {
+      if (version.groupingDimensions === undefined) {
         issues.push(
           ...checkValueContiguity(
             domains,
@@ -414,18 +416,17 @@ export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
           ),
         );
       } else {
-        for (const region of version.regionalDimension.regions) {
-          const present = domains.filter((d) => d.regionalRanges?.[region.code] !== undefined);
+        for (const groupingPath of distinctGroupingPaths(domains)) {
+          const key = groupingPathKey(groupingPath);
+          const rangeAt = (d: Domain) => groupingRangeAt(d, key);
+          const present = domains.filter((d) => rangeAt(d) !== undefined);
           issues.push(
             ...checkValueContiguity(
               present,
-              {
-                min: (d) => d.regionalRanges?.[region.code]?.min,
-                max: (d) => d.regionalRanges?.[region.code]?.max,
-              },
+              { min: (d) => rangeAt(d)?.min, max: (d) => rangeAt(d)?.max },
               variable.code,
               path,
-              region.code,
+              groupingPath,
               boundaryMode,
             ),
           );
@@ -437,49 +438,99 @@ export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
 }
 
 // ---------------------------------------------------------------------------
-// I19 — regionalDimension: regions não vazio com code único; todo domínio
-// RANGE da versão tem entrada em regionalRanges para cada region.code
+// I19 — groupingDimensions: 1 a 4 níveis, `code` de nível único, `options`
+// não vazio com `code` único dentro do nível, e todo `GroupingRange.path` com
+// o comprimento certo apontando para opções existentes.
+//
+// Deliberadamente NÃO há checagem de completude entre combinações: hierarquias
+// reais são assimétricas (nem toda Regional tem MEI), e o editor apenas avisa
+// (docs/03-modelo-do-documento.md §9, nota após I19).
 // ---------------------------------------------------------------------------
+
+/** Teto de níveis de agrupamento (I19) — independente do teto de 3 de `AxisLevel` (I13). */
+const MAX_GROUPING_LEVELS = 4;
 
 export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   doc.variables.forEach((variable, vari) => {
     if (variable.type !== 'RANGE') return;
     variable.versions.forEach((version, vi) => {
-      if (version.regionalDimension === undefined) return;
-      const path = `variables[${vari}].versions[${vi}].regionalDimension`;
-      const { regions } = version.regionalDimension;
+      if (version.groupingDimensions === undefined) return;
+      const path = `variables[${vari}].versions[${vi}].groupingDimensions`;
+      const dimensions = version.groupingDimensions;
 
-      if (regions.length === 0) {
+      if (dimensions.length === 0 || dimensions.length > MAX_GROUPING_LEVELS) {
         issues.push({
           severity: 'ERROR',
           invariant: 'I19',
           path,
-          message: `A dimensão regional da variável "${variable.code}" precisa ter ao menos um regional.`,
+          message: `Os agrupamentos da variável "${variable.code}" precisam ter de 1 a ${MAX_GROUPING_LEVELS} níveis (tem ${dimensions.length}).`,
         });
       }
 
-      const seen = new Map<string, number>();
-      regions.forEach((region) => seen.set(region.code, (seen.get(region.code) ?? 0) + 1));
-      for (const [code, count] of seen) {
+      const seenLevels = new Map<string, number>();
+      dimensions.forEach((dimension) =>
+        seenLevels.set(dimension.code, (seenLevels.get(dimension.code) ?? 0) + 1),
+      );
+      for (const [code, count] of seenLevels) {
         if (count > 1) {
           issues.push({
             severity: 'ERROR',
             invariant: 'I19',
             path,
-            message: `O código de regional "${code}" aparece ${count} vezes na variável "${variable.code}" — precisa ser único.`,
+            message: `O código de agrupamento "${code}" aparece ${count} vezes na variável "${variable.code}" — precisa ser único entre os níveis.`,
           });
         }
       }
 
-      version.domains.forEach((domain, di) => {
-        for (const region of regions) {
-          if (domain.regionalRanges?.[region.code] === undefined) {
+      dimensions.forEach((dimension, li) => {
+        if (dimension.options.length === 0) {
+          issues.push({
+            severity: 'ERROR',
+            invariant: 'I19',
+            path: `${path}[${li}]`,
+            message: `O agrupamento "${dimension.code}" da variável "${variable.code}" precisa ter ao menos uma opção.`,
+          });
+        }
+        const seenOptions = new Map<string, number>();
+        dimension.options.forEach((option) =>
+          seenOptions.set(option.code, (seenOptions.get(option.code) ?? 0) + 1),
+        );
+        for (const [code, count] of seenOptions) {
+          if (count > 1) {
             issues.push({
               severity: 'ERROR',
               invariant: 'I19',
-              path: `variables[${vari}].versions[${vi}].domains[${di}]`,
-              message: `O domínio "${domain.code}" da variável "${variable.code}" não tem faixa definida para o regional "${region.code}".`,
+              path: `${path}[${li}]`,
+              message: `A opção "${code}" aparece ${count} vezes no agrupamento "${dimension.code}" da variável "${variable.code}" — precisa ser única dentro do nível.`,
+            });
+          }
+        }
+      });
+
+      const optionsByLevel = dimensions.map(
+        (dimension) => new Set(dimension.options.map((option) => option.code)),
+      );
+
+      version.domains.forEach((domain, di) => {
+        const domainPath = `variables[${vari}].versions[${vi}].domains[${di}]`;
+        for (const range of domain.groupingRanges ?? []) {
+          if (range.path.length !== dimensions.length) {
+            issues.push({
+              severity: 'ERROR',
+              invariant: 'I19',
+              path: domainPath,
+              message: `O domínio "${domain.code}" da variável "${variable.code}" tem uma faixa com ${range.path.length} nível(is) de agrupamento, mas a versão tem ${dimensions.length}.`,
+            });
+            continue;
+          }
+          const unknownLevel = range.path.findIndex((code, level) => !optionsByLevel[level]!.has(code));
+          if (unknownLevel >= 0) {
+            issues.push({
+              severity: 'ERROR',
+              invariant: 'I19',
+              path: domainPath,
+              message: `O domínio "${domain.code}" da variável "${variable.code}" tem uma faixa em "${range.path[unknownLevel]}", que não é uma opção do agrupamento "${dimensions[unknownLevel]!.code}".`,
             });
           }
         }

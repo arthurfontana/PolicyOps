@@ -20,7 +20,7 @@ test.beforeAll(() => {
   }
 });
 
-test('CATEGORICAL: colar Domínio+Cor (4 linhas) fora do modo regional, salvar e publicar', async ({ page }) => {
+test('CATEGORICAL: colar Domínio+Cor (4 linhas) sem agrupamento, salvar e publicar', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(String(error)));
 
@@ -86,7 +86,7 @@ test('RANGE simples: colar Domínio+Mínimo+Máximo sem tocar em inclusão manua
 
   await expect(page.getByText('Domínios da versão 1')).toBeVisible();
 
-  // Colagem genérica fora do modo regional: só Domínio, Mínimo, Máximo — sem
+  // Colagem genérica sem agrupamento: só Domínio, Mínimo, Máximo — sem
   // tocar em nenhum checkbox de inclusão manual (docs/05 §5.6.0, docs/07 §11).
   await page.getByRole('button', { name: 'Colar tabela' }).click();
   const table = [

@@ -4,11 +4,13 @@ import type { Domain } from '../document/schema';
  * Cópia congelada de domínios para `AxisLevel.domains` — só os campos de
  * **identidade** (`code`, `label`, `shortLabel`, `position`, `color`,
  * `isCatchAll`, `rangeMin`/`rangeMax` quando existirem), nunca
- * `regionalRanges` (docs/03-modelo-do-documento.md §6.1).
+ * `groupingRanges` nem `groupingDimensions`
+ * (docs/03-modelo-do-documento.md §6.1).
  *
- * É o mecanismo que garante, no schema, que a matriz nunca carrega a
- * dimensão regional de uma variável RANGE: o snapshot de uma variável com 20
- * faixas × 9 regionais tem o mesmo tamanho que teria sem regional nenhum.
+ * É o mecanismo que garante, no schema, que a matriz nunca carrega os
+ * agrupamentos hierárquicos de uma variável RANGE: o snapshot de uma variável
+ * com 20 faixas × 9 regionais × 3 portes tem o mesmo tamanho que teria sem
+ * agrupamento nenhum.
  * Usado por `matrix/create`, `axis/addLevel`, `axis/resnapshot` e
  * `template/instantiate` (via `resolveTemplateAxes`) — os quatro pontos que
  * copiam domínios da biblioteca de variáveis para dentro de uma matriz.

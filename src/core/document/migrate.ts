@@ -4,10 +4,9 @@ import { CURRENT_SCHEMA_VERSION } from './schema';
 
 /**
  * Migração entre `schemaVersion` — docs/03-modelo-do-documento.md §10.
- * Hoje só existe a versão 1, então `MIGRATIONS` fica vazio; a infraestrutura
- * de encadeamento (`applyMigrations`) existe e é testada com uma migração
- * fictícia 0 → 1 sobre `tests/fixtures/migration-v0-raw.json`, para provar
- * que o mecanismo funciona antes de a primeira migração real precisar dele.
+ * A infraestrutura de encadeamento (`applyMigrations`) é parametrizada pela
+ * lista de migrações e também é testada com uma cadeia fictícia 0 → 1 sobre
+ * `tests/fixtures/migration-v0-raw.json`, independente das migrações reais.
  */
 
 export type Migration = {
@@ -29,8 +28,67 @@ export const SCHEMA_TOO_NEW_MESSAGE =
 
 const SchemaVersionEnvelopeSchema = z.object({ schemaVersion: z.number().int() }).passthrough();
 
-// Quando schemaVersion 2 existir, a migração 1 → 2 entra aqui.
-const MIGRATIONS: Migration[] = [];
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Migração 1 → 2 (sessão 20) — docs/03-modelo-do-documento.md §10.
+ *
+ * Única migração não-aditiva do produto até aqui: `Domain.regionalRanges` era
+ * `Record<string, RegionalRange>` (uma entrada por regional) e vira
+ * `Domain.groupingRanges: GroupingRange[]` (cada entrada carrega o próprio
+ * `path`); `VariableVersion.regionalDimension` vira `groupingDimensions` com
+ * **um** nível `REGIONAL`, preservando as opções tal como estavam.
+ *
+ * Toda navegação é defensiva porque a entrada é o JSON cru do arquivo, ainda
+ * não validado — o que não tiver a forma esperada passa intocado e é
+ * `validateDocument` quem reclama depois.
+ */
+function migrateRegionalToGrouping(raw: Record<string, unknown>): Record<string, unknown> {
+  const doc = structuredClone(raw);
+  doc.schemaVersion = 2;
+
+  const variables = doc.variables;
+  if (!Array.isArray(variables)) return doc;
+
+  for (const variable of variables) {
+    if (!isRecord(variable) || !Array.isArray(variable.versions)) continue;
+
+    for (const version of variable.versions) {
+      if (!isRecord(version)) continue;
+      const regionalDimension = version.regionalDimension;
+      if (!isRecord(regionalDimension)) continue;
+
+      const regions = Array.isArray(regionalDimension.regions) ? regionalDimension.regions : [];
+      version.groupingDimensions = [{ code: 'REGIONAL', label: 'Regional', options: regions }];
+      delete version.regionalDimension;
+
+      if (!Array.isArray(version.domains)) continue;
+      for (const domain of version.domains) {
+        if (!isRecord(domain)) continue;
+        const regionalRanges = domain.regionalRanges;
+        if (!isRecord(regionalRanges)) continue;
+        domain.groupingRanges = Object.entries(regionalRanges).map(([regionCode, range]) => ({
+          path: [regionCode],
+          ...(isRecord(range) ? range : {}),
+        }));
+        delete domain.regionalRanges;
+      }
+    }
+  }
+
+  return doc;
+}
+
+const MIGRATIONS: Migration[] = [
+  {
+    from: 1,
+    to: 2,
+    description: 'Sessão 20: regionalDimension/regionalRanges → groupingDimensions/groupingRanges.',
+    migrate: migrateRegionalToGrouping,
+  },
+];
 
 export function migrateDocument(raw: unknown): MigrationResult {
   return applyMigrations(raw, MIGRATIONS);

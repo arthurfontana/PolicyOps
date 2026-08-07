@@ -1,6 +1,6 @@
 /**
- * Normalização de texto compartilhada entre `regional-import.ts`,
- * `domain-import.ts` e `color-palettes.ts` — remove acentos e uniformiza
+ * Normalização de texto compartilhada entre `domain-import.ts` e
+ * `color-palettes.ts` — remove acentos e uniformiza
  * caixa para comparar nomes de coluna, códigos de domínio e entradas de
  * paleta sem se importar com maiúsculas/minúsculas ou diacríticos.
  */

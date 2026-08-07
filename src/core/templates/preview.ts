@@ -41,7 +41,7 @@ function resolveTemplateLevel(
     variableId: variable.id,
     variableVersionId: published.id,
     label: ref.label ?? variable.name,
-    // Só identidade — nunca `regionalRanges` (docs/03 §6.1).
+    // Só identidade — nunca `groupingRanges` (docs/03 §6.1).
     domains: snapshotDomains(published.domains),
   };
 }

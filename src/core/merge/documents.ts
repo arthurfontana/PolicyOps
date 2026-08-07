@@ -12,6 +12,7 @@ import type {
   Template,
   Variable,
 } from '../document/schema';
+import { CURRENT_SCHEMA_VERSION } from '../document/schema';
 import type {
   MergeAction,
   MergeActionKind,
@@ -1620,7 +1621,7 @@ export function mergeDocuments(
   const events = mergeEvents(ctx);
 
   const merged: PolicyOpsDocument = {
-    schemaVersion: 1,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
     meta,
     variables,
     compatibility,

@@ -80,16 +80,25 @@ export const LifecycleState3Schema: z.ZodType<LifecycleState3> = z.enum([
   'SUPERSEDED',
 ]);
 
-/** Threshold numérico de uma faixa RANGE para um regional específico (docs/03 §2). */
-export type RegionalRange = {
+/**
+ * Threshold numérico de uma faixa RANGE para **uma combinação** de opções de
+ * agrupamento (docs/03 §2). `path` tem o mesmo comprimento de
+ * `VariableVersion.groupingDimensions`, na mesma ordem — `path[i]` é sempre
+ * um `GroupingOption.code` válido do nível `i`. Não existe uma entrada para
+ * cada combinação possível: só para as que o usuário efetivamente definiu
+ * (I19), que é o que permite hierarquias assimétricas.
+ */
+export type GroupingRange = {
+  path: string[];
   min: string;
   max?: string;
   minInclusive?: boolean;
   maxInclusive?: boolean;
 };
 
-export const RegionalRangeSchema: z.ZodType<RegionalRange> = z
+export const GroupingRangeSchema: z.ZodType<GroupingRange> = z
   .object({
+    path: z.array(codeSchema),
     min: decimalSchema,
     max: decimalSchema.optional(),
     minInclusive: z.boolean().optional(),
@@ -108,7 +117,7 @@ export type Domain = {
   minInclusive?: boolean;
   maxInclusive?: boolean;
   isCatchAll?: boolean;
-  regionalRanges?: Record<string, RegionalRange>;
+  groupingRanges?: GroupingRange[];
 };
 
 export const DomainSchema: z.ZodType<Domain> = z
@@ -123,7 +132,7 @@ export const DomainSchema: z.ZodType<Domain> = z
     minInclusive: z.boolean().optional(),
     maxInclusive: z.boolean().optional(),
     isCatchAll: z.boolean().optional(),
-    regionalRanges: z.record(z.string(), RegionalRangeSchema).optional(),
+    groupingRanges: z.array(GroupingRangeSchema).optional(),
   })
   .strict();
 
@@ -137,13 +146,13 @@ export const DomainSchema: z.ZodType<Domain> = z
 export type BoundaryMode = 'HALF_OPEN' | 'INCLUSIVE_INTEGER';
 export const BoundaryModeSchema: z.ZodType<BoundaryMode> = z.enum(['HALF_OPEN', 'INCLUSIVE_INTEGER']);
 
-/** Um `code` por regional (BASE, CO, MG…), único dentro da versão (docs/03 §2). */
-export type RegionalOption = {
+/** Uma opção de um nível de agrupamento (SP, MEI, NAO_MEI_1_SOCIO…), única dentro do nível (docs/03 §2). */
+export type GroupingOption = {
   code: string;
   label: string;
 };
 
-export const RegionalOptionSchema: z.ZodType<RegionalOption> = z
+export const GroupingOptionSchema: z.ZodType<GroupingOption> = z
   .object({
     code: codeSchema,
     label: z.string().min(1),
@@ -151,16 +160,22 @@ export const RegionalOptionSchema: z.ZodType<RegionalOption> = z
   .strict();
 
 /**
- * Interruptor por versão (não por domínio): presente, todo domínio RANGE da
- * versão usa `regionalRanges` em vez de `rangeMin`/`rangeMax` (docs/03 §2).
+ * Um nível de agrupamento de negócio (Regional, Porte, Tipo de Empresa…) —
+ * generaliza o "regional" fixo da sessão 18. `code` é único entre os níveis
+ * da versão; `options` tem ao menos uma entrada, com `code` único dentro do
+ * próprio nível (I19). Nunca vira eixo de matriz (docs/03 §2, docs/05 §5.6).
  */
-export type RegionalDimension = {
-  regions: RegionalOption[];
+export type GroupingDimension = {
+  code: string;
+  label: string;
+  options: GroupingOption[];
 };
 
-export const RegionalDimensionSchema: z.ZodType<RegionalDimension> = z
+export const GroupingDimensionSchema: z.ZodType<GroupingDimension> = z
   .object({
-    regions: z.array(RegionalOptionSchema),
+    code: codeSchema,
+    label: z.string().min(1),
+    options: z.array(GroupingOptionSchema),
   })
   .strict();
 
@@ -174,7 +189,8 @@ export type VariableVersion = {
   publishedAt?: string;
   publishedBy?: string;
   domains: Domain[];
-  regionalDimension?: RegionalDimension;
+  /** Ausente = variável não usa agrupamento; presente, de 1 a 4 níveis (I19). */
+  groupingDimensions?: GroupingDimension[];
   /** Ausente = `HALF_OPEN` (comportamento de sempre, sem migração — docs/03 §2). */
   boundaryMode?: BoundaryMode;
 };
@@ -190,7 +206,7 @@ export const VariableVersionSchema: z.ZodType<VariableVersion> = z
     publishedAt: isoDateSchema.optional(),
     publishedBy: z.string().min(1).optional(),
     domains: z.array(DomainSchema),
-    regionalDimension: RegionalDimensionSchema.optional(),
+    groupingDimensions: z.array(GroupingDimensionSchema).optional(),
     boundaryMode: BoundaryModeSchema.optional(),
   })
   .strict();
@@ -656,7 +672,7 @@ export const DocumentMetaSchema: z.ZodType<DocumentMeta> = z
   .strict();
 
 export type PolicyOpsDocument = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   meta: DocumentMeta;
   variables: Variable[];
   compatibility: CompatibilityRule[];
@@ -667,7 +683,12 @@ export type PolicyOpsDocument = {
   events: DocEvent[];
 };
 
-export const CURRENT_SCHEMA_VERSION = 1 as const;
+/**
+ * 2 desde a sessão 20 — `regionalDimension`/`regionalRanges` viraram
+ * `groupingDimensions`/`groupingRanges` (docs/03 §10, migração 1 → 2 em
+ * `migrate.ts`, a única não-aditiva do produto até aqui).
+ */
+export const CURRENT_SCHEMA_VERSION = 2 as const;
 
 export const PolicyOpsDocumentSchema: z.ZodType<PolicyOpsDocument> = z
   .object({

@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import type { BoundaryMode, Domain, RegionalDimension, VariableVersion } from '@/core/document/schema';
+import type { BoundaryMode, Domain, GroupingDimension, VariableVersion } from '@/core/document/schema';
 import { validateDomains } from '@/core/library/validate-domains';
 import {
   archiveVariable,
@@ -60,7 +60,7 @@ function domainsEqual(a: Domain[], b: Domain[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function regionalDimensionEqual(a: RegionalDimension | undefined, b: RegionalDimension | undefined): boolean {
+function groupingDimensionsEqual(a: GroupingDimension[] | undefined, b: GroupingDimension[] | undefined): boolean {
   return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 
@@ -91,15 +91,15 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
   const selectedVersion = variable?.versions.find((v) => v.id === selectedVersionId) ?? null;
 
   const [editingDomains, setEditingDomains] = useState<Domain[]>(selectedVersion?.domains ?? []);
-  const [editingRegionalDimension, setEditingRegionalDimension] = useState<RegionalDimension | undefined>(
-    selectedVersion?.regionalDimension,
+  const [editingGroupingDimensions, setEditingGroupingDimensions] = useState<GroupingDimension[] | undefined>(
+    selectedVersion?.groupingDimensions,
   );
   const [editingBoundaryMode, setEditingBoundaryMode] = useState<BoundaryMode | undefined>(
     selectedVersion?.boundaryMode,
   );
   useEffect(() => {
     setEditingDomains(selectedVersion?.domains ?? []);
-    setEditingRegionalDimension(selectedVersion?.regionalDimension);
+    setEditingGroupingDimensions(selectedVersion?.groupingDimensions);
     setEditingBoundaryMode(selectedVersion?.boundaryMode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVersionId]);
@@ -118,8 +118,8 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
 
   const validation = useMemo(() => {
     if (variable === null) return { ok: true as const };
-    return validateDomains(variable.type, editingDomains, editingRegionalDimension, editingBoundaryMode);
-  }, [variable, editingDomains, editingRegionalDimension, editingBoundaryMode]);
+    return validateDomains(variable.type, editingDomains, editingGroupingDimensions, editingBoundaryMode);
+  }, [variable, editingDomains, editingGroupingDimensions, editingBoundaryMode]);
   const issues = validation.ok ? [] : validation.issues;
 
   const usage = useMemo(() => (document === null ? [] : getVariableUsage(document, variableId)), [
@@ -154,7 +154,7 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
   const dirty =
     selectedVersion !== null &&
     (!domainsEqual(editingDomains, selectedVersion.domains) ||
-      !regionalDimensionEqual(editingRegionalDimension, selectedVersion.regionalDimension) ||
+      !groupingDimensionsEqual(editingGroupingDimensions, selectedVersion.groupingDimensions) ||
       !boundaryModeEqual(editingBoundaryMode, selectedVersion.boundaryMode));
   const hasOpenDraft = variable.versions.some((v) => v.state === 'DRAFT');
   const hasPublished = variable.versions.some((v) => v.state === 'PUBLISHED');
@@ -187,7 +187,7 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
         variableId,
         versionId: selectedVersion.id,
         domains: editingDomains,
-        ...(editingRegionalDimension === undefined ? {} : { regionalDimension: editingRegionalDimension }),
+        ...(editingGroupingDimensions === undefined ? {} : { groupingDimensions: editingGroupingDimensions }),
         ...(editingBoundaryMode === undefined ? {} : { boundaryMode: editingBoundaryMode }),
       }),
     );
@@ -339,8 +339,8 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
                   onChange={setEditingDomains}
                   issues={issues}
                   disabled={!isDraft}
-                  regionalDimension={editingRegionalDimension}
-                  onRegionalDimensionChange={setEditingRegionalDimension}
+                  groupingDimensions={editingGroupingDimensions}
+                  onGroupingDimensionsChange={setEditingGroupingDimensions}
                   boundaryMode={editingBoundaryMode}
                   onBoundaryModeChange={setEditingBoundaryMode}
                 />

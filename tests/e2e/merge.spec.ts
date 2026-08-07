@@ -144,7 +144,7 @@ test('abrir, editar, arquivo alterado por fora, salvar, mesclar, revisar e confi
   await page.getByRole('button', { name: 'Exemplo' }).click();
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByTestId('save-status')).toHaveText('Salvo');
-  expect(await readDisk(page)).toContain('"schemaVersion": 1');
+  expect(await readDisk(page)).toContain('"schemaVersion": 2');
 
   // 3. editar: renomeio o documento
   await page.getByLabel('Nome do documento').fill('Políticas E2E');
