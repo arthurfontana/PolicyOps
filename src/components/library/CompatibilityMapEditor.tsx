@@ -309,7 +309,7 @@ export function CompatibilityMapEditor({
           onValueChange={(value) => emit(allow, value as DefaultForUnlisted)}
           disabled={disabled}
         >
-          <SelectTrigger className="w-64">
+          <SelectTrigger className="w-64" aria-label="Quando o domínio do pai não está no mapa">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

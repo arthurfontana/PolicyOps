@@ -19,6 +19,12 @@ export interface ComboboxProps {
   emptyText?: string;
   disabled?: boolean;
   className?: string;
+  /**
+   * Nome acessível do campo (ex.: "Oferta"). Necessário porque, desabilitado,
+   * o botão não tem name computado a partir do conteúdo em todo leitor de
+   * tela — sem isso o gatilho fica mudo quando a versão não é editável.
+   */
+  'aria-label'?: string;
 }
 
 /**
@@ -35,6 +41,7 @@ export function Combobox({
   emptyText = 'Nenhum resultado.',
   disabled = false,
   className,
+  'aria-label': ariaLabel,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -61,6 +68,7 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label={ariaLabel}
           disabled={disabled}
           className={cn('w-full justify-between font-normal', className)}
         >

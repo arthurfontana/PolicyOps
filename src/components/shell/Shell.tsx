@@ -93,11 +93,14 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <PersistenceBanners />
+      <div role="region" aria-label="Avisos">
+        <PersistenceBanners />
+      </div>
 
       <div className="flex min-h-0 flex-1 print:block">
         {!sidebarCollapsed && (
           <aside
+            aria-label="Barra lateral"
             className={cn(
               'w-[248px] shrink-0 border-r border-neutral-200 print:hidden dark:border-neutral-800',
             )}
@@ -114,6 +117,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
         {!inspectorCollapsed && (
           <aside
+            aria-label="Inspector"
             className={cn(
               'w-[340px] shrink-0 border-l border-neutral-200 print:hidden dark:border-neutral-800',
             )}
