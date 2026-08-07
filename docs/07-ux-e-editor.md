@@ -164,26 +164,37 @@ Rota interna `compare?a=&b=`.
 
 ## 11. Bibliotecas
 
-**Variáveis** — lista com busca, filtro por tipo, contagem de uso (vigentes × rascunhos). Estado vazio e cabeçalho da lista trazem, junto de "Nova variável", a ação **"Criar a partir de existente"**: abre um seletor de variável + versão de origem, pede código/nome/descrição da nova, e chama `variable/duplicate` — a variável nasce com os domínios (e a dimensão regional, se houver) já copiados, pronta para ajustar em vez de montar do zero.
+**Variáveis** — lista com busca, filtro por tipo, contagem de uso (vigentes × rascunhos). Estado vazio e cabeçalho da lista trazem, junto de "Nova variável", a ação **"Criar a partir de existente"**: abre um seletor de variável + versão de origem, pede código/nome/descrição da nova, e chama `variable/duplicate` — a variável nasce com os domínios (cor, faixas e agrupamentos, se houver, inclusive) já copiados, pronta para ajustar em vez de montar do zero.
 
 Detalhe: timeline de versões, editor de domínios com drag para reordenar, campos de faixa com validação de contiguidade em tempo real, e painel "Impacto" com o aviso literal:
 
 > Publicar esta versão **não altera** nenhuma matriz já publicada. Rascunhos poderão adotar a nova versão manualmente.
 
-**Dimensão regional (só `RANGE`, só em `DRAFT`).** No topo do editor de domínios, um toggle "Esta faixa varia por regional". Desligado, o editor é o de sempre (mín/máx únicos por faixa). Ligado:
+**Colar tabela — importação genérica de domínios (qualquer tipo, só em `DRAFT`).** É a primeira ação sugerida no editor de domínios, disponível **sempre**, não só para `RANGE`: "Colar tabela" abre uma caixa de texto onde o usuário cola direto do Excel. O contrato (`05-regras-de-negocio.md` §5.6.2) é deliberadamente mínimo — uma linha de cabeçalho, uma linha por combinação — para caber tanto no caso mais simples (`Domínio | Mínimo | Máximo`) quanto no mais hierárquico (`Regional | Porte | Domínio | Mínimo | Máximo`), sem o usuário escolher um "modo" antes de colar:
 
-- um editor de lista acima da tabela de domínios, para os regionais (`code` + `label`, reordenável por drag — a ordem vira a ordem das colunas);
-- a tabela de domínios vira um grid: uma linha por faixa (código, rótulo, cor — como hoje), e um par de colunas mín/máx **por regional**, no mesmo layout do Excel de origem do usuário (faixa nas linhas, regional nas colunas);
-- validação de contiguidade roda **por coluna regional**, com a mensagem inline indicando qual regional e qual par de faixas está com problema — não é possível confundir um erro de BASE com um de SP;
-- botão **"Colar tabela"** abre uma caixa de texto; o usuário cola direto do Excel (linhas de cabeçalho com regional e MIN/MAX, uma linha por faixa — contrato exato em `05-regras-de-negocio.md` §5.6.2); ao confirmar, a tabela do grid é preenchida e o usuário revisa/corrige antes de salvar — nada é gravado sem passar pelo Salvar normal do editor;
-- erros de parsing da colagem aparecem como lista, cada um apontando linha/coluna do texto colado, sem fechar a caixa;
-- o aviso de Impacto (acima) continua valendo: mudar a dimensão regional de uma variável nunca afeta versões de matriz já publicadas — só o rascunho da variável.
+- a caixa mostra, ao lado do campo de texto, um **exemplo inline** com 3-4 linhas do formato esperado, e dois botões de download: **"Baixar modelo simples (.csv)"** (`Domínio, Mínimo, Máximo, Cor`) e **"Baixar modelo com agrupamentos (.csv)"** (`Agrupamento 1, Agrupamento 2, Domínio, Mínimo, Máximo, Cor`) — arquivos gerados no cliente (`Blob`, sem rede), prontos para abrir no Excel, preencher e colar de volta;
+- ao colar, o sistema **infere tudo**: quantas colunas de agrupamento existem (pelas colunas à esquerda de `Domínio` que não batem com um nome reconhecido), se a tabela é sobre `RANGE` (presença de `Mínimo`/`Máximo`) ou só sobre identidade/cor, e os nomes/opções de cada agrupamento a partir do próprio cabeçalho e dos valores colados — nenhuma configuração manual é pedida antes;
+- o resultado aparece como **preview** — a lista de domínios (e, se houver, a estrutura de agrupamento detectada) pronta para revisão, com avisos de linha vazia ou combinação incompleta e erros de formato apontando a linha do texto colado, sem fechar a caixa;
+- ao confirmar, o preview substitui o conteúdo do editor — nada é gravado sem passar pelo Salvar normal (§5.6.3: domínios de mesmo `code` já existentes preservam automaticamente qualquer atributo — cor, faixa — que a colagem não trouxe coluna para atualizar);
+- o aviso de Impacto (acima) continua valendo: colar uma tabela nunca afeta versões de matriz já publicadas — só o rascunho da variável.
 
-**Limites inclusivos (só `RANGE`, só em `DRAFT`, independente de regional).** Logo abaixo do toggle "Esta faixa varia por regional" (aparece com ou sem ele, já que também vale para faixa `RANGE` simples), um segundo toggle: "Faixas com limites fechados nos dois lados". Desligado (default, `boundaryMode` ausente/`HALF_OPEN`), o editor é o de sempre — `[mín, máx)`, cada linha mostra os checkboxes "mín. inclusivo"/"máx. inclusivo" de sempre. Ligado (`boundaryMode: 'INCLUSIVE_INTEGER'`):
+**Continuidade automática de faixas (só `RANGE`, só em `DRAFT`).** O editor padrão pede só **mínimo e máximo** de cada faixa — sem checkbox de "mín. inclusivo"/"máx. inclusivo" visível. O sistema assume `[mín, máx)` (o máximo de uma faixa nunca pertence à seguinte) e valida continuidade/sobreposição/lacuna em tempo real, apontando a mensagem inline na faixa e na vizinha envolvida. Os dois casos-limite que motivavam os checkboxes manuais ficam atrás de um link **"Opções avançadas"**, colapsado por padrão:
 
-- os checkboxes "mín. inclusivo"/"máx. inclusivo" de cada faixa (só aparecem no modo simples, sem regional) somem, substituídos por um rótulo fixo "limites inclusivos, passo 1" — deixam de fazer sentido porque o modo já implica `[mín, máx]` para a versão inteira;
-- a validação de contiguidade em tempo real passa a exigir `atual.máx + 1 == próxima.mín` (em vez de `atual.máx == próxima.mín`) e valores inteiros — a mensagem inline muda de acordo (`05-regras-de-negocio.md` §5.6.0);
-- colar a tabela (regional) ou digitar direto (simples) no formato fechado-fechado do Excel (`0-357`, `358-437`, …) não precisa mais de ajuste manual do usuário antes de salvar.
+- **"Faixas com limites fechados nos dois lados"** (`boundaryMode: 'INCLUSIVE_INTEGER'`, `05-regras-de-negocio.md` §5.6.0) — para quando o corte já vem fechado-fechado do Excel (`0-357`, `358-437`, …) e o usuário não quer reescrever o máximo de cada faixa para repetir o mínimo da seguinte; ligado, a validação passa a exigir `atual.máx + 1 == próxima.mín` e valores inteiros;
+- override manual de inclusão por faixa, para o caso raro em que nem `HALF_OPEN` nem `INCLUSIVE_INTEGER` descrevem a faixa (ex.: uma faixa isolada que precisa ser fechada nos dois lados dentro de uma versão `HALF_OPEN`) — reexibe os checkboxes "mín. inclusivo"/"máx. inclusivo" só quando o usuário abre essa opção.
+
+**Agrupamentos hierárquicos (só `RANGE`, só em `DRAFT`).** Generaliza o toggle "regional" da sessão 18: no topo do editor de domínios, uma lista dos agrupamentos configurados na versão (nome + contagem de opções), reordenável por drag — a ordem vira a ordem das colunas na colagem e a leitura da hierarquia (Regional › Porte › Tipo de Empresa). Populada principalmente por "Colar tabela" (acima); um editor manual complementar permite renomear um agrupamento, reordenar, remover (com confirmação — apaga as faixas daquele nível) ou adicionar um agrupamento vazio antes de colar.
+
+Com 1 ou mais agrupamentos configurados, a tabela de domínios deixa de ser o grid pivotado da sessão 18 (uma coluna mín/máx por regional) e passa a ser uma **tabela tidy**: uma linha por combinação `(agrupamento…, domínio, mín, máx)`, igual ao formato colado — o pivô parava de generalizar a partir de 2 níveis, porque hierarquias reais são assimétricas (nem toda Regional tem MEI) e um grid bidimensional não representa isso sem colunas vazias. A tabela é:
+
+- agrupada visualmente por caminho (path), com o cabeçalho de cada grupo mostrando a combinação (`São Paulo › MEI`);
+- editável linha a linha (adicionar/remover combinação, editar mín/máx/cor inline);
+- validada em tempo real **por caminho distinto** — a mensagem de contiguidade aponta o caminho e o par de faixas com problema, nunca confunde um erro de "São Paulo › MEI" com um de "Sul › MEI";
+- avisada (não bloqueada) quando um domínio existe em alguns caminhos mas está ausente de outros que têm faixas para os demais domínios — o caso provável de "esqueci de colar uma linha" (`03-modelo-do-documento.md` §9, nota após I19).
+
+O aviso de Impacto continua valendo: mudar os agrupamentos de uma variável nunca afeta versões de matriz já publicadas — só o rascunho da variável, e a matriz nunca sabe que agrupamento existe (§5.6 de `05-regras-de-negocio.md`).
+
+**Paletas de cor (só `RANGE`/`CATEGORICAL`/`ORDINAL`, coluna Cor do editor de domínios).** Botão **"Aplicar paleta"** ao lado da lista de domínios: abre um seletor com as paletas oficiais (`Risco R01–R20`, `Risco simplificado` — `05-regras-de-negocio.md` §5.6.4) e aplica a cor de cada domínio cujo código/rótulo bater, mostrando quantos bateram. Domínios novos, criados sem cor explícita (digitando ou colando sem coluna `Cor`), já nascem com a cor sugerida quando o código/rótulo bate com uma paleta oficial — continua um campo comum, editável a qualquer momento.
 
 **Compatibilidade** — lista de regras por par. Editor em **matriz de marcação**: domínios do pai nas linhas, do filho nas colunas, caixas de seleção. Ações de linha ("todos"/"nenhum"), contador de combinações válidas, e preview do eixo resultante. Aviso do mesmo teor sobre não afetar publicadas.
 
@@ -204,3 +215,5 @@ Detalhe: timeline de versões, editor de domínios com drag para reordenar, camp
 ## 13. Paleta
 
 `src/lib/colors.ts` exporta 12 cores de célula validadas para contraste AA nos dois temas, as cores semânticas de decisão e as de diff. Nenhuma cor hard-coded em componente.
+
+`src/lib/color-palettes.ts` exporta as paletas oficiais de cor de **domínio** (`Risco R01–R20`, `Risco simplificado` — `05-regras-de-negocio.md` §5.6.4), usadas pelo botão "Aplicar paleta" e pela sugestão automática do editor de domínios (§11). É um conjunto separado das 12 cores de célula acima — domínio e célula têm resoluções de cor independentes (`05-regras-de-negocio.md` §3).
