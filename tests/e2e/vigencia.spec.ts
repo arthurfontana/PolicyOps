@@ -123,8 +123,9 @@ test('visão de portfólio mostra a miniatura, e "Exportar esta visão" baixa o 
   await page.getByRole('tab', { name: 'Portfólio' }).click();
   await expect(page.getByRole('img', { name: /Miniatura da matriz/ }).first()).toBeVisible();
 
-  const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Exportar esta visão' }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('menuitem', { name: 'Exportar JSON' }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^vigencia-.*\.json$/);
 

@@ -1,5 +1,5 @@
-import { useEffect, type ReactNode } from 'react';
-import { PanelLeft, PanelRight } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Keyboard, PanelLeft, PanelRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore } from '@/store/ui-store';
 import { Sidebar } from './Sidebar';
@@ -7,6 +7,8 @@ import { Inspector } from './Inspector';
 import { StatusBar } from './StatusBar';
 import { PersistenceBanners } from './PersistenceBanners';
 import { ThemeToggle } from './ThemeToggle';
+import { ErrorBoundary } from './ErrorBoundary';
+import { ShortcutsDialog } from './ShortcutsDialog';
 import { Button } from '@/components/ui/button';
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -15,7 +17,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
 }
 
-function useCollapseShortcuts() {
+/** `[`/`]` recolhem sidebar/inspector; `?` abre o diálogo de atalhos (docs/07 §12). */
+function useShellShortcuts(onOpenShortcuts: () => void) {
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const toggleInspector = useUiStore((s) => s.toggleInspector);
 
@@ -30,16 +33,20 @@ function useCollapseShortcuts() {
       } else if (event.key === ']') {
         event.preventDefault();
         toggleInspector();
+      } else if (event.key === '?') {
+        event.preventDefault();
+        onOpenShortcuts();
       }
     }
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [toggleSidebar, toggleInspector]);
+  }, [toggleSidebar, toggleInspector, onOpenShortcuts]);
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  useCollapseShortcuts();
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  useShellShortcuts(() => setShortcutsOpen(true));
 
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
   const inspectorCollapsed = useUiStore((s) => s.inspectorCollapsed);
@@ -48,7 +55,7 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen flex-col bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-      <header className="flex h-11 shrink-0 items-center justify-between border-b border-neutral-200 px-3 dark:border-neutral-800">
+      <header className="flex h-11 shrink-0 items-center justify-between border-b border-neutral-200 px-3 print:hidden dark:border-neutral-800">
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -68,6 +75,15 @@ export function Shell({ children }: { children: ReactNode }) {
             type="button"
             variant="ghost"
             size="icon"
+            onClick={() => setShortcutsOpen(true)}
+            aria-label="Ver atalhos de teclado (?)"
+          >
+            <Keyboard className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
             onClick={toggleInspector}
             aria-label={inspectorCollapsed ? 'Expandir inspector (])' : 'Recolher inspector (])'}
             aria-pressed={inspectorCollapsed}
@@ -79,23 +95,39 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <PersistenceBanners />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 print:block">
         {!sidebarCollapsed && (
-          <aside className={cn('w-[248px] shrink-0 border-r border-neutral-200 dark:border-neutral-800')}>
-            <Sidebar />
+          <aside
+            className={cn(
+              'w-[248px] shrink-0 border-r border-neutral-200 print:hidden dark:border-neutral-800',
+            )}
+          >
+            <ErrorBoundary region="Barra lateral">
+              <Sidebar />
+            </ErrorBoundary>
           </aside>
         )}
 
-        <main className="min-w-0 flex-1 overflow-auto">{children}</main>
+        <main className="min-w-0 flex-1 overflow-auto print:overflow-visible">
+          <ErrorBoundary region="Conteúdo">{children}</ErrorBoundary>
+        </main>
 
         {!inspectorCollapsed && (
-          <aside className={cn('w-[340px] shrink-0 border-l border-neutral-200 dark:border-neutral-800')}>
-            <Inspector />
+          <aside
+            className={cn(
+              'w-[340px] shrink-0 border-l border-neutral-200 print:hidden dark:border-neutral-800',
+            )}
+          >
+            <ErrorBoundary region="Inspector">
+              <Inspector />
+            </ErrorBoundary>
           </aside>
         )}
       </div>
 
       <StatusBar />
+
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   );
 }

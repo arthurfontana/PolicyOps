@@ -1,6 +1,7 @@
 import { decodeCellKey } from '../axes/paths';
 import type { Axis, Matrix, MatrixVersion, PolicyOpsDocument } from '../document/schema';
 import { getPortfolioAt } from '../queries';
+import { exportFileName } from './filename';
 
 /**
  * Formato canônico de exportação — docs/08-camada-de-comandos.md §5.
@@ -12,6 +13,11 @@ import { getPortfolioAt } from '../queries';
  */
 
 export const CANONICAL_EXPORT_SCHEMA_VERSION = 1 as const;
+
+/** `{matrixCode}_v{n}_{aaaammdd}.json` — mesmo esquema de nome do CSV (docs/08 §5). */
+export function canonicalFileName(matrixCode: string, versionNumber: number, at: Date = new Date()): string {
+  return exportFileName(matrixCode, versionNumber, 'json', at);
+}
 
 export type CanonicalAxisLevel = { variable: string; variableVersion: number };
 

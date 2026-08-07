@@ -10,23 +10,13 @@ import {
 import { TableCell, TableRow } from '@/components/ui/table';
 import { archiveCatalogItem } from '@/core/library/catalog';
 import type { CatalogItemWithUsage } from '@/core/library/catalog';
+import { formatBRL } from '@/lib/format';
 import { useDocumentStore } from '@/store/document-store';
 
 export interface CatalogTableRowProps {
   item: CatalogItemWithUsage;
   onEdit: () => void;
   _showArchived?: boolean;
-}
-
-function formatBRL(value: string | undefined): string {
-  if (!value) return '—';
-  const num = parseFloat(value);
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
 }
 
 export function CatalogTableRow({ item, onEdit }: CatalogTableRowProps) {

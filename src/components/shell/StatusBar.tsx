@@ -37,7 +37,7 @@ export function StatusBar() {
       : null;
 
   return (
-    <footer className="flex h-8 shrink-0 items-center justify-between border-t border-neutral-200 bg-neutral-50 px-3 text-xs text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
+    <footer className="flex h-8 shrink-0 items-center justify-between border-t border-neutral-200 bg-neutral-50 px-3 text-xs text-neutral-500 print:hidden dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
       <div className="flex min-w-0 items-center gap-3">
         <span
           className={fileName === null ? 'italic text-neutral-400 dark:text-neutral-500' : 'truncate'}

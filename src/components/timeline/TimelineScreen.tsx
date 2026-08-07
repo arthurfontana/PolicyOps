@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, Download, ExternalLink, GitCompare } from 'lucide-react';
+import { CalendarClock, ExternalLink, GitCompare } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Grid } from '@/components/grid/Grid';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ExportMenu } from '@/components/shell/ExportMenu';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { orderForCompare } from '@/core/diff';
 import { exportPortfolioCanonical } from '@/core/export/canonical';
@@ -18,6 +19,7 @@ import {
   listProjects,
   type PortfolioEntry,
 } from '@/core/queries';
+import { downloadJson } from '@/lib/download';
 import { formatDateBR } from '@/lib/format';
 import { DATE_SHORTCUTS, endOfDayInstant, formatDateInputBR, toDateInputValue } from '@/lib/timeline-dates';
 import { buildTimelineHash, parseTimelineHash } from '@/lib/timeline-hash';
@@ -35,19 +37,6 @@ import { MatrixTimelineBar } from './MatrixTimelineBar';
  */
 
 type ViewMode = 'list' | 'portfolio';
-
-function downloadJson(fileName: string, data: unknown): void {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.style.display = 'none';
-  window.document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
-}
 
 export function TimelineScreen() {
   const document = useDocumentStore((s) => s.document);
@@ -183,9 +172,10 @@ export function TimelineScreen() {
               <TabsTrigger value="portfolio">Portfólio</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button type="button" variant="outline" size="sm" onClick={exportView}>
-            <Download className="mr-1.5 h-3.5 w-3.5" /> Exportar esta visão
-          </Button>
+          <ExportMenu
+            label="Exportar esta visão"
+            items={[{ key: 'json', label: 'Exportar JSON', onSelect: exportView }]}
+          />
         </div>
       </div>
 

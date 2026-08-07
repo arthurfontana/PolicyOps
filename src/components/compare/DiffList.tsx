@@ -1,9 +1,7 @@
 import { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Download } from 'lucide-react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { CellChange, CellChangeKind } from '@/core/diff/types';
 import type { EditorView } from '@/core/queries';
 import {
@@ -21,12 +19,11 @@ import {
  * Modo **Lista** da tela de comparação — docs/07-ux-e-editor.md §9.
  *
  * Tabela filtrável por tipo de mudança e ordenável, com o caminho legível
- * completo (`Varejo › 100k–500k × R3`). A exportação chega na S17 e por ora
- * fica desabilitada, com a sessão dita no tooltip.
+ * completo (`Varejo › 100k–500k × R3`). A exportação do diff vive no menu
+ * "Exportar" unificado do cabeçalho da tela (`CompareScreen`), não aqui.
  */
 
 const ALL = 'TODOS';
-const EXPORT_COMING_LATER = 'Exportar o diff chega na Sessão 17.';
 
 type SortKey = 'path' | 'kind' | 'fields';
 
@@ -144,16 +141,6 @@ export function DiffList({
         <span className="text-xs text-neutral-500 dark:text-neutral-400" data-testid="diff-list-count">
           {visible.length} de {rows.length} mudança(s)
         </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="ml-auto">
-              <Button type="button" variant="outline" size="sm" disabled>
-                <Download className="mr-1.5 h-3.5 w-3.5" /> Exportar
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{EXPORT_COMING_LATER}</TooltipContent>
-        </Tooltip>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto rounded-md border border-neutral-200 dark:border-neutral-800">

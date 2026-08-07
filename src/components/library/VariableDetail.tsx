@@ -26,6 +26,7 @@ import {
 } from '@/core/library/variables';
 import { getVariableUsage } from '@/core/queries';
 import { getDraftsAdoptingVariable } from '@/core/reconcile/stale';
+import { formatDateTimeBR } from '@/lib/format';
 import { VARIABLE_TYPE_LABELS } from '@/lib/variable-types';
 import { useDocumentStore } from '@/store/document-store';
 import { AdoptionList } from './AdoptionList';
@@ -45,10 +46,6 @@ const STATE_BADGE: Record<VariableVersionState, BadgeVariant> = {
   PUBLISHED: 'green',
   SUPERSEDED: 'secondary',
 };
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('pt-BR');
-}
 
 function pickDefaultVersion(versions: VariableVersion[]): VariableVersion | null {
   if (versions.length === 0) return null;
@@ -300,7 +297,7 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
                     </Badge>
                   </div>
                   <span className="text-neutral-500 dark:text-neutral-400">
-                    {formatDate(version.publishedAt ?? version.createdAt)}
+                    {formatDateTimeBR(version.publishedAt ?? version.createdAt)}
                   </span>
                   {version.notes !== undefined && (
                     <span className="text-neutral-500 dark:text-neutral-400">{version.notes}</span>

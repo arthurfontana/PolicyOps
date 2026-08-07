@@ -2,8 +2,11 @@ import { useEffect, useMemo } from 'react';
 import { ArrowLeft, ArrowRight, GitCompare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ExportMenu } from '@/components/shell/ExportMenu';
 import { diffVersions, orderForCompare } from '@/core/diff';
+import { diffCsvFileName, exportDiffCsv } from '@/core/export/diff-csv';
 import { defaultComparePair, getEditorView } from '@/core/queries';
+import { downloadCsv } from '@/lib/download';
 import { listComparableVersions } from '@/lib/diff-view';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
@@ -75,6 +78,10 @@ export function CompareScreen() {
     setCompareVersions(ordered.aId, ordered.bId);
   }
 
+  function handleExportDiffCsv() {
+    downloadCsv(diffCsvFileName(diff.a.matrixCode, diff.a.number, diff.b.number), exportDiffCsv(document!, diff));
+  }
+
   const header = (
     <div className="flex flex-wrap items-center gap-2">
       <Button variant="ghost" size="icon" aria-label="Voltar à matriz" onClick={() => setView('matrix')}>
@@ -110,6 +117,10 @@ export function CompareScreen() {
           ))}
         </SelectContent>
       </Select>
+
+      <div className="ml-auto">
+        <ExportMenu items={[{ key: 'diff-csv', label: 'Exportar CSV do diff', onSelect: handleExportDiffCsv }]} />
+      </div>
     </div>
   );
 

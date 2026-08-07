@@ -3,6 +3,7 @@ import type { CellChange, CellChangeKind, DiffedCellField, VersionDiff } from '@
 import type { Cell, MatrixVersionState, PolicyOpsDocument } from '@/core/document/schema';
 import type { EditorAxisView, EditorCatalog, EditorView } from '@/core/queries';
 import { readableTuple } from '@/lib/axis-labels';
+import { formatBRL } from '@/lib/format';
 
 /**
  * Tradução do diff para a tela — docs/07-ux-e-editor.md §9.
@@ -90,13 +91,6 @@ function pickAxis(
 ): EditorAxisView {
   if (fallback === undefined) return primary;
   return primary.axis.tuples.includes(path) ? primary : fallback;
-}
-
-const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-
-function formatBRL(value: string): string {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? currencyFormatter.format(parsed) : value;
 }
 
 /** O valor de um campo da célula como a pessoa o lê no grid — "—" quando ausente. */
