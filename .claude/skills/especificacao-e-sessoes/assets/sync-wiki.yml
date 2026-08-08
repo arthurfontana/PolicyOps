@@ -1,0 +1,52 @@
+# Sincroniza docs/wiki/ do repositório com a Wiki do GitHub.
+#
+# Instalação (qualquer repositório):
+#   1. Copie este arquivo para .github/workflows/sync-wiki.yml
+#   2. Habilite a Wiki nas configurações do repositório e crie a primeira página
+#      pela interface (qualquer conteúdo) — o repositório git da Wiki só existe
+#      depois disso; sem esse passo o clone abaixo falha.
+#   3. Pronto: todo push na branch padrão que tocar docs/wiki/** publica na Wiki.
+#
+# A Wiki é somente leitura na prática: edições feitas pela interface do GitHub
+# são sobrescritas na próxima sincronização. A fonte de escrita é docs/wiki/.
+
+name: Sincroniza Wiki
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'docs/wiki/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clonar repositório da Wiki
+        run: |
+          git clone "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git" wiki-repo
+
+      - name: Copiar arquivos para a Wiki
+        run: |
+          cp -r docs/wiki/. wiki-repo/
+
+      - name: Commitar e publicar
+        working-directory: wiki-repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if git diff --staged --quiet; then
+            echo "Nenhuma alteração na Wiki."
+          else
+            git commit -m "docs: sync wiki [skip ci]"
+            git push
+          fi
