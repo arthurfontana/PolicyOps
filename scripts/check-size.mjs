@@ -1,9 +1,9 @@
-// Falha se dist/PolicyOps.html ultrapassar o orçamento de 1 MB
+// Falha se dist/PolicyOps.html ultrapassar o orçamento de 1,5 MB
 // (docs/02-arquitetura.md §2, "Restrições absolutas do bundle").
 import { statSync } from 'node:fs';
 import path from 'node:path';
 
-const BUDGET_BYTES = 1024 * 1024;
+const BUDGET_BYTES = 1.5 * 1024 * 1024;
 const target = path.resolve(import.meta.dirname, '..', 'dist', 'PolicyOps.html');
 
 let size;

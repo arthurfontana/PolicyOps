@@ -13,7 +13,7 @@ export default defineConfig({
   },
   // Bundle único de produção, sem redistribuição em separado — os banners de
   // licença das dependências (`@license`) não precisam sobreviver à
-  // minificação para caber no orçamento de 1 MB (docs/02 §2).
+  // minificação para caber no orçamento de 1,5 MB (docs/02 §2).
   esbuild: {
     legalComments: 'none',
   },

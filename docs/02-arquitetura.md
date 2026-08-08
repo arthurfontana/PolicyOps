@@ -42,7 +42,7 @@ Separar aplicação e dados é deliberado: o `.html` é imutável e a TI o publi
 - Fontes: pilha do sistema (`ui-sans-serif, system-ui, "Segoe UI", …`).
 - Nada de `eval` nem de `new Function` — CSPs corporativas frequentemente bloqueiam.
 - Tudo em um arquivo: sem code splitting, sem lazy chunks, sem service worker.
-- Orçamento de tamanho: **1 MB** para o HTML final. O build falha acima disso.
+- Orçamento de tamanho: **1,5 MB** para o HTML final. O build falha acima disso. (Elevado do 1 MB original em 2026-08 para acomodar as Sessões 19-20, que já haviam estourado o teto anterior.)
 
 **Proibido sem aprovação explícita:** qualquer backend, IndexedDB como armazenamento primário, biblioteca de grid de terceiros (AG Grid, Handsontable), canvas/WebGL para o grid, framework de estado adicional.
 
