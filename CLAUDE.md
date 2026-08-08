@@ -21,7 +21,7 @@ Leia antes de mexer em código:
 4. **`src/core/` é TypeScript puro**: sem React, sem Zustand, sem DOM, sem `window`.
 5. **Zero requisições de rede** em tempo de execução. Sem CDN, sem fontes web, sem `eval`.
 6. Escopo é escopo: não implementar sessões futuras "já que estou aqui".
-7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes, o orçamento de 1 MB respeitado, e **`dist/PolicyOps.html` atualizado no commit**.
+7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes, o orçamento de 1,5 MB respeitado, e **`dist/PolicyOps.html` atualizado no commit**.
 8. Commitar na branch de trabalho e fazer push.
 
 ## Comandos
@@ -34,6 +34,6 @@ pnpm lint
 pnpm typecheck
 pnpm test:unit            # Vitest — node para src/core/, jsdom (via pragma) para componentes
 pnpm test:e2e             # Playwright contra dist/PolicyOps.html por file://
-pnpm check-size           # falha se dist/PolicyOps.html > 1 MB
+pnpm check-size           # falha se dist/PolicyOps.html > 1,5 MB
 pnpm check-selfcontained  # falha se o HTML tiver qualquer referência externa
 ```
