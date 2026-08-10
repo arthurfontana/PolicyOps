@@ -21,7 +21,7 @@ function Harness({ initial }: { initial: Domain[] }) {
 }
 
 const CONTIGUOUS: Domain[] = [
-  { code: 'BAIXO', label: 'Baixo', position: 0, rangeMin: '0', rangeMax: '100' },
+  { code: 'BAIXO', label: 'Baixo', position: 0, rangeMin: '0', rangeMax: '99' },
   { code: 'ALTO', label: 'Alto', position: 1, rangeMin: '100', rangeMax: '200' },
 ];
 
@@ -47,7 +47,7 @@ describe('DomainsEditor — validação de contiguidade em tempo real', () => {
     fireEvent.change(maxInputs[0]!, { target: { value: '50' } });
     expect(screen.getAllByText(/não são contíguas/).length).toBeGreaterThan(0);
 
-    fireEvent.change(screen.getAllByLabelText('Máximo')[0]!, { target: { value: '100' } });
+    fireEvent.change(screen.getAllByLabelText('Máximo')[0]!, { target: { value: '99' } });
     expect(screen.queryByText(/não são contíguas/)).not.toBeInTheDocument();
   });
 
@@ -114,8 +114,8 @@ const GROUPED_CONTIGUOUS: Domain[] = [
     label: 'R1',
     position: 0,
     groupingRanges: [
-      { path: ['SAO_PAULO', 'MEI'], min: '0', max: '100' },
-      { path: ['SUL', 'MEI'], min: '0', max: '120' },
+      { path: ['SAO_PAULO', 'MEI'], min: '0', max: '99' },
+      { path: ['SUL', 'MEI'], min: '0', max: '119' },
     ],
   },
   {
@@ -195,7 +195,7 @@ describe('DomainsEditor — agrupamentos hierárquicos (docs/07 §11)', () => {
         label: 'R1',
         position: 0,
         groupingRanges: [
-          { path: ['SAO_PAULO', 'MEI'], min: '0', max: '100' },
+          { path: ['SAO_PAULO', 'MEI'], min: '0', max: '99' },
           { path: ['SAO_PAULO', 'NAO_MEI'], min: '0', max: '120' },
         ],
       },
@@ -385,6 +385,9 @@ describe('DomainsEditor — continuidade automática e opções avançadas (docs
     await user.click(screen.getByRole('button', { name: /Opções avançadas/ }));
     expect(screen.queryByText('mín. inclusivo')).not.toBeInTheDocument();
 
+    // A inclusão manual por faixa só existe dentro de HALF_OPEN — em
+    // INCLUSIVE_INTEGER (o default) todas as faixas seguem [mín, máx] igual.
+    await user.click(screen.getByRole('checkbox', { name: /Faixas decimais\/meio-abertas/ }));
     await user.click(screen.getByRole('checkbox', { name: /inclusão manualmente por faixa/ }));
     expect(screen.getAllByText('mín. inclusivo').length).toBeGreaterThan(0);
     expect(screen.getAllByText('máx. inclusivo').length).toBeGreaterThan(0);

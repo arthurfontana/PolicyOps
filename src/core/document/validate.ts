@@ -411,7 +411,7 @@ export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
     variable.versions.forEach((version, vi) => {
       const path = `variables[${vari}].versions[${vi}]`;
       const domains = [...version.domains].sort((a, b) => a.position - b.position);
-      const boundaryMode: BoundaryMode = version.boundaryMode ?? 'HALF_OPEN';
+      const boundaryMode: BoundaryMode = version.boundaryMode ?? 'INCLUSIVE_INTEGER';
 
       issues.push(...checkCatchAllIdentity(domains, variable.code, path));
 

@@ -58,11 +58,11 @@ export interface DomainsEditorProps {
    * agrupamento não precisa saber que a opção existe.
    */
   onGroupingDimensionsChange?: (groupingDimensions: GroupingDimension[] | undefined) => void;
-  /** Ausente = `HALF_OPEN`, o comportamento de sempre (docs/03 §2). */
+  /** Ausente = `INCLUSIVE_INTEGER`, o default (docs/03 §2). */
   boundaryMode?: BoundaryMode;
   /**
-   * Só quando definido o toggle "Faixas com limites fechados nos dois
-   * lados" aparece — mesmo padrão de `onGroupingDimensionsChange`.
+   * Só quando definido o toggle "Faixas decimais/meio-abertas" aparece —
+   * mesmo padrão de `onGroupingDimensionsChange`.
    */
   onBoundaryModeChange?: (boundaryMode: BoundaryMode | undefined) => void;
 }
@@ -642,11 +642,12 @@ export function DomainsEditor({
   onBoundaryModeChange,
 }: DomainsEditorProps) {
   const groupingMode = type === 'RANGE' && groupingDimensions !== undefined && groupingDimensions.length > 0;
-  const effectiveBoundaryMode: BoundaryMode = boundaryMode ?? 'HALF_OPEN';
+  const effectiveBoundaryMode: BoundaryMode = boundaryMode ?? 'INCLUSIVE_INTEGER';
   const [rows, setRows] = useState<Row[]>(() => toRows(domains));
 
   // "Opções avançadas" — docs/07 §11: boundaryMode e inclusão manual por
-  // faixa ficam colapsados por padrão; o comportamento assumido é HALF_OPEN.
+  // faixa ficam colapsados por padrão; o comportamento assumido é
+  // INCLUSIVE_INTEGER (inteiros fechados-fechados, passo 1).
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [showManualInclusion, setShowManualInclusion] = useState(false);
 
@@ -853,13 +854,13 @@ export function DomainsEditor({
             <div className="flex flex-col gap-2 rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
               <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
                 <Checkbox
-                  checked={effectiveBoundaryMode === 'INCLUSIVE_INTEGER'}
+                  checked={effectiveBoundaryMode === 'HALF_OPEN'}
                   disabled={disabled}
                   onCheckedChange={(checked) =>
-                    onBoundaryModeChange(checked === true ? 'INCLUSIVE_INTEGER' : undefined)
+                    onBoundaryModeChange(checked === true ? 'HALF_OPEN' : undefined)
                   }
                 />
-                Faixas com limites fechados nos dois lados (ex.: 0–357, 358–437 — inteiros, passo 1)
+                Faixas decimais/meio-abertas (ex.: 0–10, 10–20 — o máximo de uma não pertence à seguinte)
               </label>
               <label className="flex items-center gap-2 text-sm text-neutral-700 dark:text-neutral-300">
                 <Checkbox

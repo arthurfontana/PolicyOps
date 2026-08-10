@@ -76,7 +76,12 @@ function domain(code: string, label: string, position: number, extra: Partial<Do
   return { code, label, position, ...extra };
 }
 
-function publishedVersion(id: string, domains: Domain[], createdAt: string): VariableVersion {
+function publishedVersion(
+  id: string,
+  domains: Domain[],
+  createdAt: string,
+  boundaryMode?: VariableVersion['boundaryMode'],
+): VariableVersion {
   return {
     id,
     number: 1,
@@ -86,6 +91,7 @@ function publishedVersion(id: string, domains: Domain[], createdAt: string): Var
     publishedAt: createdAt,
     publishedBy: SAMPLE_ACTOR,
     domains,
+    ...(boundaryMode === undefined ? {} : { boundaryMode }),
   };
 }
 
@@ -162,7 +168,7 @@ export function createSampleDocument(): PolicyOpsDocument {
     name: 'Faixa de Faturamento',
     type: 'RANGE',
     createdAt: t0,
-    versions: [publishedVersion(fatV1Id, fatDomains, t0)],
+    versions: [publishedVersion(fatV1Id, fatDomains, t0, 'HALF_OPEN')],
   };
 
   const faixaRendaId = genId();
@@ -179,7 +185,7 @@ export function createSampleDocument(): PolicyOpsDocument {
     name: 'Faixa de Renda',
     type: 'RANGE',
     createdAt: t0,
-    versions: [publishedVersion(faixaRendaV1Id, faixaRendaDomains, t0)],
+    versions: [publishedVersion(faixaRendaV1Id, faixaRendaDomains, t0, 'HALF_OPEN')],
   };
 
   const tempoEmpresaId = genId();
@@ -196,7 +202,7 @@ export function createSampleDocument(): PolicyOpsDocument {
     name: 'Tempo de Empresa',
     type: 'RANGE',
     createdAt: t0,
-    versions: [publishedVersion(tempoEmpresaV1Id, tempoEmpresaDomains, t0)],
+    versions: [publishedVersion(tempoEmpresaV1Id, tempoEmpresaDomains, t0, 'HALF_OPEN')],
   };
 
   const variables: Variable[] = [
