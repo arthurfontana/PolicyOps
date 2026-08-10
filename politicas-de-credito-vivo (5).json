@@ -1,0 +1,475 @@
+{
+  "schemaVersion": 2,
+  "meta": {
+    "id": "zWC59BueJ2Qc",
+    "name": "Políticas de Crédito Vivo",
+    "revision": 4,
+    "savedAt": "2026-08-10T14:30:33.221Z",
+    "savedBy": "Arthur",
+    "appVersion": "0.1.0",
+    "createdAt": "2026-08-07T11:55:29.880Z"
+  },
+  "variables": [
+    {
+      "id": "GSsiduhOBzcf",
+      "code": "SCORE_HVI3",
+      "name": "Score customizado Serasa | HVI3 | B2C | 202405",
+      "description": "Modelo de score customizado Serasa para público B2C, foco ser o modelo principal para operação",
+      "type": "RANGE",
+      "createdAt": "2026-08-10T13:05:25.241Z",
+      "versions": [
+        {
+          "id": "BE63wxD00yQY",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-08-10T13:05:25.241Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-08-10T14:25:42.118Z",
+          "publishedBy": "Arthur",
+          "domains": [
+            {
+              "code": "R01",
+              "label": "R01 - Baixissimo Risco",
+              "position": 0,
+              "color": "#00FF2A",
+              "rangeMin": "704",
+              "rangeMax": "999"
+            },
+            {
+              "code": "R02",
+              "label": "R02 - Baixissimo Risco",
+              "position": 1,
+              "color": "#24FF48",
+              "rangeMin": "685",
+              "rangeMax": "703"
+            },
+            {
+              "code": "R03",
+              "label": "R03 - Baixissimo Risco",
+              "position": 2,
+              "color": "#48FF66",
+              "rangeMin": "672",
+              "rangeMax": "684"
+            },
+            {
+              "code": "R04",
+              "label": "R04 - Baixissimo Risco",
+              "position": 3,
+              "color": "#6CFF84",
+              "rangeMin": "661",
+              "rangeMax": "671"
+            },
+            {
+              "code": "R05",
+              "label": "R05 - Baixo Risco",
+              "position": 4,
+              "color": "#90FFA2",
+              "rangeMin": "651",
+              "rangeMax": "660"
+            },
+            {
+              "code": "R06",
+              "label": "R06 - Baixo Risco",
+              "position": 5,
+              "color": "#B4FFC0",
+              "rangeMin": "640",
+              "rangeMax": "650"
+            },
+            {
+              "code": "R07",
+              "label": "R07 - Baixo Risco",
+              "position": 6,
+              "color": "#D8FFDE",
+              "rangeMin": "628",
+              "rangeMax": "639"
+            },
+            {
+              "code": "R08",
+              "label": "R08 - Baixo Risco",
+              "position": 7,
+              "color": "#F0FFF6",
+              "rangeMin": "615",
+              "rangeMax": "627"
+            },
+            {
+              "code": "R09",
+              "label": "R09 - Médio Risco",
+              "position": 8,
+              "color": "#FFEAC0",
+              "rangeMin": "601",
+              "rangeMax": "614"
+            },
+            {
+              "code": "R10",
+              "label": "R10 - Médio Risco",
+              "position": 9,
+              "color": "#FFD280",
+              "rangeMin": "588",
+              "rangeMax": "600"
+            },
+            {
+              "code": "R11",
+              "label": "R11 - Médio Risco",
+              "position": 10,
+              "color": "#FFBA40",
+              "rangeMin": "575",
+              "rangeMax": "587"
+            },
+            {
+              "code": "R12",
+              "label": "R12 - Médio Risco",
+              "position": 11,
+              "color": "#FFA200",
+              "rangeMin": "562",
+              "rangeMax": "574"
+            },
+            {
+              "code": "R13",
+              "label": "R13 - Alto Risco",
+              "position": 12,
+              "color": "#FFE0E0",
+              "rangeMin": "550",
+              "rangeMax": "561"
+            },
+            {
+              "code": "R14",
+              "label": "R14 - Alto Risco",
+              "position": 13,
+              "color": "#FFC0C0",
+              "rangeMin": "537",
+              "rangeMax": "549"
+            },
+            {
+              "code": "R15",
+              "label": "R15 - Alto Risco",
+              "position": 14,
+              "color": "#FFA0A0",
+              "rangeMin": "524",
+              "rangeMax": "536"
+            },
+            {
+              "code": "R16",
+              "label": "R16 - Alto Risco",
+              "position": 15,
+              "color": "#FF8080",
+              "rangeMin": "509",
+              "rangeMax": "523"
+            },
+            {
+              "code": "R17",
+              "label": "R17 - Altissimo Risco",
+              "position": 16,
+              "color": "#FF6060",
+              "rangeMin": "493",
+              "rangeMax": "508"
+            },
+            {
+              "code": "R18",
+              "label": "R18 - Altissimo Risco",
+              "position": 17,
+              "color": "#FF4040",
+              "rangeMin": "476",
+              "rangeMax": "492"
+            },
+            {
+              "code": "R19",
+              "label": "R19 - Altissimo Risco",
+              "position": 18,
+              "color": "#FF2020",
+              "rangeMin": "455",
+              "rangeMax": "475"
+            },
+            {
+              "code": "R20",
+              "label": "R20 - Altissimo Risco",
+              "position": 19,
+              "color": "#FF0000",
+              "rangeMin": "5",
+              "rangeMax": "454"
+            }
+          ],
+          "boundaryMode": "INCLUSIVE_INTEGER"
+        }
+      ]
+    },
+    {
+      "id": "SeTOvzHFUFDT",
+      "code": "SCORE_HVI4",
+      "name": "Score customizado Serasa | HVI4 | B2C | 202411",
+      "description": "Modelo customizado Serasa usado para flexibilização de divida, usado como segunda dimensão nos Cluster de clientes com divida pré-existentes a analise de Crédito",
+      "type": "RANGE",
+      "createdAt": "2026-08-10T14:28:39.705Z",
+      "versions": [
+        {
+          "id": "5n-16owCO4ki",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-08-10T14:28:39.705Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-08-10T14:29:43.809Z",
+          "publishedBy": "Arthur",
+          "domains": [
+            {
+              "code": "R01",
+              "label": "R01 - Baixissimo Risco",
+              "position": 0,
+              "color": "#00FF2A",
+              "rangeMin": "978",
+              "rangeMax": "1000"
+            },
+            {
+              "code": "R02",
+              "label": "R02 - Baixissimo Risco",
+              "position": 1,
+              "color": "#24FF48",
+              "rangeMin": "891",
+              "rangeMax": "977"
+            },
+            {
+              "code": "R03",
+              "label": "R03 - Baixissimo Risco",
+              "position": 2,
+              "color": "#48FF66",
+              "rangeMin": "831",
+              "rangeMax": "890"
+            },
+            {
+              "code": "R04",
+              "label": "R04 - Baixissimo Risco",
+              "position": 3,
+              "color": "#6CFF84",
+              "rangeMin": "791",
+              "rangeMax": "830"
+            },
+            {
+              "code": "R05",
+              "label": "R05 - Baixo Risco",
+              "position": 4,
+              "color": "#90FFA2",
+              "rangeMin": "762",
+              "rangeMax": "790"
+            },
+            {
+              "code": "R06",
+              "label": "R06 - Baixo Risco",
+              "position": 5,
+              "color": "#B4FFC0",
+              "rangeMin": "734",
+              "rangeMax": "761"
+            },
+            {
+              "code": "R07",
+              "label": "R07 - Baixo Risco",
+              "position": 6,
+              "color": "#D8FFDE",
+              "rangeMin": "712",
+              "rangeMax": "733"
+            },
+            {
+              "code": "R08",
+              "label": "R08 - Baixo Risco",
+              "position": 7,
+              "color": "#F0FFF6",
+              "rangeMin": "691",
+              "rangeMax": "711"
+            },
+            {
+              "code": "R09",
+              "label": "R09 - Médio Risco",
+              "position": 8,
+              "color": "#FFEAC0",
+              "rangeMin": "669",
+              "rangeMax": "690"
+            },
+            {
+              "code": "R10",
+              "label": "R10 - Médio Risco",
+              "position": 9,
+              "color": "#FFD280",
+              "rangeMin": "648",
+              "rangeMax": "668"
+            },
+            {
+              "code": "R11",
+              "label": "R11 - Médio Risco",
+              "position": 10,
+              "color": "#FFBA40",
+              "rangeMin": "622",
+              "rangeMax": "647"
+            },
+            {
+              "code": "R12",
+              "label": "R12 - Médio Risco",
+              "position": 11,
+              "color": "#FFA200",
+              "rangeMin": "601",
+              "rangeMax": "621"
+            },
+            {
+              "code": "R13",
+              "label": "R13 - Alto Risco",
+              "position": 12,
+              "color": "#FFE0E0",
+              "rangeMin": "572",
+              "rangeMax": "600"
+            },
+            {
+              "code": "R14",
+              "label": "R14 - Alto Risco",
+              "position": 13,
+              "color": "#FFC0C0",
+              "rangeMin": "544",
+              "rangeMax": "571"
+            },
+            {
+              "code": "R15",
+              "label": "R15 - Alto Risco",
+              "position": 14,
+              "color": "#FFA0A0",
+              "rangeMin": "515",
+              "rangeMax": "543"
+            },
+            {
+              "code": "R16",
+              "label": "R16 - Alto Risco",
+              "position": 15,
+              "color": "#FF8080",
+              "rangeMin": "479",
+              "rangeMax": "514"
+            },
+            {
+              "code": "R17",
+              "label": "R17 - Altissimo Risco",
+              "position": 16,
+              "color": "#FF6060",
+              "rangeMin": "443",
+              "rangeMax": "478"
+            },
+            {
+              "code": "R18",
+              "label": "R18 - Altissimo Risco",
+              "position": 17,
+              "color": "#FF4040",
+              "rangeMin": "400",
+              "rangeMax": "442"
+            },
+            {
+              "code": "R19",
+              "label": "R19 - Altissimo Risco",
+              "position": 18,
+              "color": "#FF2020",
+              "rangeMin": "343",
+              "rangeMax": "399"
+            },
+            {
+              "code": "R20",
+              "label": "R20 - Altissimo Risco",
+              "position": 19,
+              "color": "#FF0000",
+              "rangeMin": "5",
+              "rangeMax": "342"
+            }
+          ],
+          "boundaryMode": "INCLUSIVE_INTEGER"
+        }
+      ]
+    }
+  ],
+  "compatibility": [],
+  "catalog": [],
+  "projects": [
+    {
+      "id": "5PcX9QThxdKW",
+      "code": "POLITICA_B2C",
+      "name": "Política de Crédito B2C",
+      "position": 0,
+      "createdAt": "2026-08-07T18:48:38.419Z"
+    }
+  ],
+  "matrices": [],
+  "templates": [],
+  "events": [
+    {
+      "id": "aS82qRGnd30t",
+      "at": "2026-08-07T11:55:29.880Z",
+      "actor": "Arthur",
+      "type": "DOCUMENT_CREATED",
+      "scope": {},
+      "summary": "Arthur criou o documento \"Políticas de Crédito Vivo\"."
+    },
+    {
+      "id": "Ioav2A4ZgafP",
+      "at": "2026-08-10T14:25:42.118Z",
+      "actor": "Arthur",
+      "type": "VARIABLE_PUBLISHED",
+      "scope": {
+        "variableId": "GSsiduhOBzcf"
+      },
+      "summary": "Arthur publicou a versão 1 de \"SCORE_HVI3\".",
+      "payload": {
+        "code": "SCORE_HVI3",
+        "domainsAdded": [
+          "R01",
+          "R02",
+          "R03",
+          "R04",
+          "R05",
+          "R06",
+          "R07",
+          "R08",
+          "R09",
+          "R10",
+          "R11",
+          "R12",
+          "R13",
+          "R14",
+          "R15",
+          "R16",
+          "R17",
+          "R18",
+          "R19",
+          "R20"
+        ],
+        "domainsRemoved": [],
+        "versionNumber": 1
+      }
+    },
+    {
+      "id": "W2FXIvJkA83T",
+      "at": "2026-08-10T14:29:43.809Z",
+      "actor": "Arthur",
+      "type": "VARIABLE_PUBLISHED",
+      "scope": {
+        "variableId": "SeTOvzHFUFDT"
+      },
+      "summary": "Arthur publicou a versão 1 de \"SCORE_HVI4\".",
+      "payload": {
+        "code": "SCORE_HVI4",
+        "domainsAdded": [
+          "R01",
+          "R02",
+          "R03",
+          "R04",
+          "R05",
+          "R06",
+          "R07",
+          "R08",
+          "R09",
+          "R10",
+          "R11",
+          "R12",
+          "R13",
+          "R14",
+          "R15",
+          "R16",
+          "R17",
+          "R18",
+          "R19",
+          "R20"
+        ],
+        "domainsRemoved": [],
+        "versionNumber": 1
+      }
+    }
+  ]
+}
