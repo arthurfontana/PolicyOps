@@ -94,7 +94,17 @@ type DocumentStore = {
 | `project/create` · `project/update` · `project/archive` | — |
 | `matrix/create` | `{ projectId, code, name, x, y, templateId? }` |
 | `matrix/updateMeta` | `{ matrixId, name?, description? }` |
+| `matrix/setTags` | `{ matrixId, add?: string[], remove?: string[] }` — codes de `CatalogItem` de kind `TAG`; idempotente, valida I20 |
 | `matrix/archive` | `{ matrixId }` |
+
+### Carga de matrizes
+| Comando | Entrada | Inverso |
+|---|---|---|
+| `import/apply` | `{ profile, table, fileName?, planHash, selectedKeys, notes }` — aplica o plano revisado: cria matrizes novas e rascunhos só nas alteradas (`12-carga-de-matrizes.md` §5.4) | descartar os rascunhos e matrizes criados |
+| `importProfile/save` | `{ profile }` — cria ou atualiza pelo `code` | restaura o perfil anterior |
+| `importProfile/delete` | `{ profileId }` | recria o perfil |
+
+`import/apply` é o único comando do catálogo que produz **vários** eventos de matrizes diferentes numa transação só. Ele valida tudo antes de tocar no documento (§1, regra 4): recalcula o plano, compara com `planHash` e falha inteiro em caso de divergência (`IMPORT_PLAN_STALE`) — nunca aplica metade do lote.
 
 ### Versões
 | Comando | Entrada | Inverso |
@@ -139,6 +149,11 @@ Funções de leitura em `src/core/`, chamadas direto pelos componentes:
 | `suggestPaletteColors(domains, paletteId)` | `Domain[]` — aplica a cor de uma paleta oficial (`05-regras-de-negocio.md` §5.6.4) aos domínios cujo código/rótulo bate; não toca no documento |
 | `getStaleAxes(doc)` | todos os rascunhos com eixo defasado |
 | `countPending(doc, versionId)` | combinações sem decisão |
+| `parseDelimitedTable(text, format?)` | `{ format, header, rows, warnings, errors }` — texto CSV/TSV em tabela, com detecção de separador, BOM e cabeçalho (`12-carga-de-matrizes.md` §5.4) |
+| `resolveImport(doc, table, profile)` | `{ rows: ResolvedRow[]; issues }` — aplica o perfil: cada linha vira matriz de destino, `xPath`, `yPath` e célula |
+| `planImport(doc, table, profile, opts?)` | `ImportPlan` — estado por matriz, diff de células e totais. **Dry-run puro**, não toca no documento |
+| `matchImportProfile(doc, header)` | `ImportProfile \| null` — perfil salvo cujo `signature` é idêntico ao cabeçalho lido |
+| `listMatrices(doc, { projectId?, tags?, search? })` | matrizes filtradas por facetas de tag (`E` entre grupos, `OU` dentro do grupo) |
 
 `getEditorView` é memoizada por `(versionId, revisão do documento)` — recalcular o layout de cabeçalhos a cada render de célula é o erro de desempenho mais provável do projeto.
 

@@ -457,6 +457,11 @@ Retorna a versão com `state ∈ {PUBLISHED, SUPERSEDED}` cujo intervalo semiabe
 | `VERSION_SUPERSEDED` | `{ byVersionNumber, effectiveTo }` |
 | `VARIABLE_PUBLISHED` | `{ code, versionNumber, domainsAdded, domainsRemoved }` |
 | `COMPATIBILITY_PUBLISHED` | `{ code, versionNumber }` |
+| `IMPORT_RUN` | `{ importRunId, profileCode, fileName?, contentHash, rowCount, created, changed, unchanged, skipped, structural, blocked }` |
+| `IMPORT_PROFILE_SAVED` | `{ code, name, columnCount }` |
+| `MATRIX_TAGGED` | `{ matrixId, added, removed }` |
+
+Os eventos produzidos **dentro** de uma carga (`MATRIX_CREATED`, `DRAFT_CREATED`, `CELLS_UPDATED`) carregam `importRunId` no próprio payload, além dos campos de sempre. É o que liga cada célula ao arquivo que a originou (`12-carga-de-matrizes.md` US-10).
 
 `summary` é sempre frase pronta em pt-BR: *"Arthur alterou a oferta de 12 células"*. A timeline renderiza `summary`; o payload é detalhe expansível.
 
@@ -489,8 +494,14 @@ TOO_MANY_LEVELS, DUPLICATE_VARIABLE_IN_AXIS, VARIABLE_ON_BOTH_AXES,
 AXIS_NEEDS_ONE_LEVEL, NO_VALID_TUPLES, GRID_TOO_LARGE,
 AXIS_NOT_STALE, VERSIONS_NOT_COMPARABLE,
 DOCUMENT_SCHEMA_TOO_NEW, DOCUMENT_INVALID, SAVE_CONFLICT,
-DOMAIN_TABLE_PARSE_ERROR
+DOMAIN_TABLE_PARSE_ERROR,
+IMPORT_PARSE_ERROR, IMPORT_PROFILE_INVALID, IMPORT_PROFILE_DUPLICATE,
+IMPORT_UNMAPPED_VALUE, IMPORT_DUPLICATE_KEY, IMPORT_STRUCTURE_DIVERGED,
+IMPORT_PLAN_STALE, IMPORT_NOTHING_TO_APPLY, IMPORT_TARGET_HAS_DRAFT,
+TAG_NOT_FOUND
 ```
+
+Os dez últimos pertencem à carga de matrizes; quando cada um acontece e o que o usuário faz a respeito está em `12-carga-de-matrizes.md` §5.8.
 
 `RANGE_REGIONAL_INCOMPLETE`, `RANGE_REGIONAL_NOT_CONTIGUOUS`, `REGIONAL_CODE_DUPLICATE` e `REGIONAL_IMPORT_PARSE_ERROR` (sessão 18) são removidos na sessão 20 — substituídos pelos códigos genéricos acima. `RANGE_REGIONAL_INCOMPLETE` não tem substituto direto: a completude por combinação deixou de ser invariante (`03-modelo-do-documento.md` §9, nota após I19) e virou aviso não bloqueante na interface, não um `DomainError`.
 
@@ -500,3 +511,13 @@ DOMAIN_TABLE_PARSE_ERROR
 - `checkI8`, `checkI9`, `checkI19` e a checagem de código de domínio de `checkI18` (`src/core/document/validate.ts`) produzem `ValidationIssue` com `severity: 'WARNING'` em vez de `'ERROR'` — não derrubam `validateDocument().ok`, então também não bloqueiam `prepareSave` (`06-persistencia-e-concorrencia.md` §4). Salvar um documento com faixa não contígua, `BOOLEAN` com número errado de domínios ou `path` de agrupamento inválido passa a ser possível; o modo de recuperação (`03-modelo-do-documento.md` §9, §10) lista esses avisos junto com os erros de verdade, agrupados por gravidade.
 
 Cada código tem mensagem pt-BR em `src/core/error-messages.ts`. A interface nunca exibe o código cru. Um teste percorre o enum e falha se faltar mensagem.
+
+## 10. Carga de matrizes
+
+Trazer uma tabela externa (extração do sistema de origem) para dentro do documento, e mantê-la atualizada ao longo do tempo, é um domínio próprio: as regras (RN-01 a RN-20), os contratos do motor e o assistente estão em **[`12-carga-de-matrizes.md`](12-carga-de-matrizes.md)**. Três regras dali têm efeito sobre tudo o que este documento define e são repetidas aqui por serem transversais:
+
+1. **A carga nunca altera versão publicada** (RN-01). Ela cria matriz nova, cria rascunho e escreve células dentro de rascunho — sempre pelos mesmos comandos de §1 e §2, nunca por um caminho privilegiado. I3 continua sendo a guarda.
+2. **Matriz cujo conteúdo veio idêntico não recebe rascunho, versão nem evento** (RN-02). É o que preserva o significado da linha do tempo: versão nova passa a ser evidência de mudança, não subproduto do calendário. Consequência testável: aplicar o mesmo arquivo duas vezes produz zero alterações na segunda (RN-05).
+3. **A carga não publica** (RN-10). Publicar continua exigindo nota, vigência e zero pendências (§1.3), por decisão de quem revisa.
+
+`variable/*`, `compat/*` e `catalog/*` também são os comandos usados quando o assistente monta a biblioteca a partir do arquivo (`12-carga-de-matrizes.md` US-04) — a carga não cria entidade de biblioteca por fora deles.

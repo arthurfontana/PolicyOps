@@ -136,12 +136,14 @@ Isso é o que torna a solução escalável de 10 para 500 matrizes.
 | 16 | Merge de documentos em conflito |
 | 17 | Exportação (CSV / JSON / PNG / impressão) |
 
+Depois do MVP, duas frentes se somaram a partir de casos reais: a evolução da Biblioteca de Variáveis (faixas com agrupamento hierárquico, colagem de tabela, paletas — sessões 18–20) e a **carga de matrizes a partir da tabela do sistema de origem** ([`12-carga-de-matrizes.md`](12-carga-de-matrizes.md), sessões 21–25), que traz uma extração de milhares de linhas para dentro do documento e, nas cargas seguintes, versiona apenas as matrizes que de fato mudaram.
+
 ## 7. Fora do MVP
 
 - Servidor, banco de dados, API.
 - Login, permissões por usuário, workflow de aprovação.
 - Edição colaborativa simultânea.
-- Integração com PowerCurve, publicação automática, importação do motor.
+- Integração online com PowerCurve, publicação automática no motor, leitura direta do sistema de origem. A carga de matrizes (`12-carga-de-matrizes.md`) não contradiz isto: ela é sempre iniciada por uma pessoa, com um arquivo em mãos, sem nenhuma requisição de rede.
 - Mais de 3 níveis por eixo.
 - Regras de compatibilidade que dependam de mais de dois níveis simultaneamente (ver limitação em `04-eixos-aninhados.md` §5.4).
 - Simulador ("dado este cliente, qual célula cai?").

@@ -10,8 +10,10 @@ Leia antes de mexer em código:
 - [`docs/02-arquitetura.md`](docs/02-arquitetura.md) — stack, estrutura de pastas, restrições do bundle. **Normativo**: não substituir bibliotecas, não reorganizar pastas.
 - [`docs/03-modelo-do-documento.md`](docs/03-modelo-do-documento.md) — schema do documento e invariantes.
 - [`docs/05-regras-de-negocio.md`](docs/05-regras-de-negocio.md) — versionamento, células, diff, catálogo de erros (§9).
-- [`docs/07-ux-e-editor.md`](docs/07-ux-e-editor.md) — shell, grid, seleção, inspector.
-- [`docs/09-roadmap-de-entregas.md`](docs/09-roadmap-de-entregas.md) e [`docs/prompts/`](docs/prompts/) — as 17 sessões de implementação, uma por vez.
+- [`docs/07-ux-e-editor.md`](docs/07-ux-e-editor.md) — shell, grid, seleção, inspector, tags e filtro.
+- [`docs/12-carga-de-matrizes.md`](docs/12-carga-de-matrizes.md) — carga de tabela externa: perfil, plano, versionamento seletivo.
+- [`docs/13-decisoes.md`](docs/13-decisoes.md) — catálogo de decisões (o **porquê** por trás dos normativos).
+- [`docs/09-roadmap-de-entregas.md`](docs/09-roadmap-de-entregas.md) e [`docs/prompts/`](docs/prompts/) — as 25 sessões de implementação, uma por vez.
 
 ## As 8 regras (docs/prompts/README.md)
 

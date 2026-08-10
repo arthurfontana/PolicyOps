@@ -24,6 +24,11 @@ Um arquivo por sessão. Abra uma conversa nova do Claude Code na raiz do reposit
 | 18 | [S18-faixa-regional.md](S18-faixa-regional.md) | `Sonnet` | Faixas regionais e duplicação de variáveis (pós-MVP, depende de 06) |
 | 19 | [S19-import-generico-e-paletas.md](S19-import-generico-e-paletas.md) | `Sonnet` | Importação genérica de domínios e paletas de cor (pós-MVP, depende de 18) |
 | 20 | [S20-agrupamentos-hierarquicos.md](S20-agrupamentos-hierarquicos.md) | `Opus` | Agrupamentos hierárquicos de faixas — generaliza regional em N níveis (pós-MVP, depende de 19) |
+| 21 | [S21-motor-de-carga.md](S21-motor-de-carga.md) | `Opus` | Motor da carga de matrizes: parser, perfil, plano e diff (épico Carga, depende de 14) |
+| 22 | [S22-assistente-de-carga-mapeamento.md](S22-assistente-de-carga-mapeamento.md) | `Sonnet` | Assistente de carga, passos 1–4: arquivo, colunas e biblioteca (depende de 21) |
+| 23 | [S23-tags-e-schema-3.md](S23-tags-e-schema-3.md) | `Sonnet` | Tags de matriz, filtro por facetas e `schemaVersion: 3` (depende de 20; paralelizável) |
+| 24 | [S24-aplicacao-da-carga.md](S24-aplicacao-da-carga.md) | `Opus` | Aplicação da carga, versionamento seletivo e fila de revisão (depende de 22 e 23) |
+| 25 | [S25-evolucao-estrutural-na-carga.md](S25-evolucao-estrutural-na-carga.md) | `Opus` | Faixa nova no arquivo vira versão de variável adotada no rascunho (depende de 24) |
 
 ## Regras válidas para todas as sessões
 
