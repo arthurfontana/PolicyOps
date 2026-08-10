@@ -235,15 +235,15 @@ export function baseDocument(): PolicyOpsDocument {
         color: '#DC2626',
       }),
       catalogItem(fixedId('catManual'), 'DECISION', 'ANALISE_MANUAL', 'Análise manual', 2),
-      catalogItem(fixedId('catOfA'), 'OFFER', 'OFERTA_A', 'Oferta A', 3),
-      catalogItem(fixedId('catOfB'), 'OFFER', 'OFERTA_B', 'Oferta B', 4),
-      catalogItem(fixedId('catOfVelha'), 'OFFER', 'OFERTA_VELHA', 'Oferta descontinuada', 5, {
+      catalogItem(fixedId('catOfA'), 'OFFER', 'OFERTA_A', 'Oferta A', 0),
+      catalogItem(fixedId('catOfB'), 'OFFER', 'OFERTA_B', 'Oferta B', 1),
+      catalogItem(fixedId('catOfVelha'), 'OFFER', 'OFERTA_VELHA', 'Oferta descontinuada', 2, {
         archivedAt: T0,
       }),
-      catalogItem(fixedId('catLim'), 'LIMIT', 'LIM_1000', 'Limite R$ 1.000', 6, {
+      catalogItem(fixedId('catLim'), 'LIMIT', 'LIM_1000', 'Limite R$ 1.000', 0, {
         numericValue: '1000',
       }),
-      catalogItem(fixedId('catTag'), 'TAG', 'REVISAR', 'Revisar', 7),
+      catalogItem(fixedId('catTag'), 'TAG', 'REVISAR', 'Revisar', 0),
     ],
     projects: [
       {

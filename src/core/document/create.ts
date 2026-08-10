@@ -248,8 +248,12 @@ export function createSampleDocument(): PolicyOpsDocument {
 
   // --- Catálogo --------------------------------------------------------------
 
-  let catalogPosition = 0;
-  const nextCatalogPosition = () => catalogPosition++;
+  const catalogPositions: Record<CatalogItem['kind'], number> = {
+    DECISION: 0,
+    OFFER: 0,
+    LIMIT: 0,
+    TAG: 0,
+  };
 
   const catalogItem = (
     kind: CatalogItem['kind'],
@@ -261,7 +265,7 @@ export function createSampleDocument(): PolicyOpsDocument {
     kind,
     code,
     label,
-    position: nextCatalogPosition(),
+    position: catalogPositions[kind]++,
     createdAt: t0,
     ...extra,
   });

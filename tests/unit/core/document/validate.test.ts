@@ -836,6 +836,17 @@ describe('POSITION — 0-based sem buracos (Domain/CatalogItem/Project)', () => 
     expect(issues[0]!.autoFix).toBe('RENUMBER');
     expect(issues[0]!.path).toBe('variables[1].versions[0].domains[1]');
   });
+
+  it('válido: catálogo com DECISION e OFFER intercalados, cada kind 0-based por si', () => {
+    const doc = base();
+    doc.catalog = [
+      { id: 'cat00000d001', kind: 'DECISION', code: 'APROVADO', label: 'Aprovado', position: 0, createdAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'cat00000o001', kind: 'OFFER', code: 'OFERTA_A', label: 'Oferta A', position: 0, createdAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'cat00000d002', kind: 'DECISION', code: 'REPROVADO', label: 'Reprovado', position: 1, createdAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'cat00000o002', kind: 'OFFER', code: 'OFERTA_B', label: 'Oferta B', position: 1, createdAt: '2026-01-01T00:00:00.000Z' },
+    ];
+    expect(checkPositions(doc)).toEqual([]);
+  });
 });
 
 describe('validateDocument — fixtures defeituosas produzem exatamente os issues esperados', () => {
