@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { findIncompleteGroupingPaths, validateDomains } from '@/core/library/validate-domains';
+import {
+  findIncompleteGroupingPaths,
+  findRangeContiguityWarnings,
+  validateDomains,
+} from '@/core/library/validate-domains';
 import type { Domain, GroupingDimension } from '@/core/document/schema';
 
 /**
  * `validateDomains` — docs/05-regras-de-negocio.md §5.1 (I8, I9, I18) e
  * §5.6.1 (I9 por caminho de agrupamento, I19).
  * Exaustivo: cada regra e cada erro, docs/prompts/S06-biblioteca-variaveis.md.
+ *
+ * I9 (valores) — mín./máx. ausentes, inválidos ou não contíguos — não
+ * bloqueia mais `validateDomains`; vira aviso de `findRangeContiguityWarnings`
+ * (ver comentário no topo de `validate-domains.ts`). I9 (identidade —
+ * catch-all único e por último) continua bloqueante.
  */
 
 function domain(code: string, position: number, extra: Partial<Domain> = {}): Domain {
@@ -140,28 +149,21 @@ describe('validateDomains', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('rejeita faixa com buraco (rangeMax de uma ≠ rangeMin da seguinte) — RANGE_NOT_CONTIGUOUS', () => {
-    const result = validateDomains('RANGE', [
-      range('BAIXO', 0, '0', '100'),
-      range('ALTO', 1, '150', '200'),
-    ]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      const issue = result.issues.find((i) => i.code === 'RANGE_NOT_CONTIGUOUS');
-      expect(issue).toBeDefined();
-      expect(issue?.domainCodes).toEqual(['BAIXO', 'ALTO']);
-    }
+  it('faixa com buraco (rangeMax de uma ≠ rangeMin da seguinte) não bloqueia — vira aviso RANGE_NOT_CONTIGUOUS', () => {
+    const domains = [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '150', '200')];
+    const result = validateDomains('RANGE', domains);
+    expect(result.ok).toBe(true);
+    const warnings = findRangeContiguityWarnings('RANGE', domains);
+    const warning = warnings.find((i) => i.code === 'RANGE_NOT_CONTIGUOUS');
+    expect(warning).toBeDefined();
+    expect(warning?.domainCodes).toEqual(['BAIXO', 'ALTO']);
   });
 
-  it('rejeita faixas sobrepostas (rangeMax de uma > rangeMin da seguinte) — RANGE_NOT_CONTIGUOUS', () => {
-    const result = validateDomains('RANGE', [
-      range('BAIXO', 0, '0', '150'),
-      range('ALTO', 1, '100', '200'),
-    ]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
-    }
+  it('faixas sobrepostas (rangeMax de uma > rangeMin da seguinte) não bloqueiam — viram aviso RANGE_NOT_CONTIGUOUS', () => {
+    const domains = [range('BAIXO', 0, '0', '150'), range('ALTO', 1, '100', '200')];
+    const result = validateDomains('RANGE', domains);
+    expect(result.ok).toBe(true);
+    expect(findRangeContiguityWarnings('RANGE', domains).some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
   });
 
   it('rejeita catch-all no meio (não é o último por position)', () => {
@@ -188,15 +190,11 @@ describe('validateDomains', () => {
     }
   });
 
-  it('rejeita RANGE não-catchAll sem rangeMin/rangeMax', () => {
-    const result = validateDomains('RANGE', [
-      domain('BAIXO', 0),
-      range('ALTO', 1, '100', undefined, { isCatchAll: true }),
-    ]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
-    }
+  it('RANGE não-catchAll sem rangeMin/rangeMax não bloqueia — vira aviso RANGE_NOT_CONTIGUOUS', () => {
+    const domains = [domain('BAIXO', 0), range('ALTO', 1, '100', undefined, { isCatchAll: true })];
+    const result = validateDomains('RANGE', domains);
+    expect(result.ok).toBe(true);
+    expect(findRangeContiguityWarnings('RANGE', domains).some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
   });
 
   it('usa Decimal para comparar faixas, não ponto flutuante (0.1 + 0.2 contíguo)', () => {
@@ -217,19 +215,16 @@ describe('validateDomains', () => {
   it('nunca lança para rangeMin/rangeMax vazios ou incompletos (campo sendo digitado)', () => {
     // Regressão: `new Decimal('')` lança, e como esta função roda a cada
     // tecla na interface, uma faixa recém-adicionada (ainda vazia) não pode
-    // derrubar a aplicação — só reportar o problema.
-    expect(() =>
-      validateDomains('RANGE', [
-        domain('A', 0, { rangeMin: '', rangeMax: '' }),
-        domain('B', 1, { rangeMin: '0', rangeMax: '10' }),
-      ]),
-    ).not.toThrow();
-    const result = validateDomains('RANGE', [
+    // derrubar a aplicação — só reportar o problema (hoje, um aviso).
+    const domains = [
       domain('A', 0, { rangeMin: '', rangeMax: '' }),
       domain('B', 1, { rangeMin: '0', rangeMax: '10' }),
-    ]);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
+    ];
+    expect(() => validateDomains('RANGE', domains)).not.toThrow();
+    expect(() => findRangeContiguityWarnings('RANGE', domains)).not.toThrow();
+    const result = validateDomains('RANGE', domains);
+    expect(result.ok).toBe(true);
+    expect(findRangeContiguityWarnings('RANGE', domains).some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
 
     expect(() =>
       validateDomains('RANGE', [domain('A', 0, { rangeMin: '-', rangeMax: '12.' })]),
@@ -328,57 +323,48 @@ describe('validateDomains', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('rejeita buraco num caminho só — RANGE_GROUPING_NOT_CONTIGUOUS aponta o caminho certo', () => {
-    const result = validateDomains(
-      'RANGE',
-      [
-        grouped('A', 0, [
-          { path: ['BASE'], min: '0', max: '100' },
-          { path: ['SP'], min: '0', max: '120' },
-        ]),
-        // SP tem um buraco (120 -> 150), BASE continua contíguo (100 -> 100).
-        grouped('B', 1, [
-          { path: ['BASE'], min: '100', max: '200' },
-          { path: ['SP'], min: '150', max: '240' },
-        ]),
-      ],
-      regional,
-      'HALF_OPEN',
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      const issue = result.issues.find((i) => i.code === 'RANGE_GROUPING_NOT_CONTIGUOUS');
-      expect(issue).toBeDefined();
-      expect(issue?.path).toEqual(['SP']);
-      expect(result.issues.some((i) => i.path?.[0] === 'BASE')).toBe(false);
-    }
+  it('buraco num caminho só não bloqueia — aviso RANGE_GROUPING_NOT_CONTIGUOUS aponta o caminho certo', () => {
+    const domains = [
+      grouped('A', 0, [
+        { path: ['BASE'], min: '0', max: '100' },
+        { path: ['SP'], min: '0', max: '120' },
+      ]),
+      // SP tem um buraco (120 -> 150), BASE continua contíguo (100 -> 100).
+      grouped('B', 1, [
+        { path: ['BASE'], min: '100', max: '200' },
+        { path: ['SP'], min: '150', max: '240' },
+      ]),
+    ];
+    const result = validateDomains('RANGE', domains, regional, 'HALF_OPEN');
+    expect(result.ok).toBe(true);
+    const warnings = findRangeContiguityWarnings('RANGE', domains, regional, 'HALF_OPEN');
+    const warning = warnings.find((i) => i.code === 'RANGE_GROUPING_NOT_CONTIGUOUS');
+    expect(warning).toBeDefined();
+    expect(warning?.path).toEqual(['SP']);
+    expect(warnings.some((i) => i.path?.[0] === 'BASE')).toBe(false);
   });
 
-  it('sobreposição num caminho de 2 níveis não afeta os demais caminhos', () => {
-    const result = validateDomains(
-      'RANGE',
-      [
-        grouped('R1', 0, [
-          { path: ['SAO_PAULO', 'MEI'], min: '0', max: '400' },
-          { path: ['SAO_PAULO', 'NAO_MEI'], min: '0', max: '340' },
-          { path: ['SUL', 'MEI'], min: '0', max: '360' },
-        ]),
-        // Só São Paulo › MEI se sobrepõe (400 > 358).
-        grouped('R2', 1, [
-          { path: ['SAO_PAULO', 'MEI'], min: '358', max: '420' },
-          { path: ['SAO_PAULO', 'NAO_MEI'], min: '340', max: '400' },
-          { path: ['SUL', 'MEI'], min: '360', max: '430' },
-        ]),
-      ],
-      regionalPorte,
-      'HALF_OPEN',
+  it('sobreposição num caminho de 2 níveis não bloqueia, e o aviso não afeta os demais caminhos', () => {
+    const domains = [
+      grouped('R1', 0, [
+        { path: ['SAO_PAULO', 'MEI'], min: '0', max: '400' },
+        { path: ['SAO_PAULO', 'NAO_MEI'], min: '0', max: '340' },
+        { path: ['SUL', 'MEI'], min: '0', max: '360' },
+      ]),
+      // Só São Paulo › MEI se sobrepõe (400 > 358).
+      grouped('R2', 1, [
+        { path: ['SAO_PAULO', 'MEI'], min: '358', max: '420' },
+        { path: ['SAO_PAULO', 'NAO_MEI'], min: '340', max: '400' },
+        { path: ['SUL', 'MEI'], min: '360', max: '430' },
+      ]),
+    ];
+    const result = validateDomains('RANGE', domains, regionalPorte, 'HALF_OPEN');
+    expect(result.ok).toBe(true);
+    const contiguity = findRangeContiguityWarnings('RANGE', domains, regionalPorte, 'HALF_OPEN').filter(
+      (i) => i.code === 'RANGE_GROUPING_NOT_CONTIGUOUS',
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      const contiguity = result.issues.filter((i) => i.code === 'RANGE_GROUPING_NOT_CONTIGUOUS');
-      expect(contiguity).toHaveLength(1);
-      expect(contiguity[0]!.path).toEqual(['SAO_PAULO', 'MEI']);
-    }
+    expect(contiguity).toHaveLength(1);
+    expect(contiguity[0]!.path).toEqual(['SAO_PAULO', 'MEI']);
   });
 
   it('rejeita groupingDimensions vazio', () => {
@@ -586,22 +572,28 @@ describe('validateDomains', () => {
   // -- boundaryMode: INCLUSIVE_INTEGER (default) × HALF_OPEN (opt-in) --------
 
   it('INCLUSIVE_INTEGER é o default: omitir boundaryMode se comporta bit-a-bit igual a passá-lo explicitamente', () => {
-    const contiguous = validateDomains('RANGE', [range('R20', 0, '0', '357'), range('R19', 1, '358', '437')]);
+    const contiguousDomains = [range('R20', 0, '0', '357'), range('R19', 1, '358', '437')];
+    const contiguous = validateDomains('RANGE', contiguousDomains);
     expect(contiguous.ok).toBe(true);
-    const withHole = validateDomains('RANGE', [range('R20', 0, '0', '357'), range('R19', 1, '360', '437')]);
-    expect(withHole.ok).toBe(false);
+    expect(findRangeContiguityWarnings('RANGE', contiguousDomains)).toEqual([]);
+
+    const holeDomains = [range('R20', 0, '0', '357'), range('R19', 1, '360', '437')];
+    const withHole = validateDomains('RANGE', holeDomains);
+    expect(withHole.ok).toBe(true); // não bloqueia mais — o buraco vira aviso.
+    expect(findRangeContiguityWarnings('RANGE', holeDomains).some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(
+      true,
+    );
   });
 
-  it('HALF_OPEN precisa ser ligado explicitamente: o formato [mín, máx) clássico não é mais o default', () => {
-    const halfOpenStyle = validateDomains('RANGE', [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')]);
-    expect(halfOpenStyle.ok).toBe(false);
-    const explicit = validateDomains(
-      'RANGE',
-      [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')],
-      undefined,
-      'HALF_OPEN',
-    );
+  it('HALF_OPEN precisa ser ligado explicitamente: o formato [mín, máx) clássico não é mais o default (hoje só um aviso)', () => {
+    const domains = [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')];
+    const halfOpenStyle = validateDomains('RANGE', domains);
+    expect(halfOpenStyle.ok).toBe(true);
+    expect(findRangeContiguityWarnings('RANGE', domains).some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
+
+    const explicit = validateDomains('RANGE', domains, undefined, 'HALF_OPEN');
     expect(explicit.ok).toBe(true);
+    expect(findRangeContiguityWarnings('RANGE', domains, undefined, 'HALF_OPEN')).toEqual([]);
   });
 
   it('INCLUSIVE_INTEGER: faixas com salto de 1 (formato fechado-fechado do Excel) são contíguas', () => {
@@ -618,58 +610,51 @@ describe('validateDomains', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('INCLUSIVE_INTEGER: o mesmo par no formato HALF_OPEN (máx == próx.mín, sem +1) fica não contíguo', () => {
-    const result = validateDomains(
-      'RANGE',
-      [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')],
-      undefined,
-      'INCLUSIVE_INTEGER',
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
-    }
+  it('INCLUSIVE_INTEGER: o mesmo par no formato HALF_OPEN (máx == próx.mín, sem +1) não bloqueia, mas gera aviso', () => {
+    const domains = [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')];
+    const result = validateDomains('RANGE', domains, undefined, 'INCLUSIVE_INTEGER');
+    expect(result.ok).toBe(true);
+    expect(
+      findRangeContiguityWarnings('RANGE', domains, undefined, 'INCLUSIVE_INTEGER').some(
+        (i) => i.code === 'RANGE_NOT_CONTIGUOUS',
+      ),
+    ).toBe(true);
   });
 
-  it('INCLUSIVE_INTEGER: buraco real (salto > 1) continua falhando', () => {
-    const result = validateDomains(
-      'RANGE',
-      [range('R20', 0, '0', '357'), range('R19', 1, '360', '437')],
-      undefined,
-      'INCLUSIVE_INTEGER',
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
-    }
+  it('INCLUSIVE_INTEGER: buraco real (salto > 1) não bloqueia mais — continua sinalizado como aviso', () => {
+    const domains = [range('R20', 0, '0', '357'), range('R19', 1, '360', '437')];
+    const result = validateDomains('RANGE', domains, undefined, 'INCLUSIVE_INTEGER');
+    expect(result.ok).toBe(true);
+    expect(
+      findRangeContiguityWarnings('RANGE', domains, undefined, 'INCLUSIVE_INTEGER').some(
+        (i) => i.code === 'RANGE_NOT_CONTIGUOUS',
+      ),
+    ).toBe(true);
   });
 
-  it('INCLUSIVE_INTEGER: sobreposição continua falhando', () => {
-    const result = validateDomains(
-      'RANGE',
-      [range('R20', 0, '0', '357'), range('R19', 1, '350', '437')],
-      undefined,
-      'INCLUSIVE_INTEGER',
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
-    }
+  it('INCLUSIVE_INTEGER: sobreposição não bloqueia mais — continua sinalizada como aviso', () => {
+    const domains = [range('R20', 0, '0', '357'), range('R19', 1, '350', '437')];
+    const result = validateDomains('RANGE', domains, undefined, 'INCLUSIVE_INTEGER');
+    expect(result.ok).toBe(true);
+    expect(
+      findRangeContiguityWarnings('RANGE', domains, undefined, 'INCLUSIVE_INTEGER').some(
+        (i) => i.code === 'RANGE_NOT_CONTIGUOUS',
+      ),
+    ).toBe(true);
   });
 
-  it('INCLUSIVE_INTEGER: valor não inteiro falha com mensagem clara', () => {
-    const result = validateDomains(
-      'RANGE',
-      [range('R20', 0, '0', '357.5'), range('R19', 1, '358.5', undefined, { isCatchAll: true })],
-      undefined,
-      'INCLUSIVE_INTEGER',
+  it('INCLUSIVE_INTEGER: valor não inteiro não bloqueia mais — aviso mantém mensagem clara', () => {
+    const domains = [
+      range('R20', 0, '0', '357.5'),
+      range('R19', 1, '358.5', undefined, { isCatchAll: true }),
+    ];
+    const result = validateDomains('RANGE', domains, undefined, 'INCLUSIVE_INTEGER');
+    expect(result.ok).toBe(true);
+    const warning = findRangeContiguityWarnings('RANGE', domains, undefined, 'INCLUSIVE_INTEGER').find(
+      (i) => i.code === 'RANGE_NOT_CONTIGUOUS',
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      const issue = result.issues.find((i) => i.code === 'RANGE_NOT_CONTIGUOUS');
-      expect(issue).toBeDefined();
-      expect(issue?.message).toMatch(/inteiro/);
-    }
+    expect(warning).toBeDefined();
+    expect(warning?.message).toMatch(/inteiro/);
   });
 
   it('INCLUSIVE_INTEGER com agrupamento: salto de 1 em todos os caminhos é contíguo', () => {
@@ -691,28 +676,24 @@ describe('validateDomains', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('INCLUSIVE_INTEGER com agrupamento: buraco num caminho só aponta o caminho certo', () => {
-    const result = validateDomains(
-      'RANGE',
-      [
-        grouped('R20', 0, [
-          { path: ['BASE'], min: '0', max: '357' },
-          { path: ['SP'], min: '0', max: '400' },
-        ]),
-        // SP tem buraco real (401 esperado, veio 402); BASE segue contíguo com +1.
-        grouped('R19', 1, [
-          { path: ['BASE'], min: '358', max: '437' },
-          { path: ['SP'], min: '402', max: '480' },
-        ]),
-      ],
-      regional,
-      'INCLUSIVE_INTEGER',
+  it('INCLUSIVE_INTEGER com agrupamento: buraco num caminho só não bloqueia — aviso aponta o caminho certo', () => {
+    const domains = [
+      grouped('R20', 0, [
+        { path: ['BASE'], min: '0', max: '357' },
+        { path: ['SP'], min: '0', max: '400' },
+      ]),
+      // SP tem buraco real (401 esperado, veio 402); BASE segue contíguo com +1.
+      grouped('R19', 1, [
+        { path: ['BASE'], min: '358', max: '437' },
+        { path: ['SP'], min: '402', max: '480' },
+      ]),
+    ];
+    const result = validateDomains('RANGE', domains, regional, 'INCLUSIVE_INTEGER');
+    expect(result.ok).toBe(true);
+    const warning = findRangeContiguityWarnings('RANGE', domains, regional, 'INCLUSIVE_INTEGER').find(
+      (i) => i.code === 'RANGE_GROUPING_NOT_CONTIGUOUS',
     );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      const issue = result.issues.find((i) => i.code === 'RANGE_GROUPING_NOT_CONTIGUOUS');
-      expect(issue?.path).toEqual(['SP']);
-    }
+    expect(warning?.path).toEqual(['SP']);
   });
 
   // -- direção decrescente por position (docs/05 §5.6.0, docs/03 I9) --------
@@ -730,17 +711,15 @@ describe('validateDomains', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('HALF_OPEN: detecta buraco numa sequência decrescente', () => {
-    const result = validateDomains(
-      'RANGE',
-      [range('ALTO', 0, '150', '200'), range('BAIXO', 1, '0', '100')],
-      undefined,
-      'HALF_OPEN',
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
-    }
+  it('HALF_OPEN: buraco numa sequência decrescente não bloqueia — vira aviso', () => {
+    const domains = [range('ALTO', 0, '150', '200'), range('BAIXO', 1, '0', '100')];
+    const result = validateDomains('RANGE', domains, undefined, 'HALF_OPEN');
+    expect(result.ok).toBe(true);
+    expect(
+      findRangeContiguityWarnings('RANGE', domains, undefined, 'HALF_OPEN').some(
+        (i) => i.code === 'RANGE_NOT_CONTIGUOUS',
+      ),
+    ).toBe(true);
   });
 
   it('INCLUSIVE_INTEGER: aceita o caso real do negócio — R01 (faixa mais alta) primeiro, catch-all na faixa mais baixa', () => {
@@ -758,7 +737,7 @@ describe('validateDomains', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('INCLUSIVE_INTEGER: buraco real numa sequência decrescente continua falhando', () => {
+  it('INCLUSIVE_INTEGER: buraco real numa sequência decrescente não bloqueia mais — segue sinalizado como aviso', () => {
     const result = validateDomains(
       'RANGE',
       [range('R01', 0, '704', '999'), range('R02', 1, '680', '703')],
@@ -766,16 +745,14 @@ describe('validateDomains', () => {
       'INCLUSIVE_INTEGER',
     );
     expect(result.ok).toBe(true); // 703 + 1 = 704 — ainda contíguo, sem buraco.
-    const withHole = validateDomains(
-      'RANGE',
-      [range('R01', 0, '704', '999'), range('R02', 1, '680', '702')],
-      undefined,
-      'INCLUSIVE_INTEGER',
-    );
-    expect(withHole.ok).toBe(false);
-    if (!withHole.ok) {
-      expect(withHole.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
-    }
+    const holeDomains = [range('R01', 0, '704', '999'), range('R02', 1, '680', '702')];
+    const withHole = validateDomains('RANGE', holeDomains, undefined, 'INCLUSIVE_INTEGER');
+    expect(withHole.ok).toBe(true);
+    expect(
+      findRangeContiguityWarnings('RANGE', holeDomains, undefined, 'INCLUSIVE_INTEGER').some(
+        (i) => i.code === 'RANGE_NOT_CONTIGUOUS',
+      ),
+    ).toBe(true);
   });
 
   it('agrupamento: direção decrescente é detectada por caminho, independentemente', () => {

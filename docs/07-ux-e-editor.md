@@ -166,7 +166,7 @@ Rota interna `compare?a=&b=`.
 
 **Variáveis** — lista com busca, filtro por tipo, contagem de uso (vigentes × rascunhos). Estado vazio e cabeçalho da lista trazem, junto de "Nova variável", a ação **"Criar a partir de existente"**: abre um seletor de variável + versão de origem, pede código/nome/descrição da nova, e chama `variable/duplicate` — a variável nasce com os domínios (cor, faixas e agrupamentos, se houver, inclusive) já copiados, pronta para ajustar em vez de montar do zero.
 
-Detalhe: timeline de versões, editor de domínios com drag para reordenar, campos de faixa com validação de contiguidade em tempo real, e painel "Impacto" com o aviso literal:
+Detalhe: timeline de versões, editor de domínios com drag para reordenar, campos de faixa com validação de contiguidade em tempo real (aviso âmbar não-bloqueante desde que I9-valores deixou de impedir salvar/publicar — `05-regras-de-negocio.md` §5.6.0; só a identidade do catch-all, no máximo um e por último, continua travando), e painel "Impacto" com o aviso literal:
 
 > Publicar esta versão **não altera** nenhuma matriz já publicada. Rascunhos poderão adotar a nova versão manualmente.
 
@@ -191,7 +191,7 @@ Com 1 ou mais agrupamentos configurados, a tabela de domínios deixa de ser o gr
 
 - agrupada visualmente por caminho (path), com o cabeçalho de cada grupo mostrando a combinação (`São Paulo › MEI`);
 - editável linha a linha (adicionar/remover combinação, editar mín/máx/cor inline);
-- validada em tempo real **por caminho distinto** — a mensagem de contiguidade aponta o caminho e o par de faixas com problema, nunca confunde um erro de "São Paulo › MEI" com um de "Sul › MEI";
+- avisada (não bloqueada) em tempo real **por caminho distinto** — a mensagem de contiguidade aponta o caminho e o par de faixas com problema, nunca confunde um aviso de "São Paulo › MEI" com um de "Sul › MEI";
 - avisada (não bloqueada) quando um domínio existe em alguns caminhos mas está ausente de outros que têm faixas para os demais domínios — o caso provável de "esqueci de colar uma linha" (`03-modelo-do-documento.md` §9, nota após I19).
 
 O aviso de Impacto continua valendo: mudar os agrupamentos de uma variável nunca afeta versões de matriz já publicadas — só o rascunho da variável, e a matriz nunca sabe que agrupamento existe (§5.6 de `05-regras-de-negocio.md`).

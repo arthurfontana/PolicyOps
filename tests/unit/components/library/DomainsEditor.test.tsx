@@ -4,20 +4,31 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { BoundaryMode, Domain, GroupingDimension, VariableType } from '@/core/document/schema';
-import { validateDomains } from '@/core/library/validate-domains';
+import { findRangeContiguityWarnings, validateDomains } from '@/core/library/validate-domains';
 import { DomainsEditor } from '@/components/library/DomainsEditor';
 
 /**
  * Harness idêntico ao fio real de `VariableDetail`: estado de domínios +
- * `validateDomains` recalculado a cada mudança, alimentando `DomainsEditor`.
- * É o caminho que precisa mostrar o erro de contiguidade sem recarregar, e
- * fazê-lo sumir ao corrigir (critério de aceite de docs/prompts/S06).
+ * `validateDomains`/`findRangeContiguityWarnings` recalculados a cada
+ * mudança, alimentando `DomainsEditor`. É o caminho que precisa mostrar o
+ * aviso de contiguidade sem recarregar, e fazê-lo sumir ao corrigir
+ * (critério de aceite de docs/prompts/S06) — desde que I9 (valores) deixou
+ * de bloquear, o aviso não impede mais salvar.
  */
 function Harness({ initial }: { initial: Domain[] }) {
   const [domains, setDomains] = useState<Domain[]>(initial);
   const validation = useMemo(() => validateDomains('RANGE', domains), [domains]);
   const issues = validation.ok ? [] : validation.issues;
-  return <DomainsEditor type="RANGE" domains={domains} onChange={setDomains} issues={issues} />;
+  const rangeWarnings = useMemo(() => findRangeContiguityWarnings('RANGE', domains), [domains]);
+  return (
+    <DomainsEditor
+      type="RANGE"
+      domains={domains}
+      onChange={setDomains}
+      issues={issues}
+      rangeWarnings={rangeWarnings}
+    />
+  );
 }
 
 const CONTIGUOUS: Domain[] = [
@@ -77,12 +88,17 @@ function GroupingHarness({
     [domains, groupingDimensions],
   );
   const issues = validation.ok ? [] : validation.issues;
+  const rangeWarnings = useMemo(
+    () => findRangeContiguityWarnings('RANGE', domains, groupingDimensions),
+    [domains, groupingDimensions],
+  );
   return (
     <DomainsEditor
       type="RANGE"
       domains={domains}
       onChange={setDomains}
       issues={issues}
+      rangeWarnings={rangeWarnings}
       groupingDimensions={groupingDimensions}
       onGroupingDimensionsChange={setGroupingDimensions}
     />

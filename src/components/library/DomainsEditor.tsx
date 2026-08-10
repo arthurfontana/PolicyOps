@@ -50,6 +50,8 @@ export interface DomainsEditorProps {
   domains: Domain[];
   onChange: (domains: Domain[]) => void;
   issues: DomainValidationIssue[];
+  /** Avisos de contiguidade (I9 valores) — não bloqueiam salvar/publicar (docs/05 §5.1). */
+  rangeWarnings?: DomainValidationIssue[];
   disabled?: boolean;
   /** Ausente = variável não usa agrupamento (docs/07 §11, docs/05 §5.6). */
   groupingDimensions?: GroupingDimension[];
@@ -250,6 +252,7 @@ function SortableRow({
   showManualInclusion,
   disabled,
   issues,
+  rangeWarnings,
   onUpdate,
   onRemove,
 }: {
@@ -261,6 +264,7 @@ function SortableRow({
   showManualInclusion: boolean;
   disabled: boolean;
   issues: DomainValidationIssue[];
+  rangeWarnings: DomainValidationIssue[];
   onUpdate: (rowId: string, patch: Partial<Domain>) => void;
   onRemove: (rowId: string) => void;
 }) {
@@ -270,6 +274,7 @@ function SortableRow({
   });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const rowIssues = issuesFor(issues, row.domain.code).filter((issue) => issue.path === undefined);
+  const rowWarnings = issuesFor(rangeWarnings, row.domain.code).filter((issue) => issue.path === undefined);
 
   return (
     <div
@@ -407,6 +412,21 @@ function SortableRow({
             <li
               key={index}
               className="flex items-start gap-1 text-xs text-red-600 dark:text-red-400"
+            >
+              <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+              {issue.message}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Aviso não-bloqueante de contiguidade (docs/05 §5.1, I9 valores). */}
+      {rowWarnings.length > 0 && (
+        <ul className="flex flex-col gap-0.5 pl-6">
+          {rowWarnings.map((issue, index) => (
+            <li
+              key={index}
+              className="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400"
             >
               <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
               {issue.message}
@@ -635,6 +655,7 @@ export function DomainsEditor({
   domains,
   onChange,
   issues,
+  rangeWarnings = [],
   disabled = false,
   groupingDimensions,
   onGroupingDimensionsChange,
@@ -968,6 +989,7 @@ export function DomainsEditor({
                 showManualInclusion={showManualInclusion}
                 disabled={disabled}
                 issues={issues}
+                rangeWarnings={rangeWarnings}
                 onUpdate={handleUpdate}
                 onRemove={handleRemove}
               />
@@ -1001,6 +1023,7 @@ export function DomainsEditor({
           )}
           {groups.map((group) => {
             const groupIssues = issuesForPath(issues, group.key);
+            const groupWarnings = issuesForPath(rangeWarnings, group.key);
             const present = currentDomains.filter((domain) =>
               (domain.groupingRanges ?? []).some((range) => groupingPathKey(range.path) === group.key),
             );
@@ -1041,6 +1064,20 @@ export function DomainsEditor({
                       <li
                         key={index}
                         className="flex items-start gap-1 text-xs text-red-600 dark:text-red-400"
+                      >
+                        <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
+                        {issue.message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {/* Aviso não-bloqueante de contiguidade (docs/05 §5.1, I9 valores). */}
+                {groupWarnings.length > 0 && (
+                  <ul className="flex flex-col gap-0.5">
+                    {groupWarnings.map((issue, index) => (
+                      <li
+                        key={index}
+                        className="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400"
                       >
                         <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
                         {issue.message}

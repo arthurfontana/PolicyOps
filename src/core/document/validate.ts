@@ -319,6 +319,14 @@ export function checkI8(doc: PolicyOpsDocument): ValidationIssue[] {
 // mesma regra vale independentemente para cada `path` distinto presente em
 // `groupingRanges`, no lugar de `rangeMin`/`rangeMax` — e só para os caminhos
 // que o usuário definiu, nunca para o produto cartesiano das opções.
+//
+// A identidade do catch-all (`checkCatchAllIdentity`) continua ERROR: é
+// barata de corrigir e nunca é o estado normal de um rascunho em andamento.
+// Já a contiguidade de valores (`checkValueContiguity` — mín./máx. ausentes,
+// fora do formato do `boundaryMode`, ou não contíguos entre vizinhos) é
+// WARNING desde que deixou de impedir abrir/salvar o documento: um score
+// cujas faixas ainda não foram fechadas, ou importado aos poucos, não devia
+// travar o arquivo inteiro por causa disso.
 // ---------------------------------------------------------------------------
 
 function checkCatchAllIdentity(
@@ -371,7 +379,7 @@ function checkValueContiguity(
     const afterValue = direction === 'ASCENDING' ? accessor.min(next) : accessor.min(current);
     if (beforeValue === undefined || afterValue === undefined) {
       issues.push({
-        severity: 'ERROR',
+        severity: 'WARNING',
         invariant: 'I9',
         path,
         message: `Os domínios "${current.code}" e "${next.code}" de "${variableCode}" precisam ter mínimo/máximo definidos${regionSuffix} para checar contiguidade.`,
@@ -380,7 +388,7 @@ function checkValueContiguity(
     }
     if (isInclusiveInteger && (!INTEGER_REGEX.test(beforeValue) || !INTEGER_REGEX.test(afterValue))) {
       issues.push({
-        severity: 'ERROR',
+        severity: 'WARNING',
         invariant: 'I9',
         path,
         message: `Os domínios "${current.code}" e "${next.code}" de "${variableCode}" têm mínimo/máximo não inteiro${regionSuffix} — o modo de limites inclusivos exige inteiros.`,
@@ -392,7 +400,7 @@ function checkValueContiguity(
       : beforeValue === afterValue;
     if (!contiguous) {
       issues.push({
-        severity: 'ERROR',
+        severity: 'WARNING',
         invariant: 'I9',
         path,
         message: isInclusiveInteger

@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import type { BoundaryMode, Domain, GroupingDimension, VariableVersion } from '@/core/document/schema';
-import { validateDomains } from '@/core/library/validate-domains';
+import { findRangeContiguityWarnings, validateDomains } from '@/core/library/validate-domains';
 import {
   archiveVariable,
   createVariableDraft,
@@ -121,6 +121,17 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
     return validateDomains(variable.type, editingDomains, editingGroupingDimensions, editingBoundaryMode);
   }, [variable, editingDomains, editingGroupingDimensions, editingBoundaryMode]);
   const issues = validation.ok ? [] : validation.issues;
+
+  /** Não bloqueia salvar/publicar — só alimenta o aviso da grade (docs/05 §5.1, I9 valores). */
+  const rangeWarnings = useMemo(() => {
+    if (variable === null) return [];
+    return findRangeContiguityWarnings(
+      variable.type,
+      editingDomains,
+      editingGroupingDimensions,
+      editingBoundaryMode,
+    );
+  }, [variable, editingDomains, editingGroupingDimensions, editingBoundaryMode]);
 
   const usage = useMemo(() => (document === null ? [] : getVariableUsage(document, variableId)), [
     document,
@@ -338,6 +349,7 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
                   domains={editingDomains}
                   onChange={setEditingDomains}
                   issues={issues}
+                  rangeWarnings={rangeWarnings}
                   disabled={!isDraft}
                   groupingDimensions={editingGroupingDimensions}
                   onGroupingDimensionsChange={setEditingGroupingDimensions}

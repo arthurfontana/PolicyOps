@@ -299,6 +299,8 @@ Resolve o caso de modelo de score cujo corte numérico de cada faixa (R01…R20)
 
 #### 5.6.0 `boundaryMode` — limites inclusivo-inclusivo com passo 1
 
+**I9 deixou de bloquear por contiguidade de valores.** A identidade do catch-all (no máximo um, e ele por último) continua **ERROR** — bloqueia `saveDomains`/`publish`. Já a contiguidade em si — mín./máx. ausentes, fora do formato do `boundaryMode`, ou faixas com buraco/sobreposição — é **WARNING**: aparece como aviso no editor (`07-ux-e-editor.md` §11, `findRangeContiguityWarnings`), mas não impede salvar um rascunho nem publicar. Um score cujas faixas ainda estão sendo fechadas, ou importado aos poucos de uma tabela colada, não fica trancado por isso.
+
 Interruptor por versão (`VariableVersion.boundaryMode`, independente de `groupingDimensions` — vale tanto para `rangeMin`/`rangeMax` quanto para `groupingRanges`), ausente ou `'INCLUSIVE_INTEGER'` é `[mín, máx]` com passo 1 — o default da aplicação, pensado para cortes de score que vêm do Excel já fechado-fechado (`R20: 0–357`, `R19: 358–437`, …): os valores são validados como inteiros, e a contiguidade (I9) exige `atual.máx + 1 == próxima.mín`. `'HALF_OPEN'` é o `[mín, máx)` clássico — I9 exige `atual.máx == próxima.mín` — e é opt-in explícito, para faixas decimais ou que tocam exatamente no limite.
 
 Documentos que já tinham `boundaryMode: 'HALF_OPEN'` gravado explicitamente continuam se comportando como antes — só o significado de **ausência** do campo mudou (de `HALF_OPEN` para `INCLUSIVE_INTEGER`); o campo continua ligado variável por variável, como o interruptor de agrupamento.
@@ -319,11 +321,11 @@ input: {
 }
 ```
 
-Continua substituindo o conjunto inteiro (domínios, agrupamentos **e** `boundaryMode`), só em `DRAFT` (`VARIABLE_VERSION_IMMUTABLE` senão), e roda `validateDomains` antes de gravar — agora ciente de `groupingDimensions` (I9, I19) e de `boundaryMode` (I9):
+Continua substituindo o conjunto inteiro (domínios, agrupamentos **e** `boundaryMode`), só em `DRAFT` (`VARIABLE_VERSION_IMMUTABLE` senão), e roda `validateDomains` antes de gravar — agora ciente de `groupingDimensions` (I9, I19) e de `boundaryMode` (I9). **Só a identidade do catch-all bloqueia** (`RANGE_NOT_CONTIGUOUS`/`RANGE_GROUPING_NOT_CONTIGUOUS` quando há mais de um `isCatchAll`, ou ele não é o último): a contiguidade de valores abaixo, mesmo usando os mesmos códigos de erro, hoje só aparece via `findRangeContiguityWarnings` (§5.6.0) e não impede `saveDomains`/`publish`:
 
 - sem `groupingDimensions`: validação igual à de hoje;
-- com `groupingDimensions`: estrutura válida por I19 — 1 a 4 níveis (`TOO_MANY_GROUPING_LEVELS` acima disso), `code` de nível único (`GROUPING_DIMENSION_CODE_DUPLICATE`), `code` de opção único dentro do próprio nível (`GROUPING_OPTION_CODE_DUPLICATE`), todo `path` de `groupingRanges` com o comprimento certo e apontando para opções existentes (`GROUPING_PATH_INVALID`); dentro de **cada `path` distinto** presente nos dados (não em toda combinação possível — ver I19 em `03-modelo-do-documento.md` §9), a mesma regra de contiguidade/sobreposição/catch-all de hoje, aplicada independentemente (`RANGE_GROUPING_NOT_CONTIGUOUS`, com `{ path, domainCode }` no `details`);
-- com `boundaryMode: 'INCLUSIVE_INTEGER'` (com ou sem `groupingDimensions`): mínimo/máximo de cada faixa precisam ser inteiros (mesmo código de erro que a contiguidade, `RANGE_NOT_CONTIGUOUS`/`RANGE_GROUPING_NOT_CONTIGUOUS`, mensagem específica), e a contiguidade compara `atual.máx + 1` com `próxima.mín` em vez de igualdade direta.
+- com `groupingDimensions`: estrutura válida por I19 — 1 a 4 níveis (`TOO_MANY_GROUPING_LEVELS` acima disso), `code` de nível único (`GROUPING_DIMENSION_CODE_DUPLICATE`), `code` de opção único dentro do próprio nível (`GROUPING_OPTION_CODE_DUPLICATE`), todo `path` de `groupingRanges` com o comprimento certo e apontando para opções existentes (`GROUPING_PATH_INVALID`); dentro de **cada `path` distinto** presente nos dados (não em toda combinação possível — ver I19 em `03-modelo-do-documento.md` §9), a mesma regra de contiguidade/sobreposição de hoje, aplicada independentemente (`RANGE_GROUPING_NOT_CONTIGUOUS`, com `{ path, domainCode }` no `details`) — como aviso, não erro;
+- com `boundaryMode: 'INCLUSIVE_INTEGER'` (com ou sem `groupingDimensions`): mínimo/máximo de cada faixa precisam ser inteiros (mesmo código que a contiguidade, `RANGE_NOT_CONTIGUOUS`/`RANGE_GROUPING_NOT_CONTIGUOUS`, mensagem específica), e a contiguidade compara `atual.máx + 1` com `próxima.mín` em vez de igualdade direta — também como aviso.
 
 #### 5.6.2 Importação genérica de tabela colada
 

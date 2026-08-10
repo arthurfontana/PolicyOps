@@ -243,7 +243,7 @@ describe('variable/saveDomains', () => {
     );
   });
 
-  it('faixa com buraco mostra erro claro e não grava (RANGE_NOT_CONTIGUOUS)', () => {
+  it('faixa com buraco não bloqueia mais o salvamento — I9 (valores) virou aviso não-bloqueante', () => {
     const ctx = testCtx();
     const created = apply(
       baseDocument(),
@@ -269,20 +269,18 @@ describe('variable/saveDomains', () => {
       domain('BAIXO', 0, { rangeMin: '0', rangeMax: '100' }),
       domain('ALTO', 1, { rangeMin: '150', rangeMax: '200' }),
     ];
-    const error = expectFailure(
+    const { document } = apply(
       withValidDomains,
       ctx,
       saveVariableDomains({
         variableId: created.data.variableId,
         versionId: created.data.versionId,
         domains: withGap,
+        boundaryMode: 'HALF_OPEN',
       }),
-      'RANGE_NOT_CONTIGUOUS',
     );
-    expect(error.message).toMatch(/contíguas/);
-    // Nada foi gravado: os domínios da versão continuam os válidos de antes.
-    const draft = withValidDomains.variables.find((v) => v.id === created.data.variableId)!.versions[0]!;
-    expect(draft.domains).toEqual(validDomains);
+    const draft = document.variables.find((v) => v.id === created.data.variableId)!.versions[0]!;
+    expect(draft.domains).toEqual(withGap);
   });
 
   it('BOOLEAN com 3 domínios não grava — BOOLEAN_NEEDS_TWO_DOMAINS', () => {
@@ -333,8 +331,9 @@ describe('variable/saveDomains', () => {
     expect(draft.boundaryMode).toBeUndefined();
     expect(draft.domains).toEqual(excelDomains);
 
-    // Forçando HALF_OPEN explicitamente, a mesma colagem é rejeitada.
-    expectFailure(
+    // Forçando HALF_OPEN explicitamente, a mesma colagem não é mais
+    // rejeitada — a não-contiguidade sob esse boundaryMode virou aviso.
+    const { document: withHalfOpen } = apply(
       created.document,
       ctx,
       saveVariableDomains({
@@ -343,8 +342,10 @@ describe('variable/saveDomains', () => {
         domains: excelDomains,
         boundaryMode: 'HALF_OPEN',
       }),
-      'RANGE_NOT_CONTIGUOUS',
     );
+    expect(
+      withHalfOpen.variables.find((v) => v.id === created.data.variableId)!.versions[0]!.domains,
+    ).toEqual(excelDomains);
   });
 
   it('o inverso de saveDomains restaura também o boundaryMode anterior', () => {

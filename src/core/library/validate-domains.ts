@@ -17,6 +17,17 @@ import {
  * `variable/saveDomains` (que embrulha o primeiro problema numa
  * `DomainError`) quanto pela interface, em tempo real, a cada tecla — e ali
  * uma exceção seria o jeito errado de pedir a lista de problemas.
+ *
+ * I9 tem duas partes com pesos diferentes desde que deixou de bloquear
+ * salvar/publicar por causa de mín./máx. ausentes ou não contíguos: a
+ * identidade do catch-all (`checkCatchAllIdentity` — no máximo um, e por
+ * último) continua bloqueante aqui, porque é barata e sempre corrigível na
+ * hora. Já a checagem de valores (`checkValueContiguity` — mín./máx.
+ * definidos, no formato certo, contíguos entre vizinhos) virou aviso: quem
+ * importa uma tabela de faixas aos poucos, ou publica um score cujas faixas
+ * ainda não foram fechadas, não devia ficar impedido de salvar o rascunho.
+ * `findRangeContiguityWarnings` expõe essa mesma checagem como consulta
+ * pura, no mesmo espírito não-bloqueante de `findIncompleteGroupingPaths`.
  */
 
 /** Teto de níveis de agrupamento (I19) — independente do teto de 3 de `AxisLevel` (I13). */
@@ -224,17 +235,14 @@ function checkValueContiguity(
   return issues;
 }
 
-/** I9: só para RANGE sem `groupingDimensions` — faixas contíguas, não sobrepostas, catch-all único e por último. */
-function checkRangeContiguity(domains: Domain[], boundaryMode: BoundaryMode): DomainValidationIssue[] {
-  return [
-    ...checkCatchAllIdentity(domains, 'RANGE_NOT_CONTIGUOUS'),
-    ...checkValueContiguity(
-      domains,
-      { min: (d) => d.rangeMin, max: (d) => d.rangeMax },
-      'RANGE_NOT_CONTIGUOUS',
-      boundaryMode,
-    ),
-  ];
+/**
+ * I9 (identidade), bloqueante: só para RANGE sem `groupingDimensions` — no
+ * máximo um catch-all, e ele por último. A contiguidade de valores em si
+ * (mín./máx. definidos e contíguos) não bloqueia mais — ver
+ * `findRangeContiguityWarnings`.
+ */
+function checkRangeContiguity(domains: Domain[]): DomainValidationIssue[] {
+  return checkCatchAllIdentity(domains, 'RANGE_NOT_CONTIGUOUS');
 }
 
 /** I19 (estrutura dos níveis): 1 a 4 níveis, `code` de nível único, `options` não vazio com `code` único dentro do nível. */
@@ -342,16 +350,39 @@ function checkGroupingPaths(
 }
 
 /**
- * I9 com agrupamento: a mesma regra de contiguidade/sobreposição/catch-all
- * vale **independentemente para cada `path` distinto** presente nos dados. Um
- * domínio ausente de um caminho simplesmente não participa daquele grupo —
- * não é erro (ver `findIncompleteGroupingPaths`, que só avisa).
+ * I9 (identidade) com agrupamento, bloqueante: catch-all único e por último,
+ * na mesma variável — independe de `path`. A contiguidade de valores por
+ * caminho não bloqueia mais — ver `findRangeContiguityWarnings`.
  */
-function checkGroupingContiguity(domains: Domain[], boundaryMode: BoundaryMode): DomainValidationIssue[] {
-  const issues: DomainValidationIssue[] = [
-    ...checkCatchAllIdentity(domains, 'RANGE_GROUPING_NOT_CONTIGUOUS'),
-  ];
+function checkGroupingContiguity(domains: Domain[]): DomainValidationIssue[] {
+  return checkCatchAllIdentity(domains, 'RANGE_GROUPING_NOT_CONTIGUOUS');
+}
 
+/**
+ * I9 (valores), não-bloqueante: mín./máx. definidos, válidos para o
+ * `boundaryMode`, e contíguos entre faixas vizinhas — para cada `path`
+ * distinto, quando a variável usa agrupamento. Consulta pura, no mesmo
+ * espírito de `findIncompleteGroupingPaths`: nunca impede `saveDomains` ou
+ * `publish`, só alimenta avisos na interface (docs/07-ux-e-editor.md).
+ */
+export function findRangeContiguityWarnings(
+  type: VariableType,
+  domains: Domain[],
+  groupingDimensions?: GroupingDimension[],
+  boundaryMode: BoundaryMode = 'INCLUSIVE_INTEGER',
+): DomainValidationIssue[] {
+  if (type !== 'RANGE') return [];
+
+  if (groupingDimensions === undefined) {
+    return checkValueContiguity(
+      domains,
+      { min: (d) => d.rangeMin, max: (d) => d.rangeMax },
+      'RANGE_NOT_CONTIGUOUS',
+      boundaryMode,
+    );
+  }
+
+  const issues: DomainValidationIssue[] = [];
   for (const path of distinctGroupingPaths(domains)) {
     const key = groupingPathKey(path);
     const present = domains.filter((domain) => groupingRangeAt(domain, key) !== undefined);
@@ -368,7 +399,6 @@ function checkGroupingContiguity(domains: Domain[], boundaryMode: BoundaryMode):
       ),
     );
   }
-
   return issues;
 }
 
@@ -421,11 +451,17 @@ export function findIncompleteGroupingPaths(
   return incomplete;
 }
 
+/**
+ * `boundaryMode` continua no parâmetro por compatibilidade de assinatura com
+ * `findRangeContiguityWarnings` (mesmo call site nos dois) — desde que a
+ * contiguidade de valores virou aviso não-bloqueante, esta função não lê o
+ * parâmetro diretamente.
+ */
 export function validateDomains(
   type: VariableType,
   domains: Domain[],
   groupingDimensions?: GroupingDimension[],
-  boundaryMode: BoundaryMode = 'INCLUSIVE_INTEGER',
+  _boundaryMode: BoundaryMode = 'INCLUSIVE_INTEGER',
 ): DomainValidationResult {
   const issues: DomainValidationIssue[] = [
     ...checkCount(type, domains),
@@ -435,12 +471,12 @@ export function validateDomains(
 
   if (type === 'RANGE') {
     if (groupingDimensions === undefined) {
-      issues.push(...checkRangeContiguity(domains, boundaryMode));
+      issues.push(...checkRangeContiguity(domains));
     } else {
       issues.push(
         ...checkGroupingStructure(groupingDimensions),
         ...checkGroupingPaths(domains, groupingDimensions),
-        ...checkGroupingContiguity(domains, boundaryMode),
+        ...checkGroupingContiguity(domains),
       );
     }
   }
