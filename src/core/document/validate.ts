@@ -295,14 +295,14 @@ export function checkI8(doc: PolicyOpsDocument): ValidationIssue[] {
       const n = version.domains.length;
       if (variable.type === 'BOOLEAN' && n !== 2) {
         issues.push({
-          severity: 'ERROR',
+          severity: 'WARNING',
           invariant: 'I8',
           path,
           message: `A variável booleana "${variable.code}" precisa ter exatamente 2 domínios (tem ${n}).`,
         });
       } else if (variable.type !== 'BOOLEAN' && n < 2) {
         issues.push({
-          severity: 'ERROR',
+          severity: 'WARNING',
           invariant: 'I8',
           path,
           message: `A variável "${variable.code}" precisa ter ao menos 2 domínios (tem ${n}).`,
@@ -330,7 +330,7 @@ function checkCatchAllIdentity(
   const catchAlls = domains.filter((d) => d.isCatchAll);
   if (catchAlls.length > 1) {
     issues.push({
-      severity: 'ERROR',
+      severity: 'WARNING',
       invariant: 'I9',
       path,
       message: `A variável "${variableCode}" tem ${catchAlls.length} domínios isCatchAll — no máximo um é permitido.`,
@@ -338,7 +338,7 @@ function checkCatchAllIdentity(
   }
   if (catchAlls.length === 1 && domains[domains.length - 1] !== catchAlls[0]) {
     issues.push({
-      severity: 'ERROR',
+      severity: 'WARNING',
       invariant: 'I9',
       path,
       message: `O domínio isCatchAll de "${variableCode}" precisa ser o último por position.`,
@@ -371,7 +371,7 @@ function checkValueContiguity(
     const afterValue = direction === 'ASCENDING' ? accessor.min(next) : accessor.min(current);
     if (beforeValue === undefined || afterValue === undefined) {
       issues.push({
-        severity: 'ERROR',
+        severity: 'WARNING',
         invariant: 'I9',
         path,
         message: `Os domínios "${current.code}" e "${next.code}" de "${variableCode}" precisam ter mínimo/máximo definidos${regionSuffix} para checar contiguidade.`,
@@ -380,7 +380,7 @@ function checkValueContiguity(
     }
     if (isInclusiveInteger && (!INTEGER_REGEX.test(beforeValue) || !INTEGER_REGEX.test(afterValue))) {
       issues.push({
-        severity: 'ERROR',
+        severity: 'WARNING',
         invariant: 'I9',
         path,
         message: `Os domínios "${current.code}" e "${next.code}" de "${variableCode}" têm mínimo/máximo não inteiro${regionSuffix} — o modo de limites inclusivos exige inteiros.`,
@@ -392,7 +392,7 @@ function checkValueContiguity(
       : beforeValue === afterValue;
     if (!contiguous) {
       issues.push({
-        severity: 'ERROR',
+        severity: 'WARNING',
         invariant: 'I9',
         path,
         message: isInclusiveInteger
@@ -472,7 +472,7 @@ export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
 
       if (dimensions.length === 0 || dimensions.length > MAX_GROUPING_LEVELS) {
         issues.push({
-          severity: 'ERROR',
+          severity: 'WARNING',
           invariant: 'I19',
           path,
           message: `Os agrupamentos da variável "${variable.code}" precisam ter de 1 a ${MAX_GROUPING_LEVELS} níveis (tem ${dimensions.length}).`,
@@ -486,7 +486,7 @@ export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
       for (const [code, count] of seenLevels) {
         if (count > 1) {
           issues.push({
-            severity: 'ERROR',
+            severity: 'WARNING',
             invariant: 'I19',
             path,
             message: `O código de agrupamento "${code}" aparece ${count} vezes na variável "${variable.code}" — precisa ser único entre os níveis.`,
@@ -497,7 +497,7 @@ export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
       dimensions.forEach((dimension, li) => {
         if (dimension.options.length === 0) {
           issues.push({
-            severity: 'ERROR',
+            severity: 'WARNING',
             invariant: 'I19',
             path: `${path}[${li}]`,
             message: `O agrupamento "${dimension.code}" da variável "${variable.code}" precisa ter ao menos uma opção.`,
@@ -510,7 +510,7 @@ export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
         for (const [code, count] of seenOptions) {
           if (count > 1) {
             issues.push({
-              severity: 'ERROR',
+              severity: 'WARNING',
               invariant: 'I19',
               path: `${path}[${li}]`,
               message: `A opção "${code}" aparece ${count} vezes no agrupamento "${dimension.code}" da variável "${variable.code}" — precisa ser única dentro do nível.`,
@@ -528,7 +528,7 @@ export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
         for (const range of domain.groupingRanges ?? []) {
           if (range.path.length !== dimensions.length) {
             issues.push({
-              severity: 'ERROR',
+              severity: 'WARNING',
               invariant: 'I19',
               path: domainPath,
               message: `O domínio "${domain.code}" da variável "${variable.code}" tem uma faixa com ${range.path.length} nível(is) de agrupamento, mas a versão tem ${dimensions.length}.`,
@@ -538,7 +538,7 @@ export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
           const unknownLevel = range.path.findIndex((code, level) => !optionsByLevel[level]!.has(code));
           if (unknownLevel >= 0) {
             issues.push({
-              severity: 'ERROR',
+              severity: 'WARNING',
               invariant: 'I19',
               path: domainPath,
               message: `O domínio "${domain.code}" da variável "${variable.code}" tem uma faixa em "${range.path[unknownLevel]}", que não é uma opção do agrupamento "${dimensions[unknownLevel]!.code}".`,
@@ -866,6 +866,7 @@ export function checkI17(doc: PolicyOpsDocument): ValidationIssue[] {
 function checkUniqueCodes(
   entries: Array<{ code: string; path: string }>,
   scopeLabel: string,
+  severity: IssueSeverity = 'ERROR',
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const firstSeenAt = new Map<string, string>();
@@ -873,7 +874,7 @@ function checkUniqueCodes(
     const firstPath = firstSeenAt.get(entry.code);
     if (firstPath) {
       issues.push({
-        severity: 'ERROR',
+        severity,
         invariant: 'I18',
         path: entry.path,
         message: `O código "${entry.code}" já está em uso em ${scopeLabel} (primeira ocorrência em ${firstPath}).`,
@@ -904,6 +905,7 @@ export function checkI18(doc: PolicyOpsDocument): ValidationIssue[] {
             path: `variables[${vari}].versions[${vi}].domains[${di}]`,
           })),
           `domínios da versão ${version.number} de "${variable.code}"`,
+          'WARNING',
         ),
       );
     });

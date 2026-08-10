@@ -13,10 +13,9 @@ import {
  * Validação de domínios — docs/05-regras-de-negocio.md §5.1 (I8, I9, I18) e
  * §5.6.1 (I9 por caminho de agrupamento, I19).
  *
- * Função **pura**, sem `DomainError`: é usada tanto pelo comando
- * `variable/saveDomains` (que embrulha o primeiro problema numa
- * `DomainError`) quanto pela interface, em tempo real, a cada tecla — e ali
- * uma exceção seria o jeito errado de pedir a lista de problemas.
+ * Função **pura**, sem `DomainError`: nunca bloqueia `variable/saveDomains`
+ * nem `variable/publish` — é aviso não-bloqueante consumido pela interface,
+ * em tempo real, a cada tecla (docs/05-regras-de-negocio.md §9).
  */
 
 /** Teto de níveis de agrupamento (I19) — independente do teto de 3 de `AxisLevel` (I13). */

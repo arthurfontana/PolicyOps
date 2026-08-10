@@ -10,6 +10,7 @@ import {
   saveVariableDomains,
   updateVariableMeta,
 } from '@/core/library/variables';
+import { validateDomains } from '@/core/library/validate-domains';
 import { getVariableUsage, listVariables } from '@/core/queries';
 import { publishVersion } from '@/core/versioning/lifecycle';
 import {
@@ -243,7 +244,7 @@ describe('variable/saveDomains', () => {
     );
   });
 
-  it('faixa com buraco mostra erro claro e não grava (RANGE_NOT_CONTIGUOUS)', () => {
+  it('faixa com buraco grava mesmo assim — a contiguidade é aviso não-bloqueante (docs/05 §9)', () => {
     const ctx = testCtx();
     const created = apply(
       baseDocument(),
@@ -269,7 +270,7 @@ describe('variable/saveDomains', () => {
       domain('BAIXO', 0, { rangeMin: '0', rangeMax: '100' }),
       domain('ALTO', 1, { rangeMin: '150', rangeMax: '200' }),
     ];
-    const error = expectFailure(
+    const { document } = apply(
       withValidDomains,
       ctx,
       saveVariableDomains({
@@ -277,15 +278,16 @@ describe('variable/saveDomains', () => {
         versionId: created.data.versionId,
         domains: withGap,
       }),
-      'RANGE_NOT_CONTIGUOUS',
     );
-    expect(error.message).toMatch(/contíguas/);
-    // Nada foi gravado: os domínios da versão continuam os válidos de antes.
-    const draft = withValidDomains.variables.find((v) => v.id === created.data.variableId)!.versions[0]!;
-    expect(draft.domains).toEqual(validDomains);
+    // O buraco é gravado — a interface ainda aponta o problema (validateDomains),
+    // mas saveDomains não bloqueia mais por RANGE_NOT_CONTIGUOUS.
+    const draft = document.variables.find((v) => v.id === created.data.variableId)!.versions[0]!;
+    expect(draft.domains).toEqual(withGap);
+    const validation = validateDomains('RANGE', withGap, undefined, 'HALF_OPEN');
+    expect(validation.ok).toBe(false);
   });
 
-  it('BOOLEAN com 3 domínios não grava — BOOLEAN_NEEDS_TWO_DOMAINS', () => {
+  it('BOOLEAN com 3 domínios grava mesmo assim — BOOLEAN_NEEDS_TWO_DOMAINS é aviso não-bloqueante', () => {
     const ctx = testCtx();
     const withVar = apply(
       baseDocument(),
@@ -293,16 +295,20 @@ describe('variable/saveDomains', () => {
       createVariable({ code: 'FLAG', name: 'Flag', type: 'BOOLEAN' }),
     ).document;
     const versionId = withVar.variables.find((v) => v.code === 'FLAG')!.versions[0]!.id;
-    expectFailure(
+    const threeDomains = [domain('SIM', 0), domain('NAO', 1), domain('TALVEZ', 2)];
+    const { document } = apply(
       withVar,
       ctx,
       saveVariableDomains({
         variableId: withVar.variables.find((v) => v.code === 'FLAG')!.id,
         versionId,
-        domains: [domain('SIM', 0), domain('NAO', 1), domain('TALVEZ', 2)],
+        domains: threeDomains,
       }),
-      'BOOLEAN_NEEDS_TWO_DOMAINS',
     );
+    const draft = document.variables.find((v) => v.code === 'FLAG')!.versions[0]!;
+    expect(draft.domains).toEqual(threeDomains);
+    const validation = validateDomains('BOOLEAN', threeDomains);
+    expect(validation.ok).toBe(false);
   });
 
   it('boundaryMode INCLUSIVE_INTEGER (default): aceita faixas fechado-fechado com salto de 1, sem ajuste manual', () => {
@@ -333,8 +339,10 @@ describe('variable/saveDomains', () => {
     expect(draft.boundaryMode).toBeUndefined();
     expect(draft.domains).toEqual(excelDomains);
 
-    // Forçando HALF_OPEN explicitamente, a mesma colagem é rejeitada.
-    expectFailure(
+    // Forçando HALF_OPEN explicitamente, a mesma colagem grava mesmo assim —
+    // a contiguidade é aviso não-bloqueante (docs/05 §9) —, mas validateDomains
+    // aponta o problema (salto de 1 não é `atual.máx == próxima.mín`).
+    const { document: withHalfOpen } = apply(
       created.document,
       ctx,
       saveVariableDomains({
@@ -343,8 +351,11 @@ describe('variable/saveDomains', () => {
         domains: excelDomains,
         boundaryMode: 'HALF_OPEN',
       }),
-      'RANGE_NOT_CONTIGUOUS',
     );
+    expect(
+      withHalfOpen.variables.find((v) => v.id === created.data.variableId)!.versions[0]!.boundaryMode,
+    ).toBe('HALF_OPEN');
+    expect(validateDomains('RANGE', excelDomains, undefined, 'HALF_OPEN').ok).toBe(false);
   });
 
   it('o inverso de saveDomains restaura também o boundaryMode anterior', () => {
@@ -456,7 +467,7 @@ describe('variable/publish', () => {
     );
   });
 
-  it('recusa publicar domínios inválidos (draft nunca editado, domains vazio)', () => {
+  it('publica mesmo com domínios inválidos (draft nunca editado, domains vazio) — INVALID_DOMAIN_SET é aviso não-bloqueante', () => {
     const ctx = testCtx();
     const created = apply(
       baseDocument(),
@@ -465,7 +476,9 @@ describe('variable/publish', () => {
     ).document;
     const variableId = created.variables.find((v) => v.code === 'NOVA')!.id;
     const versionId = created.variables.find((v) => v.code === 'NOVA')!.versions[0]!.id;
-    expectFailure(created, ctx, publishVariable({ variableId, versionId }), 'INVALID_DOMAIN_SET');
+    const { document } = apply(created, ctx, publishVariable({ variableId, versionId }));
+    expect(document.variables.find((v) => v.id === variableId)!.versions[0]!.state).toBe('PUBLISHED');
+    expect(validateDomains('CATEGORICAL', []).ok).toBe(false);
   });
 
   it('o inverso é irreversível', () => {

@@ -64,7 +64,7 @@ Duas implementações: `fsa-adapter.ts` e `download-adapter.ts`. **A aplicação
 
 `meta.revision` incrementa a cada salvamento bem-sucedido. `meta.savedAt`, `meta.savedBy` e `meta.appVersion` são carimbados. `raw.hash` é SHA-256 do conteúdo serializado, guardado em memória como "o que eu vi por último".
 
-**Antes de todo salvamento**, o documento passa por `validate()` (invariantes de `03-modelo-do-documento.md` §9). Documento inválido **não é gravado** — melhor recusar do que corromper o arquivo compartilhado. A interface mostra o que está errado e onde.
+**Antes de todo salvamento**, o documento passa por `validate()` (invariantes de `03-modelo-do-documento.md` §9). Documento com algum problema de `severity: 'ERROR'` **não é gravado** — melhor recusar do que corromper o arquivo compartilhado; a interface mostra o que está errado e onde. Problemas de `severity: 'WARNING'` (I8, I9, I19 e a unicidade de código de domínio de I18 — `03-modelo-do-documento.md` §9) não impedem a gravação.
 
 ## 5. Detecção de conflito
 

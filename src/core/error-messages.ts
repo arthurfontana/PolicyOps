@@ -11,11 +11,6 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
   VARIABLE_HAS_NO_PUBLISHED_VERSION:
     'Esta variável ainda não tem nenhuma versão publicada — publique uma versão na biblioteca antes de usá-la num eixo.',
   VARIABLE_VERSION_IMMUTABLE: 'Esta versão da variável já foi publicada e não pode mais ser alterada.',
-  INVALID_DOMAIN_SET:
-    'O conjunto de domínios da variável é inválido — são necessários pelo menos 2 domínios.',
-  RANGE_NOT_CONTIGUOUS:
-    'As faixas da variável precisam ser contíguas, ordenadas e ter exatamente uma faixa "acima de" ao final.',
-  BOOLEAN_NEEDS_TWO_DOMAINS: 'Uma variável booleana precisa ter exatamente 2 domínios.',
   COMPATIBILITY_PAIR_DUPLICATE:
     'Já existe uma regra de compatibilidade publicada para este par de variáveis.',
   COMPATIBILITY_VERSION_IMMUTABLE:
@@ -51,15 +46,6 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
   DOCUMENT_INVALID: 'O arquivo de dados está corrompido ou não é um documento válido do PolicyOps.',
   SAVE_CONFLICT:
     'Outra pessoa salvou este arquivo enquanto você editava. Revise as mudanças antes de salvar novamente.',
-  RANGE_GROUPING_NOT_CONTIGUOUS:
-    'As faixas desta variável precisam ser contíguas, ordenadas e ter no máximo uma "demais casos" — dentro de cada combinação de agrupamento, independentemente.',
-  GROUPING_DIMENSION_CODE_DUPLICATE:
-    'Há níveis de agrupamento com o mesmo código — cada nível precisa de um código único nesta versão.',
-  GROUPING_OPTION_CODE_DUPLICATE:
-    'Há opções com o mesmo código dentro de um nível de agrupamento — cada opção precisa de um código único no próprio nível.',
-  GROUPING_PATH_INVALID:
-    'Há faixas apontando para uma combinação de agrupamento que não existe nesta versão — confira os níveis e as opções.',
-  TOO_MANY_GROUPING_LEVELS: 'Uma variável pode ter no máximo 4 níveis de agrupamento.',
   DOMAIN_TABLE_PARSE_ERROR:
     'Não foi possível interpretar a tabela colada — confira o cabeçalho (Domínio é obrigatório) e o número de colunas.',
 };

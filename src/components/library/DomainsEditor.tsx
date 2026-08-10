@@ -406,7 +406,7 @@ function SortableRow({
           {rowIssues.map((issue, index) => (
             <li
               key={index}
-              className="flex items-start gap-1 text-xs text-red-600 dark:text-red-400"
+              className="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400"
             >
               <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
               {issue.message}
@@ -924,10 +924,11 @@ export function DomainsEditor({
         </p>
       )}
 
+      {/* Aviso não-bloqueante (docs/05 §9): contiguidade, agrupamento e forma dos domínios não impedem salvar. */}
       {topIssues.length > 0 && (
-        <ul className="flex flex-col gap-1 rounded-md border border-red-200 bg-red-50 p-2 dark:border-red-900 dark:bg-red-950/30">
+        <ul className="flex flex-col gap-1 rounded-md border border-amber-200 bg-amber-50 p-2 dark:border-amber-900 dark:bg-amber-950/30">
           {topIssues.map((issue, index) => (
-            <li key={index} className="flex items-start gap-1.5 text-xs text-red-700 dark:text-red-400">
+            <li key={index} className="flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300">
               <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               {issue.message}
             </li>
@@ -1040,7 +1041,7 @@ export function DomainsEditor({
                     {groupIssues.map((issue, index) => (
                       <li
                         key={index}
-                        className="flex items-start gap-1 text-xs text-red-600 dark:text-red-400"
+                        className="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400"
                       >
                         <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
                         {issue.message}

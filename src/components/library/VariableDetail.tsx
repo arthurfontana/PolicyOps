@@ -359,7 +359,7 @@ export function VariableDetail({ variableId, onBack }: VariableDetailProps) {
                     </Button>
                     <Button
                       size="sm"
-                      disabled={dirty || issues.length > 0 || editingDomains.length === 0}
+                      disabled={dirty}
                       onClick={() => setPublishDialogOpen(true)}
                     >
                       <Send className="mr-1.5 h-4 w-4" /> Publicar

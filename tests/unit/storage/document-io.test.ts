@@ -113,6 +113,16 @@ describe('prepareSave', () => {
     expect(details.issues.some((issue) => issue.invariant === 'I5')).toBe(true);
   });
 
+  it('grava mesmo com faixas RANGE não contíguas — I9 é aviso não-bloqueante (docs/05 §9)', async () => {
+    const doc = createSampleDocument();
+    const fat = doc.variables.find((v) => v.code === 'FAT')!;
+    fat.versions[0]!.domains[1]!.rangeMin = '999999';
+    const prepared = await prepareSave(doc, { actor: 'Arthur', now: new Date() });
+    expect(prepared.document.variables.find((v) => v.code === 'FAT')!.versions[0]!.domains[1]!.rangeMin).toBe(
+      '999999',
+    );
+  });
+
   it('compacta quando o formato pedido é .pmz', async () => {
     const doc = createSampleDocument();
     const prepared = await prepareSave(doc, {
