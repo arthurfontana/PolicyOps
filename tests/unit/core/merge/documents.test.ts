@@ -99,10 +99,11 @@ describe('§7 — resolvido automaticamente', () => {
     expect(merged.variables.some((variable) => variable.code === 'CANAL')).toBe(true);
     expect(merged.catalog.some((item) => item.code === 'PENDENTE')).toBe(true);
     expect(applied.filter((action) => action.kind === 'UNION_LIBRARY_ITEM')).toHaveLength(2);
-    // `position` continua 0-based e sem buracos depois da união.
-    expect(merged.catalog.map((item) => item.position)).toEqual(
-      merged.catalog.map((_item, index) => index),
-    );
+    // `position` continua 0-based e sem buracos por kind depois da união.
+    for (const kind of ['DECISION', 'OFFER', 'LIMIT', 'TAG'] as const) {
+      const sameKind = merged.catalog.filter((item) => item.kind === kind);
+      expect(sameKind.map((item) => item.position)).toEqual(sameKind.map((_item, index) => index));
+    }
     expectValid(merged);
   });
 

@@ -988,12 +988,18 @@ export function checkPositions(doc: PolicyOpsDocument): ValidationIssue[] {
     ),
   );
 
-  issues.push(
-    ...checkPositionSequence(
-      doc.catalog.map((c, i) => ({ position: c.position, path: `catalog[${i}]` })),
-      'itens do catálogo',
-    ),
-  );
+  const catalogKinds = [...new Set(doc.catalog.map((c) => c.kind))] as CatalogItemKind[];
+  for (const kind of catalogKinds) {
+    issues.push(
+      ...checkPositionSequence(
+        doc.catalog
+          .map((c, i) => ({ ...c, index: i }))
+          .filter((c) => c.kind === kind)
+          .map((c) => ({ position: c.position, path: `catalog[${c.index}]` })),
+        `itens do catálogo do tipo ${kind}`,
+      ),
+    );
+  }
 
   doc.variables.forEach((variable, vari) => {
     variable.versions.forEach((version, vi) => {

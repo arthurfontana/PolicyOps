@@ -1472,6 +1472,27 @@ function renumberPositions<T extends { position: number; createdAt: string; id: 
     .map((item, position) => ({ ...item, position }));
 }
 
+/**
+ * `CatalogItem.position` é 0-based sem buracos *dentro de cada `kind`*
+ * (docs/03-modelo-do-documento.md §5), não no array `catalog` inteiro —
+ * mesma convenção usada por `catalog/create` e `catalog/reorder`
+ * (src/core/library/catalog.ts). Renumerar o array plano misturaria as
+ * sequências de DECISION/OFFER/LIMIT/TAG.
+ */
+function renumberCatalogPositions(items: CatalogItem[]): CatalogItem[] {
+  const byKind = new Map<CatalogItemKind, CatalogItem[]>();
+  for (const item of items) {
+    const list = byKind.get(item.kind);
+    if (list) list.push(item);
+    else byKind.set(item.kind, [item]);
+  }
+  const renumbered = new Map<string, CatalogItem>();
+  for (const list of byKind.values()) {
+    for (const item of renumberPositions(list)) renumbered.set(item.id, item);
+  }
+  return items.map((item) => renumbered.get(item.id)!);
+}
+
 /** O instante mais recente que os dois documentos conhecem. */
 function latestInstant(mine: PolicyOpsDocument, theirs: PolicyOpsDocument): string {
   let latest = mine.meta.createdAt;
@@ -1614,7 +1635,7 @@ export function mergeDocuments(
       'A regra de compatibilidade',
     ),
   );
-  const catalog = renumberPositions(mergeFlatCollection(ctx, mine.catalog, theirs.catalog, CATALOG_SPEC));
+  const catalog = renumberCatalogPositions(mergeFlatCollection(ctx, mine.catalog, theirs.catalog, CATALOG_SPEC));
   const projects = renumberPositions(mergeFlatCollection(ctx, mine.projects, theirs.projects, PROJECT_SPEC));
   const templates = mergeFlatCollection(ctx, mine.templates, theirs.templates, TEMPLATE_SPEC);
   const matrices = mergeMatrices(ctx);
