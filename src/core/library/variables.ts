@@ -18,7 +18,6 @@ import type {
 } from '../document/schema';
 import { DomainError } from '../errors';
 import { getVariableUsage } from '../queries';
-import { validateDomains } from './validate-domains';
 
 /**
  * Comandos da Biblioteca de Variáveis — docs/08-camada-de-comandos.md §3 e
@@ -110,20 +109,6 @@ function assertVariableDraft(version: VariableVersion): void {
       `A versão ${version.number} já foi publicada e não pode mais ser alterada.`,
       { versionId: version.id, state: version.state },
     );
-  }
-}
-
-/** Reaproveita `validateDomains` (I8, I9, I18, I19) e embrulha o primeiro problema numa `DomainError`. */
-function assertValidDomains(
-  type: VariableType,
-  domains: Domain[],
-  groupingDimensions?: GroupingDimension[],
-  boundaryMode?: BoundaryMode,
-): void {
-  const result = validateDomains(type, domains, groupingDimensions, boundaryMode);
-  if (!result.ok) {
-    const [first, ...rest] = result.issues;
-    throw new DomainError(first!.code, first!.message, { issues: [first, ...rest] });
   }
 }
 
@@ -458,7 +443,6 @@ export function saveVariableDomains(
         input.versionId,
       );
       assertVariableDraft(version);
-      assertValidDomains(variable.type, input.domains, input.groupingDimensions, input.boundaryMode);
 
       const previousDomains = structuredClone(version.domains);
       const previousGrouping = previousGroupingDimensions(version);
@@ -578,7 +562,6 @@ export function publishVariable(
         input.versionId,
       );
       assertVariableDraft(version);
-      assertValidDomains(variable.type, version.domains, version.groupingDimensions, version.boundaryMode);
 
       const current = variable.versions.find((candidate) => candidate.state === 'PUBLISHED');
       const currentIndex =

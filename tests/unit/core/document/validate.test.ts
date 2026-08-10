@@ -196,6 +196,14 @@ describe('I8 — BOOLEAN tem exatamente 2 domínios; demais, ao menos 2', () => 
     expect(issues).toHaveLength(1);
     expect(issues[0]!.invariant).toBe('I8');
   });
+
+  it('WARNING, não ERROR (docs/05 §9): não bloqueia validateDocument, logo não bloqueia prepareSave', () => {
+    const doc = base();
+    doc.variables[0]!.type = 'BOOLEAN';
+    doc.variables[0]!.versions[0]!.domains.push({ code: 'C', label: 'C', position: 2 });
+    expect(checkI8(doc)[0]!.severity).toBe('WARNING');
+    expect(validateDocument(doc).ok).toBe(true);
+  });
 });
 
 describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', () => {
@@ -243,6 +251,18 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
     const issues = checkI9(doc);
     expect(issues).toHaveLength(1);
     expect(issues[0]!.invariant).toBe('I9');
+  });
+
+  it('WARNING, não ERROR (docs/05 §9): não bloqueia validateDocument, logo não bloqueia prepareSave', () => {
+    const doc = base();
+    const variable = rangeVariable([
+      { code: 'BAIXA', label: 'Baixa', position: 0, rangeMin: '0', rangeMax: '100' },
+      { code: 'ALTA', label: 'Alta', position: 1, rangeMin: '150', isCatchAll: true },
+    ]);
+    variable.versions[0]!.boundaryMode = 'HALF_OPEN';
+    doc.variables.push(variable);
+    expect(checkI9(doc)[0]!.severity).toBe('WARNING');
+    expect(validateDocument(doc).ok).toBe(true);
   });
 
   it('I9 com agrupamento: contíguo em todos os caminhos é válido', () => {
@@ -501,7 +521,11 @@ describe('I19 — groupingDimensions: 1 a 4 níveis, codes únicos, paths válid
         [],
       ),
     );
-    expect(checkI19(doc).some((i) => i.invariant === 'I19')).toBe(true);
+    const issues = checkI19(doc);
+    expect(issues.some((i) => i.invariant === 'I19')).toBe(true);
+    // WARNING, não ERROR (docs/05 §9): não bloqueia validateDocument, logo não bloqueia prepareSave.
+    expect(issues.every((i) => i.severity === 'WARNING')).toBe(true);
+    expect(validateDocument(doc).ok).toBe(true);
   });
 
   it('inválido: mais de 4 níveis', () => {
@@ -783,6 +807,19 @@ describe('I18 — todo code é único no seu escopo', () => {
     doc.variables[1]!.code = doc.variables[0]!.code;
     const issues = checkI18(doc);
     expect(issues.some((i) => i.invariant === 'I18')).toBe(true);
+    // Código de variável duplicado continua ERROR — bloqueia validateDocument (identidade
+    // referenciada em todo o documento, fora do escopo do pedido de docs/05 §9).
+    expect(issues.some((i) => i.invariant === 'I18' && i.severity === 'ERROR')).toBe(true);
+    expect(validateDocument(doc).ok).toBe(false);
+  });
+
+  it('WARNING, não ERROR (docs/05 §9): código de domínio duplicado dentro da versão não bloqueia', () => {
+    const doc = base();
+    doc.variables[0]!.versions[0]!.domains[1]!.code = doc.variables[0]!.versions[0]!.domains[0]!.code;
+    const issues = checkI18(doc);
+    expect(issues.some((i) => i.invariant === 'I18')).toBe(true);
+    expect(issues.every((i) => i.severity === 'WARNING')).toBe(true);
+    expect(validateDocument(doc).ok).toBe(true);
   });
 });
 

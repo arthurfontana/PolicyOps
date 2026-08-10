@@ -479,7 +479,6 @@ Retorna a versão com `state ∈ {PUBLISHED, SUPERSEDED}` cujo intervalo semiabe
 ```
 NOT_FOUND, DUPLICATE_CODE, INVALID_INPUT,
 VARIABLE_HAS_NO_PUBLISHED_VERSION, VARIABLE_VERSION_IMMUTABLE,
-INVALID_DOMAIN_SET, RANGE_NOT_CONTIGUOUS, BOOLEAN_NEEDS_TWO_DOMAINS,
 COMPATIBILITY_PAIR_DUPLICATE, COMPATIBILITY_VERSION_IMMUTABLE,
 DRAFT_ALREADY_EXISTS, NO_VERSION_TO_DERIVE,
 VERSION_NOT_DRAFT, VERSION_IMMUTABLE, NOTES_REQUIRED,
@@ -490,11 +489,14 @@ TOO_MANY_LEVELS, DUPLICATE_VARIABLE_IN_AXIS, VARIABLE_ON_BOTH_AXES,
 AXIS_NEEDS_ONE_LEVEL, NO_VALID_TUPLES, GRID_TOO_LARGE,
 AXIS_NOT_STALE, VERSIONS_NOT_COMPARABLE,
 DOCUMENT_SCHEMA_TOO_NEW, DOCUMENT_INVALID, SAVE_CONFLICT,
-RANGE_GROUPING_NOT_CONTIGUOUS, GROUPING_DIMENSION_CODE_DUPLICATE,
-GROUPING_OPTION_CODE_DUPLICATE, GROUPING_PATH_INVALID,
-TOO_MANY_GROUPING_LEVELS, DOMAIN_TABLE_PARSE_ERROR
+DOMAIN_TABLE_PARSE_ERROR
 ```
 
 `RANGE_REGIONAL_INCOMPLETE`, `RANGE_REGIONAL_NOT_CONTIGUOUS`, `REGIONAL_CODE_DUPLICATE` e `REGIONAL_IMPORT_PARSE_ERROR` (sessão 18) são removidos na sessão 20 — substituídos pelos códigos genéricos acima. `RANGE_REGIONAL_INCOMPLETE` não tem substituto direto: a completude por combinação deixou de ser invariante (`03-modelo-do-documento.md` §9, nota após I19) e virou aviso não bloqueante na interface, não um `DomainError`.
+
+`INVALID_DOMAIN_SET`, `RANGE_NOT_CONTIGUOUS`, `BOOLEAN_NEEDS_TWO_DOMAINS`, `RANGE_GROUPING_NOT_CONTIGUOUS`, `GROUPING_DIMENSION_CODE_DUPLICATE`, `GROUPING_OPTION_CODE_DUPLICATE`, `GROUPING_PATH_INVALID` e `TOO_MANY_GROUPING_LEVELS` também saem do catálogo: `variable/saveDomains` e `variable/publish` não chamam mais `assertValidDomains`, então nenhum desses códigos é lançado como `DomainError`. A forma/contiguidade/agrupamento de domínios (I8, I9, I18, I19) virou aviso não bloqueante em dois lugares — nunca uma exceção:
+
+- `validateDomains` (`src/core/library/validate-domains.ts`), a mesma função pura de antes, continua devolvendo `DomainValidationIssue[]` em tempo real para a interface (§5.6.1) — só que agora ninguém embrulha o primeiro problema numa `DomainError`;
+- `checkI8`, `checkI9`, `checkI19` e a checagem de código de domínio de `checkI18` (`src/core/document/validate.ts`) produzem `ValidationIssue` com `severity: 'WARNING'` em vez de `'ERROR'` — não derrubam `validateDocument().ok`, então também não bloqueiam `prepareSave` (`06-persistencia-e-concorrencia.md` §4). Salvar um documento com faixa não contígua, `BOOLEAN` com número errado de domínios ou `path` de agrupamento inválido passa a ser possível; o modo de recuperação (`03-modelo-do-documento.md` §9, §10) lista esses avisos junto com os erros de verdade, agrupados por gravidade.
 
 Cada código tem mensagem pt-BR em `src/core/error-messages.ts`. A interface nunca exibe o código cru. Um teste percorre o enum e falha se faltar mensagem.

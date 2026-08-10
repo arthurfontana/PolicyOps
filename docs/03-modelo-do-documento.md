@@ -381,7 +381,7 @@ type DocEventType =
 
 ## 9. Invariantes
 
-Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas **na leitura do arquivo** e **antes de todo salvamento**.
+Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas **na leitura do arquivo** e **antes de todo salvamento** — exceto I8, I9, I19 e a unicidade de código de domínio de I18, que são avisos não bloqueantes (nota após a tabela).
 
 | # | Invariante |
 |---|---|
@@ -407,7 +407,9 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 
 **I19 é deliberadamente mais fraca que a antiga regra de completude regional.** Não existe invariante exigindo que todo domínio `RANGE` tenha uma entrada em `groupingRanges` para toda combinação possível de opções — hierarquias reais são assimétricas (nem toda Regional tem MEI, por exemplo), e forçar o preenchimento de combinações que não existem no negócio seria pior do que não validar nada. O editor de domínios (`07-ux-e-editor.md` §11) ainda **avisa** (não bloqueia) quando um `path` usado por alguns domínios está ausente por completo de outros — o caso provável de "esqueci de colar uma linha" — mas isso é um aviso de UX, não uma falha de I19.
 
-Falha de invariante na leitura **não descarta o arquivo**: a aplicação abre em modo de recuperação, lista os problemas em português e oferece as correções possíveis (§10).
+**I8, I9, I19 e a unicidade de código de domínio de I18 (dentro de `version.domains`) são avisos não bloqueantes, não invariantes garantidas.** `checkI8`, `checkI9` e `checkI19` (e a checagem de código duplicado de domínio dentro de `checkI18`) produzem `ValidationIssue` com `severity: 'WARNING'` em vez de `'ERROR'` — não derrubam `validateDocument().ok`, então não impedem `variable/saveDomains`, `variable/publish` nem a gravação do arquivo (`prepareSave`, `06-persistencia-e-concorrencia.md` §4). Um documento salvo pode ter uma variável `BOOLEAN` com número errado de domínios, faixas `RANGE` não contíguas ou sobrepostas, ou um agrupamento com `path` inválido — a interface continua avisando em tempo real (`07-ux-e-editor.md` §11), mas quem decide se aquilo é aceitável é quem edita a política, não a aplicação. O restante de I18 (código de variável, de regra de compatibilidade, de item de catálogo, de projeto, de matriz, de template) continua `ERROR` — são identificadores referenciados em todo o documento, fora do escopo desta mudança.
+
+Falha de invariante na leitura **não descarta o arquivo**: a aplicação abre em modo de recuperação, lista os problemas em português (agrupados por gravidade — erros e avisos) e oferece as correções possíveis (§10).
 
 ## 10. Versionamento do schema e migração
 
