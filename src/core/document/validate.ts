@@ -8,7 +8,13 @@ import {
   type Domain,
   type PolicyOpsDocument,
 } from './schema';
-import { distinctGroupingPaths, formatGroupingPath, groupingPathKey, groupingRangeAt } from './grouping';
+import {
+  detectContiguityDirection,
+  distinctGroupingPaths,
+  formatGroupingPath,
+  groupingPathKey,
+  groupingRangeAt,
+} from './grouping';
 
 /**
  * Validação do documento — schema estrutural (Zod) + invariantes de negócio
@@ -352,13 +358,18 @@ function checkValueContiguity(
   const issues: ValidationIssue[] = [];
   const regionSuffix = groupingPath === undefined ? '' : ` em "${formatGroupingPath(groupingPath)}"`;
   const isInclusiveInteger = boundaryMode === 'INCLUSIVE_INTEGER';
+  // Faixas por position podem crescer (o de sempre) ou decrescer (cortes de
+  // score "melhor faixa primeiro") — ver detectContiguityDirection.
+  const direction = detectContiguityDirection(domains.map((d) => ({ min: accessor.min(d) })));
   for (let i = 0; i < domains.length - 1; i++) {
     const current = domains[i]!;
     const next = domains[i + 1]!;
     if (current.isCatchAll) continue;
-    const currentMax = accessor.max(current);
-    const nextMin = accessor.min(next);
-    if (currentMax === undefined || nextMin === undefined) {
+    const beforeDomain = direction === 'ASCENDING' ? current : next;
+    const afterDomain = direction === 'ASCENDING' ? next : current;
+    const beforeValue = direction === 'ASCENDING' ? accessor.max(current) : accessor.max(next);
+    const afterValue = direction === 'ASCENDING' ? accessor.min(next) : accessor.min(current);
+    if (beforeValue === undefined || afterValue === undefined) {
       issues.push({
         severity: 'ERROR',
         invariant: 'I9',
@@ -367,7 +378,7 @@ function checkValueContiguity(
       });
       continue;
     }
-    if (isInclusiveInteger && (!INTEGER_REGEX.test(currentMax) || !INTEGER_REGEX.test(nextMin))) {
+    if (isInclusiveInteger && (!INTEGER_REGEX.test(beforeValue) || !INTEGER_REGEX.test(afterValue))) {
       issues.push({
         severity: 'ERROR',
         invariant: 'I9',
@@ -377,16 +388,16 @@ function checkValueContiguity(
       continue;
     }
     const contiguous = isInclusiveInteger
-      ? new Decimal(currentMax).plus(1).eq(new Decimal(nextMin))
-      : currentMax === nextMin;
+      ? new Decimal(beforeValue).plus(1).eq(new Decimal(afterValue))
+      : beforeValue === afterValue;
     if (!contiguous) {
       issues.push({
         severity: 'ERROR',
         invariant: 'I9',
         path,
         message: isInclusiveInteger
-          ? `As faixas "${current.code}" e "${next.code}" de "${variableCode}" não são contíguas${regionSuffix} no modo de limites inclusivos (máx+1=${currentMax}+1 ≠ mín=${nextMin}).`
-          : `As faixas "${current.code}" e "${next.code}" de "${variableCode}" não são contíguas${regionSuffix} (máx=${currentMax} ≠ mín=${nextMin}).`,
+          ? `As faixas "${current.code}" e "${next.code}" de "${variableCode}" não são contíguas${regionSuffix} no modo de limites inclusivos: o máximo de "${beforeDomain.code}" (${beforeValue}) + 1 precisa ser igual ao mínimo de "${afterDomain.code}" (${afterValue}).`
+          : `As faixas "${current.code}" e "${next.code}" de "${variableCode}" não são contíguas${regionSuffix}: o máximo de "${beforeDomain.code}" (${beforeValue}) precisa ser igual ao mínimo de "${afterDomain.code}" (${afterValue}).`,
       });
     }
   }

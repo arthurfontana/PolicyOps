@@ -81,6 +81,12 @@ type VariableVersion = {
 // formato fechado-fechado (ex.: 0–357, 358–437) sem o usuário precisar
 // reescrever o máximo de cada faixa para repetir o mínimo da seguinte.
 //
+// Em ambos os boundaryMode, a sequência por position pode crescer ou
+// decrescer (cortes de score às vezes vêm "melhor faixa primeiro": R01 com
+// a faixa mais alta, R20 com a mais baixa) — I9 detecta a direção pelo
+// primeiro par de mínimos distintos e valida a contiguidade nesse sentido.
+//
+
 // GroupingDimension generaliza o que até a sessão 18 era só "regional":
 // em vez de um único nível fixo, a variável pode declarar de 1 a 4 níveis
 // de agrupamento, com nome e opções livres (Regional, Porte, Tipo de
@@ -386,7 +392,7 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I6 | Publicar exige zero combinações sem `decision` |
 | I7 | `CatalogItem` de kind `LIMIT` tem `numericValue` |
 | I8 | `BOOLEAN` tem exatamente 2 domínios; demais tipos, ao menos 2 |
-| I9 | `RANGE` sem `groupingDimensions`: faixas contíguas, sem sobreposição, ordenadas por `position`, usando `rangeMin`/`rangeMax`; no máximo um `isCatchAll`, e ele é o último. `RANGE` **com** `groupingDimensions`: a mesma regra de contiguidade/sobreposição/catch-all vale **independentemente para cada `path` distinto** presente em `domains[].groupingRanges` — não para toda combinação possível de opções, só para as que o usuário efetivamente definiu (ver I19). Em ambos os casos, a contiguidade lê `boundaryMode` da versão: `HALF_OPEN` (default) exige `atual.máx == próxima.mín`; `INCLUSIVE_INTEGER` exige valores inteiros e `atual.máx + 1 == próxima.mín` |
+| I9 | `RANGE` sem `groupingDimensions`: faixas contíguas, sem sobreposição, ordenadas por `position`, usando `rangeMin`/`rangeMax`; no máximo um `isCatchAll`, e ele é o último. `RANGE` **com** `groupingDimensions`: a mesma regra de contiguidade/sobreposição/catch-all vale **independentemente para cada `path` distinto** presente em `domains[].groupingRanges` — não para toda combinação possível de opções, só para as que o usuário efetivamente definiu (ver I19). Em ambos os casos, a contiguidade lê `boundaryMode` da versão: `HALF_OPEN` (default) exige `atual.máx == próxima.mín`; `INCLUSIVE_INTEGER` exige valores inteiros e `atual.máx + 1 == próxima.mín`. A ordem por `position` pode ser crescente ou decrescente — a direção é detectada pelo primeiro par de mínimos distintos e aplicada à sequência inteira (ou a cada `path`, com `groupingDimensions`) |
 | I10 | `VariableVersion` / `CompatibilityVersion` publicada é imutável |
 | I11 | No máximo uma versão `DRAFT` e uma `PUBLISHED` por variável e por regra de compatibilidade |
 | I12 | Uma única regra de compatibilidade publicada por par (parent, child) |

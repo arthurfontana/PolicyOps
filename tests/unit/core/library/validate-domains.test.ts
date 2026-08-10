@@ -681,4 +681,81 @@ describe('validateDomains', () => {
       expect(issue?.path).toEqual(['SP']);
     }
   });
+
+  // -- direção decrescente por position (docs/05 §5.6.0, docs/03 I9) --------
+  // Cortes de score às vezes vêm do negócio "melhor faixa primeiro": R01 com
+  // a faixa mais alta, R20 com a mais baixa — mínimo decrescendo a cada
+  // domínio seguinte por `position`. A validação detecta isso sozinha.
+
+  it('HALF_OPEN: aceita faixas decrescentes por position (maior faixa primeiro)', () => {
+    const result = validateDomains('RANGE', [
+      range('ALTO', 0, '100', '200'),
+      range('BAIXO', 1, '0', '100'),
+    ]);
+    expect(result.ok).toBe(true);
+  });
+
+  it('HALF_OPEN: detecta buraco numa sequência decrescente', () => {
+    const result = validateDomains('RANGE', [
+      range('ALTO', 0, '150', '200'),
+      range('BAIXO', 1, '0', '100'),
+    ]);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
+    }
+  });
+
+  it('INCLUSIVE_INTEGER: aceita o caso real do negócio — R01 (faixa mais alta) primeiro, catch-all na faixa mais baixa', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        range('R01', 0, '704', '999'),
+        range('R02', 1, '685', '703'),
+        range('R03', 2, '672', '684'),
+        range('R04', 3, '5', '671', { isCatchAll: true }),
+      ],
+      undefined,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('INCLUSIVE_INTEGER: buraco real numa sequência decrescente continua falhando', () => {
+    const result = validateDomains(
+      'RANGE',
+      [range('R01', 0, '704', '999'), range('R02', 1, '680', '703')],
+      undefined,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(result.ok).toBe(true); // 703 + 1 = 704 — ainda contíguo, sem buraco.
+    const withHole = validateDomains(
+      'RANGE',
+      [range('R01', 0, '704', '999'), range('R02', 1, '680', '702')],
+      undefined,
+      'INCLUSIVE_INTEGER',
+    );
+    expect(withHole.ok).toBe(false);
+    if (!withHole.ok) {
+      expect(withHole.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
+    }
+  });
+
+  it('agrupamento: direção decrescente é detectada por caminho, independentemente', () => {
+    const result = validateDomains(
+      'RANGE',
+      [
+        grouped('R01', 0, [
+          { path: ['BASE'], min: '100', max: '200' },
+          { path: ['SP'], min: '120', max: '240' },
+        ]),
+        grouped('R02', 1, [
+          { path: ['BASE'], min: '0', max: '100' },
+          { path: ['SP'], min: '0', max: '120' },
+        ]),
+      ],
+      regional,
+    );
+    expect(result.ok).toBe(true);
+  });
 });
