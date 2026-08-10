@@ -219,3 +219,28 @@ O aviso de Impacto continua valendo: mudar os agrupamentos de uma variável nunc
 `src/lib/colors.ts` exporta 12 cores de célula validadas para contraste AA nos dois temas, as cores semânticas de decisão e as de diff. Nenhuma cor hard-coded em componente.
 
 `src/lib/color-palettes.ts` exporta as paletas oficiais de cor de **domínio** (`Risco R01–R20`, `Risco simplificado` — `05-regras-de-negocio.md` §5.6.4), usadas pelo botão "Aplicar paleta" e pela sugestão automática do editor de domínios (§11). É um conjunto separado das 12 cores de célula acima — domínio e célula têm resoluções de cor independentes (`05-regras-de-negocio.md` §3).
+
+## 14. Assistente de carga
+
+Rota interna `import`, acionada por **"Carregar tabela"** na tela de Projetos e no cabeçalho da lista de matrizes. São seis passos (arquivo · colunas · biblioteca · conteúdo · plano · aplicar), navegáveis para trás, e **nada é gravado antes do último**. O desenho completo das telas, com o que cada passo mostra e bloqueia, está em [`12-carga-de-matrizes.md`](12-carga-de-matrizes.md) §6 — não é repetido aqui.
+
+O que o assistente **reaproveita** do que já existe, em vez de recriar:
+
+- o diff de cada matriz do plano abre no `CompareView` de §9, em modo sobreposto, dentro de um painel do próprio assistente;
+- a fila de revisão pós-carga é a tela de Rascunhos filtrada por `importRunId`, com as ações "Marcar como revisado" e "Publicar" por item e "Publicar revisados" em lote;
+- as pendências de biblioteca do passo 3 abrem os mesmos editores de §11 (domínios, compatibilidade, conteúdo), com o valor do arquivo já preenchido;
+- a barra de status e o indicador de alterações não salvas continuam valendo — uma carga aplicada é uma alteração como qualquer outra, sujeita ao `Ctrl+S`.
+
+Um rascunho criado por carga exibe, na tela de Rascunhos e no inspector da versão, a origem: *"Criado pela carga CINEMINHA_20260708 em 10/08/2026"*. É a única marca visual que distingue rascunho de carga de rascunho feito à mão — em tudo o mais eles são idênticos, inclusive na edição e no descarte.
+
+## 15. Tags e filtro de matrizes
+
+Um projeto com mais de algumas dezenas de matrizes não é navegável por lista. As tags (`03-modelo-do-documento.md` §5) resolvem isso sem congelar uma hierarquia:
+
+- **No inspector da matriz**: campo de tags com autocompletar sobre o catálogo de kind `TAG`, mostrando o grupo de cada sugestão, e criação inline — digitar um nome que não existe oferece *"criar tag «Prioritária»"* com seletor de grupo (ou grupo novo). Criar tag pelo inspector cria o `CatalogItem` correspondente; remover a tag da matriz **não** apaga o item do catálogo.
+- **Na lista de matrizes**: uma faixa de filtro com uma linha por grupo de tags. Dentro de um grupo, marcar duas tags é `OU` (`Canal: Digital` ou `URA`); entre grupos é `E` (`Canal: Digital` **e** `Cluster: G4`). Cada tag mostra a contagem de matrizes, e o filtro ativo aparece como chips removíveis com um "limpar tudo".
+- **Na barra lateral**: o projeto exibe a contagem filtrada (`102 matrizes · 17 no filtro`) e o mesmo conjunto de chips, para que o filtro sobreviva à navegação entre telas.
+- **Na tela de Conteúdo** (§11): a aba `TAG` ganha a coluna **Grupo**, editável em linha, e a contagem de uso passa a somar matrizes marcadas, não só células.
+- Tag arquivada some dos filtros e do autocompletar, mas continua visível nas matrizes que já a têm, com a marca de arquivada — mesma regra dos demais itens de catálogo (`05-regras-de-negocio.md` §5.5).
+
+O filtro é estado de interface (`ui-store`), não do documento: ele não é salvo no `.json` nem viaja entre pessoas.

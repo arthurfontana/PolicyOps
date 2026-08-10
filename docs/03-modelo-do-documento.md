@@ -6,7 +6,7 @@
 
 ```ts
 type PolicyOpsDocument = {
-  schemaVersion: 2;                // 1 até a sessão 18; migrado na leitura (§10)
+  schemaVersion: 3;                // 1 até a sessão 18; migrado na leitura (§10)
   meta: DocumentMeta;
   variables: Variable[];
   compatibility: CompatibilityRule[];
@@ -14,6 +14,7 @@ type PolicyOpsDocument = {
   projects: Project[];
   matrices: Matrix[];
   templates: Template[];
+  importProfiles: ImportProfile[];  // perfis de carga (§9)
   events: DocEvent[];
 };
 
@@ -208,6 +209,7 @@ type CatalogItem = {
   description?: string;
   color?: string;
   numericValue?: string;           // obrigatório quando kind = LIMIT
+  group?: string;                  // apenas kind = TAG: faceta de filtro ("Canal", "Cluster")
   position: number;
   archivedAt?: string;
   createdAt: string;
@@ -215,6 +217,10 @@ type CatalogItem = {
 ```
 
 `code` é único **dentro do `kind`**; o mesmo código em kinds diferentes é permitido.
+
+`group` só tem significado em `kind: 'TAG'`: é o rótulo da faceta pela qual as tags são agrupadas
+no filtro de matrizes (`07-ux-e-editor.md` §15). Texto livre, comparado como está; tag sem grupo
+cai na faceta "Sem grupo". Em qualquer outro kind o campo é ignorado.
 
 ## 5. Projetos e Matrizes
 
@@ -235,11 +241,19 @@ type Matrix = {
   code: string;                    // MTZ_LIMITE_PJ — único dentro do projeto
   name: string;
   description?: string;
+  tags?: string[];                 // codes de CatalogItem de kind TAG, sem repetição
   archivedAt?: string;
   createdAt: string;
   versions: MatrixVersion[];       // ordenadas por number
 };
 ```
+
+`tags` é a classificação livre da matriz — o que torna navegável um projeto com uma centena de
+matrizes (`13-decisoes.md` DEC-CARGA-003). Cada entrada é o `code` de um `CatalogItem` de kind
+`TAG`; a ordem não tem significado, e o campo é omitido quando vazio. Tag arquivada continua
+listada na matriz que a tem, apenas sai dos filtros. A carga de matrizes aplica tags
+automaticamente a partir das colunas de partição (`12-carga-de-matrizes.md` §5.4), sempre
+acrescentando — nunca removendo o que foi marcado à mão.
 
 ## 6. Versão de matriz — o coração
 
@@ -351,6 +365,40 @@ type PathMatcher = Array<string | null>;
 
 Templates referenciam **variáveis**, não versões: ao instanciar, usam as versões publicadas do momento.
 
+## 7.1 Perfis de carga
+
+Um `ImportProfile` grava como uma tabela externa (a extração do sistema de origem) se traduz em
+matrizes deste documento: o papel de cada coluna, o de-para de cada valor, as regras de decisão,
+as tags e os padrões de código e nome. É o que faz a carga seguinte ser "abrir o arquivo, olhar o
+plano, publicar" em vez de remontar o mapeamento (`12-carga-de-matrizes.md` US-08).
+
+```ts
+type ImportProfile = {
+  id: string;
+  code: string;                    // CARGA_CINEMINHA — ^[A-Z0-9_]+$, único no documento
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt?: string;
+  format: DelimitedFormat;         // separador, linha de cabeçalho, BOM
+  signature: string[];             // cabeçalho reconhecido, na ordem — igualdade exata
+  projectId: string;               // onde as matrizes nascem
+  columns: ColumnMapping[];        // um por coluna do arquivo
+  unpivot?: UnpivotDimension;      // desdobra colunas de valor em matrizes
+  codeTemplate: string;            // MTZ_{CLUSTER_GRUPO}_{CEP_RISCO}_{CANAL}
+  nameTemplate: string;
+  decisionRules: DecisionRule[];   // a última é sempre `otherwise`
+  tagRules: TagRule[];
+  missingRowPolicy: 'KEEP' | 'CLEAR';
+};
+```
+
+Os tipos auxiliares (`DelimitedFormat`, `ColumnMapping`, `UnpivotDimension`, `DecisionRule`,
+`TagRule`) estão em `12-carga-de-matrizes.md` §5.4 — este documento não os duplica.
+
+O perfil é **configuração, não histórico**: editá-lo não altera nenhuma carga já aplicada, e
+apagá-lo não invalida matriz nenhuma. O rastro de cada carga vive nos eventos `IMPORT_RUN` (§8).
+
 ## 8. Auditoria
 
 ```ts
@@ -374,8 +422,14 @@ type DocEventType =
   | 'AXIS_LEVEL_REORDERED' | 'AXIS_RESNAPSHOTTED' | 'TUPLES_SUPPRESSED'
   | 'VERSION_PUBLISHED' | 'VERSION_SUPERSEDED' | 'NOTE_ADDED'
   | 'VARIABLE_PUBLISHED' | 'COMPATIBILITY_PUBLISHED'
-  | 'CATALOG_CHANGED';
+  | 'CATALOG_CHANGED'
+  | 'IMPORT_RUN' | 'IMPORT_PROFILE_SAVED' | 'MATRIX_TAGGED';
 ```
+
+`IMPORT_RUN` é o evento de nível de documento que registra uma carga inteira (arquivo, hash,
+perfil e totais por estado). Os rascunhos e patches que ela produz carregam o mesmo
+`importRunId` no próprio payload — é o que permite ir de qualquer célula de volta ao arquivo que
+a originou (`12-carga-de-matrizes.md` US-10).
 
 `events` é append-only e ordenado por `at`. Teto de **5.000 eventos**; ao ultrapassar, os mais antigos são consolidados num único evento de resumo (sessão S16).
 
@@ -404,6 +458,9 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I17 | Toda referência a catálogo em `cells` aponta para um `code` existente do kind correto |
 | I18 | Todo `code` é único no seu escopo |
 | I19 | Se `groupingDimensions` está presente: 1 a 4 níveis; `code` único entre os níveis da versão; cada nível tem `options` não vazio com `code` único dentro do próprio nível; todo `GroupingRange.path` tem o mesmo comprimento de `groupingDimensions` e cada `path[i]` existe em `groupingDimensions[i].options` |
+| I20 | Toda entrada de `Matrix.tags` aponta para um `CatalogItem` existente de kind `TAG`, e não há repetição dentro da mesma matriz |
+| I21 | `ImportProfile.code` é único no documento; `projectId` aponta para projeto existente; `columns` tem ao menos uma coluna `PARTITION` e ao menos um nível de eixo em cada eixo, com níveis contíguos a partir de 0; `decisionRules` termina com exatamente uma regra `otherwise` |
+| I22 | Todo `variableId` referenciado por `ImportProfile.columns[].axis` aponta para variável existente |
 
 **I19 é deliberadamente mais fraca que a antiga regra de completude regional.** Não existe invariante exigindo que todo domínio `RANGE` tenha uma entrada em `groupingRanges` para toda combinação possível de opções — hierarquias reais são assimétricas (nem toda Regional tem MEI, por exemplo), e forçar o preenchimento de combinações que não existem no negócio seria pior do que não validar nada. O editor de domínios (`07-ux-e-editor.md` §11) ainda **avisa** (não bloqueia) quando um `path` usado por alguns domínios está ausente por completo de outros — o caso provável de "esqueci de colar uma linha" — mas isso é um aviso de UX, não uma falha de I19.
 
@@ -424,6 +481,14 @@ Migrações são funções puras, testadas com fixtures reais em `tests/fixtures
 - os campos `regionalDimension` e `regionalRanges` são removidos do documento migrado.
 
 Documentos sem `regionalDimension` em nenhuma variável passam por `schemaVersion: 2` sem qualquer alteração de conteúdo. Testado com a fixture real que já existia para `regionalDimension` (S18), comparando o documento migrado contra o formato novo esperado.
+
+**Migração 2 → 3 (sessão 23): perfis de carga e tags de matriz.** Puramente aditiva — nenhum campo existente muda de forma ou de significado:
+
+- `importProfiles = []` no topo do documento;
+- `Matrix.tags` permanece **ausente** em toda matriz existente (é opcional e omitido quando vazio, §1);
+- `CatalogItem.group` permanece ausente em todo item existente.
+
+Um documento `schemaVersion: 2` migrado e reserializado difere do original apenas pelo campo `importProfiles: []` e pelo número de versão. A migração é testada com as fixtures reais das sessões anteriores, comparando o resto do documento por igualdade estrutural.
 
 ## 11. Documento de exemplo
 

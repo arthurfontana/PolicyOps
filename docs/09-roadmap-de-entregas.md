@@ -1,6 +1,6 @@
 # Roadmap de Entregas
 
-17 sessões incrementais. Cada uma termina com algo que roda, testado, commitado, e com `dist/PolicyOps.html` atualizado.
+25 sessões incrementais — as 17 do MVP, 18–20 pós-MVP (biblioteca de variáveis) e 21–25 do épico Carga. Cada uma termina com algo que roda, testado, commitado, e com `dist/PolicyOps.html` atualizado.
 
 ## Quadro geral
 
@@ -26,8 +26,15 @@
 | 18 | Faixas regionais e duplicação de variáveis | **Sonnet** | Variável `RANGE` com threshold por regional, colar tabela, duplicar variável | 06 |
 | 19 | Importação genérica de domínios e paletas de cor | **Sonnet** | Colar tabela para qualquer tipo de variável, continuidade automática por padrão, preservação de cor ao recolar, paletas oficiais | 18 |
 | 20 | Agrupamentos hierárquicos de faixas | **Opus** | `regionalDimension` generalizado em `groupingDimensions` de 1 a 4 níveis, migração de schema, colagem com colunas de agrupamento, editor tidy | 19 |
+| 21 | Motor de carga de matrizes | **Opus** | `planImport` sobre o CSV real: 102 matrizes classificadas em novas/alteradas/inalteradas, com diff por célula, 100% testado | 14 |
+| 22 | Assistente de carga: arquivo, colunas e biblioteca | **Sonnet** | Passos 1–4 do assistente; a biblioteca do documento sai montada a partir do arquivo | 21 |
+| 23 | Tags de matriz, filtro e schema 3 | **Sonnet** | Marcar e filtrar matrizes por faceta; `importProfiles` e `Matrix.tags` no documento, com migração 2→3 | 20 |
+| 24 | Aplicação da carga e versionamento seletivo | **Opus** | Carga aplicada: rascunho só nas alteradas, fila de revisão, perfil salvo, auditoria e idempotência | 22, 23 |
+| 25 | Evolução estrutural na carga | **Opus** | Faixa nova no arquivo vira nova versão de variável adotada no rascunho, sem caminho manual | 24 |
 
 > A sessão 17 acumula três frentes. Se ficar grande, quebre em 17a (templates), 17b (merge de documentos) e 17c (export e polimento) — o prompt já vem dividido nessas três partes, com critérios de aceite independentes.
+
+> **Sessões 21–25 são o épico Carga** ([`12-carga-de-matrizes.md`](12-carga-de-matrizes.md), decisões `DEC-CARGA-*` em [`13-decisoes.md`](13-decisoes.md)), nascido do caso real de trazer a extração `CINEMINHA` (6.678 linhas → 102 matrizes) para dentro do documento e mantê-la atualizada mês a mês. Dependem do diff (14) e, para o passo de biblioteca, do que as sessões 19–20 já entregaram. **23 é independente das demais** — tags e migração de schema não dependem do motor de carga — e pode ser executada em paralelo com 21/22.
 
 > **Sessões 18–20 são pós-MVP**, adicionadas depois do fechamento das 17 originais, a pedido de um caso real de score B2B com corte por regional e, na sequência, por Regional × Porte × Tipo de Empresa (ver `docs/prompts/S18-faixa-regional.md`, `S19-import-generico-e-paletas.md`, `S20-agrupamentos-hierarquicos.md`). Não bloqueiam nem dependem de nenhum marco M1–M5; só precisam da Biblioteca de Variáveis (06) pronta. **19 e 20 evoluem o que a 18 entregou** — a colagem específica de "regional" e o schema `regionalDimension` da sessão 18 são substituídos (não mantidos em paralelo) pela colagem genérica e por `groupingDimensions` ao final da 20; ver a nota de migração em `docs/03-modelo-do-documento.md` §10.
 
@@ -49,6 +56,10 @@
 
 **19** é Sonnet pelo mesmo motivo: generaliza a colagem e adiciona paletas sem tocar no schema do documento (`groupingDimensions` continua não existindo até a 20) nem em invariante nenhum — é composição de tela e um parser novo sobre um contrato que este pacote de documentação já fecha.
 
+**21, 24 e 25** são Opus: comparação semântica em escala (102 matrizes, 40.000 células) onde um falso negativo apaga a evidência de que a política mudou e um falso positivo enche a linha do tempo de versões idênticas; aplicação em lote que precisa ser tudo-ou-nada sobre o documento; e, na 25, evolução de eixo já publicado — o mesmo perfil de risco que justificou Opus em 03/12/16.
+
+**22 e 23** são Sonnet: composição de telas e CRUD sobre contratos que este pacote de documentação já fecha (`12-carga-de-matrizes.md` §5 e §6), sem invariante nova de eixo nem combinatória. A migração 2→3 da sessão 23 é puramente aditiva (`03-modelo-do-documento.md` §10) — não reescreve campo existente, que é o que tornaria a migração cara.
+
 **20** é Opus: renomeia e reestrutura um campo do schema já publicado (exige migração de `schemaVersion`, `docs/03` §10), generaliza uma invariante (I9/I19) para combinatória de caminhos que **não** é fixa (hierarquias assimétricas, sem completude obrigatória) e reescreve o editor de domínios de grid pivotado para tabela tidy — é exatamente o perfil "invariante que corrompe dado em silêncio se sair errada" que justifica Opus em 03/12/16.
 
 ## Marcos utilizáveis
@@ -60,8 +71,9 @@
 | **M3 — Editor funcionando** | 11 | Montar as matrizes de verdade, inclusive aninhadas, e editá-las |
 | **M4 — Substitui o Excel** | 15 | Fonte oficial: versionar, publicar, comparar, consultar por data |
 | **M5 — MVP completo** | 17 | Escala: evolução da biblioteca, templates, merge, exportação |
+| **M6 — Carga em produção** | 24 | A extração mensal entra por arquivo: 102 matrizes carregadas na primeira vez, e nas seguintes só as que mudaram viram versão |
 
-M4 é o ponto em que a ferramenta passa a valer mais que a planilha. As sessões 16–17 são o que a torna sustentável em escala.
+M4 é o ponto em que a ferramenta passa a valer mais que a planilha. As sessões 16–17 são o que a torna sustentável em escala. M6 é o que dispensa a digitação: enquanto a política nasce fora do PolicyOps, é a carga que mantém as duas pontas coerentes — e a sessão 22 já entrega valor sozinha, porque monta a biblioteca inteira a partir do arquivo.
 
 ## Ordem e dependências
 
