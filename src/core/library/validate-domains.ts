@@ -2,6 +2,7 @@ import Decimal from 'decimal.js-light';
 import { CODE_REGEX, DECIMAL_REGEX, INTEGER_REGEX } from '../document/schema';
 import type { BoundaryMode, Domain, GroupingDimension, VariableType } from '../document/schema';
 import {
+  detectContiguityDirection,
   distinctGroupingPaths,
   formatGroupingPath,
   groupingPathKey,
@@ -194,22 +195,26 @@ function checkValueContiguity(
     }
   }
 
+  // Faixas por position podem crescer (o de sempre) ou decrescer (cortes de
+  // score "melhor faixa primeiro") — ver detectContiguityDirection.
+  const direction = detectContiguityDirection(sorted.map((domain) => ({ min: accessor.min(domain) })));
+
   for (let i = 0; i < sorted.length - 1; i++) {
     const current = sorted[i]!;
     const next = sorted[i + 1]!;
     if (current.isCatchAll === true) continue;
-    const currentMax = accessor.max(current);
-    const nextMin = accessor.min(next);
-    if (!isValid(currentMax) || !isValid(nextMin)) continue;
-    const expectedNextMin = isInclusiveInteger
-      ? new Decimal(currentMax).plus(1)
-      : new Decimal(currentMax);
-    if (!expectedNextMin.eq(new Decimal(nextMin))) {
+    const beforeDomain = direction === 'ASCENDING' ? current : next;
+    const afterDomain = direction === 'ASCENDING' ? next : current;
+    const beforeValue = direction === 'ASCENDING' ? accessor.max(current) : accessor.max(next);
+    const afterValue = direction === 'ASCENDING' ? accessor.min(next) : accessor.min(current);
+    if (!isValid(beforeValue) || !isValid(afterValue)) continue;
+    const expectedAfter = isInclusiveInteger ? new Decimal(beforeValue).plus(1) : new Decimal(beforeValue);
+    if (!expectedAfter.eq(new Decimal(afterValue))) {
       issues.push({
         code,
         message: isInclusiveInteger
-          ? `As faixas "${current.code}" e "${next.code}" não são contíguas${pathSuffix}: no modo de limites inclusivos, o máximo de "${current.code}" (${currentMax}) + 1 precisa ser igual ao mínimo de "${next.code}" (${nextMin}).`
-          : `As faixas "${current.code}" e "${next.code}" não são contíguas${pathSuffix}: o máximo de "${current.code}" (${currentMax}) precisa ser igual ao mínimo de "${next.code}" (${nextMin}).`,
+          ? `As faixas "${current.code}" e "${next.code}" não são contíguas${pathSuffix}: no modo de limites inclusivos, o máximo de "${beforeDomain.code}" (${beforeValue}) + 1 precisa ser igual ao mínimo de "${afterDomain.code}" (${afterValue}).`
+          : `As faixas "${current.code}" e "${next.code}" não são contíguas${pathSuffix}: o máximo de "${beforeDomain.code}" (${beforeValue}) precisa ser igual ao mínimo de "${afterDomain.code}" (${afterValue}).`,
         domainCodes: [current.code, next.code],
         ...pathTag,
       });

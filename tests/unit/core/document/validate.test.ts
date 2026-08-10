@@ -415,6 +415,31 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
     expect(doc.variables[doc.variables.length - 1]!.versions[0]!.boundaryMode).toBeUndefined();
     expect(checkI9(doc)).toEqual([]);
   });
+
+  it('válido: faixas decrescentes por position (maior faixa primeiro) — corte de score real do negócio', () => {
+    const doc = base();
+    const variable = rangeVariable([
+      { code: 'R01', label: 'R01', position: 0, rangeMin: '704', rangeMax: '999' },
+      { code: 'R02', label: 'R02', position: 1, rangeMin: '685', rangeMax: '703' },
+      { code: 'R03', label: 'R03', position: 2, rangeMax: '684', isCatchAll: true },
+    ]);
+    variable.versions[0]!.boundaryMode = 'INCLUSIVE_INTEGER';
+    doc.variables.push(variable);
+    expect(checkI9(doc)).toEqual([]);
+  });
+
+  it('inválido: buraco numa sequência decrescente por position continua acusando I9', () => {
+    const doc = base();
+    const variable = rangeVariable([
+      { code: 'R01', label: 'R01', position: 0, rangeMin: '704', rangeMax: '999' },
+      { code: 'R02', label: 'R02', position: 1, rangeMin: '680', rangeMax: '702' },
+    ]);
+    variable.versions[0]!.boundaryMode = 'INCLUSIVE_INTEGER';
+    doc.variables.push(variable);
+    const issues = checkI9(doc);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues[0]!.invariant).toBe('I9');
+  });
 });
 
 describe('I19 — groupingDimensions: 1 a 4 níveis, codes únicos, paths válidos', () => {

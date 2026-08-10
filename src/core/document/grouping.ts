@@ -1,3 +1,4 @@
+import Decimal from 'decimal.js-light';
 import type { Domain, GroupingRange } from './schema';
 
 /**
@@ -22,6 +23,36 @@ export function formatGroupingPath(path: string[]): string {
 /** A faixa de um domínio num caminho específico, ou `undefined` se ele não tem entrada ali. */
 export function groupingRangeAt(domain: Domain, key: string): GroupingRange | undefined {
   return domain.groupingRanges?.find((range) => groupingPathKey(range.path) === key);
+}
+
+export type ContiguityDirection = 'ASCENDING' | 'DESCENDING';
+
+function toDecimalOrUndefined(value: string | undefined): Decimal | undefined {
+  if (value === undefined) return undefined;
+  try {
+    return new Decimal(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Direção da sequência de faixas por `position` (I9, docs/03 §9): o mínimo
+ * pode crescer a cada domínio seguinte (o caso de sempre) ou decrescer —
+ * cortes de score costumam vir do negócio na ordem "melhor faixa primeiro"
+ * (R01 com a faixa mais alta, R20 com a mais baixa). Detectada pelo primeiro
+ * par de mínimos válidos e distintos, por `position`; `ASCENDING` é o padrão
+ * quando não há como decidir (uma faixa só, ou nenhum par com mínimos
+ * numéricos distintos) — mesmo comportamento de sempre.
+ */
+export function detectContiguityDirection(domains: Array<{ min: string | undefined }>): ContiguityDirection {
+  for (let i = 0; i < domains.length - 1; i++) {
+    const a = toDecimalOrUndefined(domains[i]!.min);
+    const b = toDecimalOrUndefined(domains[i + 1]!.min);
+    if (a === undefined || b === undefined || a.eq(b)) continue;
+    return a.lt(b) ? 'ASCENDING' : 'DESCENDING';
+  }
+  return 'ASCENDING';
 }
 
 /**

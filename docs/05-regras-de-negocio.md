@@ -303,6 +303,8 @@ Interruptor por versão (`VariableVersion.boundaryMode`, independente de `groupi
 
 Documentos sem `boundaryMode` continuam se comportando exatamente como antes — não há migração, e o campo é ligado variável por variável, como o interruptor de agrupamento.
 
+**Direção da sequência (I9).** A contiguidade lê as faixas na ordem de `position` — que pode crescer (`rangeMin`/`min` aumentando a cada domínio seguinte, o caso de sempre) ou decrescer (cortes de score que o negócio lista "melhor faixa primeiro", ex.: `R01: 704–999`, `R02: 685–703`, …, `R20: 5–454`). A direção é detectada automaticamente pelo primeiro par de mínimos distintos por `position` — cada domínio ainda expõe seu próprio `rangeMin`/`rangeMax` (ou `GroupingRange.min`/`max`) normalmente, e o par de fronteira comparado por I9 (`atual.máx [+1] == próxima.mín`) se ajusta ao sentido detectado. Não há campo novo no schema nem escolha manual — o usuário cola/ordena os domínios como já faz sentido para o negócio, em qualquer um dos dois sentidos.
+
 `HALF_OPEN` é também o modo que sustenta a **continuidade automática** (§5.6.2): como o padrão da aplicação passa a ser não expor os checkboxes "mín. inclusivo"/"máx. inclusivo" na edição normal, o comportamento assumido é sempre `[mín, máx)` — o usuário só vê os checkboxes, e só precisa pensar em `boundaryMode`, ao entrar explicitamente nas "opções avançadas" do editor de domínios (`07-ux-e-editor.md` §11).
 
 #### 5.6.1 `variable/saveDomains` — entrada estendida
