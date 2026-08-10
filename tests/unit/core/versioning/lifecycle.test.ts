@@ -1037,6 +1037,7 @@ describe('snapshot do eixo exclui groupingRanges/groupingDimensions (docs/03 §6
         variableId: created.data.variableId,
         versionId: created.data.versionId,
         domains,
+        boundaryMode: 'HALF_OPEN',
         ...(groupingDimensions === undefined ? {} : { groupingDimensions }),
       }),
     ).document;

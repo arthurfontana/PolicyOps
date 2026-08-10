@@ -299,13 +299,13 @@ Resolve o caso de modelo de score cujo corte numérico de cada faixa (R01…R20)
 
 #### 5.6.0 `boundaryMode` — limites inclusivo-inclusivo com passo 1
 
-Interruptor por versão (`VariableVersion.boundaryMode`, independente de `groupingDimensions` — vale tanto para `rangeMin`/`rangeMax` quanto para `groupingRanges`), ausente ou `'HALF_OPEN'` é o `[mín, máx)` de sempre. `'INCLUSIVE_INTEGER'` é `[mín, máx]` com passo 1, pensado para cortes de score que vêm do Excel já fechado-fechado (`R20: 0–357`, `R19: 358–437`, …): os valores são validados como inteiros, e a contiguidade (I9) passa a exigir `atual.máx + 1 == próxima.mín` em vez de `atual.máx == próxima.mín`. Sem esse modo, colar a tabela nesse formato acusa `RANGE_NOT_CONTIGUOUS`/`RANGE_GROUPING_NOT_CONTIGUOUS` mesmo o dado estando correto — o contorno manual (reescrever o `máx` de cada faixa para repetir o `mín` da seguinte) deixa de ser necessário.
+Interruptor por versão (`VariableVersion.boundaryMode`, independente de `groupingDimensions` — vale tanto para `rangeMin`/`rangeMax` quanto para `groupingRanges`), ausente ou `'INCLUSIVE_INTEGER'` é `[mín, máx]` com passo 1 — o default da aplicação, pensado para cortes de score que vêm do Excel já fechado-fechado (`R20: 0–357`, `R19: 358–437`, …): os valores são validados como inteiros, e a contiguidade (I9) exige `atual.máx + 1 == próxima.mín`. `'HALF_OPEN'` é o `[mín, máx)` clássico — I9 exige `atual.máx == próxima.mín` — e é opt-in explícito, para faixas decimais ou que tocam exatamente no limite.
 
-Documentos sem `boundaryMode` continuam se comportando exatamente como antes — não há migração, e o campo é ligado variável por variável, como o interruptor de agrupamento.
+Documentos que já tinham `boundaryMode: 'HALF_OPEN'` gravado explicitamente continuam se comportando como antes — só o significado de **ausência** do campo mudou (de `HALF_OPEN` para `INCLUSIVE_INTEGER`); o campo continua ligado variável por variável, como o interruptor de agrupamento.
 
 **Direção da sequência (I9).** A contiguidade lê as faixas na ordem de `position` — que pode crescer (`rangeMin`/`min` aumentando a cada domínio seguinte, o caso de sempre) ou decrescer (cortes de score que o negócio lista "melhor faixa primeiro", ex.: `R01: 704–999`, `R02: 685–703`, …, `R20: 5–454`). A direção é detectada automaticamente pelo primeiro par de mínimos distintos por `position` — cada domínio ainda expõe seu próprio `rangeMin`/`rangeMax` (ou `GroupingRange.min`/`max`) normalmente, e o par de fronteira comparado por I9 (`atual.máx [+1] == próxima.mín`) se ajusta ao sentido detectado. Não há campo novo no schema nem escolha manual — o usuário cola/ordena os domínios como já faz sentido para o negócio, em qualquer um dos dois sentidos.
 
-`HALF_OPEN` é também o modo que sustenta a **continuidade automática** (§5.6.2): como o padrão da aplicação passa a ser não expor os checkboxes "mín. inclusivo"/"máx. inclusivo" na edição normal, o comportamento assumido é sempre `[mín, máx)` — o usuário só vê os checkboxes, e só precisa pensar em `boundaryMode`, ao entrar explicitamente nas "opções avançadas" do editor de domínios (`07-ux-e-editor.md` §11).
+`INCLUSIVE_INTEGER` é também o modo que sustenta a **continuidade automática** (§5.6.2): como o padrão da aplicação passa a ser não expor os checkboxes "mín. inclusivo"/"máx. inclusivo" na edição normal, o comportamento assumido é sempre `[mín, máx]` com passo 1 — o usuário só vê os checkboxes, e só precisa pensar em `boundaryMode`, ao entrar explicitamente nas "opções avançadas" do editor de domínios (`07-ux-e-editor.md` §11), para o caso raro de faixas decimais.
 
 #### 5.6.1 `variable/saveDomains` — entrada estendida
 
@@ -315,7 +315,7 @@ input: {
   versionId: string;
   domains: Domain[];
   groupingDimensions?: GroupingDimension[];   // ausente = variável não usa agrupamento
-  boundaryMode?: 'HALF_OPEN' | 'INCLUSIVE_INTEGER';   // ausente = HALF_OPEN (§5.6.0)
+  boundaryMode?: 'HALF_OPEN' | 'INCLUSIVE_INTEGER';   // ausente = INCLUSIVE_INTEGER (§5.6.0)
 }
 ```
 

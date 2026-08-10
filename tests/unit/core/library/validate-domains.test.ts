@@ -117,16 +117,26 @@ describe('validateDomains', () => {
   // -- RANGE -----------------------------------------------------------------
 
   it('aceita RANGE contíguo, terminando em catch-all', () => {
-    const result = validateDomains('RANGE', [
-      range('BAIXO', 0, '0', '100'),
-      range('MEDIO', 1, '100', '500'),
-      range('ALTO', 2, '500', undefined, { isCatchAll: true }),
-    ]);
+    const result = validateDomains(
+      'RANGE',
+      [
+        range('BAIXO', 0, '0', '100'),
+        range('MEDIO', 1, '100', '500'),
+        range('ALTO', 2, '500', undefined, { isCatchAll: true }),
+      ],
+      undefined,
+      'HALF_OPEN',
+    );
     expect(result.ok).toBe(true);
   });
 
   it('aceita RANGE sem catch-all quando todas as faixas têm min/max', () => {
-    const result = validateDomains('RANGE', [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')]);
+    const result = validateDomains(
+      'RANGE',
+      [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')],
+      undefined,
+      'HALF_OPEN',
+    );
     expect(result.ok).toBe(true);
   });
 
@@ -190,10 +200,12 @@ describe('validateDomains', () => {
   });
 
   it('usa Decimal para comparar faixas, não ponto flutuante (0.1 + 0.2 contíguo)', () => {
-    const result = validateDomains('RANGE', [
-      range('A', 0, '0', '0.1'),
-      range('B', 1, '0.1', '0.30000000000000004'),
-    ]);
+    const result = validateDomains(
+      'RANGE',
+      [range('A', 0, '0', '0.1'), range('B', 1, '0.1', '0.30000000000000004')],
+      undefined,
+      'HALF_OPEN',
+    );
     // Em ponto flutuante ingênuo 0.1+0.2 !== 0.30000000000000004 seria
     // comparado por igualdade de string ou por Number, arriscando falso
     // positivo/negativo; aqui a fronteira é literalmente a mesma string,
@@ -225,10 +237,12 @@ describe('validateDomains', () => {
   });
 
   it('detecta não-contiguidade que só aparece em precisão decimal (não flutuante)', () => {
-    const result = validateDomains('RANGE', [
-      range('A', 0, '0', '10.10'),
-      range('B', 1, '10.1', '20'),
-    ]);
+    const result = validateDomains(
+      'RANGE',
+      [range('A', 0, '0', '10.10'), range('B', 1, '10.1', '20')],
+      undefined,
+      'HALF_OPEN',
+    );
     // "10.10" e "10.1" são o mesmo decimal — contíguo.
     expect(result.ok).toBe(true);
   });
@@ -288,6 +302,7 @@ describe('validateDomains', () => {
         ]),
       ],
       regional,
+      'HALF_OPEN',
     );
     expect(result.ok).toBe(true);
   });
@@ -308,6 +323,7 @@ describe('validateDomains', () => {
         ]),
       ],
       regionalPorte,
+      'HALF_OPEN',
     );
     expect(result.ok).toBe(true);
   });
@@ -327,6 +343,7 @@ describe('validateDomains', () => {
         ]),
       ],
       regional,
+      'HALF_OPEN',
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -354,6 +371,7 @@ describe('validateDomains', () => {
         ]),
       ],
       regionalPorte,
+      'HALF_OPEN',
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -403,6 +421,7 @@ describe('validateDomains', () => {
         grouped('B', 1, [{ path, min: '100', max: '200' }]),
       ],
       fourLevels,
+      'HALF_OPEN',
     );
     expect(result.ok).toBe(true);
   });
@@ -460,6 +479,7 @@ describe('validateDomains', () => {
         { code: 'REGIONAL', label: 'Regional', options: [{ code: 'X', label: 'X regional' }] },
         { code: 'PORTE', label: 'Porte', options: [{ code: 'X', label: 'X porte' }] },
       ],
+      'HALF_OPEN',
     );
     expect(result.ok).toBe(true);
   });
@@ -509,6 +529,7 @@ describe('validateDomains', () => {
         grouped('B', 1, [{ path: ['BASE'], min: '100', max: '200' }]),
       ],
       regional,
+      'HALF_OPEN',
     );
     expect(result.ok).toBe(true);
   });
@@ -532,7 +553,7 @@ describe('validateDomains', () => {
     ]);
 
     // E não bloqueia o salvamento: a mesma configuração valida.
-    expect(validateDomains('RANGE', domains, regionalPorte).ok).toBe(true);
+    expect(validateDomains('RANGE', domains, regionalPorte, 'HALF_OPEN').ok).toBe(true);
   });
 
   it('findIncompleteGroupingPaths não reporta nada quando todos os caminhos estão completos', () => {
@@ -562,13 +583,25 @@ describe('validateDomains', () => {
     ]);
   });
 
-  // -- boundaryMode: HALF_OPEN (default) × INCLUSIVE_INTEGER (ajuste) --------
+  // -- boundaryMode: INCLUSIVE_INTEGER (default) × HALF_OPEN (opt-in) --------
 
-  it('HALF_OPEN é o default: omitir boundaryMode se comporta bit-a-bit igual a hoje', () => {
-    const contiguous = validateDomains('RANGE', [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')]);
+  it('INCLUSIVE_INTEGER é o default: omitir boundaryMode se comporta bit-a-bit igual a passá-lo explicitamente', () => {
+    const contiguous = validateDomains('RANGE', [range('R20', 0, '0', '357'), range('R19', 1, '358', '437')]);
     expect(contiguous.ok).toBe(true);
-    const withHole = validateDomains('RANGE', [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '150', '200')]);
+    const withHole = validateDomains('RANGE', [range('R20', 0, '0', '357'), range('R19', 1, '360', '437')]);
     expect(withHole.ok).toBe(false);
+  });
+
+  it('HALF_OPEN precisa ser ligado explicitamente: o formato [mín, máx) clássico não é mais o default', () => {
+    const halfOpenStyle = validateDomains('RANGE', [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')]);
+    expect(halfOpenStyle.ok).toBe(false);
+    const explicit = validateDomains(
+      'RANGE',
+      [range('BAIXO', 0, '0', '100'), range('ALTO', 1, '100', '200')],
+      undefined,
+      'HALF_OPEN',
+    );
+    expect(explicit.ok).toBe(true);
   });
 
   it('INCLUSIVE_INTEGER: faixas com salto de 1 (formato fechado-fechado do Excel) são contíguas', () => {
@@ -688,18 +721,22 @@ describe('validateDomains', () => {
   // domínio seguinte por `position`. A validação detecta isso sozinha.
 
   it('HALF_OPEN: aceita faixas decrescentes por position (maior faixa primeiro)', () => {
-    const result = validateDomains('RANGE', [
-      range('ALTO', 0, '100', '200'),
-      range('BAIXO', 1, '0', '100'),
-    ]);
+    const result = validateDomains(
+      'RANGE',
+      [range('ALTO', 0, '100', '200'), range('BAIXO', 1, '0', '100')],
+      undefined,
+      'HALF_OPEN',
+    );
     expect(result.ok).toBe(true);
   });
 
   it('HALF_OPEN: detecta buraco numa sequência decrescente', () => {
-    const result = validateDomains('RANGE', [
-      range('ALTO', 0, '150', '200'),
-      range('BAIXO', 1, '0', '100'),
-    ]);
+    const result = validateDomains(
+      'RANGE',
+      [range('ALTO', 0, '150', '200'), range('BAIXO', 1, '0', '100')],
+      undefined,
+      'HALF_OPEN',
+    );
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.issues.some((i) => i.code === 'RANGE_NOT_CONTIGUOUS')).toBe(true);
@@ -755,6 +792,7 @@ describe('validateDomains', () => {
         ]),
       ],
       regional,
+      'HALF_OPEN',
     );
     expect(result.ok).toBe(true);
   });

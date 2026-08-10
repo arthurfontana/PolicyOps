@@ -428,7 +428,7 @@ export type SaveVariableDomainsInput = {
   domains: Domain[];
   /** Ausente = variável não usa agrupamento (docs/05 §5.6.1). */
   groupingDimensions?: GroupingDimension[];
-  /** Ausente = `HALF_OPEN` (docs/03 §2). */
+  /** Ausente = `INCLUSIVE_INTEGER` (docs/03 §2). */
   boundaryMode?: BoundaryMode;
 };
 

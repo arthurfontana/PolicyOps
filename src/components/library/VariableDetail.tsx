@@ -65,7 +65,7 @@ function groupingDimensionsEqual(a: GroupingDimension[] | undefined, b: Grouping
 }
 
 function boundaryModeEqual(a: BoundaryMode | undefined, b: BoundaryMode | undefined): boolean {
-  return (a ?? 'HALF_OPEN') === (b ?? 'HALF_OPEN');
+  return (a ?? 'INCLUSIVE_INTEGER') === (b ?? 'INCLUSIVE_INTEGER');
 }
 
 export interface VariableDetailProps {

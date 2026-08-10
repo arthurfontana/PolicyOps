@@ -425,7 +425,7 @@ export function validateDomains(
   type: VariableType,
   domains: Domain[],
   groupingDimensions?: GroupingDimension[],
-  boundaryMode: BoundaryMode = 'HALF_OPEN',
+  boundaryMode: BoundaryMode = 'INCLUSIVE_INTEGER',
 ): DomainValidationResult {
   const issues: DomainValidationIssue[] = [
     ...checkCount(type, domains),

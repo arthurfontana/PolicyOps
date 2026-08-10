@@ -151,6 +151,7 @@
           "createdBy": "Equipe de Políticas",
           "publishedAt": "2026-05-08T10:54:18.804Z",
           "publishedBy": "Equipe de Políticas",
+          "boundaryMode": "HALF_OPEN",
           "domains": [
             {
               "code": "ATE_100K",
@@ -215,6 +216,7 @@
           "createdBy": "Equipe de Políticas",
           "publishedAt": "2026-05-08T10:54:18.804Z",
           "publishedBy": "Equipe de Políticas",
+          "boundaryMode": "HALF_OPEN",
           "domains": [
             {
               "code": "ATE_2K",
@@ -270,6 +272,7 @@
           "createdBy": "Equipe de Políticas",
           "publishedAt": "2026-05-08T10:54:18.804Z",
           "publishedBy": "Equipe de Políticas",
+          "boundaryMode": "HALF_OPEN",
           "domains": [
             {
               "code": "ATE_6M",

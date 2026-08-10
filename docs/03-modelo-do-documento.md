@@ -64,7 +64,7 @@ type VariableVersion = {
   domains: Domain[];               // ordenados por position
   // apenas quando type = RANGE, e opcional mesmo assim; 1 a 4 níveis
   groupingDimensions?: GroupingDimension[];
-  // apenas quando type = RANGE, e opcional mesmo assim; default HALF_OPEN
+  // apenas quando type = RANGE, e opcional mesmo assim; default INCLUSIVE_INTEGER
   boundaryMode?: 'HALF_OPEN' | 'INCLUSIVE_INTEGER';
 };
 
@@ -74,12 +74,13 @@ type VariableVersion = {
 //
 // boundaryMode é outro interruptor por versão (independente de
 // groupingDimensions, vale tanto para rangeMin/rangeMax quanto para
-// groupingRanges): ausente ou 'HALF_OPEN' é o [mín, máx) de sempre —
-// I9 exige atual.máx == próxima.mín. 'INCLUSIVE_INTEGER' é [mín, máx] com
-// passo 1 — os valores precisam ser inteiros, e I9 passa a exigir
-// atual.máx + 1 == próxima.mín. Resolve faixas coladas direto do Excel no
-// formato fechado-fechado (ex.: 0–357, 358–437) sem o usuário precisar
-// reescrever o máximo de cada faixa para repetir o mínimo da seguinte.
+// groupingRanges): ausente ou 'INCLUSIVE_INTEGER' é [mín, máx] com passo 1 —
+// os valores precisam ser inteiros, e I9 exige atual.máx + 1 == próxima.mín.
+// Resolve faixas coladas direto do Excel no formato fechado-fechado (ex.:
+// 0–357, 358–437) sem o usuário precisar reescrever o máximo de cada faixa
+// para repetir o mínimo da seguinte. 'HALF_OPEN' é o [mín, máx) clássico —
+// I9 exige atual.máx == próxima.mín — e é opt-in explícito, para faixas
+// decimais ou que tocam exatamente no limite.
 //
 // Em ambos os boundaryMode, a sequência por position pode crescer ou
 // decrescer (cortes de score às vezes vêm "melhor faixa primeiro": R01 com
@@ -392,7 +393,7 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I6 | Publicar exige zero combinações sem `decision` |
 | I7 | `CatalogItem` de kind `LIMIT` tem `numericValue` |
 | I8 | `BOOLEAN` tem exatamente 2 domínios; demais tipos, ao menos 2 |
-| I9 | `RANGE` sem `groupingDimensions`: faixas contíguas, sem sobreposição, ordenadas por `position`, usando `rangeMin`/`rangeMax`; no máximo um `isCatchAll`, e ele é o último. `RANGE` **com** `groupingDimensions`: a mesma regra de contiguidade/sobreposição/catch-all vale **independentemente para cada `path` distinto** presente em `domains[].groupingRanges` — não para toda combinação possível de opções, só para as que o usuário efetivamente definiu (ver I19). Em ambos os casos, a contiguidade lê `boundaryMode` da versão: `HALF_OPEN` (default) exige `atual.máx == próxima.mín`; `INCLUSIVE_INTEGER` exige valores inteiros e `atual.máx + 1 == próxima.mín`. A ordem por `position` pode ser crescente ou decrescente — a direção é detectada pelo primeiro par de mínimos distintos e aplicada à sequência inteira (ou a cada `path`, com `groupingDimensions`) |
+| I9 | `RANGE` sem `groupingDimensions`: faixas contíguas, sem sobreposição, ordenadas por `position`, usando `rangeMin`/`rangeMax`; no máximo um `isCatchAll`, e ele é o último. `RANGE` **com** `groupingDimensions`: a mesma regra de contiguidade/sobreposição/catch-all vale **independentemente para cada `path` distinto** presente em `domains[].groupingRanges` — não para toda combinação possível de opções, só para as que o usuário efetivamente definiu (ver I19). Em ambos os casos, a contiguidade lê `boundaryMode` da versão: `INCLUSIVE_INTEGER` (default) exige valores inteiros e `atual.máx + 1 == próxima.mín`; `HALF_OPEN` exige `atual.máx == próxima.mín`. A ordem por `position` pode ser crescente ou decrescente — a direção é detectada pelo primeiro par de mínimos distintos e aplicada à sequência inteira (ou a cada `path`, com `groupingDimensions`) |
 | I10 | `VariableVersion` / `CompatibilityVersion` publicada é imutável |
 | I11 | No máximo uma versão `DRAFT` e uma `PUBLISHED` por variável e por regra de compatibilidade |
 | I12 | Uma única regra de compatibilidade publicada por par (parent, child) |

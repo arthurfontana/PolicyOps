@@ -138,10 +138,11 @@ export const DomainSchema: z.ZodType<Domain> = z
 
 /**
  * Como os limites de uma faixa RANGE são lidos — por versão, nunca por
- * domínio (docs/03 §2). `HALF_OPEN` (default, ausência = este modo) é o
- * `[mín, máx)` de sempre. `INCLUSIVE_INTEGER` é `[mín, máx]` com passo 1: a
- * contiguidade exige `atual.máx + 1 == próxima.mín` em vez de
- * `atual.máx == próxima.mín`, e os valores são validados como inteiros.
+ * domínio (docs/03 §2). `INCLUSIVE_INTEGER` (default, ausência = este modo) é
+ * `[mín, máx]` com passo 1: a contiguidade exige `atual.máx + 1 ==
+ * próxima.mín`, e os valores são validados como inteiros. `HALF_OPEN` é o
+ * `[mín, máx)` clássico, com `atual.máx == próxima.mín` — opt-in explícito
+ * para faixas decimais ou que tocam exatamente no limite.
  */
 export type BoundaryMode = 'HALF_OPEN' | 'INCLUSIVE_INTEGER';
 export const BoundaryModeSchema: z.ZodType<BoundaryMode> = z.enum(['HALF_OPEN', 'INCLUSIVE_INTEGER']);
@@ -191,7 +192,7 @@ export type VariableVersion = {
   domains: Domain[];
   /** Ausente = variável não usa agrupamento; presente, de 1 a 4 níveis (I19). */
   groupingDimensions?: GroupingDimension[];
-  /** Ausente = `HALF_OPEN` (comportamento de sempre, sem migração — docs/03 §2). */
+  /** Ausente = `INCLUSIVE_INTEGER` (default — docs/03 §2). */
   boundaryMode?: BoundaryMode;
 };
 

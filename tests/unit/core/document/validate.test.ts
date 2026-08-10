@@ -223,23 +223,23 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
 
   it('válido: faixas contíguas com catchAll ao final', () => {
     const doc = base();
-    doc.variables.push(
-      rangeVariable([
-        { code: 'BAIXA', label: 'Baixa', position: 0, rangeMin: '0', rangeMax: '100' },
-        { code: 'ALTA', label: 'Alta', position: 1, rangeMin: '100', isCatchAll: true },
-      ]),
-    );
+    const variable = rangeVariable([
+      { code: 'BAIXA', label: 'Baixa', position: 0, rangeMin: '0', rangeMax: '100' },
+      { code: 'ALTA', label: 'Alta', position: 1, rangeMin: '100', isCatchAll: true },
+    ]);
+    variable.versions[0]!.boundaryMode = 'HALF_OPEN';
+    doc.variables.push(variable);
     expect(checkI9(doc)).toEqual([]);
   });
 
   it('inválido: faixas com buraco (rangeMax ≠ rangeMin da próxima)', () => {
     const doc = base();
-    doc.variables.push(
-      rangeVariable([
-        { code: 'BAIXA', label: 'Baixa', position: 0, rangeMin: '0', rangeMax: '100' },
-        { code: 'ALTA', label: 'Alta', position: 1, rangeMin: '150', isCatchAll: true },
-      ]),
-    );
+    const variable = rangeVariable([
+      { code: 'BAIXA', label: 'Baixa', position: 0, rangeMin: '0', rangeMax: '100' },
+      { code: 'ALTA', label: 'Alta', position: 1, rangeMin: '150', isCatchAll: true },
+    ]);
+    variable.versions[0]!.boundaryMode = 'HALF_OPEN';
+    doc.variables.push(variable);
     const issues = checkI9(doc);
     expect(issues).toHaveLength(1);
     expect(issues[0]!.invariant).toBe('I9');
@@ -279,6 +279,7 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
         ],
       },
     ];
+    doc.variables[doc.variables.length - 1]!.versions[0]!.boundaryMode = 'HALF_OPEN';
     expect(checkI9(doc)).toEqual([]);
   });
 
@@ -317,6 +318,7 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
         ],
       },
     ];
+    doc.variables[doc.variables.length - 1]!.versions[0]!.boundaryMode = 'HALF_OPEN';
     const issues = checkI9(doc);
     expect(issues).toHaveLength(1);
     expect(issues[0]!.invariant).toBe('I9');
@@ -350,6 +352,7 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
         ],
       },
     ];
+    doc.variables[doc.variables.length - 1]!.versions[0]!.boundaryMode = 'HALF_OPEN';
     expect(checkI9(doc)).toEqual([]);
   });
 
@@ -404,12 +407,12 @@ describe('I9 — RANGE contíguo, sem sobreposição, um isCatchAll ao final', (
     expect(issues[0]!.invariant).toBe('I9');
   });
 
-  it('boundaryMode ausente (fixture anterior ao ajuste): comportamento HALF_OPEN de sempre, sem migração', () => {
+  it('boundaryMode ausente: comportamento INCLUSIVE_INTEGER (o default) — faixas fechado-fechado com salto de 1', () => {
     const doc = base();
     doc.variables.push(
       rangeVariable([
-        { code: 'BAIXA', label: 'Baixa', position: 0, rangeMin: '0', rangeMax: '100' },
-        { code: 'ALTA', label: 'Alta', position: 1, rangeMin: '100', isCatchAll: true },
+        { code: 'R20', label: 'R20', position: 0, rangeMin: '0', rangeMax: '357' },
+        { code: 'R19', label: 'R19', position: 1, rangeMin: '358', isCatchAll: true },
       ]),
     );
     expect(doc.variables[doc.variables.length - 1]!.versions[0]!.boundaryMode).toBeUndefined();

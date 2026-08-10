@@ -261,6 +261,7 @@ describe('variable/saveDomains', () => {
         variableId: created.data.variableId,
         versionId: created.data.versionId,
         domains: validDomains,
+        boundaryMode: 'HALF_OPEN',
       }),
     ).document;
 
@@ -304,7 +305,7 @@ describe('variable/saveDomains', () => {
     );
   });
 
-  it('boundaryMode INCLUSIVE_INTEGER: aceita faixas fechado-fechado com salto de 1, sem ajuste manual', () => {
+  it('boundaryMode INCLUSIVE_INTEGER (default): aceita faixas fechado-fechado com salto de 1, sem ajuste manual', () => {
     const ctx = testCtx();
     const created = apply(
       baseDocument(),
@@ -318,19 +319,7 @@ describe('variable/saveDomains', () => {
       domain('R19', 1, { rangeMin: '358', isCatchAll: true }),
     ];
 
-    // Sem boundaryMode (HALF_OPEN), a mesma colagem crua é rejeitada.
-    expectFailure(
-      created.document,
-      ctx,
-      saveVariableDomains({
-        variableId: created.data.variableId,
-        versionId: created.data.versionId,
-        domains: excelDomains,
-      }),
-      'RANGE_NOT_CONTIGUOUS',
-    );
-
-    // Ligando o modo, a mesma colagem passa e o campo fica gravado na versão.
+    // Sem boundaryMode (default INCLUSIVE_INTEGER), a colagem crua já passa.
     const { document } = apply(
       created.document,
       ctx,
@@ -338,12 +327,24 @@ describe('variable/saveDomains', () => {
         variableId: created.data.variableId,
         versionId: created.data.versionId,
         domains: excelDomains,
-        boundaryMode: 'INCLUSIVE_INTEGER',
       }),
     );
     const draft = document.variables.find((v) => v.id === created.data.variableId)!.versions[0]!;
-    expect(draft.boundaryMode).toBe('INCLUSIVE_INTEGER');
+    expect(draft.boundaryMode).toBeUndefined();
     expect(draft.domains).toEqual(excelDomains);
+
+    // Forçando HALF_OPEN explicitamente, a mesma colagem é rejeitada.
+    expectFailure(
+      created.document,
+      ctx,
+      saveVariableDomains({
+        variableId: created.data.variableId,
+        versionId: created.data.versionId,
+        domains: excelDomains,
+        boundaryMode: 'HALF_OPEN',
+      }),
+      'RANGE_NOT_CONTIGUOUS',
+    );
   });
 
   it('o inverso de saveDomains restaura também o boundaryMode anterior', () => {
@@ -371,7 +372,7 @@ describe('variable/saveDomains', () => {
         variableId: created.data.variableId,
         versionId: created.data.versionId,
         domains: [
-          domain('A', 0, { rangeMin: '0', rangeMax: '10' }),
+          domain('A', 0, { rangeMin: '0', rangeMax: '9' }),
           domain('B', 1, { rangeMin: '10', isCatchAll: true }),
         ],
       }),
@@ -659,6 +660,7 @@ describe('variable/duplicate (docs/05 §5.6.3)', () => {
           },
         ],
         groupingDimensions,
+        boundaryMode: 'HALF_OPEN',
       }),
     ).document;
 
