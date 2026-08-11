@@ -95,6 +95,8 @@ export type CreateCatalogItemInput = {
   description?: string;
   color?: string;
   numericValue?: string;
+  /** Só faz sentido em kind `TAG`: a faceta do filtro (docs/03 §4). */
+  group?: string;
 };
 export type CreateCatalogItemData = { itemId: string };
 
@@ -152,6 +154,11 @@ export function createCatalogItem(
       }
       if (color !== undefined) item.color = color;
       if (numericValue !== undefined) item.numericValue = numericValue;
+      // `group` só tem significado em kind TAG (docs/03 §4); em qualquer outro
+      // kind o campo é ignorado, em vez de gravado sem sentido.
+      if (input.kind === 'TAG' && input.group !== undefined) {
+        item.group = assertText(input.group, 'O grupo da tag');
+      }
 
       const event = makeEvent(ctx, {
         type: 'CATALOG_CHANGED',

@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { parseDelimitedTable } from '@/core/import/parse-table';
 import { planImport } from '@/core/import/plan';
 import { resolveImport } from '@/core/import/resolve';
+import { applyImport } from '@/core/import/apply';
+import { createCatalogItem } from '@/core/library/catalog';
+import { apply, testCtx } from '../versioning/fixtures';
+import type { PolicyOpsDocument } from '@/core/document/schema';
+import type { Ctx } from '@/core/command';
+import type { ImportPlan } from '@/core/import/plan';
 import { cineminhaDocument, cineminhaProfile, fullCsv, publishPlan, tableOf } from './fixtures';
 
 /**
@@ -77,4 +83,37 @@ describe('desempenho da carga (§5.7)', () => {
     expect(plan.totals.unchanged).toBe(102);
     expect(elapsed).toBeLessThan(1_000);
   });
+
+  it('aplica a carga de 102 matrizes em menos de 2 s', () => {
+    const ctx = testCtx();
+    const table = tableOf(fullCsv());
+    const doc = withTagCatalog(cineminhaDocument(), ctx, planImport(cineminhaDocument(), table, profile));
+    const plan = planImport(doc, table, profile, { fileName: 'CINEMINHA_20260708.csv' });
+
+    const command = applyImport({
+      profile,
+      table,
+      fileName: 'CINEMINHA_20260708.csv',
+      planHash: plan.planHash,
+      selectedKeys: plan.matrices.map((entry) => entry.key),
+      notes: 'Carga de desempenho do arquivo completo',
+    });
+
+    const started = performance.now();
+    const applied = apply(doc, ctx, command);
+    const elapsed = performance.now() - started;
+
+    expect(applied.document.matrices).toHaveLength(102);
+    expect(applied.data.createdDrafts).toHaveLength(102);
+    expect(elapsed).toBeLessThan(2_000);
+  });
 });
+
+/** As 25 tags do arquivo completo, criadas pelo comando normal (RN-17). */
+function withTagCatalog(doc: PolicyOpsDocument, ctx: Ctx, plan: ImportPlan): PolicyOpsDocument {
+  let working = doc;
+  for (const code of new Set(plan.matrices.flatMap((entry) => entry.tags))) {
+    working = apply(working, ctx, createCatalogItem({ kind: 'TAG', code, label: code })).document;
+  }
+  return working;
+}
