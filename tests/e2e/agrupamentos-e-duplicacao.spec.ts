@@ -22,18 +22,19 @@ test.beforeAll(() => {
 
 /**
  * Regional × Porte, combinações assimétricas (Sul só tem MEI) e contígua em
- * HALF_OPEN — o modo padrão, sem passar por "Opções avançadas".
+ * INCLUSIVE_INTEGER — o modo padrão, sem passar por "Opções avançadas"
+ * (docs/05 §5.6.0): máximo de uma faixa + 1 == mínimo da seguinte.
  */
 const REGIONAL_PORTE_TABLE = [
   ['Regional', 'Porte', 'Domínio', 'Mínimo', 'Máximo', 'Cor'].join('\t'),
-  ['São Paulo', 'MEI', 'R1 - Baixo', '0', '100', '#00FF2A'].join('\t'),
-  ['São Paulo', 'MEI', 'R2 - Medio', '100', '200', '#FFA200'].join('\t'),
+  ['São Paulo', 'MEI', 'R1 - Baixo', '0', '99', '#00FF2A'].join('\t'),
+  ['São Paulo', 'MEI', 'R2 - Medio', '100', '199', '#FFA200'].join('\t'),
   ['São Paulo', 'MEI', 'R3 - Alto', '200', '999', '#FF0000'].join('\t'),
-  ['São Paulo', 'Não MEI', 'R1 - Baixo', '0', '90', '#00FF2A'].join('\t'),
-  ['São Paulo', 'Não MEI', 'R2 - Medio', '90', '180', '#FFA200'].join('\t'),
+  ['São Paulo', 'Não MEI', 'R1 - Baixo', '0', '89', '#00FF2A'].join('\t'),
+  ['São Paulo', 'Não MEI', 'R2 - Medio', '90', '179', '#FFA200'].join('\t'),
   ['São Paulo', 'Não MEI', 'R3 - Alto', '180', '999', '#FF0000'].join('\t'),
-  ['Sul', 'MEI', 'R1 - Baixo', '0', '110', '#00FF2A'].join('\t'),
-  ['Sul', 'MEI', 'R2 - Medio', '110', '220', '#FFA200'].join('\t'),
+  ['Sul', 'MEI', 'R1 - Baixo', '0', '109', '#00FF2A'].join('\t'),
+  ['Sul', 'MEI', 'R2 - Medio', '110', '219', '#FFA200'].join('\t'),
   ['Sul', 'MEI', 'R3 - Alto', '220', '999', '#FF0000'].join('\t'),
 ].join('\n');
 
