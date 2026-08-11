@@ -88,11 +88,12 @@ test('RANGE simples: colar Domínio+Mínimo+Máximo sem tocar em inclusão manua
 
   // Colagem genérica sem agrupamento: só Domínio, Mínimo, Máximo — sem
   // tocar em nenhum checkbox de inclusão manual (docs/05 §5.6.0, docs/07 §11).
+  // Fechado-fechado com passo 1 (boundaryMode padrão INCLUSIVE_INTEGER).
   await page.getByRole('button', { name: 'Colar tabela' }).click();
   const table = [
     ['Domínio', 'Mínimo', 'Máximo'].join('\t'),
-    ['R1', '0', '100'].join('\t'),
-    ['R2', '100', '200'].join('\t'),
+    ['R1', '0', '99'].join('\t'),
+    ['R2', '100', '199'].join('\t'),
     ['R3', '200', '999'].join('\t'),
   ].join('\n');
   await page.getByLabel('Tabela de domínios colada').fill(table);

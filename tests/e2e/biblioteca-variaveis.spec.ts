@@ -44,10 +44,12 @@ test('cria variável RANGE com 4 faixas, publica, e ela fica vigente na lista', 
   await expect(page.getByText('Domínios da versão 1')).toBeVisible();
   await expect(page.getByText('Nenhum domínio ainda.')).toBeVisible();
 
+  // Faixas fechado-fechado com passo 1 (boundaryMode padrão INCLUSIVE_INTEGER,
+  // docs/05 §5.6.0): máximo de uma faixa + 1 == mínimo da seguinte.
   const ranges: Array<{ code: string; label: string; min: string; max?: string; catchAll?: boolean }> = [
-    { code: 'BAIXO', label: 'Baixo', min: '0', max: '100' },
-    { code: 'MEDIO', label: 'Médio', min: '100', max: '500' },
-    { code: 'ALTO', label: 'Alto', min: '500', max: '1000' },
+    { code: 'BAIXO', label: 'Baixo', min: '0', max: '99' },
+    { code: 'MEDIO', label: 'Médio', min: '100', max: '499' },
+    { code: 'ALTO', label: 'Alto', min: '500', max: '999' },
     { code: 'MUITO_ALTO', label: 'Muito alto', min: '1000', catchAll: true },
   ];
 
