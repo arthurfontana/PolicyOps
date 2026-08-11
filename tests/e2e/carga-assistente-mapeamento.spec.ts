@@ -133,6 +133,13 @@ test('carga do recorte CINEMINHA: arquivo → colunas → biblioteca → conteú
     await expect(page.getByRole('dialog')).not.toBeVisible();
   }
 
+  await page.waitForTimeout(300);
+  console.log('VARIABLES SCREEN CHECK');
+  await page.getByRole('button', { name: 'Variáveis' }).click();
+  console.log(await page.locator('main').innerText());
+  await page.getByRole('button', { name: 'Projetos' }).click();
+  await page.getByRole('button', { name: 'Política B2C', exact: true }).click();
+  await page.getByRole('button', { name: 'Carregar tabela' }).click();
   await page.getByRole('button', { name: 'Criar mapa do arquivo' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Salvar e publicar' }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
