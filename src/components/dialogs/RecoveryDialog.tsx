@@ -24,6 +24,7 @@ import { baseName } from '@/storage/format';
 export function RecoveryDialog() {
   const recovery = usePersistenceStore((s) => s.recovery);
   const acceptRecovery = usePersistenceStore((s) => s.acceptRecovery);
+  const openRecoveryReadOnly = usePersistenceStore((s) => s.openRecoveryReadOnly);
   const discardRecovery = usePersistenceStore((s) => s.discardRecovery);
 
   if (recovery === null) return null;
@@ -118,14 +119,21 @@ export function RecoveryDialog() {
           <Button variant="secondary" onClick={discardRecovery}>
             Não abrir
           </Button>
+          {remaining > 0 && (
+            <Button variant="secondary" onClick={openRecoveryReadOnly}>
+              Abrir mesmo assim (somente leitura)
+            </Button>
+          )}
           <Button disabled={remaining > 0} onClick={() => void acceptRecovery()}>
             Corrigir e salvar como…
           </Button>
         </DialogFooter>
         {remaining > 0 && (
           <p className="text-xs text-amber-700 dark:text-amber-400">
-            Ainda há {remaining} problema(s) sem correção automática. Corrija-os no arquivo e abra de
-            novo — a aplicação não abre um documento que não valida.
+            Ainda há {remaining} problema(s) sem correção automática — corrija-os no arquivo para
+            habilitar "Corrigir e salvar como…". Enquanto isso, dá pra abrir o documento em somente
+            leitura para consultar o conteúdo; nada será gravado até você corrigir os problemas e salvar
+            como um arquivo novo.
           </p>
         )}
       </DialogContent>
