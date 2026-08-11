@@ -125,21 +125,15 @@ test('carga do recorte CINEMINHA: arquivo → colunas → biblioteca → conteú
   // ofertas. Decisão e tags ainda não existem (dependem do passo 4).
   await expect(page.getByRole('heading', { name: 'MODELO_ADICIONAL', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'FAIXA_MODELO_ADICIONAL', exact: true })).toBeVisible();
-  // Duas lacunas de domínio (MODELO_ADICIONAL e FAIXA_MODELO_ADICIONAL) —
-  // "criar domínios pendentes" de uma faz a outra ficar a única visível.
-  for (let i = 0; i < 2; i++) {
+  // Três lacunas de domínio: SCORE_HVI3 (falta R99 — o arquivo traz score
+  // "sem fallback"), MODELO_ADICIONAL e FAIXA_MODELO_ADICIONAL. Resolve todas
+  // clicando até não sobrar nenhum botão "Criar domínios pendentes".
+  while ((await page.getByRole('button', { name: /Criar domínios pendentes/ }).count()) > 0) {
     await page.getByRole('button', { name: /Criar domínios pendentes/ }).first().click();
     await page.getByRole('dialog').getByRole('button', { name: 'Criar e publicar' }).click();
     await expect(page.getByRole('dialog')).not.toBeVisible();
   }
 
-  await page.waitForTimeout(300);
-  console.log('VARIABLES SCREEN CHECK');
-  await page.getByRole('button', { name: 'Variáveis' }).click();
-  console.log(await page.locator('main').innerText());
-  await page.getByRole('button', { name: 'Projetos' }).click();
-  await page.getByRole('button', { name: 'Política B2C', exact: true }).click();
-  await page.getByRole('button', { name: 'Carregar tabela' }).click();
   await page.getByRole('button', { name: 'Criar mapa do arquivo' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Salvar e publicar' }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
@@ -159,13 +153,13 @@ test('carga do recorte CINEMINHA: arquivo → colunas → biblioteca → conteú
 
   // Volta ao passo 3: agora que as regras de decisão e as tags do perfil já
   // existem, as pendências de catálogo (DECISION e TAG) aparecem.
-  await page.getByRole('button', { name: '3 Biblioteca' }).click();
+  await page.getByRole('button', { name: 'Biblioteca' }).click();
   await expect(page.getByText('Catálogo · Decisões')).toBeVisible();
   await page.getByRole('button', { name: /Criar todos/ }).first().click();
   await expect(page.getByText('Catálogo · Tags')).toBeVisible();
   await page.getByRole('button', { name: /Criar todos/ }).first().click();
 
-  await page.getByRole('button', { name: '4 Conteúdo' }).click();
+  await page.getByRole('button', { name: 'Conteúdo' }).click();
   await page.getByLabel('Decisão da regra 1').click();
   await page.getByRole('option', { name: 'Reprovado' }).click();
   await page.getByLabel('Decisão padrão (otherwise)').click();
