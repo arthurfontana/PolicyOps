@@ -13,7 +13,11 @@ import { Step2Columns } from './Step2Columns';
 import { Step3Library } from './Step3Library';
 import { Step4Content } from './Step4Content';
 import { Step5Plan } from './Step5Plan';
+import { isApplicable } from './plan-preview';
+import { Step6Apply } from './Step6Apply';
+import { planImport } from '@/core/import/plan';
 import { checkGridSize, libraryGapsOf, profileIssues, step2ProfileIssues } from './wizard-guards';
+import { matchImportProfile, nearestImportProfile } from '@/core/import/profile';
 
 const STEP_LABELS: Record<WizardStep, string> = {
   1: 'Arquivo',
@@ -27,8 +31,8 @@ const STEP_LABELS: Record<WizardStep, string> = {
 /**
  * Casca do assistente de carga — docs/12-carga-de-matrizes.md §6.1,
  * docs/07-ux-e-editor.md §14. Seis passos numerados; nada é gravado no
- * documento antes do passo 6 (que só chega na S24) fora dos comandos de
- * biblioteca que o próprio usuário aciona no passo 3.
+ * documento antes do passo 6 fora dos comandos de biblioteca que o próprio
+ * usuário aciona no passo 3.
  */
 export function ImportWizard() {
   const document = useDocumentStore((s) => s.document);
@@ -38,10 +42,26 @@ export function ImportWizard() {
   const parsed = useImportStore((s) => s.parsed);
   const profile = useImportStore((s) => s.profile);
   const dirty = useImportStore((s) => s.dirty);
+  const fileName = useImportStore((s) => s.fileName);
+  const selectedKeys = useImportStore((s) => s.selectedKeys);
+  const report = useImportStore((s) => s.report);
   const reset = useImportStore((s) => s.reset);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
   const docWithProfiles = document as DocumentWithProfiles | null;
+
+  const headerDiffAcknowledged = useImportStore((s) => s.headerDiffAcknowledged);
+
+  /**
+   * RN-19/CT-12: cabeçalho parecido com um perfil salvo, mas diferente, segura
+   * o passo 1 até o usuário ver a diferença e confirmar o mapeamento manual.
+   */
+  const headerDiffPending = useMemo(() => {
+    if (docWithProfiles === null || parsed === undefined || parsed.header.length === 0) return false;
+    if (headerDiffAcknowledged) return false;
+    if (matchImportProfile(docWithProfiles, parsed.header) !== undefined) return false;
+    return nearestImportProfile(docWithProfiles, parsed.header) !== undefined;
+  }, [docWithProfiles, parsed, headerDiffAcknowledged]);
 
   const table: ImportTable | undefined = useMemo(
     () => (parsed === undefined ? undefined : { header: parsed.header, rows: parsed.rows, lines: parsed.lines }),
@@ -66,17 +86,31 @@ export function ImportWizard() {
     return !profileIssues(docWithProfiles, profile, parsed.header).some((i) => i.severity === 'ERROR');
   }, [docWithProfiles, profile, parsed]);
 
+  const hasApplicable = useMemo(() => {
+    // Só no passo do plano em diante: `planImport` sobre 102 matrizes custa
+    // caro demais para rodar a cada render dos passos anteriores.
+    if (docWithProfiles === null || table === undefined || !step4Ready || step < 5) return false;
+    const plan = planImport(docWithProfiles, table, profile, { fileName });
+    const applicable = plan.matrices.filter(isApplicable);
+    if (applicable.length === 0) return false;
+    if (selectedKeys === undefined) return true;
+    const chosen = new Set(selectedKeys);
+    return applicable.some((entry) => chosen.has(entry.key));
+  }, [docWithProfiles, table, profile, fileName, step4Ready, selectedKeys, step]);
+
   const canAdvanceFrom: Record<WizardStep, boolean> = {
-    1: parsed !== undefined && parsed.errors.length === 0,
+    1: parsed !== undefined && parsed.errors.length === 0 && !headerDiffPending,
     2: step2Ready,
     3: (libraryGaps?.length ?? 1) === 0,
     4: step4Ready,
-    5: false,
+    // Do plano só se avança com ao menos uma matriz nova ou alterada
+    // selecionada — é o "nenhuma alteração a aplicar" de CT-01.
+    5: hasApplicable,
     6: false,
   };
 
   let furthestReachable: WizardStep = 1;
-  for (const candidate of [1, 2, 3, 4, 5] as WizardStep[]) {
+  for (const candidate of [1, 2, 3, 4, 5, 6] as WizardStep[]) {
     furthestReachable = candidate;
     if (!canAdvanceFrom[candidate]) break;
   }
@@ -129,7 +163,7 @@ export function ImportWizard() {
         <div>
           <h1 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Carga de matrizes</h1>
           <p className="text-sm text-neutral-500 dark:text-neutral-400">
-            Abrir o arquivo, mapear as colunas e chegar ao plano — a aplicação chega na próxima sessão.
+            Abrir o arquivo, revisar o plano e aplicar. Nada é publicado pelo assistente.
           </p>
         </div>
         <Button variant="ghost" size="icon" aria-label="Fechar assistente" onClick={requestClose}>
@@ -145,20 +179,18 @@ export function ImportWizard() {
         {step === 3 && table !== undefined && <Step3Library table={table} />}
         {step === 4 && <Step4Content />}
         {step === 5 && table !== undefined && <Step5Plan table={table} />}
-        {step === 6 && (
-          <div className="flex flex-col items-center gap-2 p-10 text-center">
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              A aplicação da carga (criar matrizes e rascunhos) chega na próxima sessão.
-            </p>
-          </div>
-        )}
+        {step === 6 && table !== undefined && <Step6Apply table={table} />}
       </div>
 
       <div className="flex items-center justify-between border-t border-neutral-200 pt-3 dark:border-neutral-800">
-        <Button variant="outline" disabled={step === 1} onClick={() => setStep((step - 1) as WizardStep)}>
+        <Button
+          variant="outline"
+          disabled={step === 1 || report !== undefined}
+          onClick={() => setStep((step - 1) as WizardStep)}
+        >
           Voltar
         </Button>
-        {step < 5 && (
+        {step < 6 && (
           <Button disabled={!canAdvanceFrom[step]} onClick={goNext}>
             Avançar
           </Button>

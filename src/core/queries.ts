@@ -813,3 +813,63 @@ export function listTemplates(
       }
     });
 }
+
+// ---------------------------------------------------------------------------
+// Carga de matrizes — origem dos rascunhos (docs/12 §6.2, US-10)
+// ---------------------------------------------------------------------------
+
+/** Uma rodada de carga, lida do evento `IMPORT_RUN` que a registrou. */
+export type ImportRunSummary = {
+  importRunId: string;
+  profileCode: string;
+  fileName: string | null;
+  /** A nota da carga — vira a nota padrão de cada publicação da fila (US-07). */
+  notes: string;
+  at: string;
+  actor: string;
+  summary: string;
+};
+
+function importRunOf(event: DocEvent): ImportRunSummary | null {
+  const payload = event.payload;
+  if (payload === undefined) return null;
+  const importRunId = payload.importRunId;
+  if (typeof importRunId !== 'string') return null;
+  return {
+    importRunId,
+    profileCode: typeof payload.profileCode === 'string' ? payload.profileCode : '',
+    fileName: typeof payload.fileName === 'string' ? payload.fileName : null,
+    notes: typeof payload.notes === 'string' ? payload.notes : '',
+    at: event.at,
+    actor: event.actor,
+    summary: event.summary,
+  };
+}
+
+/** As cargas aplicadas neste documento, da mais recente para a mais antiga. */
+export function listImportRuns(doc: PolicyOpsDocument): ImportRunSummary[] {
+  const runs: ImportRunSummary[] = [];
+  for (const event of doc.events) {
+    if (event.type !== 'IMPORT_RUN') continue;
+    const run = importRunOf(event);
+    if (run !== null) runs.push(run);
+  }
+  return runs.reverse();
+}
+
+/**
+ * A carga que criou este rascunho, ou `null` se ele nasceu à mão. Sai do
+ * `importRunId` que `import/apply` carimba no `DRAFT_CREATED` da versão
+ * (docs/12 US-10) — é o que faz o rascunho exibir "Criado pela carga
+ * CINEMINHA_20260708 em 10/08/2026" mesmo depois de fechar o assistente.
+ */
+export function getImportOrigin(doc: PolicyOpsDocument, versionId: string): ImportRunSummary | null {
+  let importRunId: string | undefined;
+  for (const event of doc.events) {
+    if (event.type !== 'DRAFT_CREATED' || event.scope.versionId !== versionId) continue;
+    const candidate = event.payload?.importRunId;
+    if (typeof candidate === 'string') importRunId = candidate;
+  }
+  if (importRunId === undefined) return null;
+  return listImportRuns(doc).find((run) => run.importRunId === importRunId) ?? null;
+}

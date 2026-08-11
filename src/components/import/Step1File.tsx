@@ -7,7 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DELIMITERS, type Delimiter } from '@/core/import/parse-table';
-import { matchImportProfile, type DocumentWithProfiles } from '@/core/import/profile';
+import {
+  matchImportProfile,
+  nearestImportProfile,
+  type DocumentWithProfiles,
+} from '@/core/import/profile';
 import { readImportFile } from '@/storage/import-file';
 import { useDocumentStore } from '@/store/document-store';
 import { useImportStore } from '@/store/import-store';
@@ -32,12 +36,26 @@ export function Step1File() {
   const setFormatOverride = useImportStore((s) => s.setFormatOverride);
   const setRecognizedProfile = useImportStore((s) => s.setRecognizedProfile);
   const jumpToPlan = useImportStore((s) => s.jumpToPlan);
+  const headerDiffAcknowledged = useImportStore((s) => s.headerDiffAcknowledged);
+  const acknowledgeHeaderDiff = useImportStore((s) => s.acknowledgeHeaderDiff);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
 
   const matchedProfile = useMemo(() => {
     if (document === null || parsed === undefined || parsed.header.length === 0) return undefined;
     return matchImportProfile(document as DocumentWithProfiles, parsed.header);
   }, [document, parsed]);
+
+  /**
+   * RN-19: reconhecer é igualdade exata. Cabeçalho parecido mas diferente não
+   * é reconhecido em silêncio — mostra a diferença coluna a coluna e pede
+   * confirmação para seguir no mapeamento manual (CT-12).
+   */
+  const nearMiss = useMemo(() => {
+    if (document === null || parsed === undefined || parsed.header.length === 0) return undefined;
+    if (matchedProfile !== undefined) return undefined;
+    return nearestImportProfile(document as DocumentWithProfiles, parsed.header);
+  }, [document, parsed, matchedProfile]);
 
   useEffect(() => {
     setRecognizedProfile(matchedProfile);
@@ -162,6 +180,43 @@ export function Step1File() {
                 </p>
                 <Button type="button" size="sm" onClick={jumpToPlan}>
                   Ir direto ao plano
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {nearMiss !== undefined && !headerDiffAcknowledged && (
+            <Card className="border-amber-300 dark:border-amber-900" data-testid="header-diff">
+              <CardContent className="flex flex-col gap-2 p-4">
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                  O cabeçalho parece o do perfil{' '}
+                  <span className="font-mono">{nearMiss.profile.code}</span>, mas não é idêntico —
+                  então ele não foi aplicado.
+                </p>
+                <ul className="flex flex-col gap-1 text-xs text-amber-700 dark:text-amber-400">
+                  {nearMiss.missing.map((column) => (
+                    <li key={`missing-${column}`}>
+                      <span className="font-mono">{column}</span> — o perfil espera esta coluna, e o
+                      arquivo não a tem.
+                    </li>
+                  ))}
+                  {nearMiss.extra.map((column) => (
+                    <li key={`extra-${column}`}>
+                      <span className="font-mono">{column}</span> — o arquivo traz esta coluna, e o
+                      perfil não a previa.
+                    </li>
+                  ))}
+                  {nearMiss.reordered && <li>As mesmas colunas, em outra ordem.</li>}
+                </ul>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="self-start"
+                  data-testid="confirm-manual-mapping"
+                  onClick={acknowledgeHeaderDiff}
+                >
+                  Seguir com o mapeamento manual
                 </Button>
               </CardContent>
             </Card>

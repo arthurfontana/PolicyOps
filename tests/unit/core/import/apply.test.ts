@@ -15,7 +15,6 @@ import {
   editCsvCell,
   excerptCsv,
   excerptTable,
-  publishPlan,
   tableOf,
 } from './fixtures';
 

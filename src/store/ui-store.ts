@@ -80,6 +80,17 @@ function applyThemeClass(theme: Theme): void {
 
 interface UiState {
   view: View;
+  /**
+   * Fila de revisão da carga (docs/12 §6.2): a `importRunId` filtrada na tela
+   * de Rascunhos e as versões já marcadas como revisadas.
+   *
+   * "Revisado" é **estado de interface**, não campo do documento: é a marca
+   * pessoal de quem está conferindo agora, não um fato da política. Fica aqui
+   * porque precisa sobreviver ao fechamento do assistente, e some quando a
+   * aplicação é recarregada — o que existe de verdade é o rascunho.
+   */
+  importRunFilter: string | null;
+  reviewedVersionIds: string[];
   sidebarCollapsed: boolean;
   inspectorCollapsed: boolean;
   theme: Theme;
@@ -90,6 +101,9 @@ interface UiState {
   toggleInspector: () => void;
   toggleTheme: () => void;
   setActor: (name: string) => void;
+  setImportRunFilter: (importRunId: string | null) => void;
+  toggleReviewed: (versionId: string) => void;
+  clearReviewed: (versionIds: string[]) => void;
   openIdentityDialog: () => void;
   closeIdentityDialog: () => void;
 }
@@ -98,6 +112,8 @@ const initialActor = readLocalStorage(ACTOR_STORAGE_KEY);
 
 export const useUiStore = create<UiState>((set) => ({
   view: viewFromHash(typeof window !== 'undefined' ? window.location.hash : ''),
+  importRunFilter: null,
+  reviewedVersionIds: [],
   sidebarCollapsed: false,
   inspectorCollapsed: false,
   theme: readInitialTheme(),
@@ -124,6 +140,20 @@ export const useUiStore = create<UiState>((set) => ({
     writeLocalStorage(ACTOR_STORAGE_KEY, trimmed);
     set({ actor: trimmed, identityDialogOpen: false });
   },
+
+  setImportRunFilter: (importRunFilter) => set({ importRunFilter }),
+
+  toggleReviewed: (versionId) =>
+    set((s) => ({
+      reviewedVersionIds: s.reviewedVersionIds.includes(versionId)
+        ? s.reviewedVersionIds.filter((id) => id !== versionId)
+        : [...s.reviewedVersionIds, versionId],
+    })),
+
+  clearReviewed: (versionIds) =>
+    set((s) => ({
+      reviewedVersionIds: s.reviewedVersionIds.filter((id) => !versionIds.includes(id)),
+    })),
 
   openIdentityDialog: () => set({ identityDialogOpen: true }),
   closeIdentityDialog: () => set({ identityDialogOpen: false }),
