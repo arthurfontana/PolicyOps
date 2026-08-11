@@ -83,7 +83,7 @@ type DocumentStore = {
 ### Catálogo
 | Comando | Entrada |
 |---|---|
-| `catalog/create` | `{ kind, code, label, description?, color?, numericValue? }` |
+| `catalog/create` | `{ kind, code, label, description?, color?, numericValue?, group? }` — `group` só tem efeito em `kind: 'TAG'` (`03-modelo-do-documento.md` §4) |
 | `catalog/update` | `{ id, label?, description?, color?, numericValue? }` |
 | `catalog/archive` | `{ id }` |
 | `catalog/reorder` | `{ kind, orderedIds }` |
@@ -105,6 +105,10 @@ type DocumentStore = {
 | `importProfile/delete` | `{ profileId }` | recria o perfil |
 
 `import/apply` é o único comando do catálogo que produz **vários** eventos de matrizes diferentes numa transação só. Ele valida tudo antes de tocar no documento (§1, regra 4): recalcula o plano, compara com `planHash` e falha inteiro em caso de divergência (`IMPORT_PLAN_STALE`) — nunca aplica metade do lote.
+
+Ele não reimplementa nada: **compõe** os comandos acima sobre um documento de trabalho, na ordem `matrix/create` → `axis/suppressTuples` → `version/applyCellPatches` → `matrix/setTags` para cada matriz nova, e `version/createDraft` → `version/applyCellPatches` → `matrix/setTags` para cada alterada. A atomicidade sai da imutabilidade (§1, regra 2): um `DomainError` no meio do lote propaga para fora de `execute`, e o documento **recebido** é devolvido intocado. Saída: `{ importRunId, createdMatrices, createdDrafts, ignoredByUser }`. O `importRunId` é carimbado no payload de todo `MATRIX_CREATED`, `DRAFT_CREATED` e `CELLS_UPDATED` da rodada, e um evento `IMPORT_RUN` registra o perfil, o arquivo, o hash, as contagens por estado e a nota da carga.
+
+`import/apply` **nunca publica** (RN-10): o inverso descarta os rascunhos criados e remove as matrizes criadas, na ordem contrária, e o log de eventos não é rebobinado — ele é append-only (§2).
 
 ### Versões
 | Comando | Entrada | Inverso |
@@ -152,6 +156,9 @@ Funções de leitura em `src/core/`, chamadas direto pelos componentes:
 | `parseDelimitedTable(text, format?)` | `{ format, header, rows, warnings, errors }` — texto CSV/TSV em tabela, com detecção de separador, BOM e cabeçalho (`12-carga-de-matrizes.md` §5.4) |
 | `resolveImport(doc, table, profile)` | `{ rows: ResolvedRow[]; issues }` — aplica o perfil: cada linha vira matriz de destino, `xPath`, `yPath` e célula |
 | `planImport(doc, table, profile, opts?)` | `ImportPlan` — estado por matriz, diff de células e totais. **Dry-run puro**, não toca no documento |
+| `nearestImportProfile(doc, header)` | `HeaderComparison \| undefined` — o perfil salvo mais próximo de um cabeçalho que nenhum reconheceu, com a diferença coluna a coluna (RN-19, CT-12). Nunca aplica perfil por semelhança |
+| `listImportRuns(doc)` | `ImportRunSummary[]` — as cargas aplicadas, da mais recente para a mais antiga, lidas dos eventos `IMPORT_RUN` |
+| `getImportOrigin(doc, versionId)` | `ImportRunSummary \| null` — a carga que criou aquele rascunho, ou `null` se ele nasceu à mão |
 | `matchImportProfile(doc, header)` | `ImportProfile \| null` — perfil salvo cujo `signature` é idêntico ao cabeçalho lido |
 | `listMatrices(doc, { projectId?, tags?, search? })` | matrizes filtradas por facetas de tag (`E` entre grupos, `OU` dentro do grupo) |
 

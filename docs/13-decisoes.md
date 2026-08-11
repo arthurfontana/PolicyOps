@@ -372,3 +372,25 @@ tags continuam vindo do passo 3 (kind `TAG`), porque são derivadas de valores o
 documento — são só onde, na composição de tela, cada responsabilidade fica. Registradas juntas
 porque nenhuma seria óbvia de prever sem montar o assistente inteiro e rodá-lo contra um arquivo
 real.
+
+## DEC-CARGA-015: o passo 5 volta a usar `CompareView`, sobre um documento descartável
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Expandir "Ver diff" numa matriz do plano abre o `CompareView` de `07-ux-e-editor.md` §9 dentro do assistente. O par de versões que ele exige é montado por `src/components/import/plan-preview.ts`: um documento **descartável**, em memória, com uma matriz sintética de duas versões — o "antes" (a publicada, ou o grid vazio numa matriz nova) e o "depois" (o mesmo grid com as células da carga aplicadas). Substitui o item (3) de DEC-CARGA-014; a lista direta de `plan.changes` continua existindo como a expansão rápida da linha. |
+| **Data / gatilho** | 2026-08-11, S24 — a S22 tinha decidido contra por custo, e a S24 pede o `CompareView` explicitamente. |
+| **Alternativas** | (a) manter só a lista de `plan.changes` — barata, mas a revisão de um grid de 567 combinações lida célula a célula numa lista é ilegível, e era justamente a tela que já existia para isso que se estava recusando a usar; (b) exportar `syntheticVersion` de `plan.ts` e montar a `EditorView` à mão no componente — duplicaria a construção de `EditorView`, que tem cabeçalho aninhado, catálogo e estatísticas. |
+| **Por quê** | O custo estimado na S22 estava errado, e o erro tinha uma causa identificável: assumiu-se que faltava *tela*, quando o que faltava era só o **par de versões**. `CompareView` já é componente de apresentação puro — nasceu assim para servir também ao diálogo de conflito, onde uma das pontas vem de um documento que nem está aberto (`06-persistencia-e-concorrencia.md` §5). Montar o par é uma função de trinta linhas que reusa `getEditorView` e `diffVersions` sem tocar em nenhuma das duas. E o documento descartável não é um risco novo: ele nunca é despachado, nunca chega ao store, e as funções que o leem são as mesmas funções puras de leitura de sempre. |
+| **Custo aceito** | Um documento a mais em memória por diff aberto (`{ ...doc, matrices: [uma] }` — cópia rasa, o custo real é o das células daquela matriz), e um `PlanPreview` que precisa ser mantido em sintonia com `MatrixPlan` se `plan.ts` mudar a forma de `axes`/`changes`. |
+| **Páginas afetadas** | `12-carga-de-matrizes.md` §6.1.2, `07-ux-e-editor.md` §14, `13-decisoes.md` DEC-CARGA-014 (item 3 superado) |
+
+## DEC-CARGA-016: "revisado" é estado de interface, não campo do documento
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A marca "revisado" da fila de revisão vive em `ui-store` (`reviewedVersionIds`), junto com o filtro por `importRunId`. Não é campo de `MatrixVersion`, não entra no `.json` e não sobrevive a recarregar a aplicação. |
+| **Data / gatilho** | 2026-08-11, S24, US-07. |
+| **Alternativas** | Um `reviewedAt`/`reviewedBy` na `MatrixVersion`, ou um evento `DRAFT_REVIEWED`. |
+| **Por quê** | "Revisado" é uma marca de trabalho em andamento de uma pessoa numa sessão — o equivalente a riscar itens de uma lista enquanto se confere. O fato durável que o documento precisa registrar já existe e é outro: a **publicação**, com nota, autor e data. Gravar "revisado" no documento criaria um segundo estado de aprovação que ninguém consulta depois, sujeito a ficar mentindo (revisado por quem, contra qual conteúdo, se o rascunho mudou desde então?) — e I3/§8 não têm lugar para um campo mutável dessa natureza numa versão. Perder a marca ao recarregar é o comportamento certo: o que sobreviveu é o rascunho, e revisar de novo é barato. |
+| **Custo aceito** | Quem fecha a aba no meio da revisão de 102 rascunhos remarca o que já tinha conferido. |
+| **Páginas afetadas** | `12-carga-de-matrizes.md` §6.2, `07-ux-e-editor.md` §14 |
