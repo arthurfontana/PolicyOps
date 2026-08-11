@@ -367,6 +367,30 @@ describe('validateProfile (I21, I22)', () => {
     ).toContain('não é uma coluna de valor');
   });
 
+  it('recusa coluna de valor compartilhada que colida com o campo de uma opção do desdobramento', () => {
+    // OFERTA fica de fora do desdobramento (deixa de ser TETO) mas continua
+    // mapeada como Valor → oferta — a mesma configuração que fez uma carga
+    // real não detectar OFERTA_GERAL zerada: OFERTA, compartilhada, sempre
+    // sobrescrevia o valor de cada canal na mesma célula.
+    const profile = cineminhaProfile();
+    const semTeto = {
+      ...profile.unpivot!,
+      options: profile.unpivot!.options.filter((option) => option.code !== 'TETO'),
+    };
+    const issues = validateProfile(doc, cineminhaProfile({ unpivot: semTeto }));
+    expect(messages(issues)).toContain('OFERTA');
+    expect(messages(issues)).toContain('colidiriam célula a célula');
+
+    // A mesma coluna, marcada como Ignorar em vez de Valor, não colide.
+    const ignorada = cineminhaProfile({
+      unpivot: semTeto,
+      columns: cineminhaProfile().columns.map((column) =>
+        column.column === 'OFERTA' ? { column: 'OFERTA', role: 'IGNORE' as const } : column,
+      ),
+    });
+    expect(validateProfile(doc, ignorada)).toEqual([]);
+  });
+
   it('valida os padrões de código e de nome', () => {
     expect(
       messages(validateProfile(doc, cineminhaProfile({ codeTemplate: 'MTZ_{FANTASMA}' }))),

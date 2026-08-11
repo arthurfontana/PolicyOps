@@ -488,6 +488,27 @@ export function validateProfile(doc: DocumentWithProfiles, profile: ImportProfil
         );
       }
     }
+
+    // Uma coluna compartilhada (fora do desdobramento) que mire o mesmo campo
+    // de uma opção do desdobramento sobrescreveria o valor por linha em
+    // silêncio — a última coluna do array de `buildCell` sempre venceria.
+    const unpivotFields = new Set(
+      unpivot.options
+        .map((option) => profile.columns.find((candidate) => candidate.column === option.column))
+        .map((column) => column?.value?.field)
+        .filter((field): field is ValueField => field !== undefined),
+    );
+    for (const column of sharedValueColumns(profile)) {
+      const field = column.value?.field;
+      if (field !== undefined && unpivotFields.has(field)) {
+        issues.push(
+          invalid(
+            `A coluna "${column.column}" alimenta o campo "${field}", o mesmo que uma opção do desdobramento — os dois valores colidiriam célula a célula. Marque "${column.column}" como Ignorar ou mude o campo alvo.`,
+            { column: column.column, field },
+          ),
+        );
+      }
+    }
   }
 
   const knownPlaceholders = new Set<string>([
