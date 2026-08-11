@@ -1,22 +1,41 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useToast } from '@/components/ui/use-toast';
+import { createCatalogItem } from '@/core/library/catalog';
 import { columnsWithRole, type DecisionRule, type TagRule } from '@/core/import/profile';
 import { useDocumentStore } from '@/store/document-store';
 import { useImportStore } from '@/store/import-store';
 
+type DecisionTarget = number | 'otherwise';
+const NEW_DECISION = '__new__';
+
 /** Passo 4 — conteúdo. docs/12-carga-de-matrizes.md US-05 (RN-11), RN-07, US-09. */
 export function Step4Content() {
   const document = useDocumentStore((s) => s.document);
+  const dispatch = useDocumentStore((s) => s.dispatch);
+  const { toast } = useToast();
   const profile = useImportStore((s) => s.profile);
   const setDecisionRules = useImportStore((s) => s.setDecisionRules);
   const setMissingRowPolicy = useImportStore((s) => s.setMissingRowPolicy);
   const setTagRules = useImportStore((s) => s.setTagRules);
+  const [creatingDecisionFor, setCreatingDecisionFor] = useState<DecisionTarget | null>(null);
+  const [newDecisionCode, setNewDecisionCode] = useState('');
+  const [newDecisionLabel, setNewDecisionLabel] = useState('');
 
   useEffect(() => {
     const partitionColumns = columnsWithRole(profile, 'PARTITION').map((c) => c.column);
@@ -84,6 +103,29 @@ export function Step4Content() {
     setDecisionRules([...whenRules, { otherwise: code }]);
   }
 
+  function selectDecisionFor(target: DecisionTarget, value: string) {
+    if (value === NEW_DECISION) {
+      setNewDecisionCode('');
+      setNewDecisionLabel('');
+      setCreatingDecisionFor(target);
+      return;
+    }
+    if (target === 'otherwise') setOtherwise(value);
+    else updateWhenRule(target, { setDecision: value });
+  }
+
+  function handleCreateDecision() {
+    const code = newDecisionCode.trim().toUpperCase();
+    const label = newDecisionLabel.trim() || code;
+    const result = dispatch(createCatalogItem({ kind: 'DECISION', code, label }));
+    if (!result.ok) {
+      toast({ title: 'Não foi possível criar a decisão', description: result.error.message });
+      return;
+    }
+    if (creatingDecisionFor !== null) selectDecisionFor(creatingDecisionFor, code);
+    setCreatingDecisionFor(null);
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -127,7 +169,7 @@ export function Step4Content() {
                     </div>
                   </TableCell>
                   <TableCell className="w-48">
-                    <Select value={rule.setDecision || undefined} onValueChange={(value) => updateWhenRule(index, { setDecision: value })}>
+                    <Select value={rule.setDecision || undefined} onValueChange={(value) => selectDecisionFor(index, value)}>
                       <SelectTrigger aria-label={`Decisão da regra ${index + 1}`}>
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
@@ -137,6 +179,11 @@ export function Step4Content() {
                             {decision.label}
                           </SelectItem>
                         ))}
+                        <SelectItem value={NEW_DECISION}>
+                          <span className="flex items-center gap-1">
+                            <Plus className="h-3 w-3" /> Novo código de decisão…
+                          </span>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </TableCell>
@@ -150,7 +197,7 @@ export function Step4Content() {
               <TableRow>
                 <TableCell className="text-xs italic text-neutral-500 dark:text-neutral-400">demais ofertas</TableCell>
                 <TableCell className="w-48">
-                  <Select value={otherwise?.otherwise || undefined} onValueChange={setOtherwise}>
+                  <Select value={otherwise?.otherwise || undefined} onValueChange={(value) => selectDecisionFor('otherwise', value)}>
                     <SelectTrigger aria-label="Decisão padrão (otherwise)">
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
@@ -160,6 +207,11 @@ export function Step4Content() {
                           {decision.label}
                         </SelectItem>
                       ))}
+                      <SelectItem value={NEW_DECISION}>
+                        <span className="flex items-center gap-1">
+                          <Plus className="h-3 w-3" /> Novo código de decisão…
+                        </span>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </TableCell>
@@ -261,6 +313,46 @@ export function Step4Content() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={creatingDecisionFor !== null} onOpenChange={(open) => { if (!open) setCreatingDecisionFor(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo código de decisão</DialogTitle>
+            <DialogDescription>
+              Cria o item no catálogo (kind DECISION) e já o seleciona na regra.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-decision-code">Código</Label>
+              <Input
+                id="new-decision-code"
+                value={newDecisionCode}
+                onChange={(event) => setNewDecisionCode(event.target.value.toUpperCase())}
+                placeholder="REPROVADO"
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-decision-label">Rótulo</Label>
+              <Input
+                id="new-decision-label"
+                value={newDecisionLabel}
+                onChange={(event) => setNewDecisionLabel(event.target.value)}
+                placeholder="Reprovado"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setCreatingDecisionFor(null)}>
+              Cancelar
+            </Button>
+            <Button type="button" disabled={newDecisionCode.trim() === ''} onClick={handleCreateDecision}>
+              Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

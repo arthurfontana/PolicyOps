@@ -143,27 +143,36 @@ test('carga do recorte CINEMINHA: arquivo → colunas → biblioteca → conteú
   await expect(page.getByRole('button', { name: 'Avançar' })).toBeEnabled();
   await page.getByRole('button', { name: 'Avançar' }).click();
 
-  // Passo 4 — conteúdo: uma regra de oferta "0" → Reprovado, e o otherwise.
+  // Passo 4 — conteúdo: uma regra de oferta "0" → Reprovado, e o otherwise →
+  // Aprovado. O catálogo de decisão ainda não existe — "Novo código de
+  // decisão…" cria o item de catálogo ali mesmo e já seleciona a regra.
   await expect(page.getByText('Regras de decisão')).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar regra' }).click();
   await page.getByLabel('0', { exact: true }).check();
-  await page.getByLabel('Decisão da regra 1').click();
-  // O catálogo de decisão ainda não existe — cria a partir do passo 3, então
-  // volta aqui. Antes disso, garante o "otherwise" pendente também.
 
-  // Volta ao passo 3: agora que as regras de decisão e as tags do perfil já
-  // existem, as pendências de catálogo (DECISION e TAG) aparecem.
-  await page.getByRole('button', { name: 'Biblioteca' }).click();
-  await expect(page.getByText('Catálogo · Decisões')).toBeVisible();
-  await page.getByRole('button', { name: /Criar todos/ }).first().click();
-  await expect(page.getByText('Catálogo · Tags')).toBeVisible();
-  await page.getByRole('button', { name: /Criar todos/ }).first().click();
-
-  await page.getByRole('button', { name: 'Conteúdo' }).click();
   await page.getByLabel('Decisão da regra 1').click();
-  await page.getByRole('option', { name: 'Reprovado' }).click();
+  await page.getByRole('option', { name: 'Novo código de decisão' }).click();
+  await page.getByRole('dialog').getByLabel('Código').fill('REPROVADO');
+  await page.getByRole('dialog').getByLabel('Rótulo').fill('Reprovado');
+  await page.getByRole('dialog').getByRole('button', { name: 'Criar' }).click();
+
   await page.getByLabel('Decisão padrão (otherwise)').click();
-  await page.getByRole('option', { name: 'Aprovado' }).click();
+  await page.getByRole('option', { name: 'Novo código de decisão' }).click();
+  await page.getByRole('dialog').getByLabel('Código').fill('APROVADO');
+  await page.getByRole('dialog').getByLabel('Rótulo').fill('Aprovado');
+  await page.getByRole('dialog').getByRole('button', { name: 'Criar' }).click();
+
+  // Volta ao passo 3: agora que as tags do perfil existem (preenchidas
+  // automaticamente ao visitar o passo 4), a pendência de catálogo TAG
+  // aparece. O rótulo do passo se repete na barra lateral, então o seletor
+  // fica preso ao stepper.
+  const stepper = page.getByRole('list', { name: 'Passos da carga' });
+  await stepper.getByRole('button', { name: 'Biblioteca' }).click();
+  await expect(page.getByText('Catálogo · Tags')).toBeVisible();
+  await page.getByRole('button', { name: /Criar todos/ }).click();
+
+  await stepper.getByRole('button', { name: 'Conteúdo' }).click();
+  await expect(page.getByText('Regras de decisão')).toBeVisible();
 
   await page.getByRole('button', { name: 'Avançar' }).click();
 
