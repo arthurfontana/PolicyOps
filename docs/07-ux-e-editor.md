@@ -226,10 +226,21 @@ Rota interna `import`, acionada por **"Carregar tabela"** na tela de Projetos e 
 
 O que o assistente **reaproveita** do que já existe, em vez de recriar:
 
-- o diff de cada matriz do plano abre no `CompareView` de §9, em modo sobreposto, dentro de um painel do próprio assistente;
+- expandir uma matriz do plano mostra `plan.changes` (célula, campo, antes/depois) direto — **não**
+  embute o `CompareView` de §9: `CompareView` compara duas versões que já existem no documento, e
+  a matriz `NEW` do plano não tem nenhuma das duas ainda (DEC-CARGA-014); o plano já trouxe o diff
+  calculado, então a tela só o lista;
 - a fila de revisão pós-carga é a tela de Rascunhos filtrada por `importRunId`, com as ações "Marcar como revisado" e "Publicar" por item e "Publicar revisados" em lote;
-- as pendências de biblioteca do passo 3 abrem os mesmos editores de §11 (domínios, compatibilidade, conteúdo), com o valor do arquivo já preenchido;
+- as pendências de biblioteca do passo 3 abrem os mesmos editores de §11 (`DomainsEditor`,
+  `CompatibilityMapEditor`), com o valor do arquivo já preenchido, e gravam pelos mesmos comandos
+  que esses editores já usam;
+- mapear uma coluna de eixo (passo 2) para uma variável que ainda não existe abre o mesmo
+  `CreateVariableDialog` da tela de Variáveis, ali mesmo, sem sair do passo;
 - a barra de status e o indicador de alterações não salvas continuam valendo — uma carga aplicada é uma alteração como qualquer outra, sujeita ao `Ctrl+S`.
+
+O passo 1 arrasta-e-solta com uma zona própria (`FileDropZone`), **não** o `DropTarget` global de
+§2 — aquele sempre tenta abrir o arquivo solto como documento, e um `.csv` não é isso
+(DEC-CARGA-014).
 
 Um rascunho criado por carga exibe, na tela de Rascunhos e no inspector da versão, a origem: *"Criado pela carga CINEMINHA_20260708 em 10/08/2026"*. É a única marca visual que distingue rascunho de carga de rascunho feito à mão — em tudo o mais eles são idênticos, inclusive na edição e no descarte.
 

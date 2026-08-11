@@ -323,3 +323,52 @@ auditável se der para ver quais são.
 
 **Trade-off aceito.** O plano fica maior — cada matriz nova carrega a lista de supressões. Em
 troca, `import/apply` vira uma transcrição do plano revisado, sem decisão nova na hora de gravar.
+
+---
+
+## DEC-CARGA-014: quatro ajustes do assistente descobertos ao implementar a S22
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Quatro decisões de implementação, pequenas mas não óbvias a partir dos documentos anteriores, tomadas ao construir o assistente (`src/components/import/`): (1) drop-zone própria por passo, não o `DropTarget` global; (2) o passo 2 não pode exigir que os eixos já estejam publicados; (3) o diff do plano não embute `CompareView`; (4) o código de decisão nasce no próprio passo 4. |
+| **Data / gatilho** | 2026-08-11, S22 — cada uma apareceu como um bloqueio real ao rodar o assistente ponta a ponta contra o recorte do CINEMINHA. |
+| **Páginas afetadas** | `12-carga-de-matrizes.md` §6.1.1, `07-ux-e-editor.md` §14 |
+
+**(1) `FileDropZone` própria, não o `DropTarget` global.** O `DropTarget` de `02-arquitetura.md`
+escuta `drop` em `window` inteiro e sempre chama `openDroppedFile`, que tenta abrir o arquivo
+solto **como documento**. Um `.csv` da extração não é um documento — reaproveitar o componente
+global faria o shell tentar interpretar o cineminha como um `.json` inválido. A drop-zone do passo
+1 é local ao elemento e chama `stopPropagation` no `drop`, para o evento não subir até o listener
+global. "Reaproveitar `DropTarget`" (texto da sessão) vale como reaproveitar o padrão visual e de
+interação — borda tracejada, overlay "solte o arquivo" —, não a instância que abre documentos.
+
+**(2) O passo 2 não pode travar em "variável de eixo sem versão publicada".** Numa carga inicial,
+as variáveis de eixo mapeadas no próprio passo 2 (via "+ Nova variável") nascem sem domínio nem
+publicação — só o passo 3 resolve isso. Se o cálculo de tamanho de grid (I16) exigisse a
+publicação para responder, o passo 2 nunca teria "Avançar" liberado numa carga inicial, e não
+haveria como chegar ao passo 3 para publicar. `checkGridSize` por isso devolve um terceiro estado,
+`PENDING` (distinto de `OK` e `OVER`), que não bloqueia — o teto de 6.000 continua sendo aplicado
+de verdade por `planImport` no passo 5, que é quem tem autoridade sobre I16 (RN-18).
+
+**(3) O passo 5 não embute `CompareView` no diff de uma matriz.** `CompareView` (`07-ux-e-editor.md`
+§9) compara duas versões que já existem no documento. Uma matriz `NEW` do plano não tem nenhuma —
+"antes" e "depois" teriam que ser sintetizados só para a tela, dobrando a lógica que `plan.ts` já
+resolveu internamente (`syntheticVersion`, não exportado). Expandir uma matriz no passo 5 lista
+`plan.changes` diretamente (célula, campo, antes/depois), que é exatamente o resultado que
+`planImport` já calculou via `src/core/diff/` — sem reconstruir nada.
+
+**(4) O código de decisão nasce no passo 4, não é uma lacuna do passo 3.** Diferente de domínio,
+oferta ou compatibilidade — que vêm de valores **do arquivo** —, a decisão é uma classificação que
+o perfil impõe (`decisionRules`, DEC-CARGA-004): o arquivo não traz nenhuma coluna "decisão", então
+não há como o passo 3 propor `APROVADO`/`REPROVADO` a partir de dados observados. E como
+`decisionRules` só existe depois que o usuário o preenche no passo 4, um código de decisão
+referenciado ali só apareceria como lacuna do passo 3 numa segunda visita — um usuário que nunca
+volta ao passo 3 depois do passo 4 ficaria sem meio de criar o item. O select de decisão do passo 4
+ganha "Novo código de decisão…", que despacha `catalog/create` ali mesmo e já seleciona a regra —
+tags continuam vindo do passo 3 (kind `TAG`), porque são derivadas de valores observados
+(partição/desdobramento), o mesmo caso dos domínios e ofertas.
+
+**Trade-off aceito.** Nenhuma das quatro altera contrato do motor da S21 nem invariante do
+documento — são só onde, na composição de tela, cada responsabilidade fica. Registradas juntas
+porque nenhuma seria óbvia de prever sem montar o assistente inteiro e rodá-lo contra um arquivo
+real.

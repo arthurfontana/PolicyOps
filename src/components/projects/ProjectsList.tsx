@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react';
-import { FolderKanban, Plus } from 'lucide-react';
+import { FolderKanban, Plus, Upload } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { listProjects } from '@/core/queries';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
+import { useUiStore } from '@/store/ui-store';
 import { CreateProjectDialog } from '@/components/dialogs/CreateProjectDialog';
 
 /** Lista de projetos — docs/07-ux-e-editor.md §1, docs/prompts/S09-grid-e-matrizes.md. */
 export function ProjectsList() {
   const document = useDocumentStore((s) => s.document);
   const setSelectedProject = useEditorStore((s) => s.setSelectedProject);
+  const setView = useUiStore((s) => s.setView);
   const [createOpen, setCreateOpen] = useState(false);
 
   const summaries = useMemo(() => (document === null ? [] : listProjects(document)), [document]);
@@ -33,9 +35,14 @@ export function ProjectsList() {
             Agrupam as matrizes de política de crédito.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" /> Novo projeto
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="outline" onClick={() => setView('import')}>
+            <Upload className="mr-1.5 h-4 w-4" /> Carregar tabela
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> Novo projeto
+          </Button>
+        </div>
       </div>
 
       {summaries.length === 0 ? (

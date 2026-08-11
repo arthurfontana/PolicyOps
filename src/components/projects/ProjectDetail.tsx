@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Grid3x3, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Grid3x3, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
 import { useUiStore } from '@/store/ui-store';
+import { useImportStore } from '@/store/import-store';
 import { useToast } from '@/components/ui/use-toast';
 
 export interface ProjectDetailProps {
@@ -93,9 +94,20 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Matrizes</h2>
-        <Button onClick={() => setCreateMatrixOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" /> Nova matriz
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              useImportStore.getState().setProjectId(projectId);
+              setView('import');
+            }}
+          >
+            <Upload className="mr-1.5 h-4 w-4" /> Carregar tabela
+          </Button>
+          <Button onClick={() => setCreateMatrixOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> Nova matriz
+          </Button>
+        </div>
       </div>
 
       {matrices.length === 0 ? (

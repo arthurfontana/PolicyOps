@@ -840,6 +840,63 @@ Detalhes que valem como critério de aceite:
 - **Passo 6** informa em números o que vai acontecer ("cria 2 rascunhos, não publica nada") e,
   ao concluir, abre a fila de revisão (§6.2). Oferece também "Salvar como perfil".
 
+### 6.1.1 O que a tela faz de fato (S22)
+
+A S22 entrega os passos 1–4 e o passo 5 somente-leitura; o wireframe acima é o desenho completo
+do assistente (S22 + S24). O que já roda, em `src/components/import/`:
+
+- **Casca** (`ImportWizard.tsx` + `WizardStepper.tsx`): estado do assistente em
+  `src/store/import-store.ts` (Zustand puro — o documento nunca é escrito por aqui). "Avançar"
+  fica desabilitado enquanto o passo atual tiver pendência; voltar é sempre livre. Fechar com
+  mapeamento não salvo pede confirmação (reaproveita `ConfirmDialog` de `07-ux-e-editor.md` §11).
+  Entrada por "Carregar tabela" em `ProjectsList` e no cabeçalho de matrizes de `ProjectDetail`.
+- **Passo 1** (`Step1File.tsx`): `FileDropZone.tsx` é uma zona de soltar **escopada ao passo**, não
+  o `DropTarget` global de abrir documento — ver DEC-CARGA-014. Seleção de arquivo, colagem de
+  texto e correção manual de separador/linha de cabeçalho chamam `parseDelimitedTable` a cada
+  mudança; erros bloqueiam "Avançar" sem sair do passo.
+- **Passo 2** (`Step2Columns.tsx` + `Step2CalcPanel.tsx`): papel por coluna, desdobramento,
+  `codeTemplate`/`nameTemplate` com prévia e colisão destacada. Mapear uma coluna de eixo para uma
+  variável que ainda não existe abre `CreateVariableDialog` (mesmo componente da biblioteca) ali
+  mesmo — é o que permite montar `MODELO_ADICIONAL`/`FAIXA_MODELO_ADICIONAL` do zero numa carga
+  inicial, sem sair do passo 2 (DEC-CARGA-014). O painel de cálculo usa `step2ProfileIssues`
+  (variante de `validateProfile` sem exigir a regra `otherwise`, que só é preenchida no passo 4 —
+  sem isso o passo 2 nunca teria "Avançar" liberado) e trata "variável de eixo sem versão
+  publicada" como pendência que não bloqueia (`GridSizeCheck.status: 'PENDING'`), porque essas
+  variáveis nascem vazias no próprio passo 2 e só ganham domínio/publicação no passo 3.
+- **Passo 3** (`Step3Library.tsx` + `src/components/import/library/*`): uma seção por
+  `LibraryGap`, na ordem `DOMAINS → COMPATIBILITY → CATALOG`. `DomainsGapCard` embute
+  `DomainsEditor` (o mesmo editor da biblioteca) pré-preenchido; "Criar domínios pendentes" já é a
+  ação em lote da US-04, porque `computeLibraryGaps` agrega os domínios faltantes por variável.
+  Mapear/ignorar um valor grava só no perfil em memória (`valueMap`/`ignoredValues`), sem tocar no
+  documento. `CompatibilityGapCard` embute `CompatibilityMapEditor` e só libera "Criar mapa do
+  arquivo" quando as duas variáveis já estiverem publicadas. `CatalogGapCard` cobre os três kinds
+  que aparecem aqui (`OFFER`, `DECISION`, `TAG`) com criação individual ou em lote. Toda criação
+  sai pelos comandos normais (`library-actions.ts`), nunca por escrita direta (RN-17).
+- **Passo 4** (`Step4Content.tsx`): tabela de `decisionRules` com a linha `otherwise` fixa; como
+  decisão é classificação do próprio perfil (não vem do arquivo), o select de decisão tem "Novo
+  código de decisão…", que cria o item de catálogo ali mesmo (`catalog/create`) e já seleciona a
+  regra — sem isso, não haveria como nomear `APROVADO`/`REPROVADO` antes de eles existirem.
+  `missingRowPolicy` e as `tagRules` (uma por coluna de partição + desdobramento, preenchidas
+  automaticamente ao entrar no passo) só alimentam o perfil em memória — nenhuma tag é aplicada a
+  nenhuma matriz nesta sessão (isso é S23/S24).
+  - Consequência de projeto: como as lacunas de catálogo `DECISION` e `TAG` só existem depois que
+    o perfil tem `decisionRules`/`tagRules` (preenchidas no passo 4), voltar ao passo 3 depois de
+    configurar o passo 4 é o momento em que essas duas pendências aparecem — o assistente não
+    esconde isso, só não antecipa uma pendência que ainda não existe.
+- **Passo 5** (`Step5Plan.tsx` + `Step5MatrixDiffPanel.tsx`): chama `planImport` de verdade.
+  Plano bloqueado mostra `plan.issues` (linha, coluna, mensagem) em vez de qualquer tabela —
+  é a tela onde CT-07 aparece. Plano válido mostra os totais e a lista de matrizes por status,
+  inalteradas recolhidas por padrão, com "Avançar"/aplicar sempre desabilitado (rodapé: "a
+  aplicação da carga chega na próxima sessão"). Expandir uma matriz mostra `plan.changes`
+  diretamente (célula, campo, antes/depois) — **não** embute `CompareView`: `CompareView` precisa
+  de duas versões reais já existentes no documento, e a matriz `NEW` do plano não tem nenhuma
+  (DEC-CARGA-014). O passo 6 do wireframe aparece só como número desabilitado no stepper.
+
+O que **não** está nesta sessão: aplicar a carga, criar matriz ou rascunho, gravar o perfil como
+`ImportProfile` no documento (`importProfiles` só entra no schema na S23), a fila de revisão, e
+resolver estrutura divergente — tudo isso continua descrito no restante deste §6 como o desenho
+alvo das sessões seguintes.
+
 ### 6.2 Fila de revisão
 
 Reaproveita a tela de Rascunhos (`DraftsScreen`) com um filtro por carga: os rascunhos daquela
