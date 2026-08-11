@@ -58,6 +58,16 @@ test('épico Carga: primeira carga, publicação, segunda carga seletiva e terce
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(String(error)));
 
+  // O item de projeto na barra lateral ganha um badge de contagem de matrizes
+  // assim que o projeto deixa de estar vazio (docs/07-ux-e-editor.md §"Na
+  // barra lateral"), o que muda o nome acessível do botão de "Política B2C"
+  // para "Política B2C 18" — por isso o seletor não usa `exact` e fica preso
+  // à navegação, onde o nome é inequívoco mesmo com o badge.
+  const sidebar = page.getByRole('navigation', { name: 'Navegação principal' });
+  function politicaB2cNav() {
+    return sidebar.getByRole('button', { name: 'Política B2C' });
+  }
+
   await page.goto(FILE_URL);
   await page.getByLabel('Nome').fill('Teste E2E S22');
   await page.getByRole('button', { name: 'Começar' }).click();
@@ -94,7 +104,7 @@ test('épico Carga: primeira carga, publicação, segunda carga seletiva e terce
 
   // Abre o assistente pelo cabeçalho da lista de matrizes do projeto.
   await page.getByRole('button', { name: 'Projetos' }).click();
-  await page.getByRole('button', { name: 'Política B2C', exact: true }).click();
+  await politicaB2cNav().click();
   await page.getByRole('button', { name: 'Carregar tabela' }).click();
   await expect(page.getByRole('heading', { name: 'Carga de matrizes' })).toBeVisible();
 
@@ -250,7 +260,7 @@ test('épico Carga: primeira carga, publicação, segunda carga seletiva e terce
   // Segunda carga — 5 células alteradas numa matriz só (CT-02).
   // ---------------------------------------------------------------------
   await page.getByRole('button', { name: 'Projetos' }).click();
-  await page.getByRole('button', { name: 'Política B2C', exact: true }).click();
+  await politicaB2cNav().click();
   await page.getByRole('button', { name: 'Carregar tabela' }).click();
   await page.setInputFiles('input[type="file"]', alteredCsv());
 
@@ -281,7 +291,7 @@ test('épico Carga: primeira carga, publicação, segunda carga seletiva e terce
   // Terceira carga, do mesmo arquivo alterado — CT-01: nada a aplicar.
   // ---------------------------------------------------------------------
   await page.getByRole('button', { name: 'Projetos' }).click();
-  await page.getByRole('button', { name: 'Política B2C', exact: true }).click();
+  await politicaB2cNav().click();
   await page.getByRole('button', { name: 'Carregar tabela' }).click();
   await page.setInputFiles('input[type="file"]', alteredCsv());
   await page.getByRole('button', { name: 'Ir direto ao plano' }).click();
