@@ -48,6 +48,7 @@ export const DOMAIN_ERROR_CODES = [
   'IMPORT_PLAN_STALE',
   'IMPORT_NOTHING_TO_APPLY',
   'IMPORT_TARGET_HAS_DRAFT',
+  'TAG_NOT_FOUND',
 ] as const;
 
 export type DomainErrorCode = (typeof DOMAIN_ERROR_CODES)[number];

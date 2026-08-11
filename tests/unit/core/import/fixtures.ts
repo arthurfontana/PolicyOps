@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { encodeCellKey } from '@/core/axes/paths';
 import type {
   CatalogItem,
@@ -283,8 +283,14 @@ export function cineminhaProfile(overrides: Partial<ImportProfile> = {}): Import
 // Arquivos
 // ---------------------------------------------------------------------------
 
+/**
+ * Caminho relativo à raiz do repositório. Usa `process.cwd()` (o Vitest roda
+ * sempre da raiz) em vez de `import.meta.url`: no ambiente jsdom — que é o dos
+ * testes de componente que também consomem estas fixtures — `import.meta.url`
+ * não resolve para um caminho de arquivo.
+ */
 function repoFile(relative: string): string {
-  return readFileSync(fileURLToPath(new URL(`../../../../${relative}`, import.meta.url)), 'utf8');
+  return readFileSync(resolve(process.cwd(), relative), 'utf8');
 }
 
 /** Recorte de 231 linhas: G1 com Restritivos, G4 com R21–R25 e G6 com HVI4. */

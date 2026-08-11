@@ -1,13 +1,20 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
 /**
- * Sessão 22 — assistente de carga (passos 1–4 + plano somente leitura).
- * Critério de aceite ponta a ponta: abrir documento vazio → carregar o
- * recorte do CINEMINHA → mapear as 12 colunas → criar a biblioteca pelo
- * passo 3 → chegar ao passo 5 e ver as matrizes novas do recorte.
+ * O épico Carga ponta a ponta (S22 + S24). Um teste só, porque o valor está
+ * justamente na sequência: documento vazio → carga do recorte real → 18
+ * matrizes criadas → publicar todas → alterar 5 células do arquivo → segunda
+ * carga → exatamente 1 matriz alterada com 5 células, as outras 17 intocadas →
+ * publicar → terceira carga do mesmo arquivo → "nenhuma alteração a aplicar".
+ *
+ * Cobre CT-01, CT-02, CT-12, CT-15 e CT-16 sobre o recorte de 231 linhas
+ * (3 partições × 6 canais = 18 matrizes) em vez das 102 do arquivo inteiro:
+ * a mecânica é a mesma, e os números grandes já estão cobertos pelos testes
+ * de unidade e de desempenho.
  *
  * O documento parte só com `SCORE_HVI3` publicada (R01–R20) — a variável de
  * eixo X que já existe de verdade — para exercitar o passo 3 montando o
@@ -25,9 +32,41 @@ test.beforeAll(() => {
   }
 });
 
-test('carga do recorte CINEMINHA: arquivo → colunas → biblioteca → conteúdo → plano', async ({ page }) => {
+/**
+ * O arquivo da segunda carga: 5 células do canal Digital de uma mesma matriz
+ * (G1 · Sem Risco) com outra oferta. As linhas 2 a 6 do recorte pertencem ao
+ * mesmo par de partição, então mudar `OFERTA_DIGITAL` nelas produz uma única
+ * matriz alterada com exatamente 5 células.
+ */
+function alteredCsv(): string {
+  const original = readFileSync(RECORTE_PATH, 'utf8');
+  const lines = original.split('\n');
+  const header = lines[0]!.split(';');
+  const digital = header.indexOf('OFERTA_DIGITAL');
+  for (let line = 2; line <= 6; line++) {
+    const fields = lines[line - 1]!.split(';');
+    fields[digital] = fields[digital] === '0' ? '15' : '0';
+    lines[line - 1] = fields.join(';');
+  }
+  const target = path.join(mkdtempSync(path.join(tmpdir(), 'policyops-e2e-')), 'CINEMINHA_ALTERADO.csv');
+  writeFileSync(target, lines.join('\n'), 'utf8');
+  return target;
+}
+
+test('épico Carga: primeira carga, publicação, segunda carga seletiva e terceira sem alteração', async ({ page }) => {
+  test.setTimeout(180_000);
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(String(error)));
+
+  // O item de projeto na barra lateral ganha um badge de contagem de matrizes
+  // assim que o projeto deixa de estar vazio (docs/07-ux-e-editor.md §"Na
+  // barra lateral"), o que muda o nome acessível do botão de "Política B2C"
+  // para "Política B2C 18" — por isso o seletor não usa `exact` e fica preso
+  // à navegação, onde o nome é inequívoco mesmo com o badge.
+  const sidebar = page.getByRole('navigation', { name: 'Navegação principal' });
+  function politicaB2cNav() {
+    return sidebar.getByRole('button', { name: 'Política B2C' });
+  }
 
   await page.goto(FILE_URL);
   await page.getByLabel('Nome').fill('Teste E2E S22');
@@ -65,7 +104,7 @@ test('carga do recorte CINEMINHA: arquivo → colunas → biblioteca → conteú
 
   // Abre o assistente pelo cabeçalho da lista de matrizes do projeto.
   await page.getByRole('button', { name: 'Projetos' }).click();
-  await page.getByRole('button', { name: 'Política B2C', exact: true }).click();
+  await politicaB2cNav().click();
   await page.getByRole('button', { name: 'Carregar tabela' }).click();
   await expect(page.getByRole('heading', { name: 'Carga de matrizes' })).toBeVisible();
 
@@ -176,10 +215,92 @@ test('carga do recorte CINEMINHA: arquivo → colunas → biblioteca → conteú
 
   await page.getByRole('button', { name: 'Avançar' }).click();
 
-  // Passo 5 — plano, somente leitura: 18 matrizes novas (3 partições × 6 canais).
-  await expect(page.getByText('18 novas')).toBeVisible();
-  await expect(page.getByText('A aplicação da carga chega na próxima sessão.')).toBeVisible();
+  // ---------------------------------------------------------------------
+  // Passo 5 — o plano: 18 matrizes novas (3 partições × 6 canais).
+  // ---------------------------------------------------------------------
+  await expect(page.getByText('18 novas', { exact: true })).toBeVisible();
   await expect(page.getByText('O plano está bloqueado')).not.toBeVisible();
+  await expect(page.getByTestId('plan-selected-count')).toHaveText('18 de 18 selecionadas');
+
+  // ---------------------------------------------------------------------
+  // Passo 6 — aplicar. Nada é publicado aqui (RN-10).
+  // ---------------------------------------------------------------------
+  await page.getByRole('button', { name: 'Avançar' }).click();
+  await page.getByLabel('Nota da carga').fill('Primeira carga do recorte CINEMINHA');
+  await expect(page.getByTestId('apply-summary')).toContainText('cria 18 matrizes');
+  await expect(page.getByTestId('apply-summary')).toContainText('Não publica nada');
+  await page.getByTestId('apply-import').click();
+
+  const report = page.getByTestId('import-report');
+  await expect(report).toBeVisible();
+  await expect(report.getByText('18 matrizes criadas')).toBeVisible();
+  await expect(report.getByText('18 rascunhos a revisar')).toBeVisible();
+
+  // US-08 — salva o perfil, para a segunda carga reconhecer o cabeçalho.
+  await report.getByLabel('Código').fill('CARGA_CINEMINHA');
+  await report.getByLabel('Nome').fill('Carga do cineminha');
+  await page.getByTestId('save-profile').click();
+  await expect(page.getByText('Perfil gravado.')).toBeVisible();
+
+  // ---------------------------------------------------------------------
+  // Fila de revisão — CT-15 e CT-16: publicável na sequência, sem ajuste.
+  // ---------------------------------------------------------------------
+  await page.getByTestId('open-review-queue').click();
+  await expect(page.getByRole('heading', { name: 'Fila de revisão da carga' })).toBeVisible();
+
+  const marcarRevisado = page.getByRole('button', { name: 'Marcar como revisado' });
+  await expect(marcarRevisado).toHaveCount(18);
+  for (let index = 17; index >= 0; index--) {
+    await marcarRevisado.nth(index).click();
+  }
+  await page.getByTestId('publish-reviewed').click();
+  await expect(page.getByText('Todos os rascunhos desta carga já foram publicados ou descartados.')).toBeVisible();
+
+  // ---------------------------------------------------------------------
+  // Segunda carga — 5 células alteradas numa matriz só (CT-02).
+  // ---------------------------------------------------------------------
+  await page.getByRole('button', { name: 'Projetos' }).click();
+  await politicaB2cNav().click();
+  await page.getByRole('button', { name: 'Carregar tabela' }).click();
+  await page.setInputFiles('input[type="file"]', alteredCsv());
+
+  // RN-19: o cabeçalho é idêntico ao do perfil salvo, então ele é reconhecido
+  // e o atalho leva direto ao plano.
+  await expect(page.getByText(/Perfil.*reconhecido pelo cabeçalho/)).toBeVisible();
+  await page.getByRole('button', { name: 'Ir direto ao plano' }).click();
+
+  await expect(page.getByText('1 alteradas', { exact: true })).toBeVisible();
+  await expect(page.getByText('17 inalteradas', { exact: true })).toBeVisible();
+  await expect(page.getByText('5 células no total')).toBeVisible();
+  await expect(page.getByTestId('plan-selected-count')).toHaveText('1 de 1 selecionadas');
+
+  await page.getByRole('button', { name: 'Avançar' }).click();
+  await page.getByLabel('Nota da carga').fill('Segunda carga: cinco células do canal Digital');
+  await expect(page.getByTestId('apply-summary')).toContainText('cria 1 rascunho');
+  await page.getByTestId('apply-import').click();
+  await expect(page.getByTestId('import-report').getByText('1 rascunhos a revisar')).toBeVisible();
+
+  // Só uma matriz recebeu rascunho — as outras 17 seguem intocadas.
+  await page.getByTestId('open-review-queue').click();
+  await expect(page.getByRole('button', { name: 'Marcar como revisado' })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Marcar como revisado' }).click();
+  await page.getByTestId('publish-reviewed').click();
+  await expect(page.getByText('Todos os rascunhos desta carga já foram publicados ou descartados.')).toBeVisible();
+
+  // ---------------------------------------------------------------------
+  // Terceira carga, do mesmo arquivo alterado — CT-01: nada a aplicar.
+  // ---------------------------------------------------------------------
+  await page.getByRole('button', { name: 'Projetos' }).click();
+  await politicaB2cNav().click();
+  await page.getByRole('button', { name: 'Carregar tabela' }).click();
+  await page.setInputFiles('input[type="file"]', alteredCsv());
+  await page.getByRole('button', { name: 'Ir direto ao plano' }).click();
+
+  await expect(page.getByText('18 inalteradas', { exact: true })).toBeVisible();
+  await expect(page.getByText('0 células no total')).toBeVisible();
+  await expect(page.getByTestId('plan-selected-count')).toHaveText('0 de 0 selecionadas');
+  // "Avançar" desabilitado é o "nenhuma alteração a aplicar" do critério de aceite.
+  await expect(page.getByRole('button', { name: 'Avançar' })).toBeDisabled();
 
   expect(pageErrors).toEqual([]);
 });

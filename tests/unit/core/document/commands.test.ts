@@ -326,7 +326,7 @@ describe('matrix/setTags', () => {
       criada.document,
       ctx,
       setMatrixTags({ matrixId: criada.data.matrixId, add: ['NAO_EXISTE'] }),
-      'NOT_FOUND',
+      'TAG_NOT_FOUND',
     );
   });
 

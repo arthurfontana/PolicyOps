@@ -2,8 +2,8 @@ import { Badge } from '@/components/ui/badge';
 import { AxisEditor } from '@/components/editor/AxisEditor';
 import { MatrixTagsEditor } from '@/components/inspector/MatrixTagsEditor';
 import type { AxisRole } from '@/core/document/schema';
-import { getEditorView, type EditorAxisView } from '@/core/queries';
-import { formatDateTimeBR } from '@/lib/format';
+import { getEditorView, getImportOrigin, type EditorAxisView } from '@/core/queries';
+import { formatDateBR, formatDateTimeBR } from '@/lib/format';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
@@ -54,6 +54,9 @@ export function VersionInspector() {
   if (document === null || currentVersionId === null) return null;
 
   const view = getEditorView(document, currentVersionId);
+  // A origem do rascunho: qual carga o criou (docs/12 §6.2). `null` quando ele
+  // nasceu à mão, que é o caso de todo rascunho fora do fluxo de carga.
+  const importOrigin = getImportOrigin(document, currentVersionId);
   const { matrix, version, project, stats } = view;
   const badge = versionBadge(version);
 
@@ -120,6 +123,18 @@ export function VersionInspector() {
           </ul>
         )}
       </div>
+
+      {importOrigin !== null && (
+        <div
+          className="rounded-md border border-neutral-200 p-2 text-xs dark:border-neutral-800"
+          data-testid="version-import-origin"
+        >
+          <span className="font-semibold text-neutral-700 dark:text-neutral-300">Origem</span>
+          <p className="mt-0.5 text-neutral-600 dark:text-neutral-400">
+            Criado pela carga {importOrigin.profileCode} em {formatDateBR(importOrigin.at)}
+          </p>
+        </div>
+      )}
 
       {version.notes !== undefined && (
         <div className="rounded-md border border-neutral-200 p-2 text-xs dark:border-neutral-800">

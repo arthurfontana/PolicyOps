@@ -1,7 +1,8 @@
 # Carga de Matrizes
 
-> **Estado**: 🔮 Planejado (sessões S21–S25)
-> **DECs relacionadas**: DEC-CARGA-001 a DEC-CARGA-010 (`13-decisoes.md`)
+> **Estado**: ✅ Entregue nas sessões S21–S24 (marco M6). US-01 a US-10 no ar; falta a S25
+> (evolução estrutural: matriz `ESTRUTURA DIVERGENTE` continua listada e não aplicável).
+> **DECs relacionadas**: DEC-CARGA-001 a DEC-CARGA-016 (`13-decisoes.md`)
 > **Documento normativo.** O motor vive em `src/core/import/` como TypeScript puro.
 
 ## 1. O que é e para quem
@@ -33,7 +34,7 @@ que se decompõem em 17 grids × 6 canais = **102 matrizes** e 40.068 células.
 
 ## 2. Histórias de usuário
 
-### US-01 — Carregar a tabela interna sem digitar nada
+### US-01 — Carregar a tabela interna sem digitar nada ✅
 **Como** responsável pela política, **quero** apontar o arquivo da extração e ver a estrutura
 reconhecida, **para** não recriar 102 matrizes na mão.
 
@@ -48,7 +49,7 @@ reconhecida, **para** não recriar 102 matrizes na mão.
   erro `IMPORT_PARSE_ERROR` apontando a **linha e a coluna** do problema, e o assistente
   permanece no passo 1.
 
-### US-02 — Declarar o papel de cada coluna uma vez só
+### US-02 — Declarar o papel de cada coluna uma vez só ✅
 **Como** responsável pela política, **quero** dizer quais colunas identificam a matriz, quais
 formam cada eixo e quais carregam conteúdo, **para** que o mesmo formato seja reconhecido
 sozinho nas próximas cargas.
@@ -65,7 +66,7 @@ sozinho nas próximas cargas.
   com prévia dos códigos gerados e detecção de colisão antes de qualquer gravação.
 - O mapeamento completo pode ser salvo como **perfil** nomeado dentro do documento (US-08).
 
-### US-03 — Ligar os valores do arquivo à biblioteca
+### US-03 — Ligar os valores do arquivo à biblioteca ✅
 **Como** responsável pela política, **quero** ver quais valores do arquivo ainda não existem na
 biblioteca, **para** resolver isso antes de carregar, sem descobrir no meio do caminho.
 
@@ -80,7 +81,7 @@ biblioteca, **para** resolver isso antes de carregar, sem descobrir no meio do c
 - O mesmo vale para as colunas de valor: cada valor distinto (`0`, `3`, `5`, `8`, `12`, `15`) casa
   com um item de catálogo do kind certo.
 
-### US-04 — Montar a biblioteca a partir do próprio arquivo
+### US-04 — Montar a biblioteca a partir do próprio arquivo ✅
 **Como** responsável pela política, **quero** que o arquivo crie as variáveis, os domínios, a
 regra de compatibilidade e os itens de catálogo que faltam, **para** não transcrever 28 domínios
 e um mapa de compatibilidade à mão na carga inicial.
@@ -102,7 +103,7 @@ e um mapa de compatibilidade à mão na carga inicial.
   (`07-ux-e-editor.md` §11) sem invalidar nenhuma matriz, porque o snapshot do eixo só carrega
   identidade (`03-modelo-do-documento.md` §6.1).
 
-### US-05 — Ver o que vai mudar antes de mudar
+### US-05 — Ver o que vai mudar antes de mudar ✅
 **Como** responsável pela política, **quero** um plano da carga com uma linha por matriz,
 **para** decidir o que aplicar sabendo exatamente o impacto.
 
@@ -117,7 +118,7 @@ e um mapa de compatibilidade à mão na carga inicial.
 - O plano é **dry-run puro**: nada é gravado no documento até o passo de aplicação (RN-13).
 - Plano de 102 matrizes e 40.000 células é calculado em menos de 1 s.
 
-### US-06 — Versionar só o que mudou
+### US-06 — Versionar só o que mudou ✅
 **Como** responsável pela política, **quero** que a carga crie rascunho apenas nas matrizes
 alteradas, **para** que a linha do tempo mostre quais pedaços da política mudaram em cada mês.
 
@@ -132,7 +133,7 @@ alteradas, **para** que a linha do tempo mostre quais pedaços da política muda
 - Carregar duas vezes o mesmo arquivo sobre o mesmo documento produz, na segunda vez,
   "nenhuma alteração" em todas as matrizes (RN-05).
 
-### US-07 — Revisar e publicar matriz a matriz
+### US-07 — Revisar e publicar matriz a matriz ✅
 **Como** responsável pela política, **quero** revisar o diff de cada rascunho criado pela carga
 antes de publicar, **para** que nada entre em vigor sem alguém ter olhado.
 
@@ -147,7 +148,7 @@ antes de publicar, **para** que nada entre em vigor sem alguém ter olhado.
   a origem "Carga <perfil> de dd/mm/aaaa".
 - Nenhuma publicação automática existe no fluxo (RN-10).
 
-### US-08 — Reaproveitar o mapeamento na carga seguinte
+### US-08 — Reaproveitar o mapeamento na carga seguinte ✅
 **Como** responsável pela política, **quero** que a próxima carga reconheça o formato sozinha,
 **para** que a atualização mensal seja "abrir o arquivo, olhar o plano, publicar".
 
@@ -161,7 +162,7 @@ antes de publicar, **para** que nada entre em vigor sem alguém ter olhado.
   com o mapeamento manual.
 - Editar um perfil existente não altera nenhuma carga já aplicada.
 
-### US-09 — Filtrar 102 matrizes por tag
+### US-09 — Filtrar 102 matrizes por tag 🟡
 **Como** responsável pela política, **quero** marcar as matrizes com tags e filtrar por elas,
 **para** achar "o canal Digital" ou "tudo do G4" numa lista de 102 itens.
 
@@ -172,11 +173,14 @@ antes de publicar, **para** que nada entre em vigor sem alguém ter olhado.
 - A carga aplica as tags do perfil automaticamente a partir das colunas de partição e da dimensão
   desdobrada, sem apagar tags aplicadas manualmente (RN-12).
 - A lista de matrizes e a barra lateral filtram por tag, com facetas por grupo e combinação `E`
-  entre grupos diferentes (`Canal: Digital` **e** `Cluster: G4`).
+  entre grupos diferentes (`Canal: Digital` **e** `Cluster: G4`). **Pendente (S23)**: o modelo
+  (`Matrix.tags`, `CatalogItem.group`, `matrix/setTags`) e a aplicação automática pela carga estão
+  no ar; o filtro por facetas da lista e da barra lateral, não. O passo 5 do assistente já filtra
+  por tag dentro do próprio plano.
 - Renomear uma tag reflete em todas as matrizes; arquivar uma tag a esconde dos filtros sem
   removê-la das matrizes que já a têm.
 
-### US-10 — Auditar a carga depois
+### US-10 — Auditar a carga depois ✅
 **Como** auditor da política, **quero** ver na linha do tempo que houve uma carga e o que ela
 produziu, **para** rastrear qualquer célula até o arquivo que a originou.
 
@@ -679,7 +683,7 @@ hashText(text: string): string;         // 16 dígitos hex do texto normalizado 
 hashTable(table: ImportTable): string;  // a mesma coisa, a partir da tabela já lida
 hashValue(value: unknown): string;      // serialização canônica (chaves ordenadas)
 
-// apply.ts — comando (S24)
+// apply.ts — comando (S24, entregue)
 'import/apply': {
   profile: ImportProfile;
   table: { header: string[]; rows: string[][] };
@@ -687,8 +691,47 @@ hashValue(value: unknown): string;      // serialização canônica (chaves orde
   planHash: string;                     // o plano que o usuário revisou (RN-14)
   selectedKeys: string[];               // matrizes escolhidas no plano
   notes: string;                        // nota da carga, ≥ 10 caracteres
-} → { importRunId: string; createdMatrices: string[]; createdDrafts: string[] };
+} → {
+  importRunId: string;
+  createdMatrices: string[];            // Matrix.id das NEW aplicadas
+  createdDrafts: string[];              // MatrixVersion.id de todo rascunho criado
+  ignoredByUser: string[];              // aplicáveis deixadas de fora (CT-14)
+};
+
+// profile-commands.ts — o perfil dentro do documento (US-08)
+'importProfile/save':   { profile: ImportProfile } → { profileId: string; created: boolean };
+'importProfile/delete': { profileId: string } → void;
 ```
+
+**Como `import/apply` aplica.** Ele não reimplementa criação de matriz nem patch de célula:
+compõe os comandos que já existem (`08-camada-de-comandos.md` §3) sobre um documento de trabalho,
+na ordem obrigatória de §1 daquele documento — validar antes de tocar.
+
+1. `planImport` é recalculado sobre o documento corrente; `planHash` diferente → `IMPORT_PLAN_STALE`
+   e **nada** é gravado (RN-14, CT-11);
+2. a nota é validada contra o mínimo de `version/publish` (`NOTES_REQUIRED`), porque é ela que vira
+   a nota padrão de cada publicação daquela carga;
+3. a seleção é conferida contra o plano recalculado: `STRUCTURAL` → `IMPORT_STRUCTURE_DIVERGED`,
+   `BLOCKED` → `IMPORT_TARGET_HAS_DRAFT`, nenhuma `NEW`/`CHANGED` sobrando → `IMPORT_NOTHING_TO_APPLY`.
+   `UNCHANGED` e `ABSENT_IN_FILE` selecionadas não são erro: simplesmente não produzem nada (RN-02);
+4. matriz `NEW`: `matrix/create` com os eixos do perfil → `axis/suppressTuples` com as tuplas não
+   observadas (RN-21) → `version/applyCellPatches` com as células → `matrix/setTags`;
+5. matriz `CHANGED`: `version/createDraft` a partir da publicada → `version/applyCellPatches` com
+   **apenas** as células que mudam → `matrix/setTags`;
+6. tags sempre por `add`, nunca por `remove` (RN-12), com o comando idempotente — recarregar não
+   duplica (CT-13);
+7. um evento `IMPORT_RUN` no documento, e `importRunId` no payload de cada `MATRIX_CREATED`,
+   `DRAFT_CREATED` e `CELLS_UPDATED` da rodada (US-10).
+
+As células viram patches agrupados por conteúdo idêntico do `set`: 40.068 células com seis ofertas
+distintas produzem seis patches, não 40.068 comandos.
+
+**Atomicidade sem mecanismo próprio.** Cada passo é um comando aplicado a um documento imutável.
+Um erro no meio do lote propaga o `DomainError` para fora de `execute`, e `defineCommand` devolve
+`{ ok: false }` com o documento **recebido** intocado — nenhuma das matrizes anteriores fica
+gravada. O inverso desfaz os subcomandos na ordem contrária: descarta os rascunhos criados e
+remove as matrizes criadas. O log de eventos não é rebobinado, porque é append-only
+(`03-modelo-do-documento.md` §8) e desfazer é registro, não reescrita da história.
 
 `source.contentHash` sai de `hashTable` quando o chamador não informa nada — a
 mesma informação do arquivo em forma canônica, imune a BOM, CRLF e escolha de
@@ -840,7 +883,7 @@ Detalhes que valem como critério de aceite:
 - **Passo 6** informa em números o que vai acontecer ("cria 2 rascunhos, não publica nada") e,
   ao concluir, abre a fila de revisão (§6.2). Oferece também "Salvar como perfil".
 
-### 6.1.1 O que a tela faz de fato (S22)
+### 6.1.1 O que a S22 entregou (passos 1–4 e o plano somente leitura)
 
 A S22 entrega os passos 1–4 e o passo 5 somente-leitura; o wireframe acima é o desenho completo
 do assistente (S22 + S24). O que já roda, em `src/components/import/`:
@@ -892,17 +935,53 @@ do assistente (S22 + S24). O que já roda, em `src/components/import/`:
   de duas versões reais já existentes no documento, e a matriz `NEW` do plano não tem nenhuma
   (DEC-CARGA-014). O passo 6 do wireframe aparece só como número desabilitado no stepper.
 
-O que **não** está nesta sessão: aplicar a carga, criar matriz ou rascunho, gravar o perfil como
-`ImportProfile` no documento (`importProfiles` só entra no schema na S23), a fila de revisão, e
-resolver estrutura divergente — tudo isso continua descrito no restante deste §6 como o desenho
-alvo das sessões seguintes.
+O que **não** estava naquela sessão — aplicar a carga, criar matriz ou rascunho, gravar o perfil no
+documento, a fila de revisão — é o que a S24 entregou, descrito em §6.1.2. Resolver estrutura
+divergente continua fora (S25).
+
+### 6.1.2 O que a S24 entregou (o plano interativo, a aplicação e a fila)
+
+- **Passo 1** ganha o outro lado de RN-19. Cabeçalho **idêntico** ao `signature` de um perfil salvo
+  é reconhecido e oferece "Ir direto ao plano". Cabeçalho **parecido mas diferente** não é aplicado
+  em silêncio: `nearestImportProfile` acha o perfil mais próximo (a partir de metade das colunas em
+  comum) e a tela mostra a diferença coluna a coluna — o que falta, o que sobra, se só a ordem
+  mudou — e exige confirmação antes de liberar o avanço para o mapeamento manual (CT-12).
+- **Passo 5** (`Step5Plan.tsx`) vira a tela de decisão: caixa de seleção por matriz, seleção em
+  massa por estado, filtros por estado e por tag, busca por código, ordenação por número de células
+  alteradas, e inalteradas recolhidas por padrão com a contagem. Tudo o que é aplicável começa
+  marcado. `STRUCTURAL`, `BLOCKED` e `ABSENT_IN_FILE` aparecem com o motivo e a ação sugerida e
+  **sem** caixa de seleção. "Ver diff" abre o `CompareView` de `07-ux-e-editor.md` §9 num painel do
+  assistente, sobre o par de versões que `plan-preview.ts` monta a partir do plano num documento
+  descartável (DEC-CARGA-015) — a expansão da linha continua listando `plan.changes` direto, que é
+  a leitura rápida.
+- **Passo 6** (`Step6Apply.tsx`): a nota da carga (mínimo de 10 caracteres), o resumo em números
+  ("cria 2 rascunhos. Não publica nada."), e a ação. Ao concluir, o relatório com o que foi criado
+  e o atalho "Abrir a fila de revisão"; e "Salvar como perfil" com código e nome, que vira
+  "Atualizar perfil" quando o cabeçalho já veio reconhecido.
+- **Fila de revisão**: §6.2, na tela de Rascunhos.
+- O estado do assistente (seleção, nota, relatório) fica em `src/store/import-store.ts`; o filtro
+  por carga e a marca "revisado", em `src/store/ui-store.ts`, porque sobrevivem ao fechamento do
+  assistente (DEC-CARGA-016).
 
 ### 6.2 Fila de revisão
 
 Reaproveita a tela de Rascunhos (`DraftsScreen`) com um filtro por carga: os rascunhos daquela
 `importRunId`, cada um com o resumo semântico, ações "Ver diff", "Marcar como revisado" e
 "Publicar", e um botão de lote "Publicar revisados". A origem fica visível no rascunho mesmo
-depois de fechar o assistente: *"Criado pela carga CINEMINHA_20260708 em 10/08/2026"*.
+depois de fechar o assistente: *"Criado pela carga CINEMINHA_20260708 em 10/08/2026"* — na linha da
+fila e no inspector da versão.
+
+"Publicar revisados" chama `version/publish` item a item, com a nota da carga, **para no primeiro
+erro** e informa o que já foi publicado: metade do lote publicada é um fato do documento, não um
+detalhe a esconder. Publicar continua sendo ato de gente: a carga nunca publica sozinha, em nenhum
+caminho (RN-10).
+
+A carga que criou cada rascunho é lida do próprio log — `getImportOrigin` acha o `importRunId` no
+`DRAFT_CREATED` da versão e casa com o `IMPORT_RUN` correspondente (`08-camada-de-comandos.md` §4).
+Não há campo novo no documento para isso: a auditoria de US-10 já carrega a informação inteira.
+
+"Revisado" é estado de interface, não campo do documento (DEC-CARGA-016): some ao recarregar a
+aplicação, e o que sobrevive é o rascunho.
 
 ### 6.3 Tags
 

@@ -29,7 +29,7 @@
 | 21 | Motor de carga de matrizes | **Opus** | ✅ **Entregue** — `planImport` sobre o CSV real: 102 matrizes classificadas em novas/alteradas/inalteradas, com diff por célula, 100% testado | 14 |
 | 22 | Assistente de carga: arquivo, colunas e biblioteca | **Sonnet** | ✅ **Entregue** — passos 1–4 do assistente e o passo 5 (plano) somente leitura; a biblioteca do documento sai montada a partir do arquivo | 21 |
 | 23 | Tags de matriz, filtro e schema 3 | **Sonnet** | ✅ **Entregue** — schema 3, migração 2→3 puramente aditiva, tags de matriz com facetas de filtro, perfis de carga persistidos | 20 |
-| 24 | Aplicação da carga e versionamento seletivo | **Opus** | Carga aplicada: rascunho só nas alteradas, fila de revisão, perfil salvo, auditoria e idempotência | 22, 23 |
+| 24 | Aplicação da carga e versionamento seletivo | **Opus** | ✅ **Entregue** — carga aplicada: rascunho só nas alteradas, fila de revisão, perfil salvo, auditoria e idempotência | 22, 23 |
 | 25 | Evolução estrutural na carga | **Opus** | Faixa nova no arquivo vira nova versão de variável adotada no rascunho, sem caminho manual | 24 |
 
 > **Sessão 21 entregue.** O motor vive em `src/core/import/` (`issues`, `parse-table`, `profile`,
@@ -67,6 +67,18 @@
 > mesma sessão, para o build continuar fechando — nenhum dos dois tinha
 > cobertura de teste dedicada antes, então o alcance ficou no mínimo necessário
 > para manter o documento válido depois de um merge ou de um save.
+>
+> **Sessão 24 entregue — marco M6 fechado.** `import/apply` (`src/core/import/apply.ts`) compõe os
+> comandos existentes para criar as matrizes novas e um rascunho **só** nas alteradas, sem publicar
+> nada (RN-10); o passo 5 vira o plano interativo com seleção, filtros e o `CompareView` embutido
+> (DEC-CARGA-015), o passo 6 aplica e abre a fila de revisão, e a tela de Rascunhos ganha o filtro
+> por `importRunId` com "Publicar revisados" em lote. CT-01, CT-02, CT-10, CT-11, CT-13, CT-14,
+> CT-15 e CT-16 verdes, mais o inverso, a atomicidade do lote e os 102 rascunhos do arquivo real
+> aplicados em ~800 ms (orçamento de 2 s). O E2E do épico roda a sequência inteira: carga →
+> publicação → 5 células alteradas → segunda carga com 1 matriz → terceira carga sem nada a aplicar.
+> A S24 foi desenvolvida em paralelo à S23 e dependia do modelo de documento dela
+> (`schemaVersion: 3`, `importProfiles`, `Matrix.tags`, `CatalogItem.group`, I20–I22); as duas
+> convergiram nesta branch.
 >
 > A sessão 17 acumula três frentes. Se ficar grande, quebre em 17a (templates), 17b (merge de documentos) e 17c (export e polimento) — o prompt já vem dividido nessas três partes, com critérios de aceite independentes.
 

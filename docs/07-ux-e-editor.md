@@ -226,11 +226,16 @@ Rota interna `import`, acionada por **"Carregar tabela"** na tela de Projetos e 
 
 O que o assistente **reaproveita** do que já existe, em vez de recriar:
 
-- expandir uma matriz do plano mostra `plan.changes` (célula, campo, antes/depois) direto — **não**
-  embute o `CompareView` de §9: `CompareView` compara duas versões que já existem no documento, e
-  a matriz `NEW` do plano não tem nenhuma das duas ainda (DEC-CARGA-014); o plano já trouxe o diff
-  calculado, então a tela só o lista;
-- a fila de revisão pós-carga é a tela de Rascunhos filtrada por `importRunId`, com as ações "Marcar como revisado" e "Publicar" por item e "Publicar revisados" em lote;
+- expandir a linha de uma matriz do plano lista `plan.changes` (célula, campo, antes/depois) direto,
+  e **"Ver diff" abre o `CompareView` de §9** num painel do assistente: o par de versões que ele
+  exige é montado a partir do plano, num documento descartável em memória (DEC-CARGA-015). O plano
+  é dry-run (RN-13), então nenhuma das duas versões existe no documento aberto — quem as sintetiza
+  é `src/components/import/plan-preview.ts`, reusando `getEditorView` e `diffVersions` sem duplicar
+  nem uma nem outra;
+- a fila de revisão pós-carga é a tela de Rascunhos filtrada por `importRunId`, com as ações "Marcar
+  como revisado" e "Publicar" por item e "Publicar revisados" em lote, que publica **só** os
+  marcados, com a nota da carga, para no primeiro erro e informa o que já foi publicado. "Revisado"
+  é estado de interface, não campo do documento (DEC-CARGA-016);
 - as pendências de biblioteca do passo 3 abrem os mesmos editores de §11 (`DomainsEditor`,
   `CompatibilityMapEditor`), com o valor do arquivo já preenchido, e gravam pelos mesmos comandos
   que esses editores já usam;
@@ -241,6 +246,15 @@ O que o assistente **reaproveita** do que já existe, em vez de recriar:
 O passo 1 arrasta-e-solta com uma zona própria (`FileDropZone`), **não** o `DropTarget` global de
 §2 — aquele sempre tenta abrir o arquivo solto como documento, e um `.csv` não é isso
 (DEC-CARGA-014).
+
+O passo 5 é a tela onde a carga é decidida: seleção por matriz e em massa por estado, filtros por
+estado e por tag, busca por código e ordenação por número de células alteradas, com as inalteradas
+recolhidas por padrão. Matriz `STRUCTURAL`, `BLOCKED` ou `ABSENT_IN_FILE` aparece com o motivo e a
+ação sugerida, e **sem** caixa de seleção — não há caminho de tela que leve a aplicar o que a
+regra proíbe. O passo 6 exige a nota da carga (mínimo de 10 caracteres, que vira a nota padrão de
+cada publicação daquela carga), diz em números o que vai acontecer — *"cria 2 rascunhos. Não
+publica nada."* — e, ao concluir, mostra o relatório com o atalho para a fila de revisão e a opção
+de salvar o mapeamento como perfil.
 
 Um rascunho criado por carga exibe, na tela de Rascunhos e no inspector da versão, a origem: *"Criado pela carga CINEMINHA_20260708 em 10/08/2026"*. É a única marca visual que distingue rascunho de carga de rascunho feito à mão — em tudo o mais eles são idênticos, inclusive na edição e no descarte.
 

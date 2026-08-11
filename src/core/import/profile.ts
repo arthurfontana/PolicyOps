@@ -554,3 +554,56 @@ export function validateProfileAgainstHeader(
       }),
     );
 }
+
+// ---------------------------------------------------------------------------
+// RN-19 — cabeçalho parecido, mas diferente (CT-12)
+// ---------------------------------------------------------------------------
+
+export type HeaderComparison = {
+  profile: ImportProfile;
+  /** Colunas do `signature` que o arquivo não tem. */
+  missing: string[];
+  /** Colunas do arquivo que o `signature` não previa. */
+  extra: string[];
+  /** Mesmas colunas, ordem diferente. */
+  reordered: boolean;
+};
+
+/**
+ * O perfil salvo mais **próximo** de um cabeçalho que nenhum reconheceu, com a
+ * diferença coluna a coluna. Reconhecer é só igualdade exata (RN-19); isto
+ * aqui existe para o outro caminho de CT-12: mostrar por que não reconheceu e
+ * pedir confirmação antes de seguir no mapeamento manual — nunca para aplicar
+ * o perfil por semelhança.
+ *
+ * "Mais próximo" é o de maior interseção de nomes de coluna, e só conta a
+ * partir de metade das colunas em comum: abaixo disso é outro arquivo, não um
+ * arquivo com uma coluna a mais.
+ */
+export function nearestImportProfile(
+  doc: DocumentWithProfiles,
+  header: readonly string[],
+): HeaderComparison | undefined {
+  const present = new Set(header);
+  let best: HeaderComparison | undefined;
+  let bestScore = 0;
+
+  for (const profile of documentProfiles(doc)) {
+    const missing = profile.signature.filter((name) => !present.has(name));
+    const signature = new Set(profile.signature);
+    const extra = header.filter((name) => !signature.has(name));
+    const shared = profile.signature.length - missing.length;
+    if (shared * 2 < profile.signature.length || shared <= bestScore) continue;
+    bestScore = shared;
+    best = {
+      profile,
+      missing,
+      extra,
+      reordered:
+        missing.length === 0 &&
+        extra.length === 0 &&
+        !profile.signature.every((name, index) => name === header[index]),
+    };
+  }
+  return best;
+}

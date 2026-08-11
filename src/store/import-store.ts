@@ -13,6 +13,7 @@ import type {
   TagRule,
   UnpivotDimension,
 } from '@/core/import/profile';
+import type { ApplyImportData } from '@/core/import/apply';
 
 /**
  * Estado de UI do assistente de carga — Zustand puro (docs/07-ux-e-editor.md
@@ -22,9 +23,14 @@ import type {
  * aqui nunca é gravado em `importProfiles` (schema só na S23) — ele só
  * alimenta `validateProfile`/`resolveImport`/`planImport` em memória.
  *
- * `code`/`name` do perfil não têm campo próprio no assistente porque salvar
- * um perfil nomeado é US-08 (S24) — usamos um placeholder estável só para
- * satisfazer o schema de `ImportProfile`.
+ * `code`/`name` do perfil ganham campo próprio só no passo 6, ao salvar o
+ * perfil (US-08); até lá vale um placeholder estável, que existe apenas para
+ * satisfazer o schema de `ImportProfile` em memória.
+ *
+ * A seleção do passo 5, a nota da carga e o relatório da aplicação também
+ * moram aqui: são estado de assistente, não do documento. "Revisado" é a
+ * única exceção que fica no `ui-store`, porque sobrevive ao fechamento do
+ * assistente (docs/12 §6.2).
  */
 
 export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
@@ -56,6 +62,16 @@ interface ImportWizardState {
   parsed?: ParseDelimitedTableResult;
   profile: ImportProfile;
   recognizedProfile?: ImportProfile;
+  /**
+   * O usuário viu a diferença de cabeçalho contra o perfil parecido e mandou
+   * seguir no mapeamento manual (RN-19, CT-12). Sem isso o passo 1 não avança.
+   */
+  headerDiffAcknowledged: boolean;
+  /** `MatrixPlan.key` marcadas no passo 5; `undefined` = ainda não tocado. */
+  selectedKeys?: string[];
+  notes: string;
+  /** Preenchido ao concluir o passo 6 — o relatório e o atalho para a fila. */
+  report?: ApplyImportData;
   dirty: boolean;
 
   setStep: (step: WizardStep) => void;
@@ -70,6 +86,12 @@ interface ImportWizardState {
   setTagRules: (rules: TagRule[]) => void;
   setProjectId: (projectId: string) => void;
   setRecognizedProfile: (profile: ImportProfile | undefined) => void;
+  acknowledgeHeaderDiff: () => void;
+  setSelectedKeys: (keys: string[]) => void;
+  toggleKey: (key: string) => void;
+  setNotes: (notes: string) => void;
+  setProfileIdentity: (code: string, name: string) => void;
+  setReport: (report: ApplyImportData | undefined) => void;
   jumpToPlan: () => void;
   reset: () => void;
 }
@@ -86,6 +108,10 @@ const initialState = {
   parsed: undefined as ParseDelimitedTableResult | undefined,
   profile: emptyProfile(),
   recognizedProfile: undefined as ImportProfile | undefined,
+  headerDiffAcknowledged: false,
+  selectedKeys: undefined as string[] | undefined,
+  notes: '',
+  report: undefined as ApplyImportData | undefined,
   dirty: false,
 };
 
@@ -108,6 +134,9 @@ export const useImportStore = create<ImportWizardState>((set, get) => ({
         columns: columnsFromHeader(parsed.header),
       },
       recognizedProfile: undefined,
+      headerDiffAcknowledged: false,
+      selectedKeys: undefined,
+      report: undefined,
       dirty: true,
     });
   },
@@ -167,6 +196,27 @@ export const useImportStore = create<ImportWizardState>((set, get) => ({
   },
 
   setRecognizedProfile: (recognizedProfile) => set({ recognizedProfile }),
+
+  acknowledgeHeaderDiff: () => set({ headerDiffAcknowledged: true }),
+
+  setSelectedKeys: (selectedKeys) => set({ selectedKeys }),
+
+  toggleKey: (key) => {
+    const current = get().selectedKeys ?? [];
+    set({
+      selectedKeys: current.includes(key)
+        ? current.filter((entry) => entry !== key)
+        : [...current, key],
+    });
+  },
+
+  setNotes: (notes) => set({ notes }),
+
+  setProfileIdentity: (code, name) => {
+    set((s) => ({ profile: { ...s.profile, code, name }, dirty: true }));
+  },
+
+  setReport: (report) => set({ report }),
 
   jumpToPlan: () => {
     const { recognizedProfile } = get();
