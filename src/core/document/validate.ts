@@ -15,6 +15,7 @@ import {
   groupingPathKey,
   groupingRangeAt,
 } from './grouping';
+import { validateProfile } from '../import/profile';
 
 /**
  * Validação do documento — schema estrutural (Zod) + invariantes de negócio
@@ -552,6 +553,79 @@ export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
 }
 
 // ---------------------------------------------------------------------------
+// I20 — toda entrada de Matrix.tags aponta para um CatalogItem existente de
+// kind TAG, e não há repetição dentro da mesma matriz. Integridade
+// referencial, não forma de domínio — por isso ERROR, não aviso (docs/03 §9).
+// ---------------------------------------------------------------------------
+
+export function checkI20(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const tagCodes = new Set(doc.catalog.filter((item) => item.kind === 'TAG').map((item) => item.code));
+  doc.matrices.forEach((matrix, mi) => {
+    if (matrix.tags === undefined) return;
+    const path = `matrices[${mi}].tags`;
+    const seen = new Set<string>();
+    for (const tag of matrix.tags) {
+      if (!tagCodes.has(tag)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I20',
+          path,
+          message: `A matriz "${matrix.code}" tem a tag "${tag}", que não existe no catálogo (kind TAG).`,
+        });
+      }
+      if (seen.has(tag)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I20',
+          path,
+          message: `A tag "${tag}" aparece repetida na matriz "${matrix.code}".`,
+        });
+      }
+      seen.add(tag);
+    }
+  });
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// I21 / I22 — ImportProfile: code único no documento, projectId existente,
+// colunas e regras de decisão estruturalmente corretas (I21), variableId de
+// cada coluna de eixo apontando para variável existente (I22). A checagem em
+// si vive em `import/profile.ts` (`validateProfile`) — o motor de carga (S21)
+// já a escreveu contra este mesmo contrato; aqui só se roda para todo
+// `ImportProfile` do documento e se traduz `ImportIssue` em `ValidationIssue`.
+// ---------------------------------------------------------------------------
+
+function classifyProfileIssueInvariant(message: string): 'I21' | 'I22' {
+  return message.includes('(I22)') ? 'I22' : 'I21';
+}
+
+function checkImportProfiles(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  doc.importProfiles.forEach((profile, pi) => {
+    const path = `importProfiles[${pi}]`;
+    for (const issue of validateProfile(doc, profile)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: classifyProfileIssueInvariant(issue.message),
+        path,
+        message: issue.message,
+      });
+    }
+  });
+  return issues;
+}
+
+export function checkI21(doc: PolicyOpsDocument): ValidationIssue[] {
+  return checkImportProfiles(doc).filter((issue) => issue.invariant === 'I21');
+}
+
+export function checkI22(doc: PolicyOpsDocument): ValidationIssue[] {
+  return checkImportProfiles(doc).filter((issue) => issue.invariant === 'I22');
+}
+
+// ---------------------------------------------------------------------------
 // I10 — VariableVersion / CompatibilityVersion publicada é imutável
 // (mesma checagem estrutural de I3, aplicada às bibliotecas)
 // ---------------------------------------------------------------------------
@@ -1039,6 +1113,8 @@ function runAllChecks(doc: PolicyOpsDocument): ValidationIssue[] {
     ...checkI17(doc),
     ...checkI18(doc),
     ...checkI19(doc),
+    ...checkI20(doc),
+    ...checkImportProfiles(doc),
     ...checkPositions(doc),
   ];
 }

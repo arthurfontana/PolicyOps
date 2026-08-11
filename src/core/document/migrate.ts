@@ -81,12 +81,32 @@ function migrateRegionalToGrouping(raw: Record<string, unknown>): Record<string,
   return doc;
 }
 
+/**
+ * Migração 2 → 3 (sessão 23) — docs/03-modelo-do-documento.md §10.
+ *
+ * Puramente aditiva: só acrescenta `importProfiles: []` no topo do
+ * documento. `Matrix.tags` e `CatalogItem.group` são opcionais e ficam
+ * ausentes em todo registro existente — nada a migrar neles.
+ */
+function migrateImportProfiles(raw: Record<string, unknown>): Record<string, unknown> {
+  const doc = structuredClone(raw);
+  doc.schemaVersion = 3;
+  if (!Array.isArray(doc.importProfiles)) doc.importProfiles = [];
+  return doc;
+}
+
 const MIGRATIONS: Migration[] = [
   {
     from: 1,
     to: 2,
     description: 'Sessão 20: regionalDimension/regionalRanges → groupingDimensions/groupingRanges.',
     migrate: migrateRegionalToGrouping,
+  },
+  {
+    from: 2,
+    to: 3,
+    description: 'Sessão 23: acrescenta importProfiles: [] (tags de matriz e grupo de tag são opcionais).',
+    migrate: migrateImportProfiles,
   },
 ];
 

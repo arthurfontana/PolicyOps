@@ -53,6 +53,7 @@ export function createEmptyDocument(name: string, actor: string): PolicyOpsDocum
     projects: [],
     matrices: [],
     templates: [],
+    importProfiles: [],
     events: [
       {
         id: genId(),
@@ -639,6 +640,7 @@ export function createSampleDocument(): PolicyOpsDocument {
     projects: [projectPF, projectPJ],
     matrices: [matrixPF, matrixPJ],
     templates,
+    importProfiles: [],
     events,
   };
 }

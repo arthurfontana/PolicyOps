@@ -83,8 +83,8 @@ type DocumentStore = {
 ### Catálogo
 | Comando | Entrada |
 |---|---|
-| `catalog/create` | `{ kind, code, label, description?, color?, numericValue? }` |
-| `catalog/update` | `{ id, label?, description?, color?, numericValue? }` |
+| `catalog/create` | `{ kind, code, label, description?, color?, numericValue?, group? }` — `group` só tem efeito em `kind: 'TAG'` |
+| `catalog/update` | `{ id, label?, description?, color?, numericValue?, group? }` — idem |
 | `catalog/archive` | `{ id }` |
 | `catalog/reorder` | `{ kind, orderedIds }` |
 
@@ -153,7 +153,7 @@ Funções de leitura em `src/core/`, chamadas direto pelos componentes:
 | `resolveImport(doc, table, profile)` | `{ rows: ResolvedRow[]; issues }` — aplica o perfil: cada linha vira matriz de destino, `xPath`, `yPath` e célula |
 | `planImport(doc, table, profile, opts?)` | `ImportPlan` — estado por matriz, diff de células e totais. **Dry-run puro**, não toca no documento |
 | `matchImportProfile(doc, header)` | `ImportProfile \| null` — perfil salvo cujo `signature` é idêntico ao cabeçalho lido |
-| `listMatrices(doc, { projectId?, tags?, search? })` | matrizes filtradas por facetas de tag (`E` entre grupos, `OU` dentro do grupo) |
+| `listMatrices(doc, { projectId?, tags?, search? })` | `{ matrices, facets }` — matrizes filtradas por facetas de tag (`E` entre grupos, `OU` dentro do grupo) e, em `facets`, a contagem por tag calculada sobre o conjunto antes do filtro do próprio grupo (comportamento padrão de faceta); tag arquivada não aparece em `facets` |
 
 `getEditorView` é memoizada por `(versionId, revisão do documento)` — recalcular o layout de cabeçalhos a cada render de célula é o erro de desempenho mais provável do projeto.
 

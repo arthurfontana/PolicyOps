@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Grid3x3, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { CreateProjectDialog } from '@/components/dialogs/CreateProjectDialog';
 import { CreateMatrixDialog } from '@/components/dialogs/CreateMatrixDialog';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
+import { TagFilterBar } from '@/components/projects/TagFilterBar';
 import { archiveProject } from '@/core/document/commands';
-import { listProjectMatrices, resolveOpenVersion } from '@/core/queries';
+import { listMatrices, listProjectMatrices, resolveOpenVersion } from '@/core/queries';
 import { formatDateBR } from '@/lib/format';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
@@ -20,22 +22,53 @@ export interface ProjectDetailProps {
   projectId: string;
 }
 
+/** Referência estável — evita recriar o array a cada render como dependência de `useMemo`. */
+const EMPTY_TAGS: string[] = [];
+
 export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const document = useDocumentStore((s) => s.document);
   const dispatch = useDocumentStore((s) => s.dispatch);
   const setSelectedProject = useEditorStore((s) => s.setSelectedProject);
   const openMatrix = useEditorStore((s) => s.openMatrix);
   const setView = useUiStore((s) => s.setView);
+  const matrixFilter = useUiStore((s) => s.matrixFilter);
+  const setMatrixFilterProject = useUiStore((s) => s.setMatrixFilterProject);
+  const toggleMatrixFilterTag = useUiStore((s) => s.toggleMatrixFilterTag);
+  const setMatrixFilterSearch = useUiStore((s) => s.setMatrixFilterSearch);
+  const clearMatrixFilter = useUiStore((s) => s.clearMatrixFilter);
   const { toast } = useToast();
 
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [createMatrixOpen, setCreateMatrixOpen] = useState(false);
 
+  // Trocar de projeto começa com o filtro limpo; navegar entre a lista e o
+  // editor de uma matriz do mesmo projeto preserva tags e busca (docs/07 §15).
+  useEffect(() => {
+    setMatrixFilterProject(projectId);
+  }, [projectId, setMatrixFilterProject]);
+
+  const filterIsCurrent = matrixFilter.projectId === projectId;
+  const activeTags = filterIsCurrent ? matrixFilter.tags : EMPTY_TAGS;
+  const activeSearch = filterIsCurrent ? matrixFilter.search : '';
+
   const project = document?.projects.find((candidate) => candidate.id === projectId) ?? null;
-  const matrices = useMemo(
+  const allMatrices = useMemo(
     () => (document === null ? [] : listProjectMatrices(document, projectId)),
     [document, projectId],
+  );
+  const { facets, filteredIds } = useMemo(() => {
+    if (document === null) return { facets: [], filteredIds: null as Set<string> | null };
+    const result = listMatrices(document, {
+      projectId,
+      tags: filterIsCurrent ? matrixFilter.tags : EMPTY_TAGS,
+      search: filterIsCurrent ? matrixFilter.search : '',
+    });
+    return { facets: result.facets, filteredIds: new Set(result.matrices.map((m) => m.id)) };
+  }, [document, projectId, filterIsCurrent, matrixFilter.tags, matrixFilter.search]);
+  const matrices = useMemo(
+    () => (filteredIds === null ? allMatrices : allMatrices.filter((entry) => filteredIds.has(entry.matrix.id))),
+    [allMatrices, filteredIds],
   );
 
   if (document === null || project === null) {
@@ -110,7 +143,32 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
         </div>
       </div>
 
-      {matrices.length === 0 ? (
+      {allMatrices.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Buscar por código ou nome…"
+              value={activeSearch}
+              onChange={(e) => setMatrixFilterSearch(e.target.value)}
+              className="max-w-sm"
+            />
+            <span className="shrink-0 text-xs text-neutral-500 dark:text-neutral-400">
+              {allMatrices.length} matrizes
+              {activeTags.length > 0 || activeSearch.trim().length > 0
+                ? ` · ${matrices.length} no filtro`
+                : ''}
+            </span>
+          </div>
+          <TagFilterBar
+            facets={facets}
+            selected={activeTags}
+            onToggle={toggleMatrixFilterTag}
+            onClear={clearMatrixFilter}
+          />
+        </div>
+      )}
+
+      {allMatrices.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
             <Grid3x3 className="h-8 w-8 text-neutral-300 dark:text-neutral-700" />
@@ -119,6 +177,18 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
             </p>
             <Button onClick={() => setCreateMatrixOpen(true)}>
               <Plus className="mr-1.5 h-4 w-4" /> Nova matriz
+            </Button>
+          </CardContent>
+        </Card>
+      ) : matrices.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
+            <Grid3x3 className="h-8 w-8 text-neutral-300 dark:text-neutral-700" />
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              Nenhuma matriz corresponde ao filtro.
+            </p>
+            <Button variant="outline" onClick={clearMatrixFilter}>
+              Limpar filtro
             </Button>
           </CardContent>
         </Card>

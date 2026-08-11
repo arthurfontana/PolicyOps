@@ -1,4 +1,18 @@
 import { z } from 'zod';
+import { ImportProfileSchema, type ImportProfile } from '../import/profile';
+import {
+  CODE_REGEX,
+  COLOR_REGEX,
+  DECIMAL_REGEX,
+  INTEGER_REGEX,
+  ISO_DATE_REGEX,
+  NANOID_REGEX,
+  codeSchema,
+  colorSchema,
+  decimalSchema,
+  idSchema,
+  isoDateSchema,
+} from './primitives';
 
 /**
  * Tipos e schemas Zod do documento PolicyOps. Transcrição literal de
@@ -11,55 +25,26 @@ import { z } from 'zod';
  * entre os dois.
  */
 
-// Mensagens de erro do Zod em pt-BR para o que não for coberto por
-// `.regex(..., mensagem)` explícito (ex.: tipo errado, enum inválido).
-z.setErrorMap((issue, ctx) => {
-  switch (issue.code) {
-    case z.ZodIssueCode.invalid_type:
-      if (issue.received === 'undefined') {
-        return { message: 'Campo obrigatório ausente.' };
-      }
-      return { message: `Tipo inválido: esperado ${issue.expected}, recebido ${issue.received}.` };
-    case z.ZodIssueCode.invalid_enum_value:
-      return {
-        message: `Valor inválido: "${String(ctx.data)}" não está entre as opções permitidas (${issue.options.join(', ')}).`,
-      };
-    case z.ZodIssueCode.invalid_literal:
-      return { message: `Valor inválido: esperado ${JSON.stringify(issue.expected)}.` };
-    case z.ZodIssueCode.too_small:
-      return { message: `Valor muito pequeno (mínimo: ${issue.minimum}).` };
-    case z.ZodIssueCode.too_big:
-      return { message: `Valor muito grande (máximo: ${issue.maximum}).` };
-    case z.ZodIssueCode.unrecognized_keys:
-      return { message: `Campos não reconhecidos neste escopo: ${issue.keys.join(', ')}.` };
-    default:
-      return { message: ctx.defaultError };
-  }
-});
-
 // ---------------------------------------------------------------------------
-// Primitivos
+// Primitivos — definidos em ./primitives (ver o comentário lá sobre o ciclo
+// com import/profile.ts) e reexportados aqui: todo o resto do código
+// continua importando de '@/core/document/schema' sem mudança nenhuma.
 // ---------------------------------------------------------------------------
 
-/** `code` casa `^[A-Z0-9_]+$` — nunca contém `|` nem `:`, separadores de caminho (docs/04-eixos-aninhados.md §2). */
-export const CODE_REGEX = /^[A-Z0-9_]+$/;
-/** Toda data é ISO 8601 em UTC, no formato produzido por `Date.prototype.toISOString()`. */
-export const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-/** Todo decimal é string, nunca `number`. */
-export const DECIMAL_REGEX = /^-?\d+(\.\d+)?$/;
-/** Subconjunto de `DECIMAL_REGEX` sem parte fracionária — usado por `boundaryMode: 'INCLUSIVE_INTEGER'` (docs/03 §2). */
-export const INTEGER_REGEX = /^-?\d+$/;
-export const COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
-/** Todo id é `nanoid(12)`: alfabeto padrão do nanoid, comprimento 12. */
-export const NANOID_REGEX = /^[A-Za-z0-9_-]{12}$/;
-
-export const idSchema = z.string().regex(NANOID_REGEX, 'id inválido: esperado nanoid(12).');
-export const codeSchema = z
-  .string()
-  .regex(CODE_REGEX, 'code deve casar ^[A-Z0-9_]+$ — sem "|" nem ":", que são separadores de caminho.');
-export const isoDateSchema = z.string().regex(ISO_DATE_REGEX, 'data deve ser ISO 8601 UTC.');
-export const decimalSchema = z.string().regex(DECIMAL_REGEX, 'decimal deve ser uma string numérica.');
-export const colorSchema = z.string().regex(COLOR_REGEX, 'cor deve casar #RRGGBB.');
+export {
+  CODE_REGEX,
+  COLOR_REGEX,
+  DECIMAL_REGEX,
+  INTEGER_REGEX,
+  ISO_DATE_REGEX,
+  NANOID_REGEX,
+  codeSchema,
+  colorSchema,
+  decimalSchema,
+  idSchema,
+  isoDateSchema,
+};
+export type { ImportProfile };
 
 // ---------------------------------------------------------------------------
 // §2 Biblioteca de Variáveis
@@ -321,6 +306,8 @@ export type CatalogItem = {
   description?: string;
   color?: string;
   numericValue?: string;
+  /** Só tem efeito em `kind: 'TAG'` — faceta de filtro ("Canal", "Cluster"); ignorado nos demais kinds (docs/03 §4). */
+  group?: string;
   position: number;
   archivedAt?: string;
   createdAt: string;
@@ -335,6 +322,7 @@ export const CatalogItemSchema: z.ZodType<CatalogItem> = z
     description: z.string().min(1).optional(),
     color: colorSchema.optional(),
     numericValue: decimalSchema.optional(),
+    group: z.string().min(1).optional(),
     position: z.number().int().nonnegative(),
     archivedAt: isoDateSchema.optional(),
     createdAt: isoDateSchema,
@@ -488,6 +476,8 @@ export type Matrix = {
   code: string;
   name: string;
   description?: string;
+  /** Codes de `CatalogItem` de kind `TAG`, sem repetição; omitido quando vazio (docs/03 §5). */
+  tags?: string[];
   archivedAt?: string;
   createdAt: string;
   versions: MatrixVersion[];
@@ -500,6 +490,7 @@ export const MatrixSchema: z.ZodType<Matrix> = z
     code: codeSchema,
     name: z.string().min(1),
     description: z.string().min(1).optional(),
+    tags: z.array(codeSchema).optional(),
     archivedAt: isoDateSchema.optional(),
     createdAt: isoDateSchema,
     versions: z.array(MatrixVersionSchema),
@@ -603,6 +594,9 @@ export const DOC_EVENT_TYPES = [
   'VARIABLE_PUBLISHED',
   'COMPATIBILITY_PUBLISHED',
   'CATALOG_CHANGED',
+  'IMPORT_RUN',
+  'IMPORT_PROFILE_SAVED',
+  'MATRIX_TAGGED',
 ] as const;
 
 export type DocEventType = (typeof DOC_EVENT_TYPES)[number];
@@ -673,7 +667,7 @@ export const DocumentMetaSchema: z.ZodType<DocumentMeta> = z
   .strict();
 
 export type PolicyOpsDocument = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   meta: DocumentMeta;
   variables: Variable[];
   compatibility: CompatibilityRule[];
@@ -681,15 +675,17 @@ export type PolicyOpsDocument = {
   projects: Project[];
   matrices: Matrix[];
   templates: Template[];
+  importProfiles: ImportProfile[];
   events: DocEvent[];
 };
 
 /**
- * 2 desde a sessão 20 — `regionalDimension`/`regionalRanges` viraram
- * `groupingDimensions`/`groupingRanges` (docs/03 §10, migração 1 → 2 em
- * `migrate.ts`, a única não-aditiva do produto até aqui).
+ * 3 desde a sessão 23 — `importProfiles` no topo do documento e migração
+ * puramente aditiva 2 → 3 (docs/03 §7.1, §10, `migrate.ts`). `ImportProfile`
+ * é importado de `../import/profile` (S21) em vez de redeclarado aqui — ver
+ * o comentário em `./primitives` sobre o ciclo que essa importação evita.
  */
-export const CURRENT_SCHEMA_VERSION = 2 as const;
+export const CURRENT_SCHEMA_VERSION = 3 as const;
 
 export const PolicyOpsDocumentSchema: z.ZodType<PolicyOpsDocument> = z
   .object({
@@ -701,6 +697,7 @@ export const PolicyOpsDocumentSchema: z.ZodType<PolicyOpsDocument> = z
     projects: z.array(ProjectSchema),
     matrices: z.array(MatrixSchema),
     templates: z.array(TemplateSchema),
+    importProfiles: z.array(z.lazy(() => ImportProfileSchema)),
     events: z.array(DocEventSchema),
   })
   .strict();

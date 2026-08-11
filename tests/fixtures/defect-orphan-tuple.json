@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "meta": {
     "id": "bbbbbbbbbbbb",
     "name": "Fixture — tupla órfã (I15)",
@@ -130,5 +130,6 @@
     }
   ],
   "templates": [],
+  "importProfiles": [],
   "events": []
 }

@@ -359,6 +359,118 @@ export function listProjectMatrices(
 }
 
 // ---------------------------------------------------------------------------
+// Tags e filtro de matrizes — docs/07-ux-e-editor.md §15, docs/03 §4/§5
+// ---------------------------------------------------------------------------
+
+export type TagFacetOption = {
+  code: string;
+  label: string;
+  color?: string;
+  /** Sobre o conjunto de matrizes **antes** do filtro do próprio grupo (comportamento padrão de faceta). */
+  count: number;
+};
+
+export type TagFacetGroup = {
+  /** `"Sem grupo"` quando o `CatalogItem` de kind TAG não declara `group` (docs/03 §4). */
+  group: string;
+  options: TagFacetOption[];
+};
+
+export type ListMatricesFilter = {
+  projectId?: string;
+  /** Codes de `CatalogItem` de kind TAG, de qualquer grupo — agrupados internamente para aplicar OU dentro do grupo e E entre grupos. */
+  tags?: string[];
+  search?: string;
+};
+
+export type ListMatricesResult = {
+  matrices: Matrix[];
+  facets: TagFacetGroup[];
+};
+
+const UNGROUPED_TAG_LABEL = 'Sem grupo';
+
+/**
+ * Matrizes filtradas por projeto, busca textual e facetas de tag: **OU**
+ * dentro do mesmo grupo (`Canal: Digital` ou `URA`), **E** entre grupos
+ * diferentes (`Canal: Digital` **e** `Cluster: G4`) — docs/07 §15. Tag
+ * arquivada nunca entra em `facets` (some do filtro), mas uma matriz que já a
+ * tem continua no resultado normalmente — arquivar não altera matriz nenhuma.
+ *
+ * `facets[].options[].count` é sempre calculado sobre o conjunto que passou
+ * em todos os filtros **exceto** o do próprio grupo — é o que faz o número
+ * ao lado de cada tag responder "quantas eu teria se marcasse esta,
+ * mantendo as outras facetas", em vez de refletir o filtro já aplicado.
+ */
+export function listMatrices(doc: PolicyOpsDocument, filter: ListMatricesFilter = {}): ListMatricesResult {
+  const { projectId, tags = [], search } = filter;
+
+  const activeTagItems = doc.catalog.filter((item) => item.kind === 'TAG' && item.archivedAt === undefined);
+  const groupOfCode = new Map(activeTagItems.map((item) => [item.code, item.group ?? UNGROUPED_TAG_LABEL]));
+
+  const selectedByGroup = new Map<string, Set<string>>();
+  for (const code of tags) {
+    const group = groupOfCode.get(code) ?? UNGROUPED_TAG_LABEL;
+    const set = selectedByGroup.get(group) ?? new Set<string>();
+    set.add(code);
+    selectedByGroup.set(group, set);
+  }
+
+  const searchLower = search?.trim().toLowerCase();
+
+  function passesScope(matrix: Matrix): boolean {
+    if (matrix.archivedAt !== undefined) return false;
+    if (projectId !== undefined && matrix.projectId !== projectId) return false;
+    if (searchLower !== undefined && searchLower.length > 0) {
+      const haystack = `${matrix.code} ${matrix.name}`.toLowerCase();
+      if (!haystack.includes(searchLower)) return false;
+    }
+    return true;
+  }
+
+  function passesTagGroups(matrix: Matrix, exceptGroup: string | null): boolean {
+    const matrixTags = matrix.tags ?? [];
+    for (const [group, codes] of selectedByGroup) {
+      if (group === exceptGroup) continue;
+      if (!matrixTags.some((code) => codes.has(code))) return false;
+    }
+    return true;
+  }
+
+  const inScope = doc.matrices.filter(passesScope);
+  const matrices = inScope.filter((matrix) => passesTagGroups(matrix, null));
+
+  const itemsByGroup = new Map<string, CatalogItem[]>();
+  for (const item of activeTagItems) {
+    const group = item.group ?? UNGROUPED_TAG_LABEL;
+    const list = itemsByGroup.get(group) ?? [];
+    list.push(item);
+    itemsByGroup.set(group, list);
+  }
+
+  const facets: TagFacetGroup[] = [...itemsByGroup.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([group, items]) => {
+      const scoped = inScope.filter((matrix) => passesTagGroups(matrix, group));
+      const options = items
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((item) => {
+          const option: TagFacetOption = {
+            code: item.code,
+            label: item.label,
+            count: scoped.filter((matrix) => (matrix.tags ?? []).includes(item.code)).length,
+          };
+          if (item.color !== undefined) option.color = item.color;
+          return option;
+        });
+      return { group, options };
+    });
+
+  return { matrices, facets };
+}
+
+// ---------------------------------------------------------------------------
 // Biblioteca de variáveis
 // ---------------------------------------------------------------------------
 
