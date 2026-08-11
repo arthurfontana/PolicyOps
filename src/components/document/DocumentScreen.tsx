@@ -11,6 +11,7 @@ import { useDocumentStore } from '@/store/document-store';
 import { usePersistenceStore } from '@/store/persistence-store';
 import { useUiStore } from '@/store/ui-store';
 import { useToast } from '@/components/ui/use-toast';
+import { groupBySeverity } from '@/storage/recovery';
 
 /**
  * Tela do documento aberto. Até as telas de biblioteca e de matriz chegarem
@@ -26,6 +27,7 @@ export function DocumentScreen() {
   const closeDocument = usePersistenceStore((s) => s.closeDocument);
   const fileName = usePersistenceStore((s) => s.fileName);
   const readOnly = usePersistenceStore((s) => s.readOnly);
+  const openedWithIssues = usePersistenceStore((s) => s.openedWithIssues);
   const { toast } = useToast();
 
   const [name, setName] = useState(document?.meta.name ?? '');
@@ -75,6 +77,40 @@ export function DocumentScreen() {
         )}
         {readOnly && <Badge variant="outline">somente leitura</Badge>}
       </div>
+
+      {openedWithIssues !== null && (
+        <Card className="border-amber-300 dark:border-amber-800">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm text-amber-700 dark:text-amber-400">
+              Aberto com {openedWithIssues.issues.length} problema(s) de validação
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 p-4 pt-0 text-xs text-neutral-600 dark:text-neutral-400">
+            <p>
+              O arquivo não passou na validação e foi aberto assim mesmo, em somente leitura. Nada foi
+              gravado. Para editar e salvar, corrija os problemas abaixo no arquivo original e abra de
+              novo.
+            </p>
+            {groupBySeverity(openedWithIssues.issues).map((group) => (
+              <div key={group.severity} className="flex flex-col gap-1">
+                <span className="font-medium text-neutral-800 dark:text-neutral-200">
+                  {group.label}
+                </span>
+                <ul className="flex flex-col gap-1">
+                  {group.issues.map((issue, index) => (
+                    <li key={`${issue.invariant}-${issue.path}-${index}`}>
+                      <span className="font-mono">[{issue.invariant}]</span> {issue.message}{' '}
+                      <span className="font-mono text-neutral-400 dark:text-neutral-500">
+                        ({issue.path})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="p-4 pb-2">

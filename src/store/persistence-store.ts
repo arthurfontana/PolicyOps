@@ -116,6 +116,14 @@ interface PersistenceState {
   merge: MergeState | null;
   recovery: RecoveryState | null;
   invalid: InvalidState | null;
+  /**
+   * Problemas de validação de um documento aberto assim mesmo pelo modo de
+   * recuperação (`openRecoveryReadOnly`). Fica visível como aviso na tela do
+   * documento — abrir não é mais bloqueado, mas o aviso não desaparece
+   * sozinho, porque salvar por cima continua recusado enquanto isso valer
+   * (§4).
+   */
+  openedWithIssues: { fileName: string; issues: ValidationIssue[] } | null;
   bufferOffer: BufferEntry | null;
   /** Documento acima de 5 MB: a aplicação oferece `.pmz` antes de gravar (§3). */
   compressionOffer: { bytes: number } | null;
@@ -150,6 +158,13 @@ interface PersistenceState {
   chooseFormat: (format: FileFormat) => Promise<void>;
 
   acceptRecovery: () => Promise<void>;
+  /**
+   * Abre o documento assim como está, com os problemas ainda presentes —
+   * inclusive os sem correção automática. Só leitura: nada é gravado até o
+   * usuário resolver os problemas e usar "salvar como" (§4 continua valendo
+   * no salvamento, aqui é só visualização).
+   */
+  openRecoveryReadOnly: () => void;
   discardRecovery: () => void;
 
   recoverBuffer: () => void;
@@ -236,6 +251,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       merge: null,
       invalid: null,
       recovery: null,
+      openedWithIssues: null,
       readOnly: false,
     });
 
@@ -338,6 +354,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
         conflict: null,
         merge: null,
         invalid: null,
+        openedWithIssues: null,
       });
       void buffer?.clearFor(doc?.meta.id ?? '');
       void advisoryLock?.beat(result.revision);
@@ -478,6 +495,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       merge: null,
       invalid: null,
       recovery: null,
+      openedWithIssues: null,
       readOnly: false,
       lockHeldByOther: null,
       lockOwned: false,
@@ -509,6 +527,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
     merge: null,
     recovery: null,
     invalid: null,
+    openedWithIssues: null,
     bufferOffer: null,
     compressionOffer: null,
     preferredFormat: null,
@@ -589,6 +608,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
         merge: null,
         invalid: null,
         recovery: null,
+        openedWithIssues: null,
         readOnly: false,
         lockOwned: false,
         lockHeldByOther: null,
@@ -712,6 +732,23 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
         errorMessage: null,
       });
       await get().saveAs();
+    },
+
+    openRecoveryReadOnly: () => {
+      const recovery = get().recovery;
+      if (recovery === null) return;
+      useDocumentStore.getState().openDocument(recovery.document);
+      set({
+        recovery: null,
+        fileName: recovery.fileName,
+        filePath: null,
+        revision: recovery.document.meta.revision,
+        lastSavedAt: recovery.document.meta.savedAt,
+        status: 'saved',
+        errorMessage: null,
+        readOnly: true,
+        openedWithIssues: { fileName: recovery.fileName, issues: recovery.issues },
+      });
     },
 
     discardRecovery: () => set({ recovery: null, status: 'no-document' }),
