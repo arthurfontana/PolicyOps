@@ -1,8 +1,10 @@
 # Carga de Matrizes
 
-> **Estado**: ✅ Entregue nas sessões S21–S24 (marco M6). US-01 a US-10 no ar; falta a S25
-> (evolução estrutural: matriz `ESTRUTURA DIVERGENTE` continua listada e não aplicável).
-> **DECs relacionadas**: DEC-CARGA-001 a DEC-CARGA-016 (`13-decisoes.md`)
+> **Estado**: ✅ Entregue nas sessões S21–S25 (marco M6 completo). US-01 a US-10 no ar; a S25
+> acrescentou a resolução assistida de estrutura divergente (`import/applyStructural`,
+> `src/core/import/structural.ts`) — matriz `ESTRUTURA DIVERGENTE` agora tem um caminho dentro do
+> assistente, sem passo manual na biblioteca.
+> **DECs relacionadas**: DEC-CARGA-001 a DEC-CARGA-017 (`13-decisoes.md`)
 > **Documento normativo.** O motor vive em `src/core/import/` como TypeScript puro.
 
 ## 1. O que é e para quem
@@ -356,7 +358,7 @@ Então  o eixo Y nasce com 22 tuplas efetivas, das 110 que o produto geraria
 | RN-03 | A comparação é feita sobre o conteúdo da célula (`decision`, `offer`, `limit`, `limitOverride`, `color`, `note`, `attrs`), campo a campo, e ignora a ordem das linhas do arquivo | Falso positivo de alteração |
 | RN-04 | A chave da célula vem do valor **mapeado** (código de domínio), nunca do texto bruto do arquivo | Célula órfã, quebra I5 |
 | RN-05 | Idempotência: aplicar o mesmo arquivo duas vezes sobre o mesmo documento produz zero alterações na segunda | É o teste ácido de RN-02 e RN-03 |
-| RN-06 | Linha do arquivo cuja tupla não existe nos eixos da matriz torna a **matriz inteira** `ESTRUTURA DIVERGENTE`; a carga não aplica parte dela | Aplicação parcial silenciosa deixaria a matriz num estado que ninguém pediu |
+| RN-06 | Linha do arquivo cuja tupla não existe nos eixos da matriz torna a **matriz inteira** `ESTRUTURA DIVERGENTE`; a carga não aplica parte dela. A **resolução** dessa divergência (S25, `import/applyStructural`) é assistida: descreve o que falta na biblioteca e no eixo, aplica pelos comandos normais e devolve a matriz em rascunho, resnapshotada — nunca aplica a divergência "por dentro" da carga em si | Aplicação parcial silenciosa deixaria a matriz num estado que ninguém pediu |
 | RN-07 | Combinação existente no grid sem linha correspondente no arquivo segue a política `missingRowPolicy` do perfil: `KEEP` (padrão, preserva e avisa) ou `CLEAR` (esvazia a célula) | Apagar por omissão é o pior desfecho possível — por isso o padrão é preservar |
 | RN-08 | Chave de célula repetida no arquivo com conteúdo divergente é erro; com conteúdo idêntico é aviso | Ambiguidade não resolvida vira dado arbitrário |
 | RN-09 | Matriz existente no documento e ausente do arquivo permanece intocada; nunca é arquivada nem esvaziada pela carga | Um arquivo parcial apagaria política vigente |
@@ -388,6 +390,8 @@ src/core/import/
   ├── plan.ts            # planImport: estado por matriz, diff, totais
   ├── library-gaps.ts    # o que falta na biblioteca (domínios, catálogo, compatibilidade)
   ├── apply.ts           # comando import/apply (S24)
+  ├── structural.ts      # planStructuralChanges — o que falta na biblioteca/eixo (S25, puro)
+  ├── apply-structural.ts# comando import/applyStructural (S25)
   ├── hash.ts            # hash estável do conteúdo e do plano (FNV-1a, puro)
   └── index.ts           # o barril que o assistente e a aplicação consomem
 ```
@@ -701,7 +705,65 @@ hashValue(value: unknown): string;      // serialização canônica (chaves orde
 // profile-commands.ts — o perfil dentro do documento (US-08)
 'importProfile/save':   { profile: ImportProfile } → { profileId: string; created: boolean };
 'importProfile/delete': { profileId: string } → void;
+
+// structural.ts — resolução assistida de estrutura divergente (S25, puro)
+type StructuralDomainChange = {
+  variableId: string; variableCode: string; axis: 'X' | 'Y'; level: number;
+  fromVersionNumber: number | null;   // versão publicada de onde os domínios atuais vieram
+  domains: Domain[];                  // só os domínios NOVOS
+};
+type StructuralCompatibilityChange = {
+  parentVariableId: string; parentVariableCode: string;
+  childVariableId: string; childVariableCode: string;
+  axis: 'X' | 'Y';
+  exists: boolean;                    // já há regra publicada; o mapa abaixo só a completa
+  allow: Record<string, string[]>;    // mapa completo (existente + pares novos)
+  addedPairs: Array<[string, string]>;
+};
+type StructuralPlan = {
+  key: string; code: string; name: string; matrixId: string; baseVersionId: string;
+  domainChanges: StructuralDomainChange[];
+  compatibilityChanges: StructuralCompatibilityChange[];
+  resnapshot: Partial<Record<'X' | 'Y', ResnapshotPlan>>;  // reaproveita computeResnapshot
+  newCombinations: number;
+  droppedCombinations: number;        // sempre 0 — a resolução nunca remove (ver DEC-CARGA-017)
+  lostCells: Array<{ key: string; cell: Cell }>;  // sempre []
+};
+
+/** Um `StructuralPlan` por matriz `STRUCTURAL` do plano — dry-run puro, como `planImport`. */
+planStructuralChanges(doc, plan: ImportPlan): StructuralPlan[];
+/** Mesma assinatura de mudança de biblioteca → mesmo lote — a ação em lote do painel. */
+groupByLibraryChange(plans: StructuralPlan[]): StructuralPlan[][];
+mergeDomainChanges(plans: StructuralPlan[]): StructuralDomainChange[];
+mergeCompatibilityChanges(plans: StructuralPlan[]): StructuralCompatibilityChange[];
+
+// apply-structural.ts — comando (S25)
+'import/applyStructural': {
+  profile: ImportProfile;
+  table: { header: string[]; rows: string[][] };
+  fileName?: string;
+  planHash: string;              // o plano revisado (RN-14, como em import/apply)
+  selectedKeys: string[];        // MatrixPlan.key das matrizes STRUCTURAL escolhidas
+} → {
+  resolvedKeys: string[];
+  updatedVariables: string[];            // Variable.id que ganharam versão nova
+  updatedCompatibilityRules: string[];   // CompatibilityRule.id que ganharam versão nova
+  createdDrafts: string[];               // MatrixVersion.id do rascunho de cada matriz
+};
 ```
+
+**Como `import/applyStructural` aplica (S25).** Recalcula o plano sobre o documento corrente e
+compara com `planHash` (mesma guarda de RN-14/CT-11 de `import/apply`); mescla a mudança de
+biblioteca das matrizes selecionadas (`mergeDomainChanges`/`mergeCompatibilityChanges` —
+DEC-CARGA-017) e aplica **uma vez** para o lote inteiro, pelos comandos normais da biblioteca
+(RN-17): `variable/createDraft`+`saveDomains`+`publish` para os domínios novos,
+`compat/createDraft` (ou `compat/create`, se a regra não existir) +`saveMap`+`publish` para o mapa;
+então, para cada matriz, `version/createDraft` + `axis/resnapshot` em cada eixo afetado
+(reaproveitando `previewResnapshot`/`computeResnapshot` — não há um segundo motor de resnapshot).
+Tudo-ou-nada, mesmo mecanismo de atomicidade de `import/apply`. A matriz sai em rascunho —
+**nunca publicada** (RN-10) — com as combinações novas pendentes, prontas para a carga normal (ou
+edição manual) preencher na passada seguinte. Nunca remove domínio nem tupla: a divergência de
+subtração continua sendo aviso de RN-07 na carga normal, não ação da resolução estrutural.
 
 **Como `import/apply` aplica.** Ele não reimplementa criação de matriz nem patch de célula:
 compõe os comandos que já existem (`08-camada-de-comandos.md` §3) sobre um documento de trabalho,
@@ -993,9 +1055,14 @@ aplicação, e o que sobrevive é o rascunho.
 
 ## 7. Fora do escopo
 
-- **Resolver estrutura divergente automaticamente** — criar nova versão de variável com os
-  domínios novos e adotar no rascunho é a sessão S25 (DEC-CARGA-009). Até lá, a matriz é listada
-  e ignorada pela aplicação.
+- **Remover domínio ou tupla pela resolução estrutural** — a resolução da S25
+  (`import/applyStructural`) só acrescenta: domínio novo na variável, par novo no mapa de
+  compatibilidade, resnapshot do eixo. Divergência de subtração (o arquivo deixou de trazer uma
+  faixa) é aviso de RN-07 na carga normal, não ação dela (DEC-CARGA-017).
+- **Mudar a pilha de níveis de um eixo pela carga** — uma variável nova num eixo continua sendo
+  `axis/addLevel`, operação manual.
+- **Publicar a matriz pela resolução estrutural** — RN-10 vale aqui também: a resolução termina em
+  rascunho, como qualquer outra escrita da carga.
 - **Publicação automática pela carga** — decidido contra em DEC-CARGA-005; a carga sempre para
   no rascunho.
 - **Carga de bibliotecas isolada** (só variáveis, sem matrizes) — o passo 3 cobre o que a carga

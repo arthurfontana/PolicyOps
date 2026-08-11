@@ -278,6 +278,12 @@ Depois disso, I6 bloqueia a publicação até as novas combinações serem preen
 - regra que passa a incluir → `addedTuples`, pendentes;
 - resnapshot de X e depois de Y, em sequência, sem recarregar.
 
+**Consumidor novo (S25).** `src/core/import/structural.ts` reaproveita `computeResnapshot` —
+nunca um segundo motor — para calcular o impacto de resolver uma matriz `STRUCTURAL` da carga
+(`12-carga-de-matrizes.md` RN-06, §5). O comportamento deste módulo não muda: a carga só monta,
+num documento de trabalho descartável, os mesmos comandos de biblioteca que a aplicação real
+executaria, e lê o `ResnapshotPlan` resultante.
+
 ### 5.5 Matriz de propagação
 
 | Ação na biblioteca | Versão publicada | Rascunho existente | Rascunhos futuros |
