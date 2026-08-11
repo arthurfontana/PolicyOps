@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { AxisEditor } from '@/components/editor/AxisEditor';
+import { MatrixTagsEditor } from '@/components/inspector/MatrixTagsEditor';
 import type { AxisRole } from '@/core/document/schema';
 import { getEditorView, type EditorAxisView } from '@/core/queries';
 import { formatDateTimeBR } from '@/lib/format';
@@ -77,6 +78,8 @@ export function VersionInspector() {
           {badge.label}
         </Badge>
       </div>
+
+      <MatrixTagsEditor matrix={matrix} />
 
       <div className="flex flex-col gap-2">
         {view.editable ? (

@@ -67,6 +67,7 @@ const DOMAIN_KEYS = [
   'minInclusive',
   'maxInclusive',
   'isCatchAll',
+  'groupingRanges',
 ] as const;
 function canonicalDomain(d: Domain): Domain {
   return pick(d, DOMAIN_KEYS);
@@ -82,6 +83,7 @@ const VARIABLE_VERSION_KEYS = [
   'publishedAt',
   'publishedBy',
   'domains',
+  'groupingDimensions',
   'boundaryMode',
 ] as const;
 function canonicalVariableVersion(v: VariableVersion): VariableVersion {
@@ -134,6 +136,7 @@ const CATALOG_ITEM_KEYS = [
   'description',
   'color',
   'numericValue',
+  'group',
   'position',
   'archivedAt',
   'createdAt',
@@ -196,7 +199,17 @@ function canonicalMatrixVersion(v: MatrixVersion): MatrixVersion {
   };
 }
 
-const MATRIX_KEYS = ['id', 'projectId', 'code', 'name', 'description', 'archivedAt', 'createdAt', 'versions'] as const;
+const MATRIX_KEYS = [
+  'id',
+  'projectId',
+  'code',
+  'name',
+  'description',
+  'tags',
+  'archivedAt',
+  'createdAt',
+  'versions',
+] as const;
 function canonicalMatrix(m: Matrix): Matrix {
   return { ...pick(m, MATRIX_KEYS), versions: m.versions.map(canonicalMatrixVersion) };
 }
@@ -263,6 +276,7 @@ const DOCUMENT_KEYS = [
   'projects',
   'matrices',
   'templates',
+  'importProfiles',
   'events',
 ] as const;
 
@@ -276,6 +290,10 @@ export function canonicalizeDocument(doc: PolicyOpsDocument): PolicyOpsDocument 
     projects: doc.projects.map(canonicalProject),
     matrices: doc.matrices.map(canonicalMatrix),
     templates: doc.templates.map(canonicalTemplate),
+    // `ImportProfile` não passa por picker próprio — vem do comando/UI já com
+    // os campos exatos do schema (`.strict()` no Zod garante isso); só o
+    // pass-through evita perder o campo, sem reordenar as chaves internas.
+    importProfiles: doc.importProfiles,
     events: doc.events.map(canonicalDocEvent),
   };
 }

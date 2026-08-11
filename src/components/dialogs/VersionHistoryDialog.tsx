@@ -15,10 +15,13 @@ import {
   Minus,
   Plus,
   RefreshCw,
+  Save,
   Shuffle,
   SquarePen,
   StickyNote,
+  Tag,
   Trash2,
+  Upload,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -69,6 +72,9 @@ const EVENT_ICONS: Record<DocEventType, LucideIcon> = {
   VARIABLE_PUBLISHED: ListTree,
   COMPATIBILITY_PUBLISHED: Shuffle,
   CATALOG_CHANGED: Library,
+  IMPORT_RUN: Upload,
+  IMPORT_PROFILE_SAVED: Save,
+  MATRIX_TAGGED: Tag,
 };
 
 const ALL_FILTER = 'TODOS';

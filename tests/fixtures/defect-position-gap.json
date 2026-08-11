@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "meta": {
     "id": "bbbbbbbbbbbb",
     "name": "Fixture — position com buraco (POSITION)",
@@ -133,5 +133,6 @@
     }
   ],
   "templates": [],
+  "importProfiles": [],
   "events": []
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CODE_REGEX, codeSchema, idSchema, isoDateSchema } from '../document/schema';
+import { CODE_REGEX, codeSchema, idSchema, isoDateSchema } from '../document/primitives';
 import type { PolicyOpsDocument } from '../document/schema';
 import { normalizeText } from '../library/text-normalize';
 import { MAX_AXIS_LEVELS } from '../axes/tuples';

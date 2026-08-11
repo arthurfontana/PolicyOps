@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "meta": {
     "id": "aaaaaaaaaaaa",
     "name": "Documento mínimo",
@@ -15,5 +15,6 @@
   "projects": [],
   "matrices": [],
   "templates": [],
+  "importProfiles": [],
   "events": []
 }

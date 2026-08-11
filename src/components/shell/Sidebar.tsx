@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { useUiStore, type View } from '@/store/ui-store';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
-import { listOpenDrafts, listProjects } from '@/core/queries';
+import { listMatrices, listOpenDrafts, listProjects } from '@/core/queries';
 import { Badge } from '@/components/ui/badge';
 
 interface NavItem {
@@ -82,10 +82,20 @@ function ProjectNav() {
   const document = useDocumentStore((s) => s.document);
   const view = useUiStore((s) => s.view);
   const setView = useUiStore((s) => s.setView);
+  const matrixFilter = useUiStore((s) => s.matrixFilter);
   const selectedProjectId = useEditorStore((s) => s.selectedProjectId);
   const setSelectedProject = useEditorStore((s) => s.setSelectedProject);
 
   const summaries = document === null ? [] : listProjects(document);
+  const filterActive = matrixFilter.tags.length > 0 || matrixFilter.search.trim().length > 0;
+  const filteredCount =
+    document === null || matrixFilter.projectId === null || !filterActive
+      ? null
+      : listMatrices(document, {
+          projectId: matrixFilter.projectId,
+          tags: matrixFilter.tags,
+          search: matrixFilter.search,
+        }).matrices.length;
 
   return (
     <div className="flex flex-col gap-1">
@@ -106,25 +116,33 @@ function ProjectNav() {
         <FolderKanban className="h-4 w-4 shrink-0" />
         <span className="flex-1 truncate">Projetos</span>
       </button>
-      {summaries.map(({ project }) => (
-        <button
-          key={project.id}
-          type="button"
-          onClick={() => {
-            setSelectedProject(project.id);
-            setView('projects');
-          }}
-          aria-current={view === 'projects' && selectedProjectId === project.id ? 'page' : undefined}
-          className={cn(
-            'ml-4 flex w-[calc(100%-1rem)] items-center gap-2 truncate rounded-md px-2.5 py-1 text-left text-xs transition-colors',
-            view === 'projects' && selectedProjectId === project.id
-              ? 'bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100'
-              : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-500 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100',
-          )}
-        >
-          <span className="truncate">{project.name}</span>
-        </button>
-      ))}
+      {summaries.map(({ project, matrixCount }) => {
+        const showFilteredCount = filteredCount !== null && matrixFilter.projectId === project.id;
+        return (
+          <button
+            key={project.id}
+            type="button"
+            onClick={() => {
+              setSelectedProject(project.id);
+              setView('projects');
+            }}
+            aria-current={view === 'projects' && selectedProjectId === project.id ? 'page' : undefined}
+            className={cn(
+              'ml-4 flex w-[calc(100%-1rem)] items-center gap-2 truncate rounded-md px-2.5 py-1 text-left text-xs transition-colors',
+              view === 'projects' && selectedProjectId === project.id
+                ? 'bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100'
+                : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-500 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100',
+            )}
+          >
+            <span className="truncate">{project.name}</span>
+            {matrixCount > 0 && (
+              <span className="ml-auto shrink-0 text-[10px] text-neutral-400 dark:text-neutral-600">
+                {showFilteredCount ? `${matrixCount} · ${filteredCount} no filtro` : matrixCount}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

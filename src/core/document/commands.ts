@@ -1,4 +1,4 @@
-import { applyToDocument, defineCommand, isoFrom, type Command } from '../command';
+import { applyToDocument, defineCommand, isoFrom, makeEvent, type Command } from '../command';
 import { DomainError } from '../errors';
 import { CODE_REGEX, type Matrix, type PolicyOpsDocument, type Project } from './schema';
 
@@ -381,6 +381,75 @@ export function archiveMatrix(input: ArchiveMatrixInput): Command<ArchiveMatrixI
         }),
         data: undefined,
         events: [],
+        inverse,
+      };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// matrix/setTags — docs/08 §3, docs/03 §5, docs/03 §9 I20
+// ---------------------------------------------------------------------------
+
+export type SetMatrixTagsInput = { matrixId: string; add?: string[]; remove?: string[] };
+
+/**
+ * Idempotente nos dois sentidos: acrescentar tag já presente não duplica,
+ * remover tag ausente não falha. Em conflito (mesmo código em `add` e
+ * `remove`), remoção vence. A ordem de `tags` não tem significado
+ * (docs/03 §5) — por isso o inverso restaura o **conjunto**, mas append
+ * tags recém-adicionadas ao final, e não a posição original.
+ */
+export function setMatrixTags(input: SetMatrixTagsInput): Command<SetMatrixTagsInput, void> {
+  return defineCommand({
+    type: 'matrix/setTags',
+    input,
+    label: 'Editar as tags da matriz',
+    scope: { matrixId: input.matrixId },
+    execute(doc, ctx) {
+      const { matrix, index } = locateMatrix(doc, input.matrixId);
+
+      const tagCodes = new Set(
+        doc.catalog.filter((item) => item.kind === 'TAG').map((item) => item.code),
+      );
+      for (const code of input.add ?? []) {
+        if (!tagCodes.has(code)) {
+          throw new DomainError(
+            'NOT_FOUND',
+            `A tag "${code}" não existe no catálogo (kind TAG).`,
+            { code },
+          );
+        }
+      }
+
+      const previousTags = matrix.tags ?? [];
+      const removeSet = new Set(input.remove ?? []);
+      const retained = previousTags.filter((code) => !removeSet.has(code));
+      const newlyAdded = [...new Set(input.add ?? [])].filter(
+        (code) => !removeSet.has(code) && !retained.includes(code),
+      );
+      const nextTags = [...retained, ...newlyAdded];
+
+      const added = nextTags.filter((code) => !previousTags.includes(code));
+      const removed = previousTags.filter((code) => !nextTags.includes(code));
+
+      const inverse = setMatrixTags({ matrixId: matrix.id, add: removed, remove: added });
+
+      const event = makeEvent(ctx, {
+        type: 'MATRIX_TAGGED',
+        scope: { projectId: matrix.projectId, matrixId: matrix.id },
+        summary: `${ctx.actor} atualizou as tags da matriz "${matrix.code}".`,
+        payload: { matrixId: matrix.id, added, removed },
+      });
+
+      return {
+        document: applyToDocument(doc, [event], (draft) => {
+          const target = draft.matrices[index]!;
+          if (nextTags.length === 0) delete target.tags;
+          else target.tags = nextTags;
+        }),
+        data: undefined,
+        events: [event],
         inverse,
       };
     },

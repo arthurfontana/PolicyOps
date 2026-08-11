@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "meta": {
     "id": "bbbbbbbbbbbb",
     "name": "Fixture — referência de catálogo inexistente (I17)",
@@ -133,5 +133,6 @@
     }
   ],
   "templates": [],
+  "importProfiles": [],
   "events": []
 }
