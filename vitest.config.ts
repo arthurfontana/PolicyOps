@@ -36,6 +36,15 @@ export default mergeConfig(
             functions: 100,
             statements: 100,
           },
+          // docs/12-carga-de-matrizes.md §5: o motor da carga compara 40.000
+          // células, e um falso negativo apaga a evidência de que a política
+          // mudou — mesma exigência de axes/ e versioning/.
+          'src/core/import/**/*.ts': {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
         },
       },
     },

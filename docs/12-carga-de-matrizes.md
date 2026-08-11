@@ -377,13 +377,15 @@ Então  o eixo Y nasce com 22 tuplas efetivas, das 110 que o produto geraria
 
 ```
 src/core/import/
+  ├── issues.ts          # catálogo de códigos e severidade do ImportIssue
   ├── parse-table.ts     # texto delimitado → matriz de células (puro, sem dependência)
   ├── profile.ts         # tipos + Zod do ImportProfile; normalização de valores
   ├── resolve.ts         # perfil + tabela → linhas resolvidas (matriz, xPath, yPath, célula)
   ├── plan.ts            # planImport: estado por matriz, diff, totais
   ├── library-gaps.ts    # o que falta na biblioteca (domínios, catálogo, compatibilidade)
-  ├── apply.ts           # comando import/apply
-  └── hash.ts            # hash estável do conteúdo e do plano (FNV-1a, puro)
+  ├── apply.ts           # comando import/apply (S24)
+  ├── hash.ts            # hash estável do conteúdo e do plano (FNV-1a, puro)
+  └── index.ts           # o barril que o assistente e a aplicação consomem
 ```
 
 `src/core/` continua TypeScript puro: nada aqui usa `window`, `File`, `TextDecoder` de stream nem
@@ -426,6 +428,16 @@ continua funcionando como entrada.
 ### 5.4 Contratos
 
 ```ts
+// issues.ts — o vocabulário compartilhado
+type ImportIssue = {
+  code: ImportIssueCode;        // §5.8
+  severity: 'ERROR' | 'WARNING';// sai do código, não da situação
+  message: string;              // pt-BR, pronta para a tela
+  line?: number;                // 1-based, do arquivo original
+  column?: string;
+  details?: Record<string, unknown>;   // inclui `occurrences` quando o problema se repete
+};
+
 // parse-table.ts
 type DelimitedFormat = {
   delimiter: ';' | ',' | '\t' | '|';
@@ -434,22 +446,29 @@ type DelimitedFormat = {
   trimValues: boolean;          // default true
 };
 
+/** O que o motor consome depois do parser — e o que `import/apply` recebe. */
+type ImportTable = {
+  header: string[];
+  rows: string[][];             // sem a linha de cabeçalho
+  lines?: number[];             // linha 1-based de cada linha de `rows`
+};
+
 parseDelimitedTable(text: string, format?: Partial<DelimitedFormat>): {
   format: DelimitedFormat;      // o detectado ou o informado
   header: string[];
-  rows: string[][];             // sem a linha de cabeçalho
+  rows: string[][];
+  lines: number[];
   warnings: ImportIssue[];
   errors: ImportIssue[];
 };
+```
 
-type ImportIssue = {
-  code: ImportIssueCode;
-  message: string;              // pt-BR, pronta para a tela
-  line?: number;                // 1-based, do arquivo original
-  column?: string;
-  details?: Record<string, unknown>;
-};
+`lines` existe porque um campo entre aspas pode conter quebra de linha: a
+n-ésima linha da tabela nem sempre é a n-ésima linha do arquivo, e toda mensagem
+de erro cita a linha **do arquivo**. `sourceLine(table, index, headerRow)` faz a
+leitura, caindo na aritmética simples quando `lines` não veio.
 
+```ts
 // profile.ts
 type ImportProfile = {
   id: string;
@@ -499,6 +518,23 @@ type TagRule = {
   code?: string;                        // quando source = FIXED
 };
 
+/** O documento com os perfis salvos — `importProfiles` entra no schema na S23. */
+type DocumentWithProfiles = PolicyOpsDocument & { importProfiles?: ImportProfile[] };
+
+validateProfile(doc: DocumentWithProfiles, profile: ImportProfile): ImportIssue[];  // I21, I22
+validateProfileAgainstHeader(profile, header: string[]): ImportIssue[];
+matchImportProfile(doc: DocumentWithProfiles, header: string[]): ImportProfile | undefined;  // RN-19
+normalizeValue(text: string): string;   // a.RISCO BAIXO → RISCO_BAIXO; '' = sem código
+humanizeValue(text: string): string;    // c.RISCO ALTO → Risco Alto (rótulo do nameTemplate)
+```
+
+`normalizeValue` remove o prefixo de ordenação (uma ou duas letras/dígitos
+seguidas de `.` ou `)`), o acento e a caixa, e troca pontuação e espaço por `_`.
+O traço **não** é prefixo de ordenação: `G1 - BHV` vira `G1_BHV`, e é o
+`valueMap` do perfil que o liga a `BHV_G1`. `humanizeValue` é a contraparte de
+exibição, usada só pelo `nameTemplate` — o `codeTemplate` sempre usa códigos.
+
+```ts
 // resolve.ts
 type ResolvedRow = {
   matrixKey: string;                    // valores de partição + opção do unpivot
@@ -508,10 +544,38 @@ type ResolvedRow = {
   source: { line: number; column: string };
 };
 
-resolveImport(doc, table, profile): { rows: ResolvedRow[]; issues: ImportIssue[] };
+/** A identidade de uma matriz citada pelo arquivo, pronta para os templates. */
+type ResolvedMatrixKey = {
+  key: string;
+  values: Record<string, string>;       // code por coluna de partição + code do unpivot
+  labels: Record<string, string>;       // rótulos dos mesmos marcadores
+};
 
+resolveImport(doc, table, profile): {
+  rows: ResolvedRow[];
+  keys: ResolvedMatrixKey[];
+  issues: ImportIssue[];
+  ignoredRows: number;
+};
+```
+
+Uma linha do arquivo produz **uma célula por opção do desdobramento**; as
+colunas de valor que não entram no desdobramento alimentam todas as células da
+linha (é como `note` e `attr:*` convivem com as seis ofertas). Coluna de valor
+vazia não produz célula — a combinação apenas não é observada por aquela matriz,
+e é isso que RN-21 usa para decidir o que suprimir. Problemas que se repetem
+(valor não mapeado, conferência divergente, linha ignorada) são agrupados por
+**(código, coluna, valor)**, com a primeira linha e a contagem em
+`details.occurrences`.
+
+```ts
 // plan.ts
-planImport(doc, table, profile, opts?: { fileName?: string }): ImportPlan;
+planImport(
+  doc: DocumentWithProfiles,
+  table: ImportTable,
+  profile: ImportProfile,
+  opts?: { fileName?: string; contentHash?: string },
+): ImportPlan;
 
 type ImportPlan = {
   planHash: string;                     // documento + arquivo + perfil (RN-14)
@@ -538,14 +602,84 @@ type MatrixPlan = {
   baseVersionId?: string;
   baseVersionNumber?: number;
   combinations: number;                 // combinações efetivas, já sem as suprimidas
-  suppressedCombinations: number;       // só em NEW, quando suppressUnobserved (RN-21)
+  suppressedCombinations: number;       // tuplas suprimidas (X + Y), só em NEW (RN-21)
   changes: CellChange[];                // src/core/diff/cells.ts
   summary: DiffSummary;                 // src/core/diff/semantics.ts
   missingCombinations: string[];        // RN-07
   unknownTuples: Array<{ path: string; role: 'X' | 'Y'; lines: number[] }>;  // RN-06
+  axes?: { x: PlannedAxis; y: PlannedAxis };   // só em NEW
 };
 
-// apply.ts — comando
+/** O eixo que a matriz nova teria: pins, snapshot, tuplas efetivas e supressões. */
+type PlannedAxis = {
+  role: 'X' | 'Y';
+  levels: Array<{ variableId: string; variableVersionId: string; label: string; domains: Domain[] }>;
+  tuples: string[];
+  manualSuppressions: string[];         // RN-21
+  compatibilityVersionIds: string[];    // alimenta `derivedFrom`
+};
+
+/** A mesma projeção, sem a supressão por matriz — o que `matrix/create` receberia. */
+projectImportAxes(doc, profile): { x: PlannedAxis; y: PlannedAxis };
+```
+
+`totals.cellsChanged` é a soma de `changes.length` do plano: numa carga inicial
+ele é o total de células criadas (40.068 no caso real); numa carga de
+atualização, o total de células que de fato mudam. `changes` de uma matriz `NEW`
+traz uma entrada `ADDED` por célula, e o `summary` dela conta o grid inteiro em
+`combinationsAdded`.
+
+**Plano bloqueado.** Qualquer `ImportIssue` de severidade `ERROR` — perfil
+inválido, coluna ausente, valor não mapeado, chave duplicada divergente, colisão
+de código — faz `planImport` devolver `matrices: []` com os problemas em
+`issues`: nenhuma matriz é classificada enquanto o arquivo não estiver íntegro
+(RN-16, CT-05, CT-07). Um problema que atinge **uma** matriz (rascunho aberto,
+grid grande demais, estrutura divergente) nunca bloqueia o plano inteiro
+(DEC-CARGA-009).
+
+**Mescla de conteúdo.** Com `missingRowPolicy: 'KEEP'` a carga preserva as
+combinações que o arquivo não traz **e** os campos que ele não carrega dentro das
+células que ele traz — uma observação escrita à mão sobrevive à recarga da
+oferta. Com `'CLEAR'`, o conteúdo da matriz passa a ser exatamente o do arquivo.
+
+```ts
+// library-gaps.ts
+computeLibraryGaps(doc, table, profile): LibraryGap[];
+
+type LibraryGap = DomainsGap | CatalogGap | CompatibilityGap;
+
+type DomainsGap = {
+  kind: 'DOMAINS';
+  variableId: string; variableCode: string; variableName: string;
+  column: string; axis: 'X' | 'Y'; level: number;
+  variablePublished: boolean;           // false = a variável nem versão publicada tem
+  domains: Domain[];                    // code normalizado, rótulo do arquivo, cor da paleta
+};
+
+type CatalogGap = {
+  kind: 'CATALOG';
+  catalogKind: 'DECISION' | 'OFFER' | 'LIMIT' | 'TAG';
+  items: Array<{ code: string; label: string }>;
+};
+
+type CompatibilityGap = {
+  kind: 'COMPATIBILITY';
+  parentVariableId: string; parentVariableCode: string;
+  childVariableId: string; childVariableCode: string;
+  axis: 'X' | 'Y';
+  exists: boolean;                      // já há regra publicada; o mapa abaixo a completa
+  allow: Record<string, string[]>;      // formato de CompatibilityVersion.allow
+  defaultForUnlisted: 'NONE';
+  missingPairs: Array<[string, string]>;// pares do arquivo que a regra atual não permite
+};
+
+// hash.ts
+fnv1a64(text: string): bigint;          // FNV-1a de 64 bits, sem crypto.subtle
+hashText(text: string): string;         // 16 dígitos hex do texto normalizado (RN-20)
+hashTable(table: ImportTable): string;  // a mesma coisa, a partir da tabela já lida
+hashValue(value: unknown): string;      // serialização canônica (chaves ordenadas)
+
+// apply.ts — comando (S24)
 'import/apply': {
   profile: ImportProfile;
   table: { header: string[]; rows: string[][] };
@@ -556,6 +690,14 @@ type MatrixPlan = {
 } → { importRunId: string; createdMatrices: string[]; createdDrafts: string[] };
 ```
 
+`source.contentHash` sai de `hashTable` quando o chamador não informa nada — a
+mesma informação do arquivo em forma canônica, imune a BOM, CRLF e escolha de
+separador. Quem ainda tem o texto passa `opts.contentHash = hashText(texto)`, e
+RN-20 vale literalmente. `planHash` cobre o perfil, o conteúdo do arquivo e o
+**resultado** da leitura do documento (estado, matriz e versão-base de cada linha
+do plano): versão publicada é imutável (I3), então o id da base já responde por
+todo o conteúdo comparado.
+
 ### 5.5 Estados do plano
 
 | Estado | Quando | O que a aplicação faz |
@@ -565,7 +707,13 @@ type MatrixPlan = {
 | `UNCHANGED` | Existe versão publicada e nenhuma célula difere | **Nada** (RN-02) |
 | `STRUCTURAL` | O arquivo traz tupla que não existe no eixo da matriz | Nada; a matriz é listada com o detalhe da divergência (S25 resolve) |
 | `ABSENT_IN_FILE` | Matriz existe no projeto e não aparece no arquivo | Nada (RN-09) |
-| `BLOCKED` | Já existe rascunho aberto na matriz | Nada; a tela orienta publicar ou descartar antes |
+| `BLOCKED` | Já existe rascunho aberto na matriz; ou o código está ocupado por uma matriz arquivada; ou não há versão publicada para servir de base; ou a matriz nova não caberia nos eixos (grid acima de 6.000, I16; variável sem versão publicada; nenhuma tupla válida) | Nada; `reason` diz o que resolver antes |
+
+A classificação segue esta ordem, e para na primeira que se aplica: matriz
+arquivada com o mesmo código → falta de versão-base → **estrutura divergente** →
+rascunho aberto → comparação de células. A divergência estrutural vem antes do
+rascunho porque é problema do arquivo, e é ela que a S25 resolve; o rascunho
+aberto é problema do documento, e quem o resolve é o usuário.
 
 ### 5.6 Modelo de dados
 
@@ -590,12 +738,16 @@ histórico de cargas mensais.
 
 ### 5.8 Catálogo de erros
 
+Erros — severidade `ERROR`. Qualquer um deles bloqueia o plano inteiro, exceto
+`IMPORT_STRUCTURE_DIVERGED` e `IMPORT_TARGET_HAS_DRAFT`, que a aplicação lança
+para uma matriz específica.
+
 | Código | Quando | O que o usuário faz |
 |---|---|---|
-| `IMPORT_PARSE_ERROR` | Cabeçalho ausente, número de colunas inconsistente, arquivo vazio | Corrige o arquivo; a mensagem aponta linha e coluna |
-| `IMPORT_PROFILE_INVALID` | Perfil sem coluna de partição, sem eixo, com níveis não contíguos ou sem regra `otherwise` de decisão | Ajusta o mapeamento no passo 2 |
+| `IMPORT_PARSE_ERROR` | Cabeçalho ausente, coluna sem nome ou repetida, número de colunas inconsistente, arquivo vazio | Corrige o arquivo; a mensagem aponta linha e coluna |
+| `IMPORT_PROFILE_INVALID` | Perfil sem coluna de partição, sem eixo, com níveis não contíguos, sem regra `otherwise`, com coluna que o arquivo não tem, ou com padrão de código que colide | Ajusta o mapeamento no passo 2 |
 | `IMPORT_PROFILE_DUPLICATE` | Código de perfil já existe no documento | Escolhe outro código ou atualiza o existente |
-| `IMPORT_UNMAPPED_VALUE` | Valor de coluna de eixo ou de valor sem correspondência | Mapeia, cria o domínio/item ou marca como ignorado |
+| `IMPORT_UNMAPPED_VALUE` | Valor de coluna de eixo ou de valor sem correspondência na biblioteca | Mapeia, cria o domínio/item ou marca como ignorado |
 | `IMPORT_DUPLICATE_KEY` | Mesma combinação com conteúdo divergente | Corrige a extração |
 | `IMPORT_STRUCTURE_DIVERGED` | Aplicação pedida para matriz `STRUCTURAL` | Atualiza a variável e o eixo antes (S25) |
 | `IMPORT_PLAN_STALE` | Documento mudou entre plano e aplicação | Revisa o plano recalculado |
@@ -603,8 +755,24 @@ histórico de cargas mensais.
 | `IMPORT_TARGET_HAS_DRAFT` | Matriz selecionada tem rascunho aberto | Publica ou descarta o rascunho |
 | `TAG_NOT_FOUND` | Tag referenciada por matriz não existe no catálogo | Recria a tag ou remove a referência |
 
-Todos entram em `src/core/errors.ts` com mensagem pt-BR em `src/core/error-messages.ts`
-(`05-regras-de-negocio.md` §9).
+Avisos — severidade `WARNING`. Descrevem o que a carga fez; nenhum impede o
+plano, e os dois últimos acompanham uma matriz `BLOCKED`.
+
+| Código | Quando |
+|---|---|
+| `IMPORT_DELIMITER_NOT_DETECTED` | Nenhum separador no cabeçalho: o arquivo foi lido como uma coluna só |
+| `IMPORT_CHECK_MISMATCH` | Coluna de conferência trouxe valor diferente do esperado (§5.2) |
+| `IMPORT_ROW_IGNORED` | Linha descartada por `ignoredValues` |
+| `IMPORT_DUPLICATE_ROW` | Chave repetida com conteúdo idêntico — contada uma vez (RN-08) |
+| `IMPORT_MISSING_ROW` | Combinações do grid sem linha no arquivo (RN-07) |
+| `IMPORT_TUPLES_SUPPRESSED` | Tuplas marcadas como inexistentes numa matriz nova (RN-21) |
+| `IMPORT_GRID_TOO_LARGE` | Matriz nova acima de 6.000 combinações (I16) |
+| `IMPORT_NO_BASE_VERSION` | Matriz existente sem versão publicada para comparar |
+
+Os códigos de erro entram em `src/core/errors.ts` com mensagem pt-BR em
+`src/core/error-messages.ts` (`05-regras-de-negocio.md` §9); os de aviso vivem em
+`src/core/import/issues.ts`, que é também quem decide a severidade de cada um —
+severidade é propriedade do código, não da situação.
 
 ## 6. Interface
 

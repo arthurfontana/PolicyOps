@@ -265,3 +265,61 @@ compatibilidade que dependesse da partição.
 tuplas), e o alerta de `04-eixos-aninhados.md` §5.4 — "se o escape hatch começar a ser usado em
 escala, reabra o desenho" — passa a valer com uma ressalva registrada aqui: neste caso o uso em
 escala é esperado e correto, porque a assimetria é por matriz, não por regra.
+
+---
+
+## DEC-CARGA-012: severidade no problema, e o plano bloqueia por inteiro ou por matriz
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `ImportIssue` carrega `severity` derivada do código: os códigos de §5.8 são `ERROR` e bloqueiam o plano inteiro (`matrices: []`); os códigos de aviso descrevem o que a carga fez e, no máximo, bloqueiam **uma** matriz, que sai `BLOCKED` com `reason`. |
+| **Data / gatilho** | 2026-08-11, S21: o plano tem uma única lista `issues`, e a interface precisa saber o que impede de avançar sem interpretar código por código. |
+| **Páginas afetadas** | `12-carga-de-matrizes.md` §5.4, §5.5, §5.8 |
+
+**Contexto.** `parseDelimitedTable` devolve `warnings` e `errors` separados, mas `ImportPlan` tem
+uma lista só. Sem severidade explícita, a tela teria de manter a sua própria tabela de "o que é
+grave", que sairia do lugar na primeira mudança do motor. Faltava também vocabulário para o que a
+carga faz e precisa dizer — conferência divergente, linha ignorada, combinação sem linha, tuplas
+suprimidas —, que não é erro nenhum.
+
+**Justificativa.**
+
+- Severidade é propriedade do **código**, não da situação: o mesmo `IMPORT_UNMAPPED_VALUE` sempre
+  bloqueia, sempre pelo mesmo motivo (RN-16). Derivá-la em `issues.ts` mantém uma única verdade.
+- Plano com erro não classifica matriz alguma: "nenhuma matriz do plano é aplicável" (CT-05) fica
+  verdadeiro por construção, sem um campo `applicable` por linha que alguém pudesse esquecer de
+  checar.
+- Problema de uma matriz continua sendo de uma matriz (DEC-CARGA-009): rascunho aberto, grid acima
+  do teto ou falta de versão-base viram `BLOCKED` com aviso, e as outras 101 seguem aplicáveis.
+
+**Trade-off aceito.** Um erro num canto do arquivo esconde o plano inteiro — inclusive as matrizes
+que estavam perfeitas. É o comportamento que o assistente quer no passo 3 (resolver a pendência
+antes de ver o plano), e o custo é recalcular o plano depois da correção, que leva menos de 1 s.
+
+---
+
+## DEC-CARGA-013: o plano descreve os eixos da matriz nova
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `MatrixPlan.axes` traz, só nas matrizes `NEW`, os eixos projetados: pins de versão de variável, snapshot de domínios, tuplas efetivas e `manualSuppressions`. `projectImportAxes(doc, profile)` expõe a mesma projeção sem a supressão por matriz. |
+| **Data / gatilho** | 2026-08-11, S21: RN-21 fala em tuplas suprimidas, e `suppressedCombinations` (um número) não diz **quais**. |
+| **Páginas afetadas** | `12-carga-de-matrizes.md` §5.4, CT-16 |
+
+**Contexto.** A aplicação (S24) precisa criar a matriz com exatamente os eixos que o plano
+prometeu, e o plano precisa poder ser revisado — "88 combinações marcadas como inexistentes" só é
+auditável se der para ver quais são.
+
+**Justificativa.**
+
+- Uma projeção só: se a S24 recalculasse os eixos por conta própria, passariam a existir duas
+  respostas para "como esta matriz nasce", e elas divergiriam no primeiro `variable/publish` entre
+  o plano e a aplicação.
+- A projeção é por **perfil**, não por matriz: os níveis vêm das colunas de eixo, então ela é
+  calculada uma vez por carga e compartilhada pelas 102 linhas do plano. Só o recorte de tuplas
+  muda de matriz para matriz.
+- Matriz existente não ganha `axes`: os eixos dela são os da versão publicada, que a carga nunca
+  altera (RN-01).
+
+**Trade-off aceito.** O plano fica maior — cada matriz nova carrega a lista de supressões. Em
+troca, `import/apply` vira uma transcrição do plano revisado, sem decisão nova na hora de gravar.
