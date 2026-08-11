@@ -48,6 +48,22 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
     'Outra pessoa salvou este arquivo enquanto você editava. Revise as mudanças antes de salvar novamente.',
   DOMAIN_TABLE_PARSE_ERROR:
     'Não foi possível interpretar a tabela colada — confira o cabeçalho (Domínio é obrigatório) e o número de colunas.',
+  IMPORT_PARSE_ERROR:
+    'Não foi possível interpretar o arquivo da carga — confira o cabeçalho e o número de colunas das linhas apontadas.',
+  IMPORT_PROFILE_INVALID:
+    'O perfil de carga está incompleto — revise o papel das colunas, os níveis de eixo e a regra de decisão padrão.',
+  IMPORT_PROFILE_DUPLICATE: 'Já existe um perfil de carga com esse código neste documento.',
+  IMPORT_UNMAPPED_VALUE:
+    'O arquivo traz valores sem correspondência na biblioteca — mapeie, crie o item ou marque como ignorado antes de carregar.',
+  IMPORT_DUPLICATE_KEY:
+    'O arquivo traz a mesma combinação em duas linhas com conteúdo diferente — corrija a extração.',
+  IMPORT_STRUCTURE_DIVERGED:
+    'Esta matriz tem estrutura divergente do arquivo e não pode ser carregada — atualize a variável e o eixo antes.',
+  IMPORT_PLAN_STALE:
+    'O documento mudou depois que o plano foi calculado — revise o plano recalculado antes de aplicar.',
+  IMPORT_NOTHING_TO_APPLY: 'Não há nada a aplicar nesta carga.',
+  IMPORT_TARGET_HAS_DRAFT:
+    'Esta matriz já tem um rascunho aberto — publique ou descarte o rascunho antes de recarregar.',
 };
 
 export function getErrorMessage(code: DomainErrorCode): string {

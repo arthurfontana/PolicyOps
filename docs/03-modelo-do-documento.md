@@ -390,6 +390,7 @@ type ImportProfile = {
   decisionRules: DecisionRule[];   // a última é sempre `otherwise`
   tagRules: TagRule[];
   missingRowPolicy: 'KEEP' | 'CLEAR';
+  suppressUnobserved: boolean;     // matriz nova nasce sem as tuplas que o arquivo não traz (RN-21)
 };
 ```
 

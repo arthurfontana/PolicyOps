@@ -26,11 +26,18 @@
 | 18 | Faixas regionais e duplicação de variáveis | **Sonnet** | Variável `RANGE` com threshold por regional, colar tabela, duplicar variável | 06 |
 | 19 | Importação genérica de domínios e paletas de cor | **Sonnet** | Colar tabela para qualquer tipo de variável, continuidade automática por padrão, preservação de cor ao recolar, paletas oficiais | 18 |
 | 20 | Agrupamentos hierárquicos de faixas | **Opus** | `regionalDimension` generalizado em `groupingDimensions` de 1 a 4 níveis, migração de schema, colagem com colunas de agrupamento, editor tidy | 19 |
-| 21 | Motor de carga de matrizes | **Opus** | `planImport` sobre o CSV real: 102 matrizes classificadas em novas/alteradas/inalteradas, com diff por célula, 100% testado | 14 |
+| 21 | Motor de carga de matrizes | **Opus** | ✅ **Entregue** — `planImport` sobre o CSV real: 102 matrizes classificadas em novas/alteradas/inalteradas, com diff por célula, 100% testado | 14 |
 | 22 | Assistente de carga: arquivo, colunas e biblioteca | **Sonnet** | Passos 1–4 do assistente; a biblioteca do documento sai montada a partir do arquivo | 21 |
 | 23 | Tags de matriz, filtro e schema 3 | **Sonnet** | Marcar e filtrar matrizes por faceta; `importProfiles` e `Matrix.tags` no documento, com migração 2→3 | 20 |
 | 24 | Aplicação da carga e versionamento seletivo | **Opus** | Carga aplicada: rascunho só nas alteradas, fila de revisão, perfil salvo, auditoria e idempotência | 22, 23 |
 | 25 | Evolução estrutural na carga | **Opus** | Faixa nova no arquivo vira nova versão de variável adotada no rascunho, sem caminho manual | 24 |
+
+> **Sessão 21 entregue.** O motor vive em `src/core/import/` (`issues`, `parse-table`, `profile`,
+> `resolve`, `plan`, `library-gaps`, `hash`), com 100% de cobertura e os cenários CT-01 a CT-10 e
+> CT-16 verdes sobre um recorte real do `CINEMINHA_20260708.csv`. O arquivo inteiro sobre um
+> documento sem matrizes classifica 102 matrizes `NEW` e 40.068 células em menos de 1 s; aplicado
+> sobre o documento já publicado, volta 102 `UNCHANGED` e zero células alteradas. As telas são as
+> sessões 22 e 24.
 
 > A sessão 17 acumula três frentes. Se ficar grande, quebre em 17a (templates), 17b (merge de documentos) e 17c (export e polimento) — o prompt já vem dividido nessas três partes, com critérios de aceite independentes.
 

@@ -51,6 +51,9 @@ export default tseslint.config(
       'src/core/document/commands.ts',
       'src/core/library/**/*.ts',
       'src/core/merge/**/*.ts',
+      // O motor da carga é dry-run puro (docs/12 RN-13): mesmo sem `ctx`, nada
+      // aqui pode depender de relógio nem de aleatoriedade.
+      'src/core/import/**/*.ts',
     ],
     rules: {
       'no-restricted-properties': [

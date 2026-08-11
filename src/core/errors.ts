@@ -36,6 +36,18 @@ export const DOMAIN_ERROR_CODES = [
   'DOCUMENT_INVALID',
   'SAVE_CONFLICT',
   'DOMAIN_TABLE_PARSE_ERROR',
+  // Carga de matrizes — docs/12-carga-de-matrizes.md §5.8. São os códigos que
+  // **bloqueiam**: aparecem como `ImportIssue` de severidade `ERROR` no plano
+  // (`src/core/import/issues.ts`) e como `DomainError` na aplicação.
+  'IMPORT_PARSE_ERROR',
+  'IMPORT_PROFILE_INVALID',
+  'IMPORT_PROFILE_DUPLICATE',
+  'IMPORT_UNMAPPED_VALUE',
+  'IMPORT_DUPLICATE_KEY',
+  'IMPORT_STRUCTURE_DIVERGED',
+  'IMPORT_PLAN_STALE',
+  'IMPORT_NOTHING_TO_APPLY',
+  'IMPORT_TARGET_HAS_DRAFT',
 ] as const;
 
 export type DomainErrorCode = (typeof DOMAIN_ERROR_CODES)[number];
