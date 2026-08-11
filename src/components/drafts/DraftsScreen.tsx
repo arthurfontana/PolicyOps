@@ -1,15 +1,24 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { PencilLine } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { getErrorMessage } from '@/core/error-messages';
 import { summaryToText } from '@/core/diff/semantics';
 import { diffVersions } from '@/core/diff';
 import { getImportOrigin, listImportRuns, listOpenDrafts } from '@/core/queries';
 import { getStaleAxes } from '@/core/reconcile/stale';
-import { publishVersion } from '@/core/versioning/lifecycle';
+import { discardDraft, publishVersion } from '@/core/versioning/lifecycle';
 import { formatDateBR, formatDateTimeBR } from '@/lib/format';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
@@ -37,6 +46,9 @@ export function DraftsScreen() {
   const toggleReviewed = useUiStore((s) => s.toggleReviewed);
   const clearReviewed = useUiStore((s) => s.clearReviewed);
   const { toast } = useToast();
+
+  const [selectedVersionIds, setSelectedVersionIds] = useState<string[]>([]);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const allDrafts = useMemo(() => (document === null ? [] : listOpenDrafts(document)), [document]);
   const runs = useMemo(() => (document === null ? [] : listImportRuns(document)), [document]);
@@ -99,6 +111,54 @@ export function DraftsScreen() {
   const activeRun = runs.find((run) => run.importRunId === importRunFilter) ?? null;
   const reviewed = new Set(reviewedVersionIds);
   const reviewedHere = drafts.filter((entry) => reviewed.has(entry.version.id));
+
+  const selected = new Set(selectedVersionIds);
+  const selectedHere = drafts.filter((entry) => selected.has(entry.version.id));
+  const allSelected = drafts.length > 0 && selectedHere.length === drafts.length;
+
+  function toggleSelected(versionId: string) {
+    setSelectedVersionIds((ids) =>
+      ids.includes(versionId) ? ids.filter((id) => id !== versionId) : [...ids, versionId],
+    );
+  }
+
+  function toggleSelectAll() {
+    setSelectedVersionIds((ids) => {
+      const draftIds = drafts.map((entry) => entry.version.id);
+      const currentlyAll = draftIds.length > 0 && draftIds.every((id) => ids.includes(id));
+      if (currentlyAll) return ids.filter((id) => !draftIds.includes(id));
+      const merged = new Set(ids);
+      for (const id of draftIds) merged.add(id);
+      return [...merged];
+    });
+  }
+
+  /** Descarta em lote os rascunhos selecionados; para no primeiro erro. */
+  function bulkDelete() {
+    const codes: string[] = [];
+    const versionIds: string[] = [];
+    for (const entry of selectedHere) {
+      const result = dispatch(discardDraft({ versionId: entry.version.id }));
+      if (!result.ok) {
+        toast({
+          variant: 'destructive',
+          title: 'A exclusão foi interrompida',
+          description: result.error.message || getErrorMessage(result.error.code),
+        });
+        break;
+      }
+      codes.push(entry.matrix.code);
+      versionIds.push(entry.version.id);
+    }
+    setSelectedVersionIds((ids) => ids.filter((id) => !versionIds.includes(id)));
+    clearReviewed(versionIds);
+    if (codes.length > 0) {
+      toast({
+        title: `${codes.length} ${codes.length === 1 ? 'rascunho excluído' : 'rascunhos excluídos'}`,
+        description: codes.join(', '),
+      });
+    }
+  }
 
   function publish(versionId: string, notes: string): boolean {
     const result = dispatch(publishVersion({ versionId, notes }));
@@ -189,6 +249,29 @@ export function DraftsScreen() {
         </div>
       )}
 
+      {drafts.length > 0 && (
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+            <Checkbox
+              checked={allSelected}
+              data-testid="select-all-drafts"
+              onCheckedChange={toggleSelectAll}
+            />
+            Selecionar todos
+          </label>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            disabled={selectedHere.length === 0}
+            data-testid="bulk-delete-drafts"
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            Excluir {selectedHere.length > 0 ? selectedHere.length : ''} selecionados
+          </Button>
+        </div>
+      )}
+
       {drafts.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
@@ -212,6 +295,11 @@ export function DraftsScreen() {
                 className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm dark:border-neutral-800 dark:bg-neutral-900"
                 data-testid={`draft-item-${matrix.code}`}
               >
+                <Checkbox
+                  checked={selected.has(version.id)}
+                  data-testid={`select-draft-${matrix.code}`}
+                  onCheckedChange={() => toggleSelected(version.id)}
+                />
                 <button
                   type="button"
                   className="min-w-0 flex-1 text-left"
@@ -302,6 +390,36 @@ export function DraftsScreen() {
           })}
         </div>
       )}
+
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Excluir {selectedHere.length} {selectedHere.length === 1 ? 'rascunho' : 'rascunhos'}?
+            </DialogTitle>
+            <DialogDescription>
+              {selectedHere.map((entry) => entry.matrix.code).join(', ')} — esta ação não pode ser
+              desfeita. Os números das versões não serão reutilizados.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setBulkDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              data-testid="confirm-bulk-delete"
+              onClick={() => {
+                setBulkDeleteOpen(false);
+                bulkDelete();
+              }}
+            >
+              Excluir rascunhos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
