@@ -15,6 +15,7 @@ import { CompareScreen } from '@/components/compare/CompareScreen';
 import { DraftsScreen } from '@/components/drafts/DraftsScreen';
 import { TimelineScreen } from '@/components/timeline/TimelineScreen';
 import { TemplatesScreen } from '@/components/templates/TemplatesScreen';
+import { ImportWizard } from '@/components/import/ImportWizard';
 import { IdentityDialog } from '@/components/dialogs/IdentityDialog';
 import { ConflictDialog } from '@/components/dialogs/ConflictDialog';
 import { MergeDialog } from '@/components/dialogs/MergeDialog';
@@ -62,6 +63,7 @@ function CurrentView() {
   if (view === 'compare') return <CompareScreen />;
   if (view === 'timeline') return <TimelineScreen />;
   if (view === 'templates') return <TemplatesScreen />;
+  if (view === 'import') return <ImportWizard />;
   return <UnderConstruction view={view} />;
 }
 
