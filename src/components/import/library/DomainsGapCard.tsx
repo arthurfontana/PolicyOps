@@ -160,7 +160,7 @@ export function DomainsGapCard({ gap }: { gap: DomainsGap }) {
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Domínios de {gap.variableCode || gap.variableName}</DialogTitle>
             <DialogDescription>

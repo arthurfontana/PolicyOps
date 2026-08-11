@@ -53,7 +53,7 @@ export function ImportWizard() {
     if (step2ProfileIssues(docWithProfiles, profile, parsed.header).some((i) => i.severity === 'ERROR')) {
       return false;
     }
-    return checkGridSize(docWithProfiles, profile).ok;
+    return checkGridSize(docWithProfiles, profile).status !== 'OVER';
   }, [docWithProfiles, profile, parsed]);
 
   const libraryGaps = useMemo(() => {

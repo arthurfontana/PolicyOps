@@ -29,7 +29,7 @@ export function Step2CalcPanel({ doc, table, profile, matrixCount }: Step2CalcPa
 
   const partitionCount = columnsWithRole(profile, 'PARTITION').length;
   const unpivotOptions = profile.unpivot?.options.length ?? 1;
-  const totalCells = grid?.ok === true ? matrixCount * grid.combinations : undefined;
+  const totalCells = grid?.status === 'OK' ? matrixCount * grid.combinations : undefined;
 
   return (
     <Card className="w-72 shrink-0">
@@ -51,7 +51,7 @@ export function Step2CalcPanel({ doc, table, profile, matrixCount }: Step2CalcPa
                 {matrixCount} {matrixCount === 1 ? 'matriz' : 'matrizes'}
               </span>
             </p>
-            {grid !== undefined && grid.ok && (
+            {grid?.status === 'OK' && (
               <>
                 <p className="text-neutral-600 dark:text-neutral-400">
                   Maior grid: <span className="font-medium">{grid.combinations}</span> combinações
@@ -64,8 +64,12 @@ export function Step2CalcPanel({ doc, table, profile, matrixCount }: Step2CalcPa
                 )}
               </>
             )}
-            {grid !== undefined && !grid.ok && (
-              <p className="text-xs text-red-600 dark:text-red-400">{grid.reason}</p>
+            {grid?.status === 'OVER' && <p className="text-xs text-red-600 dark:text-red-400">{grid.reason}</p>}
+            {grid?.status === 'PENDING' && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Tamanho do grid só é confirmado depois que as variáveis de eixo tiverem versão
+                publicada (passo 3).
+              </p>
             )}
           </>
         )}

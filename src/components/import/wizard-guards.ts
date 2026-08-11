@@ -45,13 +45,24 @@ export function step2ProfileIssues(
   return profileIssues(doc, withPlaceholderRules, header);
 }
 
-export type GridSizeCheck = { ok: true; combinations: number } | { ok: false; reason: string };
+export type GridSizeCheck =
+  | { status: 'OK'; combinations: number }
+  | { status: 'OVER'; combinations: number; reason: string }
+  /** Variável de eixo ainda sem versão publicada — o passo 3 resolve isso; não bloqueia o passo 2. */
+  | { status: 'PENDING'; reason: string };
 
 /**
  * O maior grid que o mapeamento atual produziria (I16). Os níveis de eixo são
  * os mesmos para toda matriz da carga — só o recorte de partição muda — então
  * uma única chamada a `projectImportAxes` já responde "o grid cabe?" para o
  * mapeamento inteiro (docs/12 §6.1, painel do passo 2).
+ *
+ * Numa carga inicial as variáveis de eixo criadas no próprio passo 2 ("+ Nova
+ * variável") ainda não têm versão publicada — `projectImportAxes` lança nesse
+ * caso, e isso não é "grid grande demais": é biblioteca incompleta, que o
+ * passo 3 resolve. Bloquear o passo 2 por isso criaria um círculo (não dá
+ * para chegar ao passo 3 sem passar pelo 2), então o resultado vira `PENDING`
+ * — não bloqueia, mas também não confirma o tamanho ainda.
  */
 export function checkGridSize(doc: PolicyOpsDocument, profile: ImportProfile): GridSizeCheck {
   try {
@@ -59,13 +70,14 @@ export function checkGridSize(doc: PolicyOpsDocument, profile: ImportProfile): G
     const combinations = x.tuples.length * y.tuples.length;
     if (combinations > MAX_COMBINATIONS) {
       return {
-        ok: false,
+        status: 'OVER',
+        combinations,
         reason: `O maior grid teria ${combinations} combinações; o limite é ${MAX_COMBINATIONS} (I16).`,
       };
     }
-    return { ok: true, combinations };
+    return { status: 'OK', combinations };
   } catch (error) {
-    return { ok: false, reason: (error as Error).message };
+    return { status: 'PENDING', reason: (error as Error).message };
   }
 }
 

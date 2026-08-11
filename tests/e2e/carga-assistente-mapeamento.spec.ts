@@ -123,10 +123,11 @@ test('carga do recorte CINEMINHA: arquivo → colunas → biblioteca → conteú
 
   // Passo 3 (primeira passada) — domínios, compatibilidade e catálogo de
   // ofertas. Decisão e tags ainda não existem (dependem do passo 4).
-  await expect(page.getByText('MODELO_ADICIONAL')).toBeVisible();
-  const domainsCards = page.locator('h3', { hasText: /MODELO_ADICIONAL|FAIXA_MODELO_ADICIONAL/ });
-  const domainsCount = await domainsCards.count();
-  for (let i = 0; i < domainsCount; i++) {
+  await expect(page.getByRole('heading', { name: 'MODELO_ADICIONAL', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'FAIXA_MODELO_ADICIONAL', exact: true })).toBeVisible();
+  // Duas lacunas de domínio (MODELO_ADICIONAL e FAIXA_MODELO_ADICIONAL) —
+  // "criar domínios pendentes" de uma faz a outra ficar a única visível.
+  for (let i = 0; i < 2; i++) {
     await page.getByRole('button', { name: /Criar domínios pendentes/ }).first().click();
     await page.getByRole('dialog').getByRole('button', { name: 'Criar e publicar' }).click();
     await expect(page.getByRole('dialog')).not.toBeVisible();

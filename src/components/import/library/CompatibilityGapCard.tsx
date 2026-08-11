@@ -70,7 +70,7 @@ export function CompatibilityGapCard({ gap }: { gap: CompatibilityGap }) {
       </CardContent>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="flex max-h-[85vh] max-w-3xl flex-col overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               Compatibilidade {gap.parentVariableCode} × {gap.childVariableCode}
