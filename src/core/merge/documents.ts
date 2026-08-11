@@ -1650,6 +1650,9 @@ export function mergeDocuments(
     projects,
     matrices,
     templates,
+    // Perfil de carga é configuração local, não histórico (docs/03 §7.1): o
+    // merge preserva os do documento aberto e não traz os do outro arquivo.
+    importProfiles: mine.importProfiles,
     events,
   };
 

@@ -1,4 +1,4 @@
-import { applyToDocument, defineCommand, isoFrom, type Command } from '../command';
+import { applyToDocument, defineCommand, isoFrom, makeEvent, type Command } from '../command';
 import { DomainError } from '../errors';
 import { CODE_REGEX, type Matrix, type PolicyOpsDocument, type Project } from './schema';
 
@@ -358,6 +358,95 @@ export function updateMatrixMeta(
       };
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// matrix/setTags — docs/08 §3, docs/12 US-09 e RN-12
+// ---------------------------------------------------------------------------
+
+export type SetMatrixTagsInput = { matrixId: string; add?: string[]; remove?: string[] };
+
+/**
+ * Acrescenta e remove tags de uma matriz. **Idempotente**: acrescentar uma tag
+ * que já está lá não duplica nem falha, e remover uma que não está é no-op — é
+ * o que permite a carga aplicar as tags do perfil a cada rodada sem tocar no
+ * que foi marcado à mão (RN-12: a carga só usa `add`).
+ *
+ * I20: toda tag apontada precisa existir no catálogo como item de kind `TAG`.
+ * A ordem final é a de inserção, e o campo é **omitido** quando a lista fica
+ * vazia (docs/03 §1).
+ */
+export function setMatrixTags(input: SetMatrixTagsInput): Command<SetMatrixTagsInput, { tags: string[] }> {
+  return defineCommand({
+    type: 'matrix/setTags',
+    input,
+    label: 'Alterar as tags da matriz',
+    scope: { matrixId: input.matrixId },
+    execute(doc, ctx) {
+      const { matrix, index } = locateMatrix(doc, input.matrixId);
+      const add = input.add ?? [];
+      const remove = new Set(input.remove ?? []);
+
+      for (const code of add) {
+        assertCode(code);
+        const item = doc.catalog.find(
+          (candidate) => candidate.kind === 'TAG' && candidate.code === code,
+        );
+        if (item === undefined) {
+          throw new DomainError('TAG_NOT_FOUND', `A tag "${code}" não existe no catálogo.`, {
+            code,
+            matrixId: matrix.id,
+          });
+        }
+      }
+
+      const current = matrix.tags ?? [];
+      const next = current.filter((code) => !remove.has(code));
+      for (const code of add) {
+        if (!next.includes(code)) next.push(code);
+      }
+
+      const added = next.filter((code) => !current.includes(code));
+      const removed = current.filter((code) => !next.includes(code));
+      const inverse = setMatrixTags({
+        matrixId: matrix.id,
+        add: removed,
+        remove: added,
+      });
+
+      // Nada mudou: sem evento e sem escrita, para que a carga possa chamar o
+      // comando por matriz sem sujar a auditoria (RN-02).
+      const events =
+        added.length === 0 && removed.length === 0
+          ? []
+          : [
+              makeEvent(ctx, {
+                type: 'MATRIX_TAGGED',
+                scope: { projectId: matrix.projectId, matrixId: matrix.id },
+                summary: tagSummary(ctx.actor, matrix.code, added, removed),
+                payload: { added, removed, tags: next },
+              }),
+            ];
+
+      return {
+        document: applyToDocument(doc, events, (draft) => {
+          const target = draft.matrices[index]!;
+          if (next.length === 0) delete target.tags;
+          else target.tags = next;
+        }),
+        data: { tags: next },
+        events,
+        inverse,
+      };
+    },
+  });
+}
+
+function tagSummary(actor: string, code: string, added: string[], removed: string[]): string {
+  const parts: string[] = [];
+  if (added.length > 0) parts.push(`aplicou ${added.join(', ')}`);
+  if (removed.length > 0) parts.push(`removeu ${removed.join(', ')}`);
+  return `${actor} ${parts.join(' e ')} em "${code}".`;
 }
 
 export type ArchiveMatrixInput = { matrixId: string };

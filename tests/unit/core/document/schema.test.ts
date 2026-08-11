@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import {
   CellSchema,
   CODE_REGEX,
+  CURRENT_SCHEMA_VERSION,
   codeSchema,
   DECIMAL_REGEX,
   decimalSchema,
@@ -142,7 +143,7 @@ describe('GroupingDimension/GroupingOption/GroupingRange (docs/03 §2, S20)', ()
       const parsed = PolicyOpsDocumentSchema.safeParse(raw);
       expect(parsed.success, `${name} deveria validar sem alteração de schema`).toBe(true);
       if (parsed.success) {
-        expect(parsed.data.schemaVersion).toBe(2);
+        expect(parsed.data.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
         for (const variable of parsed.data.variables) {
           for (const version of variable.versions) {
             expect(version.groupingDimensions).toBeUndefined();

@@ -62,6 +62,8 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
   IMPORT_PLAN_STALE:
     'O documento mudou depois que o plano foi calculado — revise o plano recalculado antes de aplicar.',
   IMPORT_NOTHING_TO_APPLY: 'Não há nada a aplicar nesta carga.',
+  TAG_NOT_FOUND:
+    'Essa tag não existe no catálogo — crie-a na tela de Conteúdo antes de aplicá-la a uma matriz.',
   IMPORT_TARGET_HAS_DRAFT:
     'Esta matriz já tem um rascunho aberto — publique ou descarte o rascunho antes de recarregar.',
 };

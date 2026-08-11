@@ -8,6 +8,7 @@ import type {
   Domain,
   DocEvent,
   DocumentMeta,
+  ImportProfile,
   Matrix,
   MatrixVersion,
   PolicyOpsDocument,
@@ -134,6 +135,7 @@ const CATALOG_ITEM_KEYS = [
   'description',
   'color',
   'numericValue',
+  'group',
   'position',
   'archivedAt',
   'createdAt',
@@ -196,7 +198,7 @@ function canonicalMatrixVersion(v: MatrixVersion): MatrixVersion {
   };
 }
 
-const MATRIX_KEYS = ['id', 'projectId', 'code', 'name', 'description', 'archivedAt', 'createdAt', 'versions'] as const;
+const MATRIX_KEYS = ['id', 'projectId', 'code', 'name', 'description', 'tags', 'archivedAt', 'createdAt', 'versions'] as const;
 function canonicalMatrix(m: Matrix): Matrix {
   return { ...pick(m, MATRIX_KEYS), versions: m.versions.map(canonicalMatrixVersion) };
 }
@@ -263,8 +265,32 @@ const DOCUMENT_KEYS = [
   'projects',
   'matrices',
   'templates',
+  'importProfiles',
   'events',
 ] as const;
+
+const IMPORT_PROFILE_KEYS = [
+  'id',
+  'code',
+  'name',
+  'description',
+  'createdAt',
+  'updatedAt',
+  'format',
+  'signature',
+  'projectId',
+  'columns',
+  'unpivot',
+  'codeTemplate',
+  'nameTemplate',
+  'decisionRules',
+  'tagRules',
+  'missingRowPolicy',
+  'suppressUnobserved',
+] as const;
+function canonicalImportProfile(profile: ImportProfile): ImportProfile {
+  return pick(profile, IMPORT_PROFILE_KEYS);
+}
 
 export function canonicalizeDocument(doc: PolicyOpsDocument): PolicyOpsDocument {
   return {
@@ -276,6 +302,7 @@ export function canonicalizeDocument(doc: PolicyOpsDocument): PolicyOpsDocument 
     projects: doc.projects.map(canonicalProject),
     matrices: doc.matrices.map(canonicalMatrix),
     templates: doc.templates.map(canonicalTemplate),
+    importProfiles: doc.importProfiles.map(canonicalImportProfile),
     events: doc.events.map(canonicalDocEvent),
   };
 }

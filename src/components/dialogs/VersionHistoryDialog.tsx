@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   EyeOff,
+  FileCog,
   FilePlus,
   FilePlus2,
   GitMerge,
@@ -18,7 +19,9 @@ import {
   Shuffle,
   SquarePen,
   StickyNote,
+  Tags,
   Trash2,
+  Upload,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -68,6 +71,9 @@ const EVENT_ICONS: Record<DocEventType, LucideIcon> = {
   NOTE_ADDED: StickyNote,
   VARIABLE_PUBLISHED: ListTree,
   COMPATIBILITY_PUBLISHED: Shuffle,
+  IMPORT_RUN: Upload,
+  IMPORT_PROFILE_SAVED: FileCog,
+  MATRIX_TAGGED: Tags,
   CATALOG_CHANGED: Library,
 };
 

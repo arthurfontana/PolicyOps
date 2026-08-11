@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "meta": {
     "id": "gMQISQsjs46p",
     "name": "Documento de exemplo — Políticas de Crédito",
@@ -1256,6 +1256,7 @@
       "createdAt": "2026-05-08T10:54:18.804Z"
     }
   ],
+  "importProfiles": [],
   "events": [
     {
       "id": "IS3rtf_czQrA",

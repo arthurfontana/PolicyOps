@@ -58,12 +58,14 @@ describe('migração 1 → 2: regionalDimension → groupingDimensions', () => {
   it('gera um único nível REGIONAL preservando as opções tal como estavam', () => {
     const result = migrateDocument(readRegionalFixture());
 
+    // A fixture é `schemaVersion: 1`, então a cadeia inteira roda até a atual.
     expect(result.migrationsApplied).toEqual([
       'Sessão 20: regionalDimension/regionalRanges → groupingDimensions/groupingRanges.',
+      'Sessão 23: importProfiles no topo do documento, tags de matriz e grupo de tag.',
     ]);
 
     const doc = result.document as Record<string, never>;
-    expect(doc.schemaVersion).toBe(2);
+    expect(doc.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
 
     const version = (doc.variables as never[])[0]!.versions[0]!;
     expect(version.groupingDimensions).toEqual([
@@ -137,9 +139,14 @@ describe('migração 1 → 2: regionalDimension → groupingDimensions', () => {
   });
 
   it('documento sem nenhum regionalDimension só muda de schemaVersion', () => {
-    const raw = { ...createEmptyDocument('Doc', 'Arthur'), schemaVersion: 1 };
+    const raw = { ...createEmptyDocument('Doc', 'Arthur'), schemaVersion: 1, importProfiles: undefined };
+    delete (raw as Record<string, unknown>).importProfiles;
     const result = migrateDocument(raw);
-    expect(result.document).toEqual({ ...raw, schemaVersion: CURRENT_SCHEMA_VERSION });
+    expect(result.document).toEqual({
+      ...raw,
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      importProfiles: [],
+    });
   });
 
   it('não muta o objeto recebido', () => {
@@ -186,18 +193,18 @@ describe('applyMigrations — infraestrutura de encadeamento', () => {
       },
       {
         from: 1,
-        to: 2,
-        description: 'fictícia 1 → 2',
+        to: CURRENT_SCHEMA_VERSION,
+        description: 'fictícia 1 → atual',
         migrate: (doc) => {
           applied.push(1);
-          return { ...doc, schemaVersion: 2 };
+          return { ...doc, schemaVersion: CURRENT_SCHEMA_VERSION };
         },
       },
     ];
 
     const result = applyMigrations({ schemaVersion: 0 }, chain);
     expect(applied).toEqual([0, 1]);
-    expect(result.migrationsApplied).toEqual(['fictícia 0 → 1', 'fictícia 1 → 2']);
+    expect(result.migrationsApplied).toEqual(['fictícia 0 → 1', 'fictícia 1 → atual']);
   });
 
   it('falha com DOCUMENT_INVALID quando não há caminho de migração para a versão atual', () => {

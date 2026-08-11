@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DELIMITERS, type DelimitedFormat, type Delimiter } from '../import/parse-table';
 
 /**
  * Tipos e schemas Zod do documento PolicyOps. Transcrição literal de
@@ -321,6 +322,8 @@ export type CatalogItem = {
   description?: string;
   color?: string;
   numericValue?: string;
+  /** Apenas `kind: 'TAG'`: faceta de filtro ("Canal", "Cluster") — docs/03 §4. */
+  group?: string;
   position: number;
   archivedAt?: string;
   createdAt: string;
@@ -335,6 +338,7 @@ export const CatalogItemSchema: z.ZodType<CatalogItem> = z
     description: z.string().min(1).optional(),
     color: colorSchema.optional(),
     numericValue: decimalSchema.optional(),
+    group: z.string().min(1).optional(),
     position: z.number().int().nonnegative(),
     archivedAt: isoDateSchema.optional(),
     createdAt: isoDateSchema,
@@ -488,6 +492,8 @@ export type Matrix = {
   code: string;
   name: string;
   description?: string;
+  /** Codes de `CatalogItem` de kind `TAG`, sem repetição (I20) — docs/03 §5. */
+  tags?: string[];
   archivedAt?: string;
   createdAt: string;
   versions: MatrixVersion[];
@@ -500,6 +506,7 @@ export const MatrixSchema: z.ZodType<Matrix> = z
     code: codeSchema,
     name: z.string().min(1),
     description: z.string().min(1).optional(),
+    tags: z.array(codeSchema).optional(),
     archivedAt: isoDateSchema.optional(),
     createdAt: isoDateSchema,
     versions: z.array(MatrixVersionSchema),
@@ -582,6 +589,167 @@ export const TemplateSchema: z.ZodType<Template> = z
   .strict();
 
 // ---------------------------------------------------------------------------
+// §7.1 Perfis de carga
+// ---------------------------------------------------------------------------
+
+/**
+ * O `ImportProfile` mora aqui porque é **parte do documento** (docs/03 §7.1):
+ * `PolicyOpsDocumentSchema` precisa dele em tempo de inicialização de módulo, e
+ * mantê-lo em `src/core/import/profile.ts` — que importa `codeSchema` e
+ * companhia daqui — fecharia um ciclo de import com TDZ nas constantes Zod.
+ * `profile.ts` continua sendo a porta de entrada do motor de carga: ele
+ * reexporta estes tipos e é o dono de `validateProfile`, da normalização de
+ * valores e da leitura do perfil. Os tipos auxiliares estão em docs/12 §5.4.
+ */
+
+export type ColumnRole = 'PARTITION' | 'AXIS' | 'VALUE' | 'CHECK' | 'IGNORE';
+export type ValueField = 'offer' | 'limit' | 'note' | `attr:${string}`;
+export type MissingRowPolicy = 'KEEP' | 'CLEAR';
+
+export type ColumnMapping = {
+  /** Nome exato no cabeçalho. */
+  column: string;
+  role: ColumnRole;
+  axis?: { role: 'X' | 'Y'; level: number; variableId: string };
+  value?: { field: ValueField };
+  check?: { expected: string };
+  /** Valor do arquivo → `code` (domínio ou item de catálogo). */
+  valueMap?: Record<string, string>;
+  /** Valores cujas linhas são descartadas, com aviso. */
+  ignoredValues?: string[];
+};
+
+export type UnpivotDimension = {
+  code: string;
+  label: string;
+  options: Array<{ column: string; code: string; label: string }>;
+};
+
+export type DecisionRule =
+  | { when: { field: 'offer'; equals: string[] }; setDecision: string }
+  | { otherwise: string };
+
+export type TagRule = {
+  source: 'PARTITION' | 'UNPIVOT' | 'FIXED';
+  column?: string;
+  group: string;
+  codePrefix?: string;
+  code?: string;
+};
+
+export type ImportProfile = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt?: string;
+  format: DelimitedFormat;
+  /** Cabeçalho reconhecido, na ordem (RN-19). */
+  signature: string[];
+  projectId: string;
+  columns: ColumnMapping[];
+  unpivot?: UnpivotDimension;
+  codeTemplate: string;
+  nameTemplate: string;
+  decisionRules: DecisionRule[];
+  tagRules: TagRule[];
+  missingRowPolicy: MissingRowPolicy;
+  /** Só vale em matriz nova (RN-21). */
+  suppressUnobserved: boolean;
+};
+
+export const DelimitedFormatSchema: z.ZodType<DelimitedFormat> = z
+  .object({
+    delimiter: z.enum([...DELIMITERS] as [Delimiter, ...Delimiter[]]),
+    headerRow: z.number().int().positive(),
+    hasBom: z.boolean(),
+    trimValues: z.boolean(),
+  })
+  .strict();
+
+const ValueFieldSchema: z.ZodType<ValueField> = z.union([
+  z.literal('offer'),
+  z.literal('limit'),
+  z.literal('note'),
+  z.string().regex(/^attr:.+$/, 'campo de valor deve ser offer, limit, note ou attr:<nome>.'),
+]) as z.ZodType<ValueField>;
+
+export const ColumnMappingSchema: z.ZodType<ColumnMapping> = z
+  .object({
+    column: z.string().min(1),
+    role: z.enum(['PARTITION', 'AXIS', 'VALUE', 'CHECK', 'IGNORE']),
+    axis: z
+      .object({
+        role: z.enum(['X', 'Y']),
+        level: z.number().int().nonnegative(),
+        variableId: idSchema,
+      })
+      .strict()
+      .optional(),
+    value: z.object({ field: ValueFieldSchema }).strict().optional(),
+    check: z.object({ expected: z.string() }).strict().optional(),
+    valueMap: z.record(z.string(), z.string()).optional(),
+    ignoredValues: z.array(z.string()).optional(),
+  })
+  .strict();
+
+export const UnpivotDimensionSchema: z.ZodType<UnpivotDimension> = z
+  .object({
+    code: codeSchema,
+    label: z.string().min(1),
+    options: z.array(
+      z.object({ column: z.string().min(1), code: codeSchema, label: z.string().min(1) }).strict(),
+    ),
+  })
+  .strict();
+
+export const DecisionRuleSchema: z.ZodType<DecisionRule> = z.union([
+  z
+    .object({
+      when: z.object({ field: z.literal('offer'), equals: z.array(z.string()) }).strict(),
+      setDecision: codeSchema,
+    })
+    .strict(),
+  z.object({ otherwise: codeSchema }).strict(),
+]);
+
+export const TagRuleSchema: z.ZodType<TagRule> = z
+  .object({
+    source: z.enum(['PARTITION', 'UNPIVOT', 'FIXED']),
+    column: z.string().min(1).optional(),
+    group: z.string().min(1),
+    codePrefix: z
+      .string()
+      .regex(/^[A-Z0-9_]*$/, 'o prefixo de tag só aceita A-Z, 0-9 e "_".')
+      .optional(),
+    code: codeSchema.optional(),
+  })
+  .strict();
+
+export const ImportProfileSchema: z.ZodType<ImportProfile> = z
+  .object({
+    id: idSchema,
+    code: codeSchema,
+    name: z.string().min(1),
+    description: z.string().min(1).optional(),
+    createdAt: isoDateSchema,
+    updatedAt: isoDateSchema.optional(),
+    format: DelimitedFormatSchema,
+    signature: z.array(z.string().min(1)),
+    projectId: idSchema,
+    columns: z.array(ColumnMappingSchema),
+    unpivot: UnpivotDimensionSchema.optional(),
+    codeTemplate: z.string().min(1),
+    nameTemplate: z.string().min(1),
+    decisionRules: z.array(DecisionRuleSchema),
+    tagRules: z.array(TagRuleSchema),
+    missingRowPolicy: z.enum(['KEEP', 'CLEAR']),
+    suppressUnobserved: z.boolean(),
+  })
+  .strict();
+
+// ---------------------------------------------------------------------------
 // §8 Auditoria
 // ---------------------------------------------------------------------------
 
@@ -603,6 +771,10 @@ export const DOC_EVENT_TYPES = [
   'VARIABLE_PUBLISHED',
   'COMPATIBILITY_PUBLISHED',
   'CATALOG_CHANGED',
+  // Carga de matrizes — docs/03 §8 e docs/12 §5.6.
+  'IMPORT_RUN',
+  'IMPORT_PROFILE_SAVED',
+  'MATRIX_TAGGED',
 ] as const;
 
 export type DocEventType = (typeof DOC_EVENT_TYPES)[number];
@@ -673,7 +845,7 @@ export const DocumentMetaSchema: z.ZodType<DocumentMeta> = z
   .strict();
 
 export type PolicyOpsDocument = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   meta: DocumentMeta;
   variables: Variable[];
   compatibility: CompatibilityRule[];
@@ -681,15 +853,17 @@ export type PolicyOpsDocument = {
   projects: Project[];
   matrices: Matrix[];
   templates: Template[];
+  /** Perfis de carga (docs/03 §7.1). */
+  importProfiles: ImportProfile[];
   events: DocEvent[];
 };
 
 /**
- * 2 desde a sessão 20 — `regionalDimension`/`regionalRanges` viraram
- * `groupingDimensions`/`groupingRanges` (docs/03 §10, migração 1 → 2 em
- * `migrate.ts`, a única não-aditiva do produto até aqui).
+ * 3 desde a sessão 23 — `importProfiles` no topo, `Matrix.tags` e
+ * `CatalogItem.group` (docs/03 §10, migração 2 → 3 em `migrate.ts`, puramente
+ * aditiva). A 1 → 2 da sessão 20 continua sendo a única não-aditiva do produto.
  */
-export const CURRENT_SCHEMA_VERSION = 2 as const;
+export const CURRENT_SCHEMA_VERSION = 3 as const;
 
 export const PolicyOpsDocumentSchema: z.ZodType<PolicyOpsDocument> = z
   .object({
@@ -701,6 +875,7 @@ export const PolicyOpsDocumentSchema: z.ZodType<PolicyOpsDocument> = z
     projects: z.array(ProjectSchema),
     matrices: z.array(MatrixSchema),
     templates: z.array(TemplateSchema),
+    importProfiles: z.array(ImportProfileSchema),
     events: z.array(DocEventSchema),
   })
   .strict();
