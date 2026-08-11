@@ -128,7 +128,7 @@ export function Step6Apply({ table }: { table: ImportTable }) {
     setProfileIdentity(code, name);
     setProfileSaved(true);
     toast({
-      title: result.data.created ? 'Perfil salvo' : 'Perfil atualizado',
+      title: recognizedProfile === undefined ? 'Perfil salvo' : 'Perfil atualizado',
       description: `A próxima carga com este cabeçalho reconhece "${code}" sozinha.`,
     });
   }

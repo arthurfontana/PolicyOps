@@ -424,7 +424,7 @@ export function setMatrixTags(input: SetMatrixTagsInput): Command<SetMatrixTagsI
                 type: 'MATRIX_TAGGED',
                 scope: { projectId: matrix.projectId, matrixId: matrix.id },
                 summary: tagSummary(ctx.actor, matrix.code, added, removed),
-                payload: { added, removed, tags: next },
+                payload: { matrixId: matrix.id, added, removed },
               }),
             ];
 

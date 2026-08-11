@@ -1,21 +1,41 @@
 import { applyToDocument, defineCommand, isoFrom, makeEvent, type Command } from '../command';
-import type { ImportProfile } from '../document/schema';
-import { DomainError } from '../errors';
-import { hasBlockingIssue } from './issues';
-import { validateProfile } from './profile';
+import { DomainError, type DomainErrorCode } from '../errors';
+import type { PolicyOpsDocument } from '../document/schema';
+import { validateProfile, type ImportProfile } from './profile';
 
 /**
- * `importProfile/save` e `importProfile/delete` — docs/08 §3 (Carga de
- * matrizes), docs/12 US-08, docs/03 §7.1.
+ * Comandos do perfil de carga — docs/08-camada-de-comandos.md §3,
+ * docs/03-modelo-do-documento.md §7.1. `ImportProfile` não tem `position`
+ * (docs/03 §7.1 não declara o campo), então inserir/remover em qualquer
+ * índice não abre o buraco que `checkPositions` vigia para catálogo e
+ * projeto — diferente do padrão de `catalog/create`.
  *
- * O perfil é **configuração, não histórico** (docs/03 §7.1): salvar um perfil
- * novo ou reescrever um existente não altera nenhuma carga já aplicada, e por
- * isso o comando é um `upsert` simples pelo `code`, com o inverso carregando o
- * estado anterior por extenso — o mesmo padrão dos comandos de metadados.
+ * Mesmo padrão de inverso do resto do documento (docs/08 §1, regra 3): o
+ * inverso carrega o valor **exato** anterior, sem recalcular `ctx.now()` no
+ * desfazer — é o que faz desfazer/refazer devolverem o documento byte a byte
+ * (mesmo raciocínio de `setProjectArchived` em `document/commands.ts`).
  */
 
+function locateImportProfile(
+  doc: PolicyOpsDocument,
+  profileId: string,
+): { profile: ImportProfile; index: number } {
+  const index = doc.importProfiles.findIndex((candidate) => candidate.id === profileId);
+  if (index < 0) {
+    throw new DomainError('NOT_FOUND', 'O perfil de carga informado não existe neste documento.', {
+      profileId,
+    });
+  }
+  return { profile: doc.importProfiles[index]!, index };
+}
+
+// ---------------------------------------------------------------------------
+// importProfile/save — cria ou atualiza pelo id; code duplicado com outro id
+// é IMPORT_PROFILE_DUPLICATE (I21, validado por `validateProfile`).
+// ---------------------------------------------------------------------------
+
 export type SaveImportProfileInput = { profile: ImportProfile };
-export type SaveImportProfileData = { profileId: string; created: boolean };
+export type SaveImportProfileData = { profileId: string };
 
 export function saveImportProfile(
   input: SaveImportProfileInput,
@@ -25,52 +45,116 @@ export function saveImportProfile(
     input,
     label: `Salvar o perfil de carga "${input.profile.code}"`,
     execute(doc, ctx) {
-      // I21/I22 antes de qualquer escrita (docs/08 §1, regra 4). O primeiro
-      // problema bloqueante vira `DomainError` com o código dele — a lista
-      // inteira já foi mostrada pelo assistente no passo 2.
       const issues = validateProfile(doc, input.profile);
       const blocking = issues.find((issue) => issue.severity === 'ERROR');
-      if (blocking !== undefined && hasBlockingIssue(issues)) {
-        throw new DomainError(blocking.code as 'IMPORT_PROFILE_INVALID', blocking.message, blocking.details);
+      if (blocking !== undefined) {
+        // Todo código de severidade ERROR de `validateProfile` também é um
+        // `DomainErrorCode` (issues.ts: `IMPORT_ERROR_CODES ... satisfies
+        // readonly DomainErrorCode[]`) — só o union bruto não carrega essa
+        // garantia para o TypeScript.
+        throw new DomainError(blocking.code as DomainErrorCode, blocking.message, blocking.details);
       }
 
-      const index = doc.importProfiles.findIndex(
-        (candidate) => candidate.code === input.profile.code,
-      );
-      const previous = index < 0 ? undefined : doc.importProfiles[index]!;
-      const now = isoFrom(ctx.now());
-      const saved: ImportProfile =
-        previous === undefined
-          ? { ...input.profile }
-          : // Atualizar preserva a identidade do perfil salvo: quem já
-            // referenciou aquele `id` continua apontando para o mesmo perfil.
-            { ...input.profile, id: previous.id, createdAt: previous.createdAt, updatedAt: now };
+      const existingIndex = doc.importProfiles.findIndex((candidate) => candidate.id === input.profile.id);
+      const isUpdate = existingIndex >= 0;
+      const previous = isUpdate ? structuredClone(doc.importProfiles[existingIndex]!) : null;
+
+      const stored: ImportProfile = isUpdate
+        ? { ...input.profile, createdAt: previous!.createdAt, updatedAt: isoFrom(ctx.now()) }
+        : { ...input.profile, createdAt: isoFrom(ctx.now()) };
 
       const event = makeEvent(ctx, {
         type: 'IMPORT_PROFILE_SAVED',
-        scope: { projectId: saved.projectId },
-        summary:
-          previous === undefined
-            ? `${ctx.actor} salvou o perfil de carga "${saved.code}".`
-            : `${ctx.actor} atualizou o perfil de carga "${saved.code}".`,
-        payload: { code: saved.code, name: saved.name, created: previous === undefined },
+        scope: { projectId: stored.projectId },
+        summary: `${ctx.actor} ${isUpdate ? 'atualizou' : 'criou'} o perfil de carga "${stored.code}".`,
+        payload: { profileId: stored.id, code: stored.code },
       });
+
+      const inverse: Command = isUpdate
+        ? setImportProfileExact({ profile: previous! })
+        : removeImportProfileExact({ profileId: stored.id });
 
       return {
         document: applyToDocument(doc, [event], (draft) => {
-          if (index < 0) draft.importProfiles.push(saved);
-          else draft.importProfiles[index] = saved;
+          if (isUpdate) draft.importProfiles[existingIndex] = stored;
+          else draft.importProfiles.push(stored);
         }),
-        data: { profileId: saved.id, created: previous === undefined },
+        data: { profileId: stored.id },
         events: [event],
-        inverse:
-          previous === undefined
-            ? deleteImportProfile({ profileId: saved.id })
-            : restoreImportProfile({ profile: previous, index }),
+        inverse,
       };
     },
   });
 }
+
+/** Sobrescreve um perfil existente com um valor exato — sem tocar `ctx.now()`. */
+function setImportProfileExact(
+  input: { profile: ImportProfile },
+): Command<{ profile: ImportProfile }, void> {
+  return defineCommand({
+    type: 'importProfile/_setExact',
+    input,
+    label: 'Restaurar o perfil de carga anterior',
+    execute(doc) {
+      const { index } = locateImportProfile(doc, input.profile.id);
+      const before = structuredClone(doc.importProfiles[index]!);
+      return {
+        document: applyToDocument(doc, [], (draft) => {
+          draft.importProfiles[index] = structuredClone(input.profile);
+        }),
+        data: undefined,
+        events: [],
+        inverse: setImportProfileExact({ profile: before }),
+      };
+    },
+  });
+}
+
+/** Inverso de `importProfile/save` quando criou, e de `importProfile/delete`: remove por id. */
+function removeImportProfileExact(input: { profileId: string }): Command<{ profileId: string }, void> {
+  return defineCommand({
+    type: 'importProfile/_removeExact',
+    input,
+    label: 'Desfazer a criação do perfil de carga',
+    execute(doc) {
+      const { profile, index } = locateImportProfile(doc, input.profileId);
+      const removed = structuredClone(profile);
+      return {
+        document: applyToDocument(doc, [], (draft) => {
+          draft.importProfiles.splice(index, 1);
+        }),
+        data: undefined,
+        events: [],
+        inverse: restoreImportProfileExact({ profile: removed, index }),
+      };
+    },
+  });
+}
+
+/** Reinsere um perfil removido, na posição exata em que estava. */
+function restoreImportProfileExact(
+  input: { profile: ImportProfile; index: number },
+): Command<{ profile: ImportProfile; index: number }, void> {
+  return defineCommand({
+    type: 'importProfile/_restoreExact',
+    input,
+    label: 'Restaurar o perfil de carga apagado',
+    execute(doc) {
+      return {
+        document: applyToDocument(doc, [], (draft) => {
+          draft.importProfiles.splice(input.index, 0, structuredClone(input.profile));
+        }),
+        data: undefined,
+        events: [],
+        inverse: removeImportProfileExact({ profileId: input.profile.id }),
+      };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// importProfile/delete
+// ---------------------------------------------------------------------------
 
 export type DeleteImportProfileInput = { profileId: string };
 
@@ -80,57 +164,17 @@ export function deleteImportProfile(
   return defineCommand({
     type: 'importProfile/delete',
     input,
-    label: 'Remover o perfil de carga',
+    label: 'Apagar o perfil de carga',
     execute(doc) {
-      const index = doc.importProfiles.findIndex((candidate) => candidate.id === input.profileId);
-      if (index < 0) {
-        throw new DomainError('NOT_FOUND', 'O perfil de carga informado não existe neste documento.', {
-          profileId: input.profileId,
-        });
-      }
-      const removed = structuredClone(doc.importProfiles[index]!);
+      const { profile, index } = locateImportProfile(doc, input.profileId);
+      const removed = structuredClone(profile);
       return {
         document: applyToDocument(doc, [], (draft) => {
           draft.importProfiles.splice(index, 1);
         }),
         data: undefined,
         events: [],
-        inverse: restoreImportProfile({ profile: removed, index }),
-      };
-    },
-  });
-}
-
-/** Devolve um perfil exatamente como estava, na posição em que estava. */
-function restoreImportProfile(input: { profile: ImportProfile; index: number }): Command<
-  { profile: ImportProfile; index: number },
-  void
-> {
-  return defineCommand({
-    type: 'importProfile/_restore',
-    input,
-    label: `Restaurar o perfil de carga "${input.profile.code}"`,
-    execute(doc) {
-      const existing = doc.importProfiles.findIndex(
-        (candidate) => candidate.id === input.profile.id,
-      );
-      // O inverso carrega o estado atual por extenso: sobrescrever devolve o
-      // que estava lá, e recriar volta a remover.
-      const inverse =
-        existing >= 0
-          ? restoreImportProfile({
-              profile: structuredClone(doc.importProfiles[existing]!),
-              index: existing,
-            })
-          : deleteImportProfile({ profileId: input.profile.id });
-      return {
-        document: applyToDocument(doc, [], (draft) => {
-          if (existing >= 0) draft.importProfiles[existing] = structuredClone(input.profile);
-          else draft.importProfiles.splice(input.index, 0, structuredClone(input.profile));
-        }),
-        data: undefined,
-        events: [],
-        inverse,
+        inverse: restoreImportProfileExact({ profile: removed, index }),
       };
     },
   });

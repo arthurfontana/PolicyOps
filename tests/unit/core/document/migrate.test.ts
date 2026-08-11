@@ -11,9 +11,20 @@ const fixturePath = fileURLToPath(new URL('../../../fixtures/migration-v0-raw.js
 const regionalFixturePath = fileURLToPath(
   new URL('../../../fixtures/regional-v1-document.json', import.meta.url),
 );
+const v2FixturePath = fileURLToPath(new URL('../../../fixtures/v2-document.json', import.meta.url));
 
 function readRegionalFixture(): Record<string, unknown> {
   return JSON.parse(readFileSync(regionalFixturePath, 'utf-8')) as Record<string, unknown>;
+}
+
+function readV2Fixture(): Record<string, unknown> {
+  return JSON.parse(readFileSync(v2FixturePath, 'utf-8')) as Record<string, unknown>;
+}
+
+function omit(obj: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  const out = { ...obj };
+  for (const key of keys) delete out[key];
+  return out;
 }
 
 describe('migrateDocument', () => {
@@ -58,14 +69,14 @@ describe('migração 1 → 2: regionalDimension → groupingDimensions', () => {
   it('gera um único nível REGIONAL preservando as opções tal como estavam', () => {
     const result = migrateDocument(readRegionalFixture());
 
-    // A fixture é `schemaVersion: 1`, então a cadeia inteira roda até a atual.
     expect(result.migrationsApplied).toEqual([
       'Sessão 20: regionalDimension/regionalRanges → groupingDimensions/groupingRanges.',
-      'Sessão 23: importProfiles no topo do documento, tags de matriz e grupo de tag.',
+      'Sessão 23: acrescenta importProfiles: [] (tags de matriz e grupo de tag são opcionais).',
     ]);
 
     const doc = result.document as Record<string, never>;
-    expect(doc.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(doc.schemaVersion).toBe(3);
+    expect(doc.importProfiles).toEqual([]);
 
     const version = (doc.variables as never[])[0]!.versions[0]!;
     expect(version.groupingDimensions).toEqual([
@@ -139,14 +150,9 @@ describe('migração 1 → 2: regionalDimension → groupingDimensions', () => {
   });
 
   it('documento sem nenhum regionalDimension só muda de schemaVersion', () => {
-    const raw = { ...createEmptyDocument('Doc', 'Arthur'), schemaVersion: 1, importProfiles: undefined };
-    delete (raw as Record<string, unknown>).importProfiles;
+    const raw = { ...createEmptyDocument('Doc', 'Arthur'), schemaVersion: 1 };
     const result = migrateDocument(raw);
-    expect(result.document).toEqual({
-      ...raw,
-      schemaVersion: CURRENT_SCHEMA_VERSION,
-      importProfiles: [],
-    });
+    expect(result.document).toEqual({ ...raw, schemaVersion: CURRENT_SCHEMA_VERSION });
   });
 
   it('não muta o objeto recebido', () => {
@@ -154,6 +160,65 @@ describe('migração 1 → 2: regionalDimension → groupingDimensions', () => {
     const snapshot = structuredClone(raw);
     migrateDocument(raw);
     expect(raw).toEqual(snapshot);
+  });
+});
+
+/**
+ * Migração 2 → 3 (sessão 23) — docs/03-modelo-do-documento.md §10. Puramente
+ * aditiva: o único campo novo em relação ao original é `importProfiles: []`.
+ * A fixture é um documento real de schemaVersion 2 (`v2-document.json`, o
+ * `sample-document.json` de antes da S23).
+ */
+describe('migração 2 → 3: importProfiles', () => {
+  it('acrescenta somente importProfiles: [] — o resto do documento é idêntico campo a campo', () => {
+    const before = readV2Fixture();
+    const result = migrateDocument(before);
+
+    expect(result.migrationsApplied).toEqual([
+      'Sessão 23: acrescenta importProfiles: [] (tags de matriz e grupo de tag são opcionais).',
+    ]);
+
+    const after = result.document as Record<string, unknown>;
+    expect(after.schemaVersion).toBe(3);
+    expect(after.importProfiles).toEqual([]);
+
+    const beforeRest = omit(before, ['schemaVersion']);
+    const afterRest = omit(after, ['schemaVersion', 'importProfiles']);
+    expect(afterRest).toEqual(beforeRest);
+  });
+
+  it('o documento migrado passa por validateDocument sem nenhum ERROR', () => {
+    const result = migrateDocument(readV2Fixture());
+    const validated = validateDocument(result.document);
+    if (!validated.ok) expect(validated.issues).toEqual([]);
+    expect(validated.ok).toBe(true);
+  });
+
+  it('não muta o objeto recebido', () => {
+    const raw = readV2Fixture();
+    const snapshot = structuredClone(raw);
+    migrateDocument(raw);
+    expect(raw).toEqual(snapshot);
+  });
+
+  it('documento v1 continua migrando em cadeia 1 → 2 → 3', () => {
+    const result = migrateDocument(readRegionalFixture());
+    expect(result.migrationsApplied).toHaveLength(2);
+    expect((result.document as Record<string, unknown>).schemaVersion).toBe(3);
+    expect(validateDocument(result.document).ok).toBe(true);
+  });
+
+  it('documento schemaVersion 4 é recusado com DOCUMENT_SCHEMA_TOO_NEW', () => {
+    expect.assertions(3);
+    try {
+      migrateDocument({ ...readV2Fixture(), schemaVersion: 4 });
+    } catch (error) {
+      expect(isDomainError(error)).toBe(true);
+      if (isDomainError(error)) {
+        expect(error.code).toBe('DOCUMENT_SCHEMA_TOO_NEW');
+        expect(error.message).toBe(SCHEMA_TOO_NEW_MESSAGE);
+      }
+    }
   });
 });
 
@@ -193,18 +258,27 @@ describe('applyMigrations — infraestrutura de encadeamento', () => {
       },
       {
         from: 1,
-        to: CURRENT_SCHEMA_VERSION,
-        description: 'fictícia 1 → atual',
+        to: 2,
+        description: 'fictícia 1 → 2',
         migrate: (doc) => {
           applied.push(1);
-          return { ...doc, schemaVersion: CURRENT_SCHEMA_VERSION };
+          return { ...doc, schemaVersion: 2 };
+        },
+      },
+      {
+        from: 2,
+        to: 3,
+        description: 'fictícia 2 → 3',
+        migrate: (doc) => {
+          applied.push(2);
+          return { ...doc, schemaVersion: 3 };
         },
       },
     ];
 
     const result = applyMigrations({ schemaVersion: 0 }, chain);
-    expect(applied).toEqual([0, 1]);
-    expect(result.migrationsApplied).toEqual(['fictícia 0 → 1', 'fictícia 1 → atual']);
+    expect(applied).toEqual([0, 1, 2]);
+    expect(result.migrationsApplied).toEqual(['fictícia 0 → 1', 'fictícia 1 → 2', 'fictícia 2 → 3']);
   });
 
   it('falha com DOCUMENT_INVALID quando não há caminho de migração para a versão atual', () => {

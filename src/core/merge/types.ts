@@ -21,6 +21,7 @@ export type MergeEntityKind =
   | 'MATRIX'
   | 'MATRIX_VERSION'
   | 'TEMPLATE'
+  | 'IMPORT_PROFILE'
   | 'EVENTS';
 
 export type MergeEntityRef = {
@@ -44,6 +45,7 @@ export type MergeActionKind =
   | 'UNION_PROJECT'
   | 'UNION_MATRIX'
   | 'UNION_TEMPLATE'
+  | 'UNION_IMPORT_PROFILE'
   | 'UNION_EVENTS'
   | 'CHANGED_SIDE_WINS'
   | 'LIFECYCLE_ADVANCED'
@@ -158,6 +160,7 @@ export const MERGE_ACTION_LABEL: Record<MergeActionKind, string> = {
   UNION_PROJECT: 'Projeto',
   UNION_MATRIX: 'Matriz',
   UNION_TEMPLATE: 'Template',
+  UNION_IMPORT_PROFILE: 'Perfil de carga',
   UNION_EVENTS: 'Histórico',
   CHANGED_SIDE_WINS: 'Item alterado de um lado só',
   LIFECYCLE_ADVANCED: 'Ciclo de vida avançou',

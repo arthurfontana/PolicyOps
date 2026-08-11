@@ -8,7 +8,6 @@ import type {
   Domain,
   DocEvent,
   DocumentMeta,
-  ImportProfile,
   Matrix,
   MatrixVersion,
   PolicyOpsDocument,
@@ -68,6 +67,7 @@ const DOMAIN_KEYS = [
   'minInclusive',
   'maxInclusive',
   'isCatchAll',
+  'groupingRanges',
 ] as const;
 function canonicalDomain(d: Domain): Domain {
   return pick(d, DOMAIN_KEYS);
@@ -83,6 +83,7 @@ const VARIABLE_VERSION_KEYS = [
   'publishedAt',
   'publishedBy',
   'domains',
+  'groupingDimensions',
   'boundaryMode',
 ] as const;
 function canonicalVariableVersion(v: VariableVersion): VariableVersion {
@@ -198,7 +199,17 @@ function canonicalMatrixVersion(v: MatrixVersion): MatrixVersion {
   };
 }
 
-const MATRIX_KEYS = ['id', 'projectId', 'code', 'name', 'description', 'tags', 'archivedAt', 'createdAt', 'versions'] as const;
+const MATRIX_KEYS = [
+  'id',
+  'projectId',
+  'code',
+  'name',
+  'description',
+  'tags',
+  'archivedAt',
+  'createdAt',
+  'versions',
+] as const;
 function canonicalMatrix(m: Matrix): Matrix {
   return { ...pick(m, MATRIX_KEYS), versions: m.versions.map(canonicalMatrixVersion) };
 }
@@ -269,29 +280,6 @@ const DOCUMENT_KEYS = [
   'events',
 ] as const;
 
-const IMPORT_PROFILE_KEYS = [
-  'id',
-  'code',
-  'name',
-  'description',
-  'createdAt',
-  'updatedAt',
-  'format',
-  'signature',
-  'projectId',
-  'columns',
-  'unpivot',
-  'codeTemplate',
-  'nameTemplate',
-  'decisionRules',
-  'tagRules',
-  'missingRowPolicy',
-  'suppressUnobserved',
-] as const;
-function canonicalImportProfile(profile: ImportProfile): ImportProfile {
-  return pick(profile, IMPORT_PROFILE_KEYS);
-}
-
 export function canonicalizeDocument(doc: PolicyOpsDocument): PolicyOpsDocument {
   return {
     ...pick(doc, DOCUMENT_KEYS),
@@ -302,7 +290,10 @@ export function canonicalizeDocument(doc: PolicyOpsDocument): PolicyOpsDocument 
     projects: doc.projects.map(canonicalProject),
     matrices: doc.matrices.map(canonicalMatrix),
     templates: doc.templates.map(canonicalTemplate),
-    importProfiles: doc.importProfiles.map(canonicalImportProfile),
+    // `ImportProfile` não passa por picker próprio — vem do comando/UI já com
+    // os campos exatos do schema (`.strict()` no Zod garante isso); só o
+    // pass-through evita perder o campo, sem reordenar as chaves internas.
+    importProfiles: doc.importProfiles,
     events: doc.events.map(canonicalDocEvent),
   };
 }

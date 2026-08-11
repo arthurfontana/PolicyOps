@@ -16,6 +16,7 @@ import {
   getVariableUsage,
   getVersionEvents,
   latestVersionOf,
+  listMatrices,
   listMatrixVersions,
   listOpenDrafts,
   listProjectMatrices,
@@ -24,6 +25,8 @@ import {
   resetEditorViewComputations,
   resolveOpenVersion,
 } from '@/core/queries';
+import { setMatrixTags } from '@/core/document/commands';
+import { archiveCatalogItem, createCatalogItem } from '@/core/library/catalog';
 import { addLevelCommand } from '@/core/versioning/axis-commands';
 import { applyCellPatch } from '@/core/versioning/cells';
 import { createDraft, createMatrix, locateVersion, publishVersion } from '@/core/versioning/lifecycle';
@@ -723,5 +726,123 @@ describe('listOpenDrafts', () => {
       publishVersion({ versionId: created.data.versionId, notes: 'Publicação inicial.' }),
     ).document;
     expect(listOpenDrafts(published)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listMatrices — docs/07-ux-e-editor.md §15
+// ---------------------------------------------------------------------------
+
+const TAG_GROUP_OF: Record<string, string> = {
+  CANAL_DIGITAL: 'Canal',
+  CANAL_URA: 'Canal',
+  CLUSTER_G4: 'Cluster',
+  CLUSTER_G1: 'Cluster',
+};
+
+function taggedMatricesDoc() {
+  const ctx = testCtx();
+  let document = baseDocument();
+
+  for (const code of Object.keys(TAG_GROUP_OF)) {
+    document = apply(
+      document,
+      ctx,
+      createCatalogItem({ kind: 'TAG', code, label: code, group: TAG_GROUP_OF[code]! }),
+    ).document;
+  }
+
+  function makeMatrix(code: string, tags: string[]): string {
+    const created = createTestMatrix(document, ctx, code);
+    document = created.document;
+    if (tags.length > 0) {
+      document = apply(document, ctx, setMatrixTags({ matrixId: created.data.matrixId, add: tags })).document;
+    }
+    return created.data.matrixId;
+  }
+
+  const m1 = makeMatrix('MTZ_M1', ['CANAL_DIGITAL', 'CLUSTER_G4']);
+  const m2 = makeMatrix('MTZ_M2', ['CANAL_URA', 'CLUSTER_G4']);
+  const m3 = makeMatrix('MTZ_M3', ['CANAL_DIGITAL', 'CLUSTER_G1']);
+  const m4 = makeMatrix('MTZ_M4', []);
+
+  return { ctx, get document() { return document; }, m1, m2, m3, m4 };
+}
+
+describe('listMatrices', () => {
+  it('OU dentro do grupo: duas tags do mesmo grupo somam', () => {
+    const { document, m1, m2, m3, m4 } = taggedMatricesDoc();
+    const result = listMatrices(document, {
+      projectId: IDS.projectA,
+      tags: ['CANAL_DIGITAL', 'CANAL_URA'],
+    });
+    const ids = result.matrices.map((m) => m.id);
+    expect(new Set(ids)).toEqual(new Set([m1, m2, m3]));
+    expect(ids).not.toContain(m4);
+  });
+
+  it('E entre grupos diferentes: só quem tem as duas facetas passa', () => {
+    const { document, m1, m2, m3 } = taggedMatricesDoc();
+    const result = listMatrices(document, {
+      projectId: IDS.projectA,
+      tags: ['CANAL_DIGITAL', 'CLUSTER_G4'],
+    });
+    const ids = result.matrices.map((m) => m.id);
+    expect(ids).toEqual([m1]);
+    expect(ids).not.toContain(m2);
+    expect(ids).not.toContain(m3);
+  });
+
+  it('a contagem de cada tag é sobre o conjunto antes do filtro do próprio grupo', () => {
+    const { document } = taggedMatricesDoc();
+    // Filtrando só por Cluster: G4 — o facet de Canal deve contar dentro do
+    // subconjunto que já tem Cluster: G4 (M1 e M2), não do total do projeto.
+    const result = listMatrices(document, { projectId: IDS.projectA, tags: ['CLUSTER_G4'] });
+    const canal = result.facets.find((g) => g.group === 'Canal')!;
+    expect(canal.options.find((o) => o.code === 'CANAL_DIGITAL')!.count).toBe(1);
+    expect(canal.options.find((o) => o.code === 'CANAL_URA')!.count).toBe(1);
+
+    // O facet do próprio grupo (Cluster) ignora o filtro de Cluster e conta
+    // sobre as 4 matrizes do projeto.
+    const cluster = result.facets.find((g) => g.group === 'Cluster')!;
+    expect(cluster.options.find((o) => o.code === 'CLUSTER_G4')!.count).toBe(2);
+    expect(cluster.options.find((o) => o.code === 'CLUSTER_G1')!.count).toBe(1);
+  });
+
+  it('tag arquivada some das facetas, mas a matriz que já a tem continua visível', () => {
+    const { ctx, document, m3 } = taggedMatricesDoc();
+    const g1Id = document.catalog.find((item) => item.kind === 'TAG' && item.code === 'CLUSTER_G1')!.id;
+    const arquivado = apply(document, ctx, archiveCatalogItem({ id: g1Id })).document;
+
+    const result = listMatrices(arquivado, { projectId: IDS.projectA });
+    const cluster = result.facets.find((g) => g.group === 'Cluster')!;
+    expect(cluster.options.some((o) => o.code === 'CLUSTER_G1')).toBe(false);
+
+    // A matriz continua na lista, e a tag arquivada continua no seu `tags`.
+    const matrix = result.matrices.find((m) => m.id === m3)!;
+    expect(matrix.tags).toContain('CLUSTER_G1');
+  });
+
+  it('busca combinada com filtro de tag: as duas condições valem ao mesmo tempo', () => {
+    const { document, m1 } = taggedMatricesDoc();
+    const soDigitalG4 = listMatrices(document, {
+      projectId: IDS.projectA,
+      tags: ['CANAL_DIGITAL', 'CLUSTER_G4'],
+      search: 'MTZ_M1',
+    });
+    expect(soDigitalG4.matrices.map((m) => m.id)).toEqual([m1]);
+
+    const buscaSemBater = listMatrices(document, {
+      projectId: IDS.projectA,
+      tags: ['CANAL_DIGITAL', 'CLUSTER_G4'],
+      search: 'MTZ_M2',
+    });
+    expect(buscaSemBater.matrices).toEqual([]);
+  });
+
+  it('sem filtro nenhum, devolve todas as matrizes do projeto', () => {
+    const { document, m1, m2, m3, m4 } = taggedMatricesDoc();
+    const result = listMatrices(document, { projectId: IDS.projectA });
+    expect(new Set(result.matrices.map((m) => m.id))).toEqual(new Set([m1, m2, m3, m4]));
   });
 });

@@ -28,7 +28,7 @@
 | 20 | Agrupamentos hierárquicos de faixas | **Opus** | `regionalDimension` generalizado em `groupingDimensions` de 1 a 4 níveis, migração de schema, colagem com colunas de agrupamento, editor tidy | 19 |
 | 21 | Motor de carga de matrizes | **Opus** | ✅ **Entregue** — `planImport` sobre o CSV real: 102 matrizes classificadas em novas/alteradas/inalteradas, com diff por célula, 100% testado | 14 |
 | 22 | Assistente de carga: arquivo, colunas e biblioteca | **Sonnet** | ✅ **Entregue** — passos 1–4 do assistente e o passo 5 (plano) somente leitura; a biblioteca do documento sai montada a partir do arquivo | 21 |
-| 23 | Tags de matriz, filtro e schema 3 | **Sonnet** | 🟡 **Parcial** — o modelo de documento (schema 3, `importProfiles`, `Matrix.tags`, `CatalogItem.group`, `matrix/setTags`, I20–I22) foi entregue pela S24, que dependia dele; falta o filtro por facetas na lista de matrizes e na barra lateral | 20 |
+| 23 | Tags de matriz, filtro e schema 3 | **Sonnet** | ✅ **Entregue** — schema 3, migração 2→3 puramente aditiva, tags de matriz com facetas de filtro, perfis de carga persistidos | 20 |
 | 24 | Aplicação da carga e versionamento seletivo | **Opus** | ✅ **Entregue** — carga aplicada: rascunho só nas alteradas, fila de revisão, perfil salvo, auditoria e idempotência | 22, 23 |
 | 25 | Evolução estrutural na carga | **Opus** | Faixa nova no arquivo vira nova versão de variável adotada no rascunho, sem caminho manual | 24 |
 
@@ -48,6 +48,26 @@
 > sem nenhuma pendência. Quatro ajustes de composição de tela descobertos ao montar o fluxo
 > completo ficam em `13-decisoes.md` DEC-CARGA-014.
 
+> **Sessão 23 entregue.** `schemaVersion: 3` — `migrate.ts` ganha a migração 2→3
+> (`importProfiles: []`, puramente aditiva; testada com um `sample-document.json`
+> real de v2 e com a cadeia 1→2→3 sobre o fixture de v1). `Matrix.tags` e
+> `CatalogItem.group` entram no schema; `matrix/setTags` (idempotente, valida
+> I20, inverso exato, evento `MATRIX_TAGGED`), `catalog/create`/`catalog/update`
+> aceitam `group`, e `importProfile/save`/`importProfile/delete` gravam
+> `ImportProfile` no documento (`src/core/import/profile.ts`, já escrito na S21,
+> agora referenciado por `document/schema.ts` — os primitivos de schema saíram
+> para `document/primitives.ts` para não fechar um ciclo de import em tempo de
+> execução). `listMatrices` filtra por facetas de tag (`OU` no grupo, `E` entre
+> grupos, contagem por tag sobre o conjunto antes do filtro do próprio grupo).
+> Interface: campo de tags com autocompletar e criação inline no inspector da
+> matriz, faixa de filtro por facetas na lista de matrizes com chips e
+> contagem filtrada na barra lateral, coluna Grupo editável em linha na aba TAG
+> do Conteúdo. O merge de documentos (S17) e a canonicalização de exportação
+> (`serialize.ts`) foram estendidos para `importProfiles`/`tags`/`group` na
+> mesma sessão, para o build continuar fechando — nenhum dos dois tinha
+> cobertura de teste dedicada antes, então o alcance ficou no mínimo necessário
+> para manter o documento válido depois de um merge ou de um save.
+>
 > **Sessão 24 entregue — marco M6 fechado.** `import/apply` (`src/core/import/apply.ts`) compõe os
 > comandos existentes para criar as matrizes novas e um rascunho **só** nas alteradas, sem publicar
 > nada (RN-10); o passo 5 vira o plano interativo com seleção, filtros e o `CompareView` embutido
@@ -56,13 +76,10 @@
 > CT-15 e CT-16 verdes, mais o inverso, a atomicidade do lote e os 102 rascunhos do arquivo real
 > aplicados em ~800 ms (orçamento de 2 s). O E2E do épico roda a sequência inteira: carga →
 > publicação → 5 células alteradas → segunda carga com 1 matriz → terceira carga sem nada a aplicar.
+> A S24 foi desenvolvida em paralelo à S23 e dependia do modelo de documento dela
+> (`schemaVersion: 3`, `importProfiles`, `Matrix.tags`, `CatalogItem.group`, I20–I22); as duas
+> convergiram nesta branch.
 >
-> **A S23 não estava implementada quando a S24 começou.** O modelo de documento dela — `schemaVersion: 3`,
-> `importProfiles`, `Matrix.tags`, `CatalogItem.group`, os eventos novos, I20–I22, `matrix/setTags` e
-> `importProfile/save`/`delete` — é pré-condição da aplicação da carga, e foi entregue junto com a S24.
-> O que resta da S23 é a interface: o campo de tags no inspector da matriz e o filtro por facetas na
-> lista e na barra lateral (`07-ux-e-editor.md` §15).
-
 > A sessão 17 acumula três frentes. Se ficar grande, quebre em 17a (templates), 17b (merge de documentos) e 17c (export e polimento) — o prompt já vem dividido nessas três partes, com critérios de aceite independentes.
 
 > **Sessões 21–25 são o épico Carga** ([`12-carga-de-matrizes.md`](12-carga-de-matrizes.md), decisões `DEC-CARGA-*` em [`13-decisoes.md`](13-decisoes.md)), nascido do caso real de trazer a extração `CINEMINHA` (6.678 linhas → 102 matrizes) para dentro do documento e mantê-la atualizada mês a mês. Dependem do diff (14) e, para o passo de biblioteca, do que as sessões 19–20 já entregaram. **23 é independente das demais** — tags e migração de schema não dependem do motor de carga — e pode ser executada em paralelo com 21/22.

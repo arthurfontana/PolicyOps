@@ -15,6 +15,7 @@ import {
   groupingPathKey,
   groupingRangeAt,
 } from './grouping';
+import { validateProfile } from '../import/profile';
 
 /**
  * Validação do documento — schema estrutural (Zod) + invariantes de negócio
@@ -552,6 +553,79 @@ export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
 }
 
 // ---------------------------------------------------------------------------
+// I20 — toda entrada de Matrix.tags aponta para um CatalogItem existente de
+// kind TAG, e não há repetição dentro da mesma matriz. Integridade
+// referencial, não forma de domínio — por isso ERROR, não aviso (docs/03 §9).
+// ---------------------------------------------------------------------------
+
+export function checkI20(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const tagCodes = new Set(doc.catalog.filter((item) => item.kind === 'TAG').map((item) => item.code));
+  doc.matrices.forEach((matrix, mi) => {
+    if (matrix.tags === undefined) return;
+    const path = `matrices[${mi}].tags`;
+    const seen = new Set<string>();
+    for (const tag of matrix.tags) {
+      if (!tagCodes.has(tag)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I20',
+          path,
+          message: `A matriz "${matrix.code}" tem a tag "${tag}", que não existe no catálogo (kind TAG).`,
+        });
+      }
+      if (seen.has(tag)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I20',
+          path,
+          message: `A tag "${tag}" aparece repetida na matriz "${matrix.code}".`,
+        });
+      }
+      seen.add(tag);
+    }
+  });
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// I21 / I22 — ImportProfile: code único no documento, projectId existente,
+// colunas e regras de decisão estruturalmente corretas (I21), variableId de
+// cada coluna de eixo apontando para variável existente (I22). A checagem em
+// si vive em `import/profile.ts` (`validateProfile`) — o motor de carga (S21)
+// já a escreveu contra este mesmo contrato; aqui só se roda para todo
+// `ImportProfile` do documento e se traduz `ImportIssue` em `ValidationIssue`.
+// ---------------------------------------------------------------------------
+
+function classifyProfileIssueInvariant(message: string): 'I21' | 'I22' {
+  return message.includes('(I22)') ? 'I22' : 'I21';
+}
+
+function checkImportProfiles(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  doc.importProfiles.forEach((profile, pi) => {
+    const path = `importProfiles[${pi}]`;
+    for (const issue of validateProfile(doc, profile)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: classifyProfileIssueInvariant(issue.message),
+        path,
+        message: issue.message,
+      });
+    }
+  });
+  return issues;
+}
+
+export function checkI21(doc: PolicyOpsDocument): ValidationIssue[] {
+  return checkImportProfiles(doc).filter((issue) => issue.invariant === 'I21');
+}
+
+export function checkI22(doc: PolicyOpsDocument): ValidationIssue[] {
+  return checkImportProfiles(doc).filter((issue) => issue.invariant === 'I22');
+}
+
+// ---------------------------------------------------------------------------
 // I10 — VariableVersion / CompatibilityVersion publicada é imutável
 // (mesma checagem estrutural de I3, aplicada às bibliotecas)
 // ---------------------------------------------------------------------------
@@ -952,138 +1026,6 @@ export function checkI18(doc: PolicyOpsDocument): ValidationIssue[] {
 }
 
 // ---------------------------------------------------------------------------
-// I20 — toda entrada de `Matrix.tags` aponta para um `CatalogItem` de kind
-// `TAG` existente, e não há repetição dentro da mesma matriz.
-// ---------------------------------------------------------------------------
-
-export function checkI20(doc: PolicyOpsDocument): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  const tags = new Set(
-    doc.catalog.filter((item) => item.kind === 'TAG').map((item) => item.code),
-  );
-
-  doc.matrices.forEach((matrix, index) => {
-    const seen = new Set<string>();
-    for (const code of matrix.tags ?? []) {
-      if (seen.has(code)) {
-        issues.push({
-          severity: 'ERROR',
-          invariant: 'I20',
-          path: `matrices[${index}].tags`,
-          message: `A matriz "${matrix.code}" repete a tag "${code}".`,
-          autoFix: 'REMOVE',
-        });
-        continue;
-      }
-      seen.add(code);
-      if (!tags.has(code)) {
-        issues.push({
-          severity: 'ERROR',
-          invariant: 'I20',
-          path: `matrices[${index}].tags`,
-          message: `A matriz "${matrix.code}" referencia a tag "${code}", que não existe no catálogo.`,
-          autoFix: 'CLEAR_REF',
-        });
-      }
-    }
-  });
-
-  return issues;
-}
-
-// ---------------------------------------------------------------------------
-// I21 / I22 — perfis de carga (docs/03 §9, docs/12 §5.4).
-//
-// A checagem estrutural completa vive em `validateProfile`
-// (`src/core/import/profile.ts`), que é quem o assistente usa e quem
-// `importProfile/save` chama antes de gravar. Aqui fica o que a validação do
-// **documento** precisa garantir por conta própria, sem depender do motor de
-// carga: unicidade de código, projeto existente e variável de eixo existente.
-// ---------------------------------------------------------------------------
-
-export function checkI21(doc: PolicyOpsDocument): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  const projects = new Set(doc.projects.map((project) => project.id));
-
-  issues.push(
-    ...checkUniqueCodes(
-      doc.importProfiles.map((p, i) => ({ code: p.code, path: `importProfiles[${i}]` })),
-      'perfis de carga',
-    ),
-  );
-
-  doc.importProfiles.forEach((profile, index) => {
-    if (!projects.has(profile.projectId)) {
-      issues.push({
-        severity: 'ERROR',
-        invariant: 'I21',
-        path: `importProfiles[${index}].projectId`,
-        message: `O perfil de carga "${profile.code}" aponta para um projeto que não existe neste documento.`,
-      });
-    }
-
-    const partitions = profile.columns.filter((column) => column.role === 'PARTITION');
-    if (partitions.length === 0) {
-      issues.push({
-        severity: 'ERROR',
-        invariant: 'I21',
-        path: `importProfiles[${index}].columns`,
-        message: `O perfil de carga "${profile.code}" não declara nenhuma coluna de partição.`,
-      });
-    }
-
-    for (const role of ['X', 'Y'] as const) {
-      const levels = profile.columns
-        .filter((column) => column.role === 'AXIS' && column.axis?.role === role)
-        .map((column) => column.axis!.level)
-        .sort((a, b) => a - b);
-      const contiguous = levels.length > 0 && levels.every((level, position) => level === position);
-      if (!contiguous) {
-        issues.push({
-          severity: 'ERROR',
-          invariant: 'I21',
-          path: `importProfiles[${index}].columns`,
-          message: `Os níveis do eixo ${role} do perfil "${profile.code}" precisam ser contíguos a partir de 0.`,
-        });
-      }
-    }
-
-    const otherwise = profile.decisionRules.filter((rule) => 'otherwise' in rule).length;
-    const last = profile.decisionRules[profile.decisionRules.length - 1];
-    if (otherwise !== 1 || last === undefined || !('otherwise' in last)) {
-      issues.push({
-        severity: 'ERROR',
-        invariant: 'I21',
-        path: `importProfiles[${index}].decisionRules`,
-        message: `As regras de decisão do perfil "${profile.code}" precisam terminar com exatamente uma regra "otherwise".`,
-      });
-    }
-  });
-
-  return issues;
-}
-
-export function checkI22(doc: PolicyOpsDocument): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  const variables = new Set(doc.variables.map((variable) => variable.id));
-
-  doc.importProfiles.forEach((profile, index) => {
-    for (const column of profile.columns) {
-      const variableId = column.axis?.variableId;
-      if (variableId === undefined || variables.has(variableId)) continue;
-      issues.push({
-        severity: 'ERROR',
-        invariant: 'I22',
-        path: `importProfiles[${index}].columns`,
-        message: `A coluna "${column.column}" do perfil "${profile.code}" pina uma variável que não existe neste documento.`,
-      });
-    }
-  });
-
-  return issues;
-}
-
-// ---------------------------------------------------------------------------
 // Checagem adicional (fora da tabela I1–I18): `position` 0-based sem
 // buracos, convenção de docs/03-modelo-do-documento.md §1 aplicada a
 // Domain, CatalogItem e Project. Usa o mesmo formato de ValidationIssue,
@@ -1172,8 +1114,7 @@ function runAllChecks(doc: PolicyOpsDocument): ValidationIssue[] {
     ...checkI18(doc),
     ...checkI19(doc),
     ...checkI20(doc),
-    ...checkI21(doc),
-    ...checkI22(doc),
+    ...checkImportProfiles(doc),
     ...checkPositions(doc),
   ];
 }

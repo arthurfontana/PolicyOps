@@ -78,6 +78,19 @@ function applyThemeClass(theme: Theme): void {
   document.documentElement.classList.toggle('dark', theme === 'dark');
 }
 
+/**
+ * Filtro de tags da lista de matrizes (docs/07-ux-e-editor.md §15) — estado
+ * de interface, nunca do documento: não é salvo no `.json`. Escopado por
+ * `projectId` para que trocar de projeto comece com o filtro limpo, mas
+ * navegar entre a lista e o editor de uma matriz dentro do **mesmo**
+ * projeto preserve os chips ativos.
+ */
+export type MatrixFilterState = {
+  projectId: string | null;
+  tags: string[];
+  search: string;
+};
+
 interface UiState {
   view: View;
   /**
@@ -96,6 +109,7 @@ interface UiState {
   theme: Theme;
   actor: string | null;
   identityDialogOpen: boolean;
+  matrixFilter: MatrixFilterState;
   setView: (view: View) => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
@@ -106,6 +120,11 @@ interface UiState {
   clearReviewed: (versionIds: string[]) => void;
   openIdentityDialog: () => void;
   closeIdentityDialog: () => void;
+  /** Troca o projeto do filtro; limpa tags e busca quando o projeto muda. */
+  setMatrixFilterProject: (projectId: string | null) => void;
+  toggleMatrixFilterTag: (code: string) => void;
+  setMatrixFilterSearch: (search: string) => void;
+  clearMatrixFilter: () => void;
 }
 
 const initialActor = readLocalStorage(ACTOR_STORAGE_KEY);
@@ -119,6 +138,7 @@ export const useUiStore = create<UiState>((set) => ({
   theme: readInitialTheme(),
   actor: initialActor,
   identityDialogOpen: initialActor === null,
+  matrixFilter: { projectId: null, tags: [], search: '' },
 
   setView: (view) => set({ view }),
 
@@ -157,4 +177,24 @@ export const useUiStore = create<UiState>((set) => ({
 
   openIdentityDialog: () => set({ identityDialogOpen: true }),
   closeIdentityDialog: () => set({ identityDialogOpen: false }),
+
+  setMatrixFilterProject: (projectId) =>
+    set((s) =>
+      s.matrixFilter.projectId === projectId
+        ? s
+        : { matrixFilter: { projectId, tags: [], search: '' } },
+    ),
+
+  toggleMatrixFilterTag: (code) =>
+    set((s) => {
+      const tags = s.matrixFilter.tags.includes(code)
+        ? s.matrixFilter.tags.filter((candidate) => candidate !== code)
+        : [...s.matrixFilter.tags, code];
+      return { matrixFilter: { ...s.matrixFilter, tags } };
+    }),
+
+  setMatrixFilterSearch: (search) => set((s) => ({ matrixFilter: { ...s.matrixFilter, search } })),
+
+  clearMatrixFilter: () =>
+    set((s) => ({ matrixFilter: { ...s.matrixFilter, tags: [], search: '' } })),
 }));

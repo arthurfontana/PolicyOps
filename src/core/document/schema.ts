@@ -1,5 +1,18 @@
 import { z } from 'zod';
-import { DELIMITERS, type DelimitedFormat, type Delimiter } from '../import/parse-table';
+import { ImportProfileSchema, type ImportProfile } from '../import/profile';
+import {
+  CODE_REGEX,
+  COLOR_REGEX,
+  DECIMAL_REGEX,
+  INTEGER_REGEX,
+  ISO_DATE_REGEX,
+  NANOID_REGEX,
+  codeSchema,
+  colorSchema,
+  decimalSchema,
+  idSchema,
+  isoDateSchema,
+} from './primitives';
 
 /**
  * Tipos e schemas Zod do documento PolicyOps. Transcrição literal de
@@ -12,55 +25,26 @@ import { DELIMITERS, type DelimitedFormat, type Delimiter } from '../import/pars
  * entre os dois.
  */
 
-// Mensagens de erro do Zod em pt-BR para o que não for coberto por
-// `.regex(..., mensagem)` explícito (ex.: tipo errado, enum inválido).
-z.setErrorMap((issue, ctx) => {
-  switch (issue.code) {
-    case z.ZodIssueCode.invalid_type:
-      if (issue.received === 'undefined') {
-        return { message: 'Campo obrigatório ausente.' };
-      }
-      return { message: `Tipo inválido: esperado ${issue.expected}, recebido ${issue.received}.` };
-    case z.ZodIssueCode.invalid_enum_value:
-      return {
-        message: `Valor inválido: "${String(ctx.data)}" não está entre as opções permitidas (${issue.options.join(', ')}).`,
-      };
-    case z.ZodIssueCode.invalid_literal:
-      return { message: `Valor inválido: esperado ${JSON.stringify(issue.expected)}.` };
-    case z.ZodIssueCode.too_small:
-      return { message: `Valor muito pequeno (mínimo: ${issue.minimum}).` };
-    case z.ZodIssueCode.too_big:
-      return { message: `Valor muito grande (máximo: ${issue.maximum}).` };
-    case z.ZodIssueCode.unrecognized_keys:
-      return { message: `Campos não reconhecidos neste escopo: ${issue.keys.join(', ')}.` };
-    default:
-      return { message: ctx.defaultError };
-  }
-});
-
 // ---------------------------------------------------------------------------
-// Primitivos
+// Primitivos — definidos em ./primitives (ver o comentário lá sobre o ciclo
+// com import/profile.ts) e reexportados aqui: todo o resto do código
+// continua importando de '@/core/document/schema' sem mudança nenhuma.
 // ---------------------------------------------------------------------------
 
-/** `code` casa `^[A-Z0-9_]+$` — nunca contém `|` nem `:`, separadores de caminho (docs/04-eixos-aninhados.md §2). */
-export const CODE_REGEX = /^[A-Z0-9_]+$/;
-/** Toda data é ISO 8601 em UTC, no formato produzido por `Date.prototype.toISOString()`. */
-export const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-/** Todo decimal é string, nunca `number`. */
-export const DECIMAL_REGEX = /^-?\d+(\.\d+)?$/;
-/** Subconjunto de `DECIMAL_REGEX` sem parte fracionária — usado por `boundaryMode: 'INCLUSIVE_INTEGER'` (docs/03 §2). */
-export const INTEGER_REGEX = /^-?\d+$/;
-export const COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
-/** Todo id é `nanoid(12)`: alfabeto padrão do nanoid, comprimento 12. */
-export const NANOID_REGEX = /^[A-Za-z0-9_-]{12}$/;
-
-export const idSchema = z.string().regex(NANOID_REGEX, 'id inválido: esperado nanoid(12).');
-export const codeSchema = z
-  .string()
-  .regex(CODE_REGEX, 'code deve casar ^[A-Z0-9_]+$ — sem "|" nem ":", que são separadores de caminho.');
-export const isoDateSchema = z.string().regex(ISO_DATE_REGEX, 'data deve ser ISO 8601 UTC.');
-export const decimalSchema = z.string().regex(DECIMAL_REGEX, 'decimal deve ser uma string numérica.');
-export const colorSchema = z.string().regex(COLOR_REGEX, 'cor deve casar #RRGGBB.');
+export {
+  CODE_REGEX,
+  COLOR_REGEX,
+  DECIMAL_REGEX,
+  INTEGER_REGEX,
+  ISO_DATE_REGEX,
+  NANOID_REGEX,
+  codeSchema,
+  colorSchema,
+  decimalSchema,
+  idSchema,
+  isoDateSchema,
+};
+export type { ImportProfile };
 
 // ---------------------------------------------------------------------------
 // §2 Biblioteca de Variáveis
@@ -322,7 +306,7 @@ export type CatalogItem = {
   description?: string;
   color?: string;
   numericValue?: string;
-  /** Apenas `kind: 'TAG'`: faceta de filtro ("Canal", "Cluster") — docs/03 §4. */
+  /** Só tem efeito em `kind: 'TAG'` — faceta de filtro ("Canal", "Cluster"); ignorado nos demais kinds (docs/03 §4). */
   group?: string;
   position: number;
   archivedAt?: string;
@@ -492,7 +476,7 @@ export type Matrix = {
   code: string;
   name: string;
   description?: string;
-  /** Codes de `CatalogItem` de kind `TAG`, sem repetição (I20) — docs/03 §5. */
+  /** Codes de `CatalogItem` de kind `TAG`, sem repetição; omitido quando vazio (docs/03 §5). */
   tags?: string[];
   archivedAt?: string;
   createdAt: string;
@@ -589,167 +573,6 @@ export const TemplateSchema: z.ZodType<Template> = z
   .strict();
 
 // ---------------------------------------------------------------------------
-// §7.1 Perfis de carga
-// ---------------------------------------------------------------------------
-
-/**
- * O `ImportProfile` mora aqui porque é **parte do documento** (docs/03 §7.1):
- * `PolicyOpsDocumentSchema` precisa dele em tempo de inicialização de módulo, e
- * mantê-lo em `src/core/import/profile.ts` — que importa `codeSchema` e
- * companhia daqui — fecharia um ciclo de import com TDZ nas constantes Zod.
- * `profile.ts` continua sendo a porta de entrada do motor de carga: ele
- * reexporta estes tipos e é o dono de `validateProfile`, da normalização de
- * valores e da leitura do perfil. Os tipos auxiliares estão em docs/12 §5.4.
- */
-
-export type ColumnRole = 'PARTITION' | 'AXIS' | 'VALUE' | 'CHECK' | 'IGNORE';
-export type ValueField = 'offer' | 'limit' | 'note' | `attr:${string}`;
-export type MissingRowPolicy = 'KEEP' | 'CLEAR';
-
-export type ColumnMapping = {
-  /** Nome exato no cabeçalho. */
-  column: string;
-  role: ColumnRole;
-  axis?: { role: 'X' | 'Y'; level: number; variableId: string };
-  value?: { field: ValueField };
-  check?: { expected: string };
-  /** Valor do arquivo → `code` (domínio ou item de catálogo). */
-  valueMap?: Record<string, string>;
-  /** Valores cujas linhas são descartadas, com aviso. */
-  ignoredValues?: string[];
-};
-
-export type UnpivotDimension = {
-  code: string;
-  label: string;
-  options: Array<{ column: string; code: string; label: string }>;
-};
-
-export type DecisionRule =
-  | { when: { field: 'offer'; equals: string[] }; setDecision: string }
-  | { otherwise: string };
-
-export type TagRule = {
-  source: 'PARTITION' | 'UNPIVOT' | 'FIXED';
-  column?: string;
-  group: string;
-  codePrefix?: string;
-  code?: string;
-};
-
-export type ImportProfile = {
-  id: string;
-  code: string;
-  name: string;
-  description?: string;
-  createdAt: string;
-  updatedAt?: string;
-  format: DelimitedFormat;
-  /** Cabeçalho reconhecido, na ordem (RN-19). */
-  signature: string[];
-  projectId: string;
-  columns: ColumnMapping[];
-  unpivot?: UnpivotDimension;
-  codeTemplate: string;
-  nameTemplate: string;
-  decisionRules: DecisionRule[];
-  tagRules: TagRule[];
-  missingRowPolicy: MissingRowPolicy;
-  /** Só vale em matriz nova (RN-21). */
-  suppressUnobserved: boolean;
-};
-
-export const DelimitedFormatSchema: z.ZodType<DelimitedFormat> = z
-  .object({
-    delimiter: z.enum([...DELIMITERS] as [Delimiter, ...Delimiter[]]),
-    headerRow: z.number().int().positive(),
-    hasBom: z.boolean(),
-    trimValues: z.boolean(),
-  })
-  .strict();
-
-const ValueFieldSchema: z.ZodType<ValueField> = z.union([
-  z.literal('offer'),
-  z.literal('limit'),
-  z.literal('note'),
-  z.string().regex(/^attr:.+$/, 'campo de valor deve ser offer, limit, note ou attr:<nome>.'),
-]) as z.ZodType<ValueField>;
-
-export const ColumnMappingSchema: z.ZodType<ColumnMapping> = z
-  .object({
-    column: z.string().min(1),
-    role: z.enum(['PARTITION', 'AXIS', 'VALUE', 'CHECK', 'IGNORE']),
-    axis: z
-      .object({
-        role: z.enum(['X', 'Y']),
-        level: z.number().int().nonnegative(),
-        variableId: idSchema,
-      })
-      .strict()
-      .optional(),
-    value: z.object({ field: ValueFieldSchema }).strict().optional(),
-    check: z.object({ expected: z.string() }).strict().optional(),
-    valueMap: z.record(z.string(), z.string()).optional(),
-    ignoredValues: z.array(z.string()).optional(),
-  })
-  .strict();
-
-export const UnpivotDimensionSchema: z.ZodType<UnpivotDimension> = z
-  .object({
-    code: codeSchema,
-    label: z.string().min(1),
-    options: z.array(
-      z.object({ column: z.string().min(1), code: codeSchema, label: z.string().min(1) }).strict(),
-    ),
-  })
-  .strict();
-
-export const DecisionRuleSchema: z.ZodType<DecisionRule> = z.union([
-  z
-    .object({
-      when: z.object({ field: z.literal('offer'), equals: z.array(z.string()) }).strict(),
-      setDecision: codeSchema,
-    })
-    .strict(),
-  z.object({ otherwise: codeSchema }).strict(),
-]);
-
-export const TagRuleSchema: z.ZodType<TagRule> = z
-  .object({
-    source: z.enum(['PARTITION', 'UNPIVOT', 'FIXED']),
-    column: z.string().min(1).optional(),
-    group: z.string().min(1),
-    codePrefix: z
-      .string()
-      .regex(/^[A-Z0-9_]*$/, 'o prefixo de tag só aceita A-Z, 0-9 e "_".')
-      .optional(),
-    code: codeSchema.optional(),
-  })
-  .strict();
-
-export const ImportProfileSchema: z.ZodType<ImportProfile> = z
-  .object({
-    id: idSchema,
-    code: codeSchema,
-    name: z.string().min(1),
-    description: z.string().min(1).optional(),
-    createdAt: isoDateSchema,
-    updatedAt: isoDateSchema.optional(),
-    format: DelimitedFormatSchema,
-    signature: z.array(z.string().min(1)),
-    projectId: idSchema,
-    columns: z.array(ColumnMappingSchema),
-    unpivot: UnpivotDimensionSchema.optional(),
-    codeTemplate: z.string().min(1),
-    nameTemplate: z.string().min(1),
-    decisionRules: z.array(DecisionRuleSchema),
-    tagRules: z.array(TagRuleSchema),
-    missingRowPolicy: z.enum(['KEEP', 'CLEAR']),
-    suppressUnobserved: z.boolean(),
-  })
-  .strict();
-
-// ---------------------------------------------------------------------------
 // §8 Auditoria
 // ---------------------------------------------------------------------------
 
@@ -771,7 +594,6 @@ export const DOC_EVENT_TYPES = [
   'VARIABLE_PUBLISHED',
   'COMPATIBILITY_PUBLISHED',
   'CATALOG_CHANGED',
-  // Carga de matrizes — docs/03 §8 e docs/12 §5.6.
   'IMPORT_RUN',
   'IMPORT_PROFILE_SAVED',
   'MATRIX_TAGGED',
@@ -853,15 +675,15 @@ export type PolicyOpsDocument = {
   projects: Project[];
   matrices: Matrix[];
   templates: Template[];
-  /** Perfis de carga (docs/03 §7.1). */
   importProfiles: ImportProfile[];
   events: DocEvent[];
 };
 
 /**
- * 3 desde a sessão 23 — `importProfiles` no topo, `Matrix.tags` e
- * `CatalogItem.group` (docs/03 §10, migração 2 → 3 em `migrate.ts`, puramente
- * aditiva). A 1 → 2 da sessão 20 continua sendo a única não-aditiva do produto.
+ * 3 desde a sessão 23 — `importProfiles` no topo do documento e migração
+ * puramente aditiva 2 → 3 (docs/03 §7.1, §10, `migrate.ts`). `ImportProfile`
+ * é importado de `../import/profile` (S21) em vez de redeclarado aqui — ver
+ * o comentário em `./primitives` sobre o ciclo que essa importação evita.
  */
 export const CURRENT_SCHEMA_VERSION = 3 as const;
 
@@ -875,7 +697,7 @@ export const PolicyOpsDocumentSchema: z.ZodType<PolicyOpsDocument> = z
     projects: z.array(ProjectSchema),
     matrices: z.array(MatrixSchema),
     templates: z.array(TemplateSchema),
-    importProfiles: z.array(ImportProfileSchema),
+    importProfiles: z.array(z.lazy(() => ImportProfileSchema)),
     events: z.array(DocEventSchema),
   })
   .strict();

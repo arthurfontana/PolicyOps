@@ -144,6 +144,7 @@ export function CatalogScreen() {
                           <TableHead className="w-32">Código</TableHead>
                           <TableHead className="flex-1">Rótulo</TableHead>
                           {kind === 'LIMIT' && <TableHead className="w-32">Valor (BRL)</TableHead>}
+                          {kind === 'TAG' && <TableHead className="w-40">Grupo</TableHead>}
                           <TableHead className="w-24">Uso</TableHead>
                           <TableHead className="w-12"></TableHead>
                         </TableRow>
@@ -155,7 +156,9 @@ export function CatalogScreen() {
                             item={item}
                             onEdit={() => {
                               setEditingItem(item);
-                              setEditingItemHasUsage(item.usage.inPublished > 0 || item.usage.inDraft > 0);
+                              setEditingItemHasUsage(
+                                item.usage.inPublished > 0 || item.usage.inDraft > 0 || item.usage.inMatrices > 0,
+                              );
                               setDialogOpen(true);
                             }}
                           />

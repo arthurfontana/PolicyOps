@@ -5,6 +5,7 @@ import type {
   CompatibilityRule,
   DocEvent,
   DocumentMeta,
+  ImportProfile,
   Matrix,
   MatrixVersion,
   PolicyOpsDocument,
@@ -1550,6 +1551,17 @@ const TEMPLATE_SPEC: ItemSpec<Template> = {
   matcher: () => () => false,
 };
 
+const IMPORT_PROFILE_SPEC: ItemSpec<ImportProfile> = {
+  entityKind: 'IMPORT_PROFILE',
+  actionKind: 'UNION_IMPORT_PROFILE',
+  noun: 'O perfil de carga',
+  label: (profile) => `${profile.code} — ${profile.name}`,
+  // `DocEvent.scope` não tem `profileId` (docs/03 §8): sem prova de
+  // auditoria por escopo, divergência de perfil é sempre conflito — mesmo
+  // raciocínio de TEMPLATE_SPEC.
+  matcher: () => () => false,
+};
+
 /**
  * I12: uma única regra de compatibilidade publicada por par (pai, filho). Dois
  * lados podem ter criado e publicado regras diferentes para o mesmo par —
@@ -1638,6 +1650,12 @@ export function mergeDocuments(
   const catalog = renumberCatalogPositions(mergeFlatCollection(ctx, mine.catalog, theirs.catalog, CATALOG_SPEC));
   const projects = renumberPositions(mergeFlatCollection(ctx, mine.projects, theirs.projects, PROJECT_SPEC));
   const templates = mergeFlatCollection(ctx, mine.templates, theirs.templates, TEMPLATE_SPEC);
+  const importProfiles = mergeFlatCollection(
+    ctx,
+    mine.importProfiles,
+    theirs.importProfiles,
+    IMPORT_PROFILE_SPEC,
+  );
   const matrices = mergeMatrices(ctx);
   const events = mergeEvents(ctx);
 
@@ -1650,9 +1668,7 @@ export function mergeDocuments(
     projects,
     matrices,
     templates,
-    // Perfil de carga é configuração local, não histórico (docs/03 §7.1): o
-    // merge preserva os do documento aberto e não traz os do outro arquivo.
-    importProfiles: mine.importProfiles,
+    importProfiles,
     events,
   };
 
@@ -1668,6 +1684,16 @@ export function mergeDocuments(
   resolveCodeClashes(ctx, 'templates', 'TEMPLATE', 'O template', merged.templates, (entity, code) => {
     merged.templates.find((template) => template.id === entity.id)!.code = code;
   });
+  resolveCodeClashes(
+    ctx,
+    'importProfiles',
+    'IMPORT_PROFILE',
+    'O perfil de carga',
+    merged.importProfiles,
+    (entity, code) => {
+      merged.importProfiles.find((profile) => profile.id === entity.id)!.code = code;
+    },
+  );
   for (const kind of ['DECISION', 'OFFER', 'LIMIT', 'TAG'] as const) {
     resolveCodeClashes(
       ctx,

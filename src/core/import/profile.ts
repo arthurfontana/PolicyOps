@@ -1,57 +1,181 @@
-import { CODE_REGEX, ImportProfileSchema } from '../document/schema';
-import type {
-  ColumnMapping,
-  ColumnRole,
-  DecisionRule,
-  ImportProfile,
-  PolicyOpsDocument,
-} from '../document/schema';
+import { z } from 'zod';
+import { CODE_REGEX, codeSchema, idSchema, isoDateSchema } from '../document/primitives';
+import type { PolicyOpsDocument } from '../document/schema';
 import { normalizeText } from '../library/text-normalize';
 import { MAX_AXIS_LEVELS } from '../axes/tuples';
 import { importIssue, type ImportIssue } from './issues';
+import type { DelimitedFormat, Delimiter } from './parse-table';
+import { DELIMITERS } from './parse-table';
 
 /**
  * O perfil de carga — docs/12-carga-de-matrizes.md §5.4 e
  * docs/03-modelo-do-documento.md §7.1.
  *
  * O perfil é **configuração, não histórico**: ele diz como as colunas do
- * arquivo viram matriz, eixo e célula. Desde a S23 ele vive dentro do
- * documento, em `importProfiles`; os tipos e os schemas Zod moram em
- * `document/schema.ts` (§7.1) porque o schema do documento os consome, e este
- * módulo os reexporta junto com a leitura e a validação do perfil.
+ * arquivo viram matriz, eixo e célula. A gravação dele dentro do documento
+ * (`importProfiles`) entra na S23; aqui ele já é o contrato do motor, e o
+ * documento é aceito com ou sem o campo — é o que permite planejar uma carga
+ * antes de o `schemaVersion: 3` existir.
  */
 
-export type {
-  ColumnMapping,
-  ColumnRole,
-  DecisionRule,
-  ImportProfile,
-  MissingRowPolicy,
-  TagRule,
-  UnpivotDimension,
-  ValueField,
-} from '../document/schema';
-export {
-  ColumnMappingSchema,
-  DecisionRuleSchema,
-  DelimitedFormatSchema,
-  ImportProfileSchema,
-  TagRuleSchema,
-  UnpivotDimensionSchema,
-} from '../document/schema';
+// ---------------------------------------------------------------------------
+// Tipos (§5.4)
+// ---------------------------------------------------------------------------
+
+export type ColumnRole = 'PARTITION' | 'AXIS' | 'VALUE' | 'CHECK' | 'IGNORE';
+export type ValueField = 'offer' | 'limit' | 'note' | `attr:${string}`;
+export type MissingRowPolicy = 'KEEP' | 'CLEAR';
+
+export type ColumnMapping = {
+  /** Nome exato no cabeçalho. */
+  column: string;
+  role: ColumnRole;
+  axis?: { role: 'X' | 'Y'; level: number; variableId: string };
+  value?: { field: ValueField };
+  check?: { expected: string };
+  /** Valor do arquivo → `code` (domínio ou item de catálogo). */
+  valueMap?: Record<string, string>;
+  /** Valores cujas linhas são descartadas, com aviso. */
+  ignoredValues?: string[];
+};
+
+export type UnpivotDimension = {
+  code: string;
+  label: string;
+  options: Array<{ column: string; code: string; label: string }>;
+};
+
+export type DecisionRule =
+  | { when: { field: 'offer'; equals: string[] }; setDecision: string }
+  | { otherwise: string };
+
+export type TagRule = {
+  source: 'PARTITION' | 'UNPIVOT' | 'FIXED';
+  column?: string;
+  group: string;
+  codePrefix?: string;
+  code?: string;
+};
+
+export type ImportProfile = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt?: string;
+  format: DelimitedFormat;
+  /** Cabeçalho reconhecido, na ordem (RN-19). */
+  signature: string[];
+  projectId: string;
+  columns: ColumnMapping[];
+  unpivot?: UnpivotDimension;
+  codeTemplate: string;
+  nameTemplate: string;
+  decisionRules: DecisionRule[];
+  tagRules: TagRule[];
+  missingRowPolicy: MissingRowPolicy;
+  /** Só vale em matriz nova (RN-21). */
+  suppressUnobserved: boolean;
+};
 
 /**
- * Documento com os perfis de carga. Desde a S23 `importProfiles` é campo do
- * próprio documento (`schemaVersion: 3`); o alias continua existindo porque é
- * como o motor e o assistente nomeiam "o documento, visto pela carga", e
- * `documentProfiles` tolera a ausência do campo em documento cru vindo de
- * modo de recuperação.
+ * Documento com os perfis de carga. `importProfiles` só entra no schema na
+ * S23; até lá o motor lê o campo quando ele existe e trata a ausência como
+ * lista vazia.
  */
-export type DocumentWithProfiles = PolicyOpsDocument;
+export type DocumentWithProfiles = PolicyOpsDocument & { importProfiles?: ImportProfile[] };
 
 export function documentProfiles(doc: DocumentWithProfiles): ImportProfile[] {
   return doc.importProfiles ?? [];
 }
+
+// ---------------------------------------------------------------------------
+// Zod (§5.4)
+// ---------------------------------------------------------------------------
+
+export const DelimitedFormatSchema: z.ZodType<DelimitedFormat> = z
+  .object({
+    delimiter: z.enum([...DELIMITERS] as [Delimiter, ...Delimiter[]]),
+    headerRow: z.number().int().positive(),
+    hasBom: z.boolean(),
+    trimValues: z.boolean(),
+  })
+  .strict();
+
+const ValueFieldSchema: z.ZodType<ValueField> = z.union([
+  z.literal('offer'),
+  z.literal('limit'),
+  z.literal('note'),
+  z.string().regex(/^attr:.+$/, 'campo de valor deve ser offer, limit, note ou attr:<nome>.'),
+]) as z.ZodType<ValueField>;
+
+export const ColumnMappingSchema: z.ZodType<ColumnMapping> = z
+  .object({
+    column: z.string().min(1),
+    role: z.enum(['PARTITION', 'AXIS', 'VALUE', 'CHECK', 'IGNORE']),
+    axis: z
+      .object({ role: z.enum(['X', 'Y']), level: z.number().int().nonnegative(), variableId: idSchema })
+      .strict()
+      .optional(),
+    value: z.object({ field: ValueFieldSchema }).strict().optional(),
+    check: z.object({ expected: z.string() }).strict().optional(),
+    valueMap: z.record(z.string(), z.string()).optional(),
+    ignoredValues: z.array(z.string()).optional(),
+  })
+  .strict();
+
+export const UnpivotDimensionSchema: z.ZodType<UnpivotDimension> = z
+  .object({
+    code: codeSchema,
+    label: z.string().min(1),
+    options: z.array(
+      z.object({ column: z.string().min(1), code: codeSchema, label: z.string().min(1) }).strict(),
+    ),
+  })
+  .strict();
+
+export const DecisionRuleSchema: z.ZodType<DecisionRule> = z.union([
+  z
+    .object({
+      when: z.object({ field: z.literal('offer'), equals: z.array(z.string()) }).strict(),
+      setDecision: codeSchema,
+    })
+    .strict(),
+  z.object({ otherwise: codeSchema }).strict(),
+]);
+
+export const TagRuleSchema: z.ZodType<TagRule> = z
+  .object({
+    source: z.enum(['PARTITION', 'UNPIVOT', 'FIXED']),
+    column: z.string().min(1).optional(),
+    group: z.string().min(1),
+    codePrefix: z.string().regex(/^[A-Z0-9_]*$/, 'o prefixo de tag só aceita A-Z, 0-9 e "_".').optional(),
+    code: codeSchema.optional(),
+  })
+  .strict();
+
+export const ImportProfileSchema: z.ZodType<ImportProfile> = z
+  .object({
+    id: idSchema,
+    code: codeSchema,
+    name: z.string().min(1),
+    description: z.string().min(1).optional(),
+    createdAt: isoDateSchema,
+    updatedAt: isoDateSchema.optional(),
+    format: DelimitedFormatSchema,
+    signature: z.array(z.string().min(1)),
+    projectId: idSchema,
+    columns: z.array(ColumnMappingSchema),
+    unpivot: UnpivotDimensionSchema.optional(),
+    codeTemplate: z.string().min(1),
+    nameTemplate: z.string().min(1),
+    decisionRules: z.array(DecisionRuleSchema),
+    tagRules: z.array(TagRuleSchema),
+    missingRowPolicy: z.enum(['KEEP', 'CLEAR']),
+    suppressUnobserved: z.boolean(),
+  })
+  .strict();
 
 // ---------------------------------------------------------------------------
 // Normalização de valores

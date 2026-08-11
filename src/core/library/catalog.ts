@@ -95,7 +95,7 @@ export type CreateCatalogItemInput = {
   description?: string;
   color?: string;
   numericValue?: string;
-  /** Só faz sentido em kind `TAG`: a faceta do filtro (docs/03 §4). */
+  /** Só tem efeito em `kind: 'TAG'` (docs/03 §4) — ignorado nos demais kinds. */
   group?: string;
 };
 export type CreateCatalogItemData = { itemId: string };
@@ -154,10 +154,8 @@ export function createCatalogItem(
       }
       if (color !== undefined) item.color = color;
       if (numericValue !== undefined) item.numericValue = numericValue;
-      // `group` só tem significado em kind TAG (docs/03 §4); em qualquer outro
-      // kind o campo é ignorado, em vez de gravado sem sentido.
       if (input.kind === 'TAG' && input.group !== undefined) {
-        item.group = assertText(input.group, 'O grupo da tag');
+        item.group = assertText(input.group, 'O grupo');
       }
 
       const event = makeEvent(ctx, {
@@ -236,6 +234,8 @@ export type UpdateCatalogItemInput = {
   description?: string | null;
   color?: string | null;
   numericValue?: string | null;
+  /** Só tem efeito em `kind: 'TAG'` (docs/03 §4) — ignorado nos demais kinds. */
+  group?: string | null;
 };
 
 export function updateCatalogItem(
@@ -270,6 +270,7 @@ export function updateCatalogItem(
         description: previous(item.description),
         color: previous(item.color),
         numericValue: previous(item.numericValue),
+        group: previous(item.group),
       });
 
       const event = makeEvent(ctx, {
@@ -294,6 +295,10 @@ export function updateCatalogItem(
           if (numericValue !== undefined) {
             if (numericValue === undefined) delete target.numericValue;
             else target.numericValue = numericValue;
+          }
+          if (target.kind === 'TAG' && input.group !== undefined) {
+            if (input.group === null) delete target.group;
+            else target.group = assertText(input.group, 'O grupo');
           }
         }),
         data: undefined,
@@ -452,13 +457,16 @@ export function reorderCatalog(input: ReorderCatalogInput): Command<ReorderCatal
 export type CatalogUsage = {
   inPublished: number;
   inDraft: number;
+  /** Só kind TAG: matrizes marcadas com esta tag (`Matrix.tags`), além de qualquer célula (docs/07 §15). */
+  inMatrices: number;
 };
 
 export type CatalogItemWithUsage = CatalogItem & { usage: CatalogUsage };
 
 /**
  * Lista itens do catálogo ordenados por position, com contagem de uso
- * separando versões vigentes de rascunhos.
+ * separando versões vigentes de rascunhos — e, para kind TAG, somando também
+ * as matrizes marcadas com a tag (docs/07-ux-e-editor.md §15).
  */
 export function listCatalog(
   doc: PolicyOpsDocument,
@@ -502,6 +510,11 @@ export function listCatalog(
       }
     }
 
-    return { ...item, usage: { inPublished, inDraft } };
+    const inMatrices =
+      item.kind === 'TAG'
+        ? doc.matrices.filter((matrix) => matrix.tags?.includes(item.code)).length
+        : 0;
+
+    return { ...item, usage: { inPublished, inDraft, inMatrices } };
   });
 }
