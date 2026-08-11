@@ -30,7 +30,7 @@
 | 22 | Assistente de carga: arquivo, colunas e biblioteca | **Sonnet** | ✅ **Entregue** — passos 1–4 do assistente e o passo 5 (plano) somente leitura; a biblioteca do documento sai montada a partir do arquivo | 21 |
 | 23 | Tags de matriz, filtro e schema 3 | **Sonnet** | ✅ **Entregue** — schema 3, migração 2→3 puramente aditiva, tags de matriz com facetas de filtro, perfis de carga persistidos | 20 |
 | 24 | Aplicação da carga e versionamento seletivo | **Opus** | ✅ **Entregue** — carga aplicada: rascunho só nas alteradas, fila de revisão, perfil salvo, auditoria e idempotência | 22, 23 |
-| 25 | Evolução estrutural na carga | **Opus** | Faixa nova no arquivo vira nova versão de variável adotada no rascunho, sem caminho manual | 24 |
+| 25 | Evolução estrutural na carga ✅ | **Opus** | Faixa nova no arquivo vira nova versão de variável adotada no rascunho, sem caminho manual | 24 |
 
 > **Sessão 21 entregue.** O motor vive em `src/core/import/` (`issues`, `parse-table`, `profile`,
 > `resolve`, `plan`, `library-gaps`, `hash`), com 100% de cobertura e os cenários CT-01 a CT-10 e
