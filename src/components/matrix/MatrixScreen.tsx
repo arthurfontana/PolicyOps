@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  Archive,
   CheckCircle2,
   FilePlus2,
   GitCompare,
@@ -26,6 +27,7 @@ import { PublishVersionDialog } from '@/components/dialogs/PublishVersionDialog'
 import { VersionHistoryDialog } from '@/components/dialogs/VersionHistoryDialog';
 import { ExportMenu } from '@/components/shell/ExportMenu';
 import { decodeCellKey, encodeCellKey } from '@/core/axes/paths';
+import { archiveMatrix } from '@/core/document/commands';
 import { orderForCompare } from '@/core/diff';
 import { Grid, MAX_ZOOM, MIN_ZOOM, type GridSelectionApi } from '@/components/grid/Grid';
 import { GridExportSnapshot } from '@/components/grid/GridExportSnapshot';
@@ -109,6 +111,7 @@ export function MatrixScreen() {
   const [discardOpen, setDiscardOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [archiveMatrixOpen, setArchiveMatrixOpen] = useState(false);
   const [pulsePending, setPulsePending] = useState(false);
   const pulseTimeoutRef = useRef<number | null>(null);
 
@@ -195,6 +198,15 @@ export function MatrixScreen() {
     setView('projects');
   }
 
+  function handleArchiveMatrix() {
+    const result = dispatch(archiveMatrix({ matrixId: matrix!.id }));
+    if (!result.ok) {
+      toast({ title: 'Não foi possível arquivar a matriz', description: result.error.message });
+      return;
+    }
+    backToProject();
+  }
+
   if (view === null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
@@ -204,6 +216,18 @@ export function MatrixScreen() {
         <p className="text-sm text-neutral-500 dark:text-neutral-400">
           "{matrix.name}" ainda não tem versão publicada nem rascunho para mostrar.
         </p>
+        <Button type="button" variant="outline" size="sm" onClick={() => setArchiveMatrixOpen(true)}>
+          <Archive className="mr-1.5 h-3.5 w-3.5" /> Arquivar matriz
+        </Button>
+        <ConfirmDialog
+          open={archiveMatrixOpen}
+          onOpenChange={setArchiveMatrixOpen}
+          title={`Arquivar "${matrix.name}"?`}
+          description="A matriz some da lista do projeto e de qualquer busca. O histórico de versões e eventos fica preservado no arquivo, mas hoje não há como desarquivar pela interface — use Ctrl+Z logo em seguida se mudar de ideia."
+          confirmLabel="Arquivar"
+          destructive
+          onConfirm={handleArchiveMatrix}
+        />
       </div>
     );
   }
@@ -421,6 +445,9 @@ export function MatrixScreen() {
           <Button type="button" variant="ghost" size="sm" onClick={handleCreateTemplateFromMatrix}>
             <LayoutTemplate className="mr-1.5 h-3.5 w-3.5" /> Criar template a partir desta matriz
           </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setArchiveMatrixOpen(true)}>
+            <Archive className="mr-1.5 h-3.5 w-3.5" /> Arquivar matriz
+          </Button>
         </div>
 
         <div className="ml-auto flex items-center gap-1">
@@ -535,6 +562,16 @@ export function MatrixScreen() {
           if (pendingClear !== null) runClear(pendingClear.coords);
           setPendingClear(null);
         }}
+      />
+
+      <ConfirmDialog
+        open={archiveMatrixOpen}
+        onOpenChange={setArchiveMatrixOpen}
+        title={`Arquivar "${matrix.name}"?`}
+        description="A matriz some da lista do projeto e de qualquer busca. O histórico de versões e eventos fica preservado no arquivo, mas hoje não há como desarquivar pela interface — use Ctrl+Z logo em seguida se mudar de ideia."
+        confirmLabel="Arquivar"
+        destructive
+        onConfirm={handleArchiveMatrix}
       />
 
       {publishOpen && (

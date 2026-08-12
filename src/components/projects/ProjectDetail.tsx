@@ -8,7 +8,7 @@ import { CreateProjectDialog } from '@/components/dialogs/CreateProjectDialog';
 import { CreateMatrixDialog } from '@/components/dialogs/CreateMatrixDialog';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { TagFilterBar } from '@/components/projects/TagFilterBar';
-import { archiveProject } from '@/core/document/commands';
+import { archiveMatrix, archiveProject } from '@/core/document/commands';
 import { listMatrices, listProjectMatrices, resolveOpenVersion } from '@/core/queries';
 import { formatDateBR } from '@/lib/format';
 import { versionBadge } from '@/lib/matrix-badges';
@@ -41,6 +41,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [createMatrixOpen, setCreateMatrixOpen] = useState(false);
+  const [matrixToArchive, setMatrixToArchive] = useState<{ id: string; name: string } | null>(null);
 
   // Trocar de projeto começa com o filtro limpo; navegar entre a lista e o
   // editor de uma matriz do mesmo projeto preserva tags e busca (docs/07 §15).
@@ -86,6 +87,15 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     const version = resolveOpenVersion(matrix);
     openMatrix(matrixId, version?.id ?? null);
     setView('matrix');
+  }
+
+  function handleArchiveMatrix() {
+    if (matrixToArchive === null) return;
+    const result = dispatch(archiveMatrix({ matrixId: matrixToArchive.id }));
+    if (!result.ok) {
+      toast({ title: 'Não foi possível arquivar a matriz', description: result.error.message });
+    }
+    setMatrixToArchive(null);
   }
 
   return (
@@ -195,38 +205,52 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
       ) : (
         <div className="flex flex-col gap-2">
           {matrices.map(({ matrix, xLabel, yLabel, publishedVersion, draftVersion }) => (
-            <button
+            <div
               key={matrix.id}
-              type="button"
-              onClick={() => handleOpenMatrix(matrix.id)}
-              className="flex items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-white p-3 text-left shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-neutral-800/60"
+              className="flex items-center gap-3 rounded-lg border border-neutral-200 bg-white p-3 shadow-sm transition-colors hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-neutral-800/60"
             >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium text-neutral-900 dark:text-neutral-100">
-                    {matrix.name}
-                  </span>
-                  <span className="shrink-0 font-mono text-xs text-neutral-400">{matrix.code}</span>
-                </div>
-                <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-                  {xLabel} × {yLabel}
-                </p>
-                {publishedVersion !== null && (
-                  <p className="text-xs text-neutral-400 dark:text-neutral-500">
-                    última publicação:{' '}
-                    {publishedVersion.publishedAt === undefined ? '—' : formatDateBR(publishedVersion.publishedAt)}
+              <button
+                type="button"
+                onClick={() => handleOpenMatrix(matrix.id)}
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 text-left"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium text-neutral-900 dark:text-neutral-100">
+                      {matrix.name}
+                    </span>
+                    <span className="shrink-0 font-mono text-xs text-neutral-400">{matrix.code}</span>
+                  </div>
+                  <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">
+                    {xLabel} × {yLabel}
                   </p>
-                )}
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                {publishedVersion !== null && (
-                  <Badge variant={versionBadge(publishedVersion).variant}>
-                    {versionBadge(publishedVersion).label}
-                  </Badge>
-                )}
-                {draftVersion !== null && <Badge variant="amber">Rascunho aberto</Badge>}
-              </div>
-            </button>
+                  {publishedVersion !== null && (
+                    <p className="text-xs text-neutral-400 dark:text-neutral-500">
+                      última publicação:{' '}
+                      {publishedVersion.publishedAt === undefined ? '—' : formatDateBR(publishedVersion.publishedAt)}
+                    </p>
+                  )}
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {publishedVersion !== null && (
+                    <Badge variant={versionBadge(publishedVersion).variant}>
+                      {versionBadge(publishedVersion).label}
+                    </Badge>
+                  )}
+                  {draftVersion !== null && <Badge variant="amber">Rascunho aberto</Badge>}
+                </div>
+              </button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Arquivar matriz"
+                data-testid={`archive-matrix-${matrix.code}`}
+                onClick={() => setMatrixToArchive({ id: matrix.id, name: matrix.name })}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           ))}
         </div>
       )}
@@ -256,6 +280,17 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           openMatrix(matrixId, versionId);
           setView('matrix');
         }}
+      />
+      <ConfirmDialog
+        open={matrixToArchive !== null}
+        onOpenChange={(open) => {
+          if (!open) setMatrixToArchive(null);
+        }}
+        title={`Arquivar "${matrixToArchive?.name ?? ''}"?`}
+        description="A matriz some da lista do projeto e de qualquer busca. O histórico de versões e eventos fica preservado no arquivo, mas hoje não há como desarquivar pela interface — use Ctrl+Z logo em seguida se mudar de ideia."
+        confirmLabel="Arquivar"
+        destructive
+        onConfirm={handleArchiveMatrix}
       />
     </div>
   );
