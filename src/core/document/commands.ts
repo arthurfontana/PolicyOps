@@ -504,3 +504,16 @@ function setMatrixArchived(input: { matrixId: string; archivedAt: string | null 
     },
   });
 }
+
+/**
+ * Desarquiva uma matriz — não é comando de catálogo próprio (não some da lista
+ * do projeto por engano de novo: não há tela dedicada). Hoje só `import/apply`
+ * compõe isto, e só quando o usuário confirma explicitamente "restaurar e
+ * aplicar" numa matriz `ARCHIVED` do plano (DEC-CARGA-018).
+ */
+export function restoreArchivedMatrix(input: { matrixId: string }): Command<
+  { matrixId: string; archivedAt: string | null },
+  void
+> {
+  return setMatrixArchived({ matrixId: input.matrixId, archivedAt: null });
+}

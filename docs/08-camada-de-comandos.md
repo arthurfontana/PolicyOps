@@ -100,13 +100,13 @@ type DocumentStore = {
 ### Carga de matrizes
 | Comando | Entrada | Inverso |
 |---|---|---|
-| `import/apply` | `{ profile, table, fileName?, planHash, selectedKeys, notes }` — aplica o plano revisado: cria matrizes novas e rascunhos só nas alteradas (`12-carga-de-matrizes.md` §5.4) | descartar os rascunhos e matrizes criados |
+| `import/apply` | `{ profile, table, fileName?, planHash, selectedKeys, restoreKeys?, notes }` — aplica o plano revisado: cria matrizes novas e rascunhos só nas alteradas, e desarquiva as matrizes de `restoreKeys` antes de tudo (`12-carga-de-matrizes.md` §5.4, DEC-CARGA-018) | descartar os rascunhos e matrizes criados, e rearquivar as restauradas |
 | `importProfile/save` | `{ profile }` — cria ou atualiza pelo `code` | restaura o perfil anterior |
 | `importProfile/delete` | `{ profileId }` | recria o perfil |
 
 `import/apply` é o único comando do catálogo que produz **vários** eventos de matrizes diferentes numa transação só. Ele valida tudo antes de tocar no documento (§1, regra 4): recalcula o plano, compara com `planHash` e falha inteiro em caso de divergência (`IMPORT_PLAN_STALE`) — nunca aplica metade do lote.
 
-Ele não reimplementa nada: **compõe** os comandos acima sobre um documento de trabalho, na ordem `matrix/create` → `axis/suppressTuples` → `version/applyCellPatches` → `matrix/setTags` para cada matriz nova, e `version/createDraft` → `version/applyCellPatches` → `matrix/setTags` para cada alterada. A atomicidade sai da imutabilidade (§1, regra 2): um `DomainError` no meio do lote propaga para fora de `execute`, e o documento **recebido** é devolvido intocado. Saída: `{ importRunId, createdMatrices, createdDrafts, ignoredByUser }`. O `importRunId` é carimbado no payload de todo `MATRIX_CREATED`, `DRAFT_CREATED` e `CELLS_UPDATED` da rodada, e um evento `IMPORT_RUN` registra o perfil, o arquivo, o hash, as contagens por estado e a nota da carga.
+Ele não reimplementa nada: **compõe** os comandos acima sobre um documento de trabalho, na ordem `matrix/create` → `axis/suppressTuples` → `version/applyCellPatches` → `matrix/setTags` para cada matriz nova, e `version/createDraft` → `version/applyCellPatches` → `matrix/setTags` para cada alterada — com um passo extra à frente, para a matriz arquivada de `restoreKeys`: desarquiva (mesmo comando interno que `matrix/archive` desfaz) antes de qualquer um dos passos acima (DEC-CARGA-018). A atomicidade sai da imutabilidade (§1, regra 2): um `DomainError` no meio do lote propaga para fora de `execute`, e o documento **recebido** é devolvido intocado. Saída: `{ importRunId, createdMatrices, createdDrafts, ignoredByUser, restoredMatrices }`. O `importRunId` é carimbado no payload de todo `MATRIX_CREATED`, `DRAFT_CREATED` e `CELLS_UPDATED` da rodada, e um evento `IMPORT_RUN` registra o perfil, o arquivo, o hash, as contagens por estado (inclusive quantas matrizes foram restauradas) e a nota da carga.
 
 `import/apply` **nunca publica** (RN-10): o inverso descarta os rascunhos criados e remove as matrizes criadas, na ordem contrária, e o log de eventos não é rebobinado — ele é append-only (§2).
 

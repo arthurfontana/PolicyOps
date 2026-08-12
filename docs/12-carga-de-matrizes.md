@@ -111,7 +111,7 @@ e um mapa de compatibilidade à mão na carga inicial.
 
 **Critérios de aceitação:**
 - Cada matriz do plano recebe um dos estados: `NOVA`, `ALTERADA`, `INALTERADA`, `ESTRUTURA
-  DIVERGENTE`, `AUSENTE NO ARQUIVO` ou `BLOQUEADA` (§5.5).
+  DIVERGENTE`, `AUSENTE NO ARQUIVO`, `BLOQUEADA` ou `ARQUIVADA` (§5.5).
 - Matriz `ALTERADA` mostra a contagem de células alteradas e o resumo semântico pronto
   ("12 células fechadas, 4 ofertas alteradas"), reaproveitando `src/core/diff/`.
 - Expandir uma matriz abre o diff célula a célula na mesma tela de comparação já existente
@@ -582,7 +582,7 @@ planImport(
   doc: DocumentWithProfiles,
   table: ImportTable,
   profile: ImportProfile,
-  opts?: { fileName?: string; contentHash?: string },
+  opts?: { fileName?: string; contentHash?: string; restoreKeys?: readonly string[] },
 ): ImportPlan;
 
 type ImportPlan = {
@@ -594,6 +594,7 @@ type ImportPlan = {
   totals: {
     new: number; changed: number; unchanged: number;
     structural: number; absentInFile: number; blocked: number;
+    archived: number;                   // ARCHIVED sem confirmação de restauração (DEC-CARGA-018)
     cellsChanged: number;
   };
   issues: ImportIssue[];
@@ -604,11 +605,15 @@ type MatrixPlan = {
   code: string;
   name: string;
   tags: string[];
-  status: 'NEW' | 'CHANGED' | 'UNCHANGED' | 'STRUCTURAL' | 'ABSENT_IN_FILE' | 'BLOCKED';
-  reason?: string;                      // por que BLOCKED / STRUCTURAL
+  status: 'NEW' | 'CHANGED' | 'UNCHANGED' | 'STRUCTURAL' | 'ABSENT_IN_FILE' | 'BLOCKED' | 'ARCHIVED';
+  reason?: string;                      // por que BLOCKED / STRUCTURAL / ARCHIVED
   matrixId?: string;
   baseVersionId?: string;
   baseVersionNumber?: number;
+  // true na matriz que ocupa o código está arquivada — em ARCHIVED (bloqueio) e
+  // também em CHANGED/UNCHANGED/STRUCTURAL/BLOCKED quando `restoreKeys` já
+  // confirmou a restauração (DEC-CARGA-018)
+  archived?: boolean;
   combinations: number;                 // combinações efetivas, já sem as suprimidas
   suppressedCombinations: number;       // tuplas suprimidas (X + Y), só em NEW (RN-21)
   changes: CellChange[];                // src/core/diff/cells.ts
@@ -687,19 +692,21 @@ hashText(text: string): string;         // 16 dígitos hex do texto normalizado 
 hashTable(table: ImportTable): string;  // a mesma coisa, a partir da tabela já lida
 hashValue(value: unknown): string;      // serialização canônica (chaves ordenadas)
 
-// apply.ts — comando (S24, entregue)
+// apply.ts — comando (S24, entregue; restoreKeys na DEC-CARGA-018)
 'import/apply': {
   profile: ImportProfile;
   table: { header: string[]; rows: string[][] };
   fileName?: string;
   planHash: string;                     // o plano que o usuário revisou (RN-14)
   selectedKeys: string[];               // matrizes escolhidas no plano
+  restoreKeys?: string[];               // MatrixPlan.key confirmadas para restaurar (DEC-CARGA-018)
   notes: string;                        // nota da carga, ≥ 10 caracteres
 } → {
   importRunId: string;
   createdMatrices: string[];            // Matrix.id das NEW aplicadas
   createdDrafts: string[];              // MatrixVersion.id de todo rascunho criado
   ignoredByUser: string[];              // aplicáveis deixadas de fora (CT-14)
+  restoredMatrices: string[];           // Matrix.id desarquivadas nesta carga (DEC-CARGA-018)
 };
 
 // profile-commands.ts — o perfil dentro do documento (US-08)
@@ -774,16 +781,22 @@ na ordem obrigatória de §1 daquele documento — validar antes de tocar.
 2. a nota é validada contra o mínimo de `version/publish` (`NOTES_REQUIRED`), porque é ela que vira
    a nota padrão de cada publicação daquela carga;
 3. a seleção é conferida contra o plano recalculado: `STRUCTURAL` → `IMPORT_STRUCTURE_DIVERGED`,
-   `BLOCKED` → `IMPORT_TARGET_HAS_DRAFT`, nenhuma `NEW`/`CHANGED` sobrando → `IMPORT_NOTHING_TO_APPLY`.
-   `UNCHANGED` e `ABSENT_IN_FILE` selecionadas não são erro: simplesmente não produzem nada (RN-02);
+   `BLOCKED` → `IMPORT_TARGET_HAS_DRAFT`, `ARCHIVED` → `IMPORT_TARGET_ARCHIVED`, nenhuma
+   `NEW`/`CHANGED` sobrando → `IMPORT_NOTHING_TO_APPLY`. `UNCHANGED` e `ABSENT_IN_FILE`
+   selecionadas não são erro: simplesmente não produzem nada (RN-02) — exceto `UNCHANGED`
+   arquivada e confirmada em `restoreKeys` (DEC-CARGA-018), que ainda precisa do passo 4a;
 4. matriz `NEW`: `matrix/create` com os eixos do perfil → `axis/suppressTuples` com as tuplas não
    observadas (RN-21) → `version/applyCellPatches` com as células → `matrix/setTags`;
+4a. matriz arquivada confirmada em `restoreKeys` (`ARCHIVED` do plano virou `CHANGED`/`UNCHANGED`
+    por isso): desarquiva primeiro — `archivedAt` volta a `undefined` — e só então segue o passo 5
+    quando há célula a mudar; `UNCHANGED` arquivada para no desarquivamento, sem rascunho (RN-02);
 5. matriz `CHANGED`: `version/createDraft` a partir da publicada → `version/applyCellPatches` com
    **apenas** as células que mudam → `matrix/setTags`;
 6. tags sempre por `add`, nunca por `remove` (RN-12), com o comando idempotente — recarregar não
    duplica (CT-13);
 7. um evento `IMPORT_RUN` no documento, e `importRunId` no payload de cada `MATRIX_CREATED`,
-   `DRAFT_CREATED` e `CELLS_UPDATED` da rodada (US-10).
+   `DRAFT_CREATED` e `CELLS_UPDATED` da rodada (US-10). O payload também traz `restoredMatrices`
+   — quantas matrizes esta rodada desarquivou.
 
 As células viram patches agrupados por conteúdo idêntico do `set`: 40.068 células com seis ofertas
 distintas produzem seis patches, não 40.068 comandos.
@@ -812,13 +825,17 @@ todo o conteúdo comparado.
 | `UNCHANGED` | Existe versão publicada e nenhuma célula difere | **Nada** (RN-02) |
 | `STRUCTURAL` | O arquivo traz tupla que não existe no eixo da matriz | Nada; a matriz é listada com o detalhe da divergência (S25 resolve) |
 | `ABSENT_IN_FILE` | Matriz existe no projeto e não aparece no arquivo | Nada (RN-09) |
-| `BLOCKED` | Já existe rascunho aberto na matriz; ou o código está ocupado por uma matriz arquivada; ou não há versão publicada para servir de base; ou a matriz nova não caberia nos eixos (grid acima de 6.000, I16; variável sem versão publicada; nenhuma tupla válida) | Nada; `reason` diz o que resolver antes |
+| `ARCHIVED` | O código bate com uma matriz arquivada, e a chave não está em `restoreKeys` desta carga (DEC-CARGA-018) | Nada; a interface oferece "Restaurar e aplicar" por matriz — sem isso, o código continua reservado |
+| `BLOCKED` | Já existe rascunho aberto na matriz; ou não há versão publicada para servir de base; ou a matriz nova não caberia nos eixos (grid acima de 6.000, I16; variável sem versão publicada; nenhuma tupla válida) | Nada; `reason` diz o que resolver antes |
 
 A classificação segue esta ordem, e para na primeira que se aplica: matriz
-arquivada com o mesmo código → falta de versão-base → **estrutura divergente** →
-rascunho aberto → comparação de células. A divergência estrutural vem antes do
-rascunho porque é problema do arquivo, e é ela que a S25 resolve; o rascunho
-aberto é problema do documento, e quem o resolve é o usuário.
+arquivada sem confirmação de restauração (`ARCHIVED`) → falta de versão-base →
+**estrutura divergente** → rascunho aberto → comparação de células. A divergência
+estrutural vem antes do rascunho porque é problema do arquivo, e é ela que a S25
+resolve; o rascunho aberto é problema do documento, e quem o resolve é o usuário.
+Confirmada a restauração (`restoreKeys`), a matriz arquivada segue esta mesma
+ordem como se não estivesse arquivada — só chega a `CHANGED`/`UNCHANGED` se
+também passar pelas checagens de versão-base, estrutura e rascunho aberto.
 
 ### 5.6 Modelo de dados
 
@@ -844,8 +861,8 @@ histórico de cargas mensais.
 ### 5.8 Catálogo de erros
 
 Erros — severidade `ERROR`. Qualquer um deles bloqueia o plano inteiro, exceto
-`IMPORT_STRUCTURE_DIVERGED` e `IMPORT_TARGET_HAS_DRAFT`, que a aplicação lança
-para uma matriz específica.
+`IMPORT_STRUCTURE_DIVERGED`, `IMPORT_TARGET_HAS_DRAFT` e `IMPORT_TARGET_ARCHIVED`,
+que a aplicação lança para uma matriz específica.
 
 | Código | Quando | O que o usuário faz |
 |---|---|---|
@@ -858,6 +875,7 @@ para uma matriz específica.
 | `IMPORT_PLAN_STALE` | Documento mudou entre plano e aplicação | Revisa o plano recalculado |
 | `IMPORT_NOTHING_TO_APPLY` | Seleção vazia ou só matrizes inalteradas | Nada a fazer — a carga não mudou nada |
 | `IMPORT_TARGET_HAS_DRAFT` | Matriz selecionada tem rascunho aberto | Publica ou descarta o rascunho |
+| `IMPORT_TARGET_ARCHIVED` | Matriz selecionada está `ARCHIVED` e a chave não está em `restoreKeys` (DEC-CARGA-018) | Confirma "Restaurar e aplicar" no passo 5 antes de aplicar |
 | `TAG_NOT_FOUND` | Tag referenciada por matriz não existe no catálogo | Recria a tag ou remove a referência |
 
 Avisos — severidade `WARNING`. Descrevem o que a carga fez; nenhum impede o
@@ -941,7 +959,8 @@ Detalhes que valem como critério de aceite:
 - **Passo 5** é a tela principal: filtros por estado e por tag, ordenação por número de células
   alteradas, seleção em massa por estado, e expansão para o diff completo reaproveitando
   `CompareView` (`07-ux-e-editor.md` §9). Inalteradas ficam recolhidas por padrão — são a maioria
-  e não exigem ação.
+  e não exigem ação. Uma matriz `ARQUIVADA` ganha um toggle próprio, "Restaurar e aplicar" — ato
+  explícito por matriz, nunca marcado pela seleção em massa (DEC-CARGA-018).
 - **Passo 6** informa em números o que vai acontecer ("cria 2 rascunhos, não publica nada") e,
   ao concluir, abre a fila de revisão (§6.2). Oferece também "Salvar como perfil".
 

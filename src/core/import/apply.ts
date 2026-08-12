@@ -1,6 +1,6 @@
 import { decodeCellKey } from '../axes/paths';
 import { applyToDocument, defineCommand, makeEvent, type Command, type Ctx } from '../command';
-import { setMatrixTags } from '../document/commands';
+import { restoreArchivedMatrix, setMatrixTags } from '../document/commands';
 import type { Cell, DocEvent, PolicyOpsDocument } from '../document/schema';
 import { DomainError } from '../errors';
 import type { CellChange } from '../diff/types';
@@ -24,15 +24,19 @@ import type { ImportTable } from './parse-table';
  * transação só, e por isso o que mais depende da regra 4 de docs/08 §1
  * (validar antes de tocar). A ordem é normativa:
  *
- * 1. recalcula o plano sobre o documento corrente e compara com o `planHash`
- *    que o usuário revisou — divergiu, falha inteiro (RN-14, CT-11);
+ * 1. recalcula o plano sobre o documento corrente — com `restoreKeys`, para
+ *    que uma matriz `ARCHIVED` confirmada vire `CHANGED`/`UNCHANGED` de novo
+ *    (DEC-CARGA-018) — e compara com o `planHash` que o usuário revisou —
+ *    divergiu, falha inteiro (RN-14, CT-11);
  * 2. valida a seleção: só `NEW` e `CHANGED` são aplicáveis;
  * 3. matriz `NEW`: `matrix/create` + `axis/suppressTuples` (RN-21) + as
  *    células, tudo na v1 `DRAFT`;
- * 4. matriz `CHANGED`: `version/createDraft` a partir da publicada + um patch
+ * 4. matriz `CHANGED` **arquivada e restaurada**: desarquiva primeiro
+ *    (`restoreArchivedMatrix`), depois segue o passo 5 normalmente;
+ * 5. matriz `CHANGED`: `version/createDraft` a partir da publicada + um patch
  *    com **apenas** as células que mudam;
- * 5. tags sempre por `add`, nunca por `remove` (RN-12);
- * 6. um `IMPORT_RUN` no documento e `importRunId` no payload de cada
+ * 6. tags sempre por `add`, nunca por `remove` (RN-12);
+ * 7. um `IMPORT_RUN` no documento e `importRunId` no payload de cada
  *    `MATRIX_CREATED`, `DRAFT_CREATED` e `CELLS_UPDATED` desta rodada.
  *
  * A carga **não publica** (RN-10): tudo para no rascunho.
@@ -53,6 +57,12 @@ export type ApplyImportInput = {
   planHash: string;
   /** `MatrixPlan.key` das matrizes escolhidas no passo 5. */
   selectedKeys: string[];
+  /**
+   * `MatrixPlan.key` das matrizes arquivadas que o usuário confirmou
+   * restaurar nesta carga (DEC-CARGA-018) — precisa bater com o `restoreKeys`
+   * usado para calcular o plano que gerou `planHash`.
+   */
+  restoreKeys?: string[];
   /** Nota da carga, ≥ 10 caracteres — vira a nota padrão de cada publicação. */
   notes: string;
 };
@@ -65,6 +75,8 @@ export type ApplyImportData = {
   createdDrafts: string[];
   /** Chaves que o usuário deixou de fora (CT-14). */
   ignoredByUser: string[];
+  /** `Matrix.id` desarquivadas nesta carga por confirmação (DEC-CARGA-018). */
+  restoredMatrices: string[];
 };
 
 // ---------------------------------------------------------------------------
@@ -166,6 +178,7 @@ type Run = {
   stamped: Set<string>;
   createdMatrices: string[];
   createdDrafts: string[];
+  restoredMatrices: string[];
 };
 
 const STAMPED_EVENT_TYPES = new Set(['MATRIX_CREATED', 'DRAFT_CREATED', 'CELLS_UPDATED']);
@@ -278,11 +291,25 @@ function selectApplicable(plan: ImportPlan, selectedKeys: readonly string[]): Ma
       applicable.push(entry);
       continue;
     }
+    // DEC-CARGA-018: `UNCHANGED` arquivada e restaurada ainda precisa do passo
+    // de desarquivar — só não gera rascunho (RN-02 continua valendo: conteúdo
+    // idêntico não recebe versão nova).
+    if (entry.status === 'UNCHANGED' && entry.archived === true) {
+      applicable.push(entry);
+      continue;
+    }
     if (entry.status === 'STRUCTURAL') {
       throw new DomainError(
         'IMPORT_STRUCTURE_DIVERGED',
         `${entry.code}: ${entry.reason ?? 'o arquivo traz combinações que não existem nos eixos desta matriz.'}`,
         { key, code: entry.code, unknownTuples: entry.unknownTuples },
+      );
+    }
+    if (entry.status === 'ARCHIVED') {
+      throw new DomainError(
+        'IMPORT_TARGET_ARCHIVED',
+        `${entry.code}: ${entry.reason ?? 'esta matriz está arquivada.'}`,
+        { key, code: entry.code },
       );
     }
     if (entry.status === 'BLOCKED') {
@@ -292,8 +319,8 @@ function selectApplicable(plan: ImportPlan, selectedKeys: readonly string[]): Ma
         { key, code: entry.code },
       );
     }
-    // `UNCHANGED` e `ABSENT_IN_FILE` selecionadas não são erro: não há nada a
-    // fazer com elas, e é exatamente isso que RN-02 exige (nenhum evento).
+    // `UNCHANGED` (não arquivada) e `ABSENT_IN_FILE` selecionadas não são
+    // erro: não há nada a fazer com elas (RN-02, RN-09).
   }
 
   if (applicable.length === 0) {
@@ -314,9 +341,11 @@ function runSummary(actor: string, plan: ImportPlan, applied: readonly MatrixPla
   const source = plan.source.fileName ?? 'a tabela colada';
   const changed = applied.filter((entry) => entry.status === 'CHANGED').length;
   const created = applied.filter((entry) => entry.status === 'NEW').length;
+  const restored = applied.filter((entry) => entry.archived === true).length;
   const parts: string[] = [];
   if (created > 0) parts.push(`${created} de ${plan.matrices.length} matrizes criadas`);
   if (changed > 0) parts.push(`${changed} de ${plan.matrices.length} matrizes alteradas`);
+  if (restored > 0) parts.push(`${restored} restauradas do arquivo (DEC-CARGA-018)`);
   parts.push(`${plan.totals.unchanged} inalteradas`);
   return `${actor} carregou ${source}: ${parts.join(', ')}.`;
 }
@@ -327,10 +356,12 @@ export function applyImport(input: ApplyImportInput): Command<ApplyImportInput, 
     input,
     label: 'Aplicar a carga de matrizes',
     execute(doc, ctx) {
-      // 1. RN-14 — o plano é recalculado sobre o documento corrente, e o hash
-      // do que o usuário revisou precisa bater. Nada é gravado antes disso.
+      // 1. RN-14 — o plano é recalculado sobre o documento corrente, com o
+      // mesmo `restoreKeys` que o usuário confirmou no passo 5 (DEC-CARGA-018),
+      // e o hash do que ele revisou precisa bater. Nada é gravado antes disso.
       const plan = planImport(doc as DocumentWithProfiles, input.table, input.profile, {
         ...(input.fileName === undefined ? {} : { fileName: input.fileName }),
+        ...(input.restoreKeys === undefined ? {} : { restoreKeys: input.restoreKeys }),
       });
       if (plan.planHash !== input.planHash) {
         throw new DomainError(
@@ -361,11 +392,21 @@ export function applyImport(input: ApplyImportInput): Command<ApplyImportInput, 
         stamped: new Set(),
         createdMatrices: [],
         createdDrafts: [],
+        restoredMatrices: [],
       };
 
       for (const entry of applicable) {
+        // DEC-CARGA-018: desarquiva antes de tudo — `entry.archived` só é
+        // `true` aqui porque `restoreKeys` já confirmou a restauração ao
+        // montar o plano (`planExistingMatrix`, `plan.ts`).
+        if (entry.archived === true) {
+          step(run, ctx, restoreArchivedMatrix({ matrixId: entry.matrixId! }));
+          run.restoredMatrices.push(entry.matrixId!);
+        }
         if (entry.status === 'NEW') applyNewMatrix(run, ctx, input.profile, entry);
-        else applyChangedMatrix(run, ctx, entry);
+        else if (entry.status === 'CHANGED') applyChangedMatrix(run, ctx, entry);
+        // `UNCHANGED` arquivada: só o desarquivamento acima — RN-02 continua
+        // valendo, conteúdo idêntico não recebe rascunho nem versão nova.
       }
 
       const selected = new Set(input.selectedKeys);
@@ -387,6 +428,7 @@ export function applyImport(input: ApplyImportInput): Command<ApplyImportInput, 
           totals: plan.totals,
           createdMatrices: run.createdMatrices.length,
           createdDrafts: run.createdDrafts.length,
+          restoredMatrices: run.restoredMatrices.length,
           ignoredByUser,
         },
       });
@@ -411,6 +453,7 @@ export function applyImport(input: ApplyImportInput): Command<ApplyImportInput, 
           createdMatrices: run.createdMatrices,
           createdDrafts: run.createdDrafts,
           ignoredByUser,
+          restoredMatrices: run.restoredMatrices,
         },
         events: [importRun],
         inverse: undoImport({

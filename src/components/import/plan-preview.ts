@@ -28,9 +28,14 @@ import { getEditorView, type EditorView } from '@/core/queries';
  * significarem literalmente a mesma coisa.
  */
 
-/** Só `NEW` e `CHANGED` entram na aplicação (docs/12 §5.5). */
+/**
+ * `NEW` e `CHANGED` entram na aplicação (docs/12 §5.5). Uma `UNCHANGED`
+ * arquivada e restaurada também entra — o desarquivamento é a própria
+ * mudança, mesmo sem diff de célula (DEC-CARGA-018).
+ */
 export function isApplicable(plan: MatrixPlan): boolean {
-  return plan.status === 'NEW' || plan.status === 'CHANGED';
+  if (plan.status === 'NEW' || plan.status === 'CHANGED') return true;
+  return plan.status === 'UNCHANGED' && plan.archived === true;
 }
 
 export type PlanPreview = {
