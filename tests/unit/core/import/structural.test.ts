@@ -176,6 +176,7 @@ function structuralPlanFor(matrix: Matrix, unknownTuples: MatrixPlan['unknownTup
       structural: 1,
       absentInFile: 0,
       blocked: 0,
+      archived: 0,
       cellsChanged: 0,
     },
     issues: [],

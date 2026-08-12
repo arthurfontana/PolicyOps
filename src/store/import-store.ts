@@ -69,6 +69,12 @@ interface ImportWizardState {
   headerDiffAcknowledged: boolean;
   /** `MatrixPlan.key` marcadas no passo 5; `undefined` = ainda não tocado. */
   selectedKeys?: string[];
+  /**
+   * `MatrixPlan.key` de matrizes arquivadas que o usuário confirmou
+   * "Restaurar e aplicar" no passo 5 (DEC-CARGA-018). Nunca marcada sozinha
+   * por seleção em massa — sempre um ato explícito por matriz.
+   */
+  restoreKeys: string[];
   notes: string;
   /** Preenchido ao concluir o passo 6 — o relatório e o atalho para a fila. */
   report?: ApplyImportData;
@@ -89,6 +95,7 @@ interface ImportWizardState {
   acknowledgeHeaderDiff: () => void;
   setSelectedKeys: (keys: string[]) => void;
   toggleKey: (key: string) => void;
+  toggleRestoreKey: (key: string) => void;
   setNotes: (notes: string) => void;
   setProfileIdentity: (code: string, name: string) => void;
   setReport: (report: ApplyImportData | undefined) => void;
@@ -110,6 +117,7 @@ const initialState = {
   recognizedProfile: undefined as ImportProfile | undefined,
   headerDiffAcknowledged: false,
   selectedKeys: undefined as string[] | undefined,
+  restoreKeys: [] as string[],
   notes: '',
   report: undefined as ApplyImportData | undefined,
   dirty: false,
@@ -136,6 +144,7 @@ export const useImportStore = create<ImportWizardState>((set, get) => ({
       recognizedProfile: undefined,
       headerDiffAcknowledged: false,
       selectedKeys: undefined,
+      restoreKeys: [],
       report: undefined,
       dirty: true,
     });
@@ -208,6 +217,29 @@ export const useImportStore = create<ImportWizardState>((set, get) => ({
         ? current.filter((entry) => entry !== key)
         : [...current, key],
     });
+  },
+
+  toggleRestoreKey: (key) => {
+    // DEC-CARGA-018: confirmar a restauração é um ato explícito por matriz,
+    // separado da seleção em massa. Em modo automático (`selectedKeys`
+    // indefinido) a chave entra sozinha na próxima vez que o plano for
+    // recalculado — `isApplicable` já cobre a matriz restaurada — sem tocar
+    // aqui na seleção implícita das outras matrizes. Em modo explícito, a
+    // seleção acompanha a confirmação para a matriz continuar marcada.
+    const { restoreKeys, selectedKeys } = get();
+    const restoring = !restoreKeys.includes(key);
+    const nextRestoreKeys = restoring
+      ? [...restoreKeys, key]
+      : restoreKeys.filter((entry) => entry !== key);
+    const nextSelectedKeys =
+      selectedKeys === undefined
+        ? undefined
+        : restoring
+          ? selectedKeys.includes(key)
+            ? selectedKeys
+            : [...selectedKeys, key]
+          : selectedKeys.filter((entry) => entry !== key);
+    set({ restoreKeys: nextRestoreKeys, selectedKeys: nextSelectedKeys });
   },
 
   setNotes: (notes) => set({ notes }),

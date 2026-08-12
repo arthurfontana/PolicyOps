@@ -287,7 +287,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           if (!open) setMatrixToArchive(null);
         }}
         title={`Arquivar "${matrixToArchive?.name ?? ''}"?`}
-        description="A matriz some da lista do projeto e de qualquer busca. O histórico de versões e eventos fica preservado no arquivo, mas hoje não há como desarquivar pela interface — use Ctrl+Z logo em seguida se mudar de ideia."
+        description={`A matriz some da lista do projeto e de qualquer busca, mas o código continua reservado a ela. O histórico de versões e eventos fica preservado no arquivo. Não há um botão de desarquivar direto na interface — use Ctrl+Z agora se mudar de ideia, ou restaure-a mais tarde: recarregue uma planilha cujo código bate com o dela e confirme "Restaurar e aplicar" no assistente de carga.`}
         confirmLabel="Arquivar"
         destructive
         onConfirm={handleArchiveMatrix}

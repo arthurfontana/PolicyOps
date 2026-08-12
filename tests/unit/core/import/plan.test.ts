@@ -43,8 +43,13 @@ function smallTable(): ImportTable {
   return tableFrom(line(), line({ x: 'R02' }));
 }
 
-function planOf(doc: PolicyOpsDocument, table = smallTable(), profile = cineminhaProfile()): ImportPlan {
-  return planImport(doc, table, profile);
+function planOf(
+  doc: PolicyOpsDocument,
+  table = smallTable(),
+  profile = cineminhaProfile(),
+  restoreKeys: readonly string[] = [],
+): ImportPlan {
+  return planImport(doc, table, profile, { restoreKeys });
 }
 
 function byCode(plan: ImportPlan, code: string) {
@@ -63,6 +68,7 @@ describe('planImport — matriz nova (NEW)', () => {
       structural: 0,
       absentInFile: 0,
       blocked: 0,
+      archived: 0,
       cellsChanged: 12,
     });
     const digital = byCode(plan, 'MTZ_G1_SEM_RISCO_DIGITAL');
@@ -320,21 +326,6 @@ describe('planImport — matriz bloqueada (BLOCKED)', () => {
     expect(plan.issues.some((issue) => issue.code === 'IMPORT_NO_BASE_VERSION')).toBe(true);
   });
 
-  it('bloqueia quando já existe matriz arquivada com o mesmo código', () => {
-    const doc = cineminhaDocument();
-    const publicado = publishPlan(doc, planOf(doc));
-    const arquivada: PolicyOpsDocument = {
-      ...publicado,
-      matrices: publicado.matrices.map((matrix) =>
-        matrix.code === 'MTZ_G1_SEM_RISCO_DIGITAL'
-          ? { ...matrix, archivedAt: '2026-03-01T00:00:00.000Z' }
-          : matrix,
-      ),
-    };
-    const plan = planOf(arquivada);
-    expect(byCode(plan, 'MTZ_G1_SEM_RISCO_DIGITAL').reason).toContain('arquivada');
-  });
-
   it('bloqueia matriz nova que estouraria o teto de 6.000 combinações (I16)', () => {
     // 60 faixas de score × 110 tuplas de modelo = 6.600 combinações.
     const doc = cineminhaDocument();
@@ -438,6 +429,85 @@ describe('planImport — matriz bloqueada (BLOCKED)', () => {
     expect(plan.issues.some((issue) => issue.code === 'IMPORT_PROFILE_INVALID')).toBe(true);
   });
 
+});
+
+describe('planImport — matriz arquivada (ARCHIVED, DEC-CARGA-018)', () => {
+  function archive(doc: PolicyOpsDocument, code: string): PolicyOpsDocument {
+    return {
+      ...doc,
+      matrices: doc.matrices.map((matrix) =>
+        matrix.code === code ? { ...matrix, archivedAt: '2026-03-01T00:00:00.000Z' } : matrix,
+      ),
+    };
+  }
+
+  it('sem confirmação de restauração, fica ARCHIVED — o código continua ocupado', () => {
+    const doc = cineminhaDocument();
+    const publicado = publishPlan(doc, planOf(doc));
+    const arquivada = archive(publicado, 'MTZ_G1_SEM_RISCO_DIGITAL');
+
+    const plan = planOf(arquivada);
+    const digital = byCode(plan, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    expect(digital.status).toBe('ARCHIVED');
+    expect(digital.archived).toBe(true);
+    expect(digital.reason).toContain('arquivada');
+    expect(digital.changes).toEqual([]);
+    expect(plan.totals.archived).toBe(1);
+    expect(plan.totals.blocked).toBe(0);
+    // As demais seguem aplicáveis normalmente — mesmo arquivo já publicado,
+    // sem mudança nenhuma.
+    expect(plan.totals.unchanged).toBe(5);
+  });
+
+  it('selecionar a chave sem confirmar restaurar não muda o status (defesa contra revivência acidental)', () => {
+    const doc = cineminhaDocument();
+    const publicado = publishPlan(doc, planOf(doc));
+    const arquivada = archive(publicado, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    const key = byCode(planOf(arquivada), 'MTZ_G1_SEM_RISCO_DIGITAL').key;
+
+    // `restoreKeys` com uma chave de outra matriz não desarquiva a nossa.
+    const outra = byCode(planOf(arquivada), 'MTZ_G1_SEM_RISCO_GERAL').key;
+    const plan = planOf(arquivada, undefined, undefined, [outra]);
+    expect(byCode(plan, 'MTZ_G1_SEM_RISCO_DIGITAL').status).toBe('ARCHIVED');
+    expect(key).not.toBe(outra);
+  });
+
+  it('com restoreKeys confirmando a chave, volta a comparar como matriz existente (CHANGED)', () => {
+    const doc = cineminhaDocument();
+    const publicado = publishPlan(doc, planOf(doc));
+    const arquivada = archive(publicado, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    const key = byCode(planOf(arquivada), 'MTZ_G1_SEM_RISCO_DIGITAL').key;
+
+    const plan = planOf(arquivada, tableFrom(line({ oferta: '0' }), line({ x: 'R02' })), undefined, [key]);
+    const digital = byCode(plan, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    expect(digital.status).toBe('CHANGED');
+    expect(digital.archived).toBe(true);
+    expect(digital.changes.length).toBeGreaterThan(0);
+    expect(plan.totals.archived).toBe(0);
+  });
+
+  it('com restoreKeys e conteúdo idêntico, volta UNCHANGED — mas ainda marcada para restaurar', () => {
+    const doc = cineminhaDocument();
+    const publicado = publishPlan(doc, planOf(doc));
+    const arquivada = archive(publicado, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    const key = byCode(planOf(arquivada), 'MTZ_G1_SEM_RISCO_DIGITAL').key;
+
+    const plan = planOf(arquivada, smallTable(), undefined, [key]);
+    const digital = byCode(plan, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    expect(digital.status).toBe('UNCHANGED');
+    expect(digital.archived).toBe(true);
+  });
+
+  it('restaurar muda o planHash — um plano revisado sem restauração não aplica por engano', () => {
+    const doc = cineminhaDocument();
+    const publicado = publishPlan(doc, planOf(doc));
+    const arquivada = archive(publicado, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    const key = byCode(planOf(arquivada), 'MTZ_G1_SEM_RISCO_DIGITAL').key;
+
+    const semRestaurar = planOf(arquivada);
+    const comRestaurar = planOf(arquivada, undefined, undefined, [key]);
+    expect(semRestaurar.planHash).not.toBe(comRestaurar.planHash);
+  });
 });
 
 describe('planImport — plano bloqueado por erro', () => {

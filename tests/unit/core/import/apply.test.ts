@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { encodeCellKey } from '@/core/axes/paths';
 import type { Ctx } from '@/core/command';
-import { setMatrixTags } from '@/core/document/commands';
+import { archiveMatrix, setMatrixTags } from '@/core/document/commands';
 import { validateDocument } from '@/core/document/validate';
 import type { DocEvent, PolicyOpsDocument } from '@/core/document/schema';
 import { applyImport, type ApplyImportData } from '@/core/import/apply';
@@ -29,8 +29,8 @@ import {
 const profile = cineminhaProfile();
 const NOTES = 'Carga do recorte CINEMINHA de julho';
 
-function planOf(doc: PolicyOpsDocument, csv = excerptCsv()): ImportPlan {
-  return planImport(doc, tableOf(csv), profile, { fileName: 'recorte.csv' });
+function planOf(doc: PolicyOpsDocument, csv = excerptCsv(), restoreKeys: readonly string[] = []): ImportPlan {
+  return planImport(doc, tableOf(csv), profile, { fileName: 'recorte.csv', restoreKeys });
 }
 
 /** As tags que o perfil produz — a carga nunca cria item de catálogo (RN-17). */
@@ -439,5 +439,124 @@ describe('idempotência ponta a ponta (RN-05)', () => {
       version.axes.x.tuples.length * version.axes.y.tuples.length,
     );
     expect(cells[encodeCellKey(version.axes.x.tuples[0]!, version.axes.y.tuples[0]!)]).toBeDefined();
+  });
+});
+
+describe('DEC-CARGA-018 — restaurar matriz arquivada na carga', () => {
+  function archivedFixture(csv: string): { doc: PolicyOpsDocument; ctx: Ctx; matrixId: string; key: string } {
+    const { doc, ctx } = initialLoad();
+    const publicado = publishAllDrafts(doc, ctx);
+    const alvo = publicado.matrices.find((m) => m.code === 'MTZ_G1_SEM_RISCO_DIGITAL')!;
+    const arquivado = apply(publicado, ctx, archiveMatrix({ matrixId: alvo.id })).document;
+    const key = planOf(arquivado, csv).matrices.find((e) => e.code === 'MTZ_G1_SEM_RISCO_DIGITAL')!.key;
+    return { doc: arquivado, ctx, matrixId: alvo.id, key };
+  }
+
+  it('sem restoreKeys, aplicar a chave arquivada falha com IMPORT_TARGET_ARCHIVED, e nada é gravado', () => {
+    const alterado = editCsvCell(excerptCsv(), 2, 'OFERTA_DIGITAL', '0');
+    const { doc, ctx, key } = archivedFixture(alterado);
+    const plan = planOf(doc, alterado);
+    expect(plan.matrices.find((e) => e.code === 'MTZ_G1_SEM_RISCO_DIGITAL')!.status).toBe('ARCHIVED');
+
+    const eventsBefore = doc.events.length;
+    expectFailure(
+      doc,
+      ctx,
+      applyImport({
+        profile,
+        table: tableOf(alterado),
+        fileName: 'recorte.csv',
+        planHash: plan.planHash,
+        selectedKeys: [key],
+        notes: NOTES,
+      }),
+      'IMPORT_TARGET_ARCHIVED',
+    );
+    expect(doc.events).toHaveLength(eventsBefore);
+    expect(doc.matrices.find((m) => m.code === 'MTZ_G1_SEM_RISCO_DIGITAL')!.archivedAt).toBeDefined();
+  });
+
+  it('com restoreKeys confirmando, desarquiva e cria o rascunho com a mudança (CHANGED)', () => {
+    const alterado = editCsvCell(excerptCsv(), 2, 'OFERTA_DIGITAL', '0');
+    const { doc, ctx, matrixId, key } = archivedFixture(alterado);
+    const plan = planOf(doc, alterado, [key]);
+    const entry = plan.matrices.find((e) => e.code === 'MTZ_G1_SEM_RISCO_DIGITAL')!;
+    expect(entry.status).toBe('CHANGED');
+    expect(entry.archived).toBe(true);
+
+    const applied = apply(
+      doc,
+      ctx,
+      applyImport({
+        profile,
+        table: tableOf(alterado),
+        fileName: 'recorte.csv',
+        planHash: plan.planHash,
+        selectedKeys: [key],
+        restoreKeys: [key],
+        notes: NOTES,
+      }),
+    );
+
+    const restaurada = applied.document.matrices.find((m) => m.id === matrixId)!;
+    expect(restaurada.archivedAt).toBeUndefined();
+    expect(restaurada.versions.some((v) => v.state === 'DRAFT')).toBe(true);
+    expect(applied.data.restoredMatrices).toEqual([matrixId]);
+
+    const run = applied.document.events.find(
+      (event) => event.type === 'IMPORT_RUN' && event.payload?.importRunId === applied.data.importRunId,
+    )!;
+    expect(run.payload?.restoredMatrices).toBe(1);
+  });
+
+  it('com restoreKeys e conteúdo idêntico, só desarquiva — sem rascunho novo (RN-02)', () => {
+    const { doc, ctx, matrixId, key } = archivedFixture(excerptCsv());
+    const plan = planOf(doc, excerptCsv(), [key]);
+    const entry = plan.matrices.find((e) => e.code === 'MTZ_G1_SEM_RISCO_DIGITAL')!;
+    expect(entry.status).toBe('UNCHANGED');
+    expect(entry.archived).toBe(true);
+
+    const applied = apply(
+      doc,
+      ctx,
+      applyImport({
+        profile,
+        table: tableOf(excerptCsv()),
+        fileName: 'recorte.csv',
+        planHash: plan.planHash,
+        selectedKeys: [key],
+        restoreKeys: [key],
+        notes: NOTES,
+      }),
+    );
+
+    const restaurada = applied.document.matrices.find((m) => m.id === matrixId)!;
+    expect(restaurada.archivedAt).toBeUndefined();
+    expect(restaurada.versions).toHaveLength(1);
+    expect(restaurada.versions[0]!.state).toBe('PUBLISHED');
+    expect(applied.data.restoredMatrices).toEqual([matrixId]);
+    expect(applied.data.createdDrafts).toEqual([]);
+  });
+
+  it('desfazer devolve a matriz arquivada e descarta o rascunho criado', () => {
+    const alterado = editCsvCell(excerptCsv(), 2, 'OFERTA_DIGITAL', '0');
+    const { doc, ctx, key } = archivedFixture(alterado);
+    const plan = planOf(doc, alterado, [key]);
+
+    const applied = apply(
+      doc,
+      ctx,
+      applyImport({
+        profile,
+        table: tableOf(alterado),
+        fileName: 'recorte.csv',
+        planHash: plan.planHash,
+        selectedKeys: [key],
+        restoreKeys: [key],
+        notes: NOTES,
+      }),
+    );
+    const undone = apply(applied.document, ctx, applied.result.inverse);
+    expect(withoutEvents(undone.document)).toEqual(withoutEvents(doc));
   });
 });

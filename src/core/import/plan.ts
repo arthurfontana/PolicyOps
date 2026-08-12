@@ -51,7 +51,8 @@ export type MatrixPlanStatus =
   | 'UNCHANGED'
   | 'STRUCTURAL'
   | 'ABSENT_IN_FILE'
-  | 'BLOCKED';
+  | 'BLOCKED'
+  | 'ARCHIVED';
 
 /** Tupla que o arquivo traz e o eixo da matriz não tem (RN-06). */
 export type UnknownTuple = { path: string; role: 'X' | 'Y'; lines: number[] };
@@ -62,11 +63,17 @@ export type MatrixPlan = {
   name: string;
   tags: string[];
   status: MatrixPlanStatus;
-  /** Por que `BLOCKED` ou `STRUCTURAL`. */
+  /** Por que `BLOCKED`, `STRUCTURAL` ou `ARCHIVED`. */
   reason?: string;
   matrixId?: string;
   baseVersionId?: string;
   baseVersionNumber?: number;
+  /**
+   * A matriz que ocupa este código está arquivada — em `ARCHIVED` (bloqueio,
+   * sem confirmação de restauração) e também em qualquer outro status quando
+   * o usuário já confirmou "restaurar e aplicar" (DEC-CARGA-018).
+   */
+  archived?: boolean;
   /** Combinações efetivas, já sem as suprimidas. */
   combinations: number;
   /** Tuplas suprimidas por RN-21 — só em `NEW`, com `suppressUnobserved`. */
@@ -110,6 +117,8 @@ export type ImportPlanTotals = {
   structural: number;
   absentInFile: number;
   blocked: number;
+  /** Código ocupado por matriz arquivada, sem confirmação de restauração (DEC-CARGA-018). */
+  archived: number;
   cellsChanged: number;
 };
 
@@ -132,6 +141,12 @@ export type PlanImportOptions = {
    * canônica.
    */
   contentHash?: string;
+  /**
+   * `MatrixPlan.key` das matrizes arquivadas que o usuário confirmou
+   * restaurar nesta carga (DEC-CARGA-018). Sem a chave aqui, o código ocupado
+   * por uma matriz arquivada produz `ARCHIVED` — nunca aplica sozinho.
+   */
+  restoreKeys?: readonly string[];
 };
 
 // ---------------------------------------------------------------------------
@@ -279,6 +294,7 @@ const EMPTY_TOTALS: ImportPlanTotals = {
   structural: 0,
   absentInFile: 0,
   blocked: 0,
+  archived: 0,
   cellsChanged: 0,
 };
 
@@ -315,8 +331,12 @@ export function planImport(
   const inProject = doc.matrices.filter((matrix) => matrix.projectId === profile.projectId);
   const projectMatrices = inProject.filter((matrix) => matrix.archivedAt === undefined);
   // A busca por código inclui as arquivadas: o código continua ocupado no
-  // projeto (docs/05 §1.1), e criar uma matriz nova por cima falharia.
+  // projeto (docs/05 §1.1), e criar uma matriz nova por cima falharia. Uma
+  // matriz arquivada só entra no plano como algo além de `ARCHIVED` quando a
+  // chave está em `restoreKeys` (DEC-CARGA-018) — decidido por grupo, mais
+  // abaixo, nunca aqui.
   const byCode = new Map(inProject.map((matrix) => [matrix.code, matrix]));
+  const restoreKeys = new Set(opts.restoreKeys ?? []);
 
   const matrices: MatrixPlan[] = [];
   const codeOwner = new Map<string, string>();
@@ -362,6 +382,7 @@ export function planImport(
       limits,
       issues,
       projection,
+      restoreKeys,
     });
     if (plan.matrixId !== undefined) cited.add(plan.matrixId);
     matrices.push(plan);
@@ -402,6 +423,7 @@ export function planImport(
     else if (plan.status === 'UNCHANGED') totals.unchanged += 1;
     else if (plan.status === 'STRUCTURAL') totals.structural += 1;
     else if (plan.status === 'ABSENT_IN_FILE') totals.absentInFile += 1;
+    else if (plan.status === 'ARCHIVED') totals.archived += 1;
     else totals.blocked += 1;
     totals.cellsChanged += plan.changes.length;
   }
@@ -425,6 +447,8 @@ type GroupContext = {
   issues: ImportIssue[];
   /** Projeção compartilhada dos eixos, ou o motivo de ela não existir. */
   projection: () => { x: PlannedAxis; y: PlannedAxis } | PlanBlocked;
+  /** `MatrixPlan.key` confirmadas para restaurar nesta carga (DEC-CARGA-018). */
+  restoreKeys: Set<string>;
 };
 
 function planForGroup(profile: ImportProfile, group: Group, ctx: GroupContext): MatrixPlan {
@@ -543,11 +567,21 @@ function planExistingMatrix(
   matrix: Matrix,
 ): MatrixPlan {
   const withMatrix: MatrixPlan = { ...base, matrixId: matrix.id };
-  if (matrix.archivedAt !== undefined) {
+  const archived = matrix.archivedAt !== undefined;
+  const archivedFlag = archived ? ({ archived: true } as const) : {};
+
+  // DEC-CARGA-018: uma matriz arquivada continua ocupando o código (docs/05
+  // §1.1), mas só fica presa em `ARCHIVED` sem saída — sem a confirmação
+  // explícita de `restoreKeys`, a carga nunca desarquiva sozinha, mesmo que a
+  // matriz esteja selecionada. Confirmada a restauração, o resto desta função
+  // segue exatamente o caminho de uma matriz existente qualquer.
+  if (archived && !ctx.restoreKeys.has(group.key.key)) {
     return {
       ...withMatrix,
-      status: 'BLOCKED',
-      reason: 'Já existe uma matriz arquivada com este código no projeto — restaure-a ou mude o padrão de código.',
+      status: 'ARCHIVED',
+      archived: true,
+      reason:
+        'Esta matriz está arquivada — o código continua reservado a ela. Marque "Restaurar e aplicar" para desarquivá-la e carregar o arquivo sobre ela, ou mude o padrão de código.',
     };
   }
   const published = matrix.versions.find((version) => version.state === 'PUBLISHED');
@@ -561,6 +595,7 @@ function planExistingMatrix(
     );
     return {
       ...withMatrix,
+      ...archivedFlag,
       status: 'BLOCKED',
       reason: 'A matriz não tem versão publicada para servir de base à comparação.',
     };
@@ -568,6 +603,7 @@ function planExistingMatrix(
 
   const withBase: MatrixPlan = {
     ...withMatrix,
+    ...archivedFlag,
     baseVersionId: published.id,
     baseVersionNumber: published.number,
     combinations: published.axes.x.tuples.length * published.axes.y.tuples.length,
@@ -727,6 +763,7 @@ function computePlanHash(
       plan.key,
       plan.code,
       plan.status,
+      plan.archived === true ? 1 : 0,
       plan.matrixId ?? '',
       plan.baseVersionId ?? '',
       plan.combinations,

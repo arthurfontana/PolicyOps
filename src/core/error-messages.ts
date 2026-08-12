@@ -66,6 +66,8 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
     'Essa tag não existe no catálogo — crie-a na tela de Conteúdo antes de aplicá-la a uma matriz.',
   IMPORT_TARGET_HAS_DRAFT:
     'Esta matriz já tem um rascunho aberto — publique ou descarte o rascunho antes de recarregar.',
+  IMPORT_TARGET_ARCHIVED:
+    'Esta matriz está arquivada — confirme "Restaurar e aplicar" no plano antes de recarregá-la.',
   IMPORT_STRUCTURE_RESOLUTION_INVALID:
     'A resolução de estrutura desta matriz não pôde ser calculada com segurança — recarregue o plano e tente de novo.',
 };

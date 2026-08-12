@@ -34,6 +34,7 @@ export function Step6Apply({ table }: { table: ImportTable }) {
   const profile = useImportStore((s) => s.profile);
   const fileName = useImportStore((s) => s.fileName);
   const storedSelection = useImportStore((s) => s.selectedKeys);
+  const restoreKeys = useImportStore((s) => s.restoreKeys);
   const recognizedProfile = useImportStore((s) => s.recognizedProfile);
   const notes = useImportStore((s) => s.notes);
   const setNotes = useImportStore((s) => s.setNotes);
@@ -52,8 +53,8 @@ export function Step6Apply({ table }: { table: ImportTable }) {
 
   const plan = useMemo(() => {
     if (document === null) return undefined;
-    return planImport(document as DocumentWithProfiles, table, profile, { fileName });
-  }, [document, table, profile, fileName]);
+    return planImport(document as DocumentWithProfiles, table, profile, { fileName, restoreKeys });
+  }, [document, table, profile, fileName, restoreKeys]);
 
   const selectedKeys = useMemo(() => {
     if (plan === undefined) return [];
@@ -81,6 +82,7 @@ export function Step6Apply({ table }: { table: ImportTable }) {
         ...(fileName === undefined ? {} : { fileName }),
         planHash: plan.planHash,
         selectedKeys,
+        restoreKeys,
         notes,
       }),
     );
@@ -151,6 +153,9 @@ export function Step6Apply({ table }: { table: ImportTable }) {
             <ul className="flex flex-col gap-1 text-sm text-neutral-700 dark:text-neutral-300">
               <li>{report.createdMatrices.length} matrizes criadas</li>
               <li>{report.createdDrafts.length} rascunhos a revisar</li>
+              {report.restoredMatrices.length > 0 && (
+                <li>{report.restoredMatrices.length} matrizes restauradas do arquivo</li>
+              )}
               {report.ignoredByUser.length > 0 && (
                 <li>{report.ignoredByUser.length} matrizes deixadas de fora por escolha sua</li>
               )}
@@ -187,10 +192,15 @@ export function Step6Apply({ table }: { table: ImportTable }) {
   // Antes de aplicar
   // -------------------------------------------------------------------------
 
+  const restauradas = plan.matrices.filter((e) => e.archived === true && selected.has(e.key));
+
   const resumo = [
     novas.length > 0 ? `cria ${novas.length} ${novas.length === 1 ? 'matriz' : 'matrizes'}` : null,
     alteradas.length > 0
       ? `cria ${alteradas.length} ${alteradas.length === 1 ? 'rascunho' : 'rascunhos'}`
+      : null,
+    restauradas.length > 0
+      ? `restaura ${restauradas.length} ${restauradas.length === 1 ? 'matriz arquivada' : 'matrizes arquivadas'}`
       : null,
   ].filter((part): part is string => part !== null);
 

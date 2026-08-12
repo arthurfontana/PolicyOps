@@ -22,6 +22,7 @@ const STATUS_LABEL: Record<MatrixPlanStatus, string> = {
   STRUCTURAL: 'Estrutura divergente',
   ABSENT_IN_FILE: 'Ausente no arquivo',
   BLOCKED: 'Bloqueada',
+  ARCHIVED: 'Arquivada',
 };
 
 const STATUS_VARIANT: Record<MatrixPlanStatus, BadgeVariant> = {
@@ -31,6 +32,7 @@ const STATUS_VARIANT: Record<MatrixPlanStatus, BadgeVariant> = {
   STRUCTURAL: 'outline',
   ABSENT_IN_FILE: 'outline',
   BLOCKED: 'outline',
+  ARCHIVED: 'outline',
 };
 
 /** O que fazer com uma matriz que a carga não aplica (§5.5). */
@@ -47,12 +49,16 @@ type SortMode = 'CELLS' | 'CODE';
 function MatrixRow({
   plan,
   selected,
+  restoring,
   onToggle,
+  onToggleRestore,
   onOpenDiff,
 }: {
   plan: MatrixPlan;
   selected: boolean;
+  restoring: boolean;
   onToggle: () => void;
+  onToggleRestore: () => void;
   onOpenDiff: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -85,6 +91,9 @@ function MatrixRow({
             <span className="w-3.5 shrink-0" />
           )}
           <Badge variant={STATUS_VARIANT[plan.status]}>{STATUS_LABEL[plan.status]}</Badge>
+          {plan.archived === true && plan.status !== 'ARCHIVED' && (
+            <Badge variant="amber">Será restaurada</Badge>
+          )}
           <span className="truncate font-mono text-xs text-neutral-500 dark:text-neutral-400">
             {plan.code}
           </span>
@@ -101,13 +110,26 @@ function MatrixRow({
         </div>
       </div>
 
-      {(plan.reason !== undefined || STATUS_ACTION[plan.status] !== undefined) && (
+      {(plan.reason !== undefined ||
+        STATUS_ACTION[plan.status] !== undefined ||
+        plan.archived === true) && (
         <div className="border-t border-neutral-200 px-3 py-2 text-xs dark:border-neutral-800">
           {plan.reason !== undefined && (
             <p className="text-red-600 dark:text-red-400">{plan.reason}</p>
           )}
           {STATUS_ACTION[plan.status] !== undefined && (
             <p className="text-neutral-500 dark:text-neutral-400">{STATUS_ACTION[plan.status]}</p>
+          )}
+          {plan.archived === true && (
+            <label className="mt-2 flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
+              <Checkbox
+                checked={restoring}
+                onCheckedChange={onToggleRestore}
+                aria-label={`Restaurar e aplicar ${plan.code}`}
+                data-testid={`plan-restore-${plan.code}`}
+              />
+              Restaurar e aplicar esta matriz
+            </label>
           )}
         </div>
       )}
@@ -173,6 +195,8 @@ export function Step5Plan({ table }: { table: ImportTable }) {
   const storedSelection = useImportStore((s) => s.selectedKeys);
   const setSelectedKeys = useImportStore((s) => s.setSelectedKeys);
   const toggleKey = useImportStore((s) => s.toggleKey);
+  const restoreKeys = useImportStore((s) => s.restoreKeys);
+  const toggleRestoreKey = useImportStore((s) => s.toggleRestoreKey);
 
   const [showUnchanged, setShowUnchanged] = useState(false);
   const [statusFilter, setStatusFilter] = useState<MatrixPlanStatus | 'ALL'>('ALL');
@@ -183,8 +207,8 @@ export function Step5Plan({ table }: { table: ImportTable }) {
 
   const plan: ImportPlan | undefined = useMemo(() => {
     if (document === null) return undefined;
-    return planImport(document as DocumentWithProfiles, table, profile, { fileName });
-  }, [document, table, profile, fileName]);
+    return planImport(document as DocumentWithProfiles, table, profile, { fileName, restoreKeys });
+  }, [document, table, profile, fileName, restoreKeys]);
 
   // Sem seleção explícita, tudo o que é aplicável entra marcado — o caminho
   // comum da carga é "aplicar o que o plano encontrou".
@@ -203,7 +227,16 @@ export function Step5Plan({ table }: { table: ImportTable }) {
     const term = search.trim().toUpperCase();
     const rows = (plan?.matrices ?? []).filter((entry) => {
       if (statusFilter !== 'ALL' && entry.status !== statusFilter) return false;
-      if (statusFilter === 'ALL' && entry.status === 'UNCHANGED' && !showUnchanged) return false;
+      // Arquivada e restaurada continua exigindo o desarquivamento mesmo sem
+      // diff de célula — não é uma inalterada inerte, então não some com elas
+      // (DEC-CARGA-018).
+      if (
+        statusFilter === 'ALL' &&
+        entry.status === 'UNCHANGED' &&
+        entry.archived !== true &&
+        !showUnchanged
+      )
+        return false;
       if (tagFilter !== 'ALL' && !entry.tags.includes(tagFilter)) return false;
       if (term !== '' && !entry.code.toUpperCase().includes(term)) return false;
       return true;
@@ -269,6 +302,9 @@ export function Step5Plan({ table }: { table: ImportTable }) {
           <Badge variant="outline">{plan.totals.absentInFile} ausentes</Badge>
         )}
         {plan.totals.blocked > 0 && <Badge variant="outline">{plan.totals.blocked} bloqueadas</Badge>}
+        {plan.totals.archived > 0 && (
+          <Badge variant="outline">{plan.totals.archived} arquivadas</Badge>
+        )}
         <span className="text-neutral-500 dark:text-neutral-400">
           {plan.totals.cellsChanged} células no total
         </span>
@@ -373,10 +409,12 @@ export function Step5Plan({ table }: { table: ImportTable }) {
             key={entry.key}
             plan={entry}
             selected={selection.has(entry.key)}
+            restoring={restoreKeys.includes(entry.key)}
             onToggle={() => {
               if (storedSelection === undefined) setSelectedKeys([...selection]);
               toggleKey(entry.key);
             }}
+            onToggleRestore={() => toggleRestoreKey(entry.key)}
             onOpenDiff={() => setDiffKey(entry.key)}
           />
         ))}
