@@ -586,6 +586,16 @@ function planExistingMatrix(
   }
   const published = matrix.versions.find((version) => version.state === 'PUBLISHED');
   if (published === undefined) {
+    // DEC-CARGA-019: chegou até aqui só com `archived` true — sem isso, o
+    // `if` de cima já teria devolvido `ARCHIVED` antes de checar publicação.
+    // Uma matriz arquivada que nunca foi publicada não tem nada para
+    // `version/createDraft` derivar (`NO_VERSION_TO_DERIVE`); restaurada, ela
+    // ganha eixos frescos e conteúdo do zero — o mesmo caminho de uma matriz
+    // genuinamente nova (`planNewMatrix`), só que sobre o código já
+    // reservado, nunca criando um `Matrix` novo.
+    if (archived) {
+      return planNewMatrix(profile, group, ctx, { ...withMatrix, archived: true });
+    }
     ctx.issues.push(
       importIssue(
         'IMPORT_NO_BASE_VERSION',

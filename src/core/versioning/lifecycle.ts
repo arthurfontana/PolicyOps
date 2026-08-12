@@ -517,6 +517,91 @@ export function createDraft(input: CreateDraftInput): Command<CreateDraftInput, 
   });
 }
 
+// ---------------------------------------------------------------------------
+// version/_createWithoutBase — restauração de matriz nunca publicada
+// ---------------------------------------------------------------------------
+
+export type CreateDraftWithoutBaseInput = {
+  matrixId: string;
+  x: { levels: AxisLevelRef[] };
+  y: { levels: AxisLevelRef[] };
+};
+export type CreateDraftWithoutBaseData = { versionId: string; number: number };
+
+/**
+ * Cria um rascunho numa matriz **existente** sem clonar nenhuma versão-base —
+ * projeta os eixos do zero a partir das versões publicadas atuais das
+ * variáveis, exatamente como `matrix/create` monta a v1. Não é comando de
+ * catálogo próprio (mesmo espírito de `restoreArchivedMatrix`): só
+ * `import/apply` compõe isto, e só para uma matriz `ARCHIVED` restaurada que
+ * nunca teve versão `PUBLISHED` — `version/createDraft` não serve porque
+ * exige uma versão existente para derivar (`NO_VERSION_TO_DERIVE`), e não há
+ * nenhuma para essa matriz (DEC-CARGA-019).
+ */
+export function createDraftWithoutBase(
+  input: CreateDraftWithoutBaseInput,
+): Command<CreateDraftWithoutBaseInput, CreateDraftWithoutBaseData> {
+  return defineCommand({
+    type: 'version/_createWithoutBase',
+    input,
+    label: 'Criar rascunho sem versão-base',
+    scope: { matrixId: input.matrixId },
+    execute(doc, ctx) {
+      const { matrix, matrixIndex } = locateMatrix(doc, input.matrixId);
+
+      // I1: no máximo um rascunho por matriz.
+      const existingDraft = matrix.versions.find((version) => version.state === 'DRAFT');
+      if (existingDraft !== undefined) {
+        throw new DomainError(
+          'DRAFT_ALREADY_EXISTS',
+          `A matriz "${matrix.code}" já tem a versão ${existingDraft.number} em rascunho.`,
+          { matrixId: matrix.id, versionId: existingDraft.id },
+        );
+      }
+
+      const xLevels = input.x.levels.map((ref) => resolveLevel(doc, ref, ctx));
+      const yLevels = input.y.levels.map((ref) => resolveLevel(doc, ref, ctx));
+      assertLevelsValid(tupleLevels(xLevels));
+      assertLevelsValid(tupleLevels(yLevels));
+      assertVariablesNotOnBothAxes(tupleLevels(xLevels), tupleLevels(yLevels));
+
+      const x = buildAxis('X', xLevels, doc.compatibility);
+      const y = buildAxis('Y', yLevels, doc.compatibility);
+      assertGridFits(x.tuples.length * y.tuples.length);
+
+      const number = Math.max(...matrix.versions.map((version) => version.number)) + 1;
+      const versionId = ctx.newId();
+      const draft: MatrixVersion = {
+        id: versionId,
+        number,
+        state: 'DRAFT',
+        createdAt: isoFrom(ctx.now()),
+        createdBy: ctx.actor,
+        axes: { x, y },
+        cells: {},
+      };
+
+      const events = [
+        makeEvent(ctx, {
+          type: 'DRAFT_CREATED',
+          scope: versionScope(matrix, versionId),
+          summary: `${ctx.actor} criou a versão ${number} de "${matrix.code}" sem versão-base — a matriz nunca teve versão publicada.`,
+          payload: { baseVersionNumber: null },
+        }),
+      ];
+
+      return {
+        document: applyToDocument(doc, events, (draft2) => {
+          draft2.matrices[matrixIndex]!.versions.push(draft);
+        }),
+        data: { versionId, number },
+        events,
+        inverse: removeCreatedVersion({ matrixId: matrix.id, versionId, number }),
+      };
+    },
+  });
+}
+
 /** Inverso de `version/createDraft`: apaga o rascunho recém-criado, sem deixar rastro. */
 function removeCreatedVersion(input: { matrixId: string; versionId: string; number: number }): Command<
   { matrixId: string; versionId: string; number: number },

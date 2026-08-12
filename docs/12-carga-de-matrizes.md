@@ -820,13 +820,13 @@ todo o conteúdo comparado.
 
 | Estado | Quando | O que a aplicação faz |
 |---|---|---|
-| `NEW` | Não existe matriz com aquele código no projeto | Cria a matriz, v1 `DRAFT`, células aplicadas, tags |
+| `NEW` | Não existe matriz com aquele código no projeto; **ou** o código pertence a uma matriz arquivada, restaurada nesta carga (`restoreKeys`), que nunca teve versão `PUBLISHED` (DEC-CARGA-019) | Sem `matrixId` no plano: cria a matriz, v1 `DRAFT`. Com `matrixId` (a restaurada): desarquiva e cria um rascunho v(n+1) com eixos projetados do zero, sem base — em ambos os casos, células aplicadas e tags |
 | `CHANGED` | Existe versão publicada e o conteúdo difere em ao menos uma célula | Cria rascunho v(n+1) da publicada e aplica só as células que mudam |
 | `UNCHANGED` | Existe versão publicada e nenhuma célula difere | **Nada** (RN-02) |
 | `STRUCTURAL` | O arquivo traz tupla que não existe no eixo da matriz | Nada; a matriz é listada com o detalhe da divergência (S25 resolve) |
 | `ABSENT_IN_FILE` | Matriz existe no projeto e não aparece no arquivo | Nada (RN-09) |
 | `ARCHIVED` | O código bate com uma matriz arquivada, e a chave não está em `restoreKeys` desta carga (DEC-CARGA-018) | Nada; a interface oferece "Restaurar e aplicar" por matriz — sem isso, o código continua reservado |
-| `BLOCKED` | Já existe rascunho aberto na matriz; ou não há versão publicada para servir de base; ou a matriz nova não caberia nos eixos (grid acima de 6.000, I16; variável sem versão publicada; nenhuma tupla válida) | Nada; `reason` diz o que resolver antes |
+| `BLOCKED` | Já existe rascunho aberto na matriz; ou não há versão publicada para servir de base **e a matriz não está arquivada e confirmada para restaurar** (matriz arquivada e confirmada vira `NEW`, DEC-CARGA-019); ou a matriz nova não caberia nos eixos (grid acima de 6.000, I16; variável sem versão publicada; nenhuma tupla válida) | Nada; `reason` diz o que resolver antes |
 
 A classificação segue esta ordem, e para na primeira que se aplica: matriz
 arquivada sem confirmação de restauração (`ARCHIVED`) → falta de versão-base →
@@ -835,7 +835,11 @@ estrutural vem antes do rascunho porque é problema do arquivo, e é ela que a S
 resolve; o rascunho aberto é problema do documento, e quem o resolve é o usuário.
 Confirmada a restauração (`restoreKeys`), a matriz arquivada segue esta mesma
 ordem como se não estivesse arquivada — só chega a `CHANGED`/`UNCHANGED` se
-também passar pelas checagens de versão-base, estrutura e rascunho aberto.
+também passar pelas checagens de versão-base, estrutura e rascunho aberto. A
+exceção é a falta de versão-base: numa matriz arquivada e confirmada, ela não
+bloqueia — vira `NEW` com eixos projetados do zero, porque não há nada para
+`version/createDraft` derivar (DEC-CARGA-019). Numa matriz **não** arquivada
+(ou arquivada sem confirmação), a falta de versão-base continua `BLOCKED`.
 
 ### 5.6 Modelo de dados
 
