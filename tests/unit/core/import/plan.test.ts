@@ -510,6 +510,51 @@ describe('planImport — matriz arquivada (ARCHIVED, DEC-CARGA-018)', () => {
   });
 });
 
+describe('planImport — matriz arquivada que nunca foi publicada (DEC-CARGA-019)', () => {
+  /** Simula o rascunho descartado antes de publicar: a única versão vira ARCHIVED, sem PUBLISHED nenhuma. */
+  function archiveNeverPublished(doc: PolicyOpsDocument, code: string): PolicyOpsDocument {
+    return {
+      ...doc,
+      matrices: doc.matrices.map((matrix) =>
+        matrix.code === code
+          ? {
+              ...matrix,
+              archivedAt: '2026-03-01T00:00:00.000Z',
+              versions: [{ ...matrix.versions[0]!, state: 'ARCHIVED' as const }],
+            }
+          : matrix,
+      ),
+    };
+  }
+
+  it('sem restoreKeys, fica ARCHIVED normalmente — mesmo sem versão publicada', () => {
+    const doc = cineminhaDocument();
+    const publicado = publishPlan(doc, planOf(doc));
+    const arquivada = archiveNeverPublished(publicado, 'MTZ_G1_SEM_RISCO_DIGITAL');
+
+    const plan = planOf(arquivada);
+    const digital = byCode(plan, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    expect(digital.status).toBe('ARCHIVED');
+    expect(digital.archived).toBe(true);
+  });
+
+  it('com restoreKeys confirmando, projeta eixos frescos e vira NEW — nunca mais trava em IMPORT_NO_BASE_VERSION', () => {
+    const doc = cineminhaDocument();
+    const publicado = publishPlan(doc, planOf(doc));
+    const arquivada = archiveNeverPublished(publicado, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    const key = byCode(planOf(arquivada), 'MTZ_G1_SEM_RISCO_DIGITAL').key;
+
+    const plan = planOf(arquivada, smallTable(), undefined, [key]);
+    const digital = byCode(plan, 'MTZ_G1_SEM_RISCO_DIGITAL');
+    expect(digital.status).toBe('NEW');
+    expect(digital.archived).toBe(true);
+    expect(digital.matrixId).toBeDefined();
+    expect(digital.axes).toBeDefined();
+    expect(digital.combinations).toBeGreaterThan(0);
+    expect(plan.issues.some((issue) => issue.code === 'IMPORT_NO_BASE_VERSION')).toBe(false);
+  });
+});
+
 describe('planImport — plano bloqueado por erro', () => {
   it('não classifica matriz alguma quando o perfil é inválido', () => {
     const plan = planOf(cineminhaDocument(), smallTable(), cineminhaProfile({ projectId: 'FANTASMA____' }));

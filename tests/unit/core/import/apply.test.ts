@@ -7,7 +7,7 @@ import type { DocEvent, PolicyOpsDocument } from '@/core/document/schema';
 import { applyImport, type ApplyImportData } from '@/core/import/apply';
 import { planImport, type ImportPlan } from '@/core/import/plan';
 import { createCatalogItem } from '@/core/library/catalog';
-import { createDraft, publishVersion } from '@/core/versioning/lifecycle';
+import { createDraft, discardDraft, publishVersion } from '@/core/versioning/lifecycle';
 import { apply, expectFailure, testCtx, withoutEvents } from '../versioning/fixtures';
 import {
   cineminhaDocument,
@@ -558,5 +558,77 @@ describe('DEC-CARGA-018 — restaurar matriz arquivada na carga', () => {
     );
     const undone = apply(applied.document, ctx, applied.result.inverse);
     expect(withoutEvents(undone.document)).toEqual(withoutEvents(doc));
+  });
+});
+
+describe('DEC-CARGA-019 — restaurar matriz arquivada que nunca foi publicada', () => {
+  /** O fluxo real: rascunho v1 descartado antes de publicar, depois a matriz arquivada. */
+  function neverPublishedArchivedFixture(): { doc: PolicyOpsDocument; ctx: Ctx; matrixId: string; key: string } {
+    const { doc, ctx } = initialLoad();
+    const alvo = doc.matrices.find((m) => m.code === 'MTZ_G1_SEM_RISCO_DIGITAL')!;
+    const draft = alvo.versions.find((v) => v.state === 'DRAFT')!;
+    const descartado = apply(doc, ctx, discardDraft({ versionId: draft.id })).document;
+    const arquivado = apply(descartado, ctx, archiveMatrix({ matrixId: alvo.id })).document;
+    const key = planOf(arquivado).matrices.find((e) => e.code === 'MTZ_G1_SEM_RISCO_DIGITAL')!.key;
+    return { doc: arquivado, ctx, matrixId: alvo.id, key };
+  }
+
+  it('a matriz fica sem nenhuma versão publicada, só a v1 ARCHIVED do rascunho descartado', () => {
+    const { doc, matrixId } = neverPublishedArchivedFixture();
+    const matrix = doc.matrices.find((m) => m.id === matrixId)!;
+    expect(matrix.versions).toHaveLength(1);
+    expect(matrix.versions[0]!.state).toBe('ARCHIVED');
+    expect(matrix.archivedAt).toBeDefined();
+  });
+
+  it('com restoreKeys confirmando, projeta eixos frescos e cria a v2 DRAFT — não trava mais em BLOCKED', () => {
+    const { doc, ctx, matrixId, key } = neverPublishedArchivedFixture();
+    const plan = planOf(doc, excerptCsv(), [key]);
+    const entry = plan.matrices.find((e) => e.code === 'MTZ_G1_SEM_RISCO_DIGITAL')!;
+    expect(entry.status).toBe('NEW');
+    expect(entry.archived).toBe(true);
+
+    const applied = apply(
+      doc,
+      ctx,
+      applyImport({
+        profile,
+        table: tableOf(excerptCsv()),
+        fileName: 'recorte.csv',
+        planHash: plan.planHash,
+        selectedKeys: [key],
+        restoreKeys: [key],
+        notes: NOTES,
+      }),
+    );
+
+    const restaurada = applied.document.matrices.find((m) => m.id === matrixId)!;
+    expect(restaurada.archivedAt).toBeUndefined();
+    expect(restaurada.versions).toHaveLength(2);
+    const draft = restaurada.versions.find((v) => v.state === 'DRAFT')!;
+    expect(draft.number).toBe(2);
+    expect(Object.keys(draft.cells).length).toBeGreaterThan(0);
+    expect(applied.data.restoredMatrices).toEqual([matrixId]);
+    // A matriz já existia (código reservado) — não é `matrix/create` de novo.
+    expect(applied.data.createdMatrices).not.toContain(matrixId);
+    expect(applied.data.createdDrafts).toContain(draft.id);
+  });
+
+  it('sem restoreKeys, aplicar a chave falha com IMPORT_TARGET_ARCHIVED', () => {
+    const { doc, ctx, key } = neverPublishedArchivedFixture();
+    const plan = planOf(doc);
+    expectFailure(
+      doc,
+      ctx,
+      applyImport({
+        profile,
+        table: excerptTable(),
+        fileName: 'recorte.csv',
+        planHash: plan.planHash,
+        selectedKeys: [key],
+        notes: NOTES,
+      }),
+      'IMPORT_TARGET_ARCHIVED',
+    );
   });
 });

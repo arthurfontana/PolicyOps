@@ -4,7 +4,7 @@ import { restoreArchivedMatrix, setMatrixTags } from '../document/commands';
 import type { Cell, DocEvent, PolicyOpsDocument } from '../document/schema';
 import { DomainError } from '../errors';
 import type { CellChange } from '../diff/types';
-import { createDraft, createMatrix, MIN_NOTES_LENGTH } from '../versioning/lifecycle';
+import { createDraft, createDraftWithoutBase, createMatrix, MIN_NOTES_LENGTH } from '../versioning/lifecycle';
 import { suppressTuplesCommand } from '../versioning/axis-commands';
 import {
   applyCellPatches,
@@ -69,13 +69,20 @@ export type ApplyImportInput = {
 
 export type ApplyImportData = {
   importRunId: string;
-  /** `Matrix.id` das matrizes criadas (status `NEW`). */
+  /**
+   * `Matrix.id` das matrizes criadas de fato por `matrix/create` (status
+   * `NEW` sem `matrixId` no plano) — não inclui a matriz `NEW` de
+   * `restoredMatrices` que já existia e só ganhou conteúdo (DEC-CARGA-019).
+   */
   createdMatrices: string[];
   /** `MatrixVersion.id` de todo rascunho criado — inclusive a v1 das novas. */
   createdDrafts: string[];
   /** Chaves que o usuário deixou de fora (CT-14). */
   ignoredByUser: string[];
-  /** `Matrix.id` desarquivadas nesta carga por confirmação (DEC-CARGA-018). */
+  /**
+   * `Matrix.id` desarquivadas nesta carga por confirmação (DEC-CARGA-018) —
+   * com ou sem versão publicada antes de arquivar (DEC-CARGA-019).
+   */
   restoredMatrices: string[];
 };
 
@@ -250,6 +257,55 @@ function applyNewMatrix(run: Run, ctx: Ctx, profile: ImportProfile, plan: Matrix
   applyTags(run, ctx, created.matrixId, plan.tags);
 }
 
+/**
+ * DEC-CARGA-019: a matriz arquivada de `plan.matrixId` nunca teve versão
+ * publicada — não há nada para `version/createDraft` derivar. Recebe eixos
+ * frescos e conteúdo do zero via `version/_createWithoutBase`, o mesmo
+ * caminho de `applyNewMatrix`, mas sobre a matriz já existente (código já
+ * reservado, sem `matrix/create`). O desarquivamento já rodou antes desta
+ * chamada, no laço de `applyImport`.
+ */
+function applyRestoredWithoutBaseMatrix(run: Run, ctx: Ctx, plan: MatrixPlan): void {
+  const axes = plan.axes;
+  if (axes === undefined) {
+    throw new DomainError(
+      'IMPORT_PROFILE_INVALID',
+      `O plano não projetou os eixos da matriz restaurada "${plan.code}".`,
+      { code: plan.code },
+    );
+  }
+
+  const draft = step(
+    run,
+    ctx,
+    createDraftWithoutBase({
+      matrixId: plan.matrixId!,
+      x: { levels: axes.x.levels.map((level) => ({ variableId: level.variableId, label: level.label })) },
+      y: { levels: axes.y.levels.map((level) => ({ variableId: level.variableId, label: level.label })) },
+    }),
+  );
+  run.createdDrafts.push(draft.versionId);
+
+  // RN-21: idêntico a `applyNewMatrix` — tupla que o arquivo não observa
+  // nasce suprimida.
+  for (const role of ['X', 'Y'] as const) {
+    const paths = role === 'X' ? axes.x.manualSuppressions : axes.y.manualSuppressions;
+    if (paths.length === 0) continue;
+    step(run, ctx, suppressTuplesCommand({ versionId: draft.versionId, role, paths }));
+  }
+
+  const patches = patchesForChanges(plan.changes);
+  if (patches.length > 0) {
+    step(
+      run,
+      ctx,
+      applyCellPatches({ versionId: draft.versionId, patches }, `Carga de "${plan.code}"`),
+    );
+  }
+
+  applyTags(run, ctx, plan.matrixId!, plan.tags);
+}
+
 function applyChangedMatrix(run: Run, ctx: Ctx, plan: MatrixPlan): void {
   const draft = step(
     run,
@@ -403,8 +459,14 @@ export function applyImport(input: ApplyImportInput): Command<ApplyImportInput, 
           step(run, ctx, restoreArchivedMatrix({ matrixId: entry.matrixId! }));
           run.restoredMatrices.push(entry.matrixId!);
         }
-        if (entry.status === 'NEW') applyNewMatrix(run, ctx, input.profile, entry);
-        else if (entry.status === 'CHANGED') applyChangedMatrix(run, ctx, entry);
+        if (entry.status === 'NEW') {
+          // DEC-CARGA-019: `matrixId` já presente numa entrada `NEW` é a
+          // matriz arquivada restaurada que nunca foi publicada — o código já
+          // está reservado, então é rascunho novo sobre ela, nunca
+          // `matrix/create` (que falharia com `DUPLICATE_CODE`).
+          if (entry.matrixId === undefined) applyNewMatrix(run, ctx, input.profile, entry);
+          else applyRestoredWithoutBaseMatrix(run, ctx, entry);
+        } else if (entry.status === 'CHANGED') applyChangedMatrix(run, ctx, entry);
         // `UNCHANGED` arquivada: só o desarquivamento acima — RN-02 continua
         // valendo, conteúdo idêntico não recebe rascunho nem versão nova.
       }
