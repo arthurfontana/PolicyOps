@@ -44,6 +44,7 @@ export function ImportWizard() {
   const dirty = useImportStore((s) => s.dirty);
   const fileName = useImportStore((s) => s.fileName);
   const selectedKeys = useImportStore((s) => s.selectedKeys);
+  const restoreKeys = useImportStore((s) => s.restoreKeys);
   const report = useImportStore((s) => s.report);
   const reset = useImportStore((s) => s.reset);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
@@ -90,13 +91,13 @@ export function ImportWizard() {
     // Só no passo do plano em diante: `planImport` sobre 102 matrizes custa
     // caro demais para rodar a cada render dos passos anteriores.
     if (docWithProfiles === null || table === undefined || !step4Ready || step < 5) return false;
-    const plan = planImport(docWithProfiles, table, profile, { fileName });
+    const plan = planImport(docWithProfiles, table, profile, { fileName, restoreKeys });
     const applicable = plan.matrices.filter(isApplicable);
     if (applicable.length === 0) return false;
     if (selectedKeys === undefined) return true;
     const chosen = new Set(selectedKeys);
     return applicable.some((entry) => chosen.has(entry.key));
-  }, [docWithProfiles, table, profile, fileName, step4Ready, selectedKeys, step]);
+  }, [docWithProfiles, table, profile, fileName, step4Ready, selectedKeys, restoreKeys, step]);
 
   const canAdvanceFrom: Record<WizardStep, boolean> = {
     1: parsed !== undefined && parsed.errors.length === 0 && !headerDiffPending,
