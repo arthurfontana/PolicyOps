@@ -29,6 +29,15 @@ Um arquivo por sessão. Abra uma conversa nova do Claude Code na raiz do reposit
 | 23 | [S23-tags-e-schema-3.md](S23-tags-e-schema-3.md) | `Sonnet` | Tags de matriz, filtro por facetas e `schemaVersion: 3` (depende de 20; paralelizável) |
 | 24 | [S24-aplicacao-da-carga.md](S24-aplicacao-da-carga.md) | `Opus` | Aplicação da carga, versionamento seletivo e fila de revisão (depende de 22 e 23) |
 | 25 | [S25-evolucao-estrutural-na-carga.md](S25-evolucao-estrutural-na-carga.md) | `Opus` | Faixa nova no arquivo vira versão de variável adotada no rascunho (depende de 24) |
+| 26 | [S26-modelo-de-componentes.md](S26-modelo-de-componentes.md) | `Opus` | Schema 4: componentes, DBs, releases, invariantes I23–I26 (épico Governança, depende de 23) |
+| 27 | [S27-arvore-da-politica.md](S27-arvore-da-politica.md) | `Sonnet` | Árvore da política e cadastro/versionamento de regras (depende de 26) |
+| 28 | [S28-editor-rico.md](S28-editor-rico.md) | `Opus` | Editor rico de blocos, anexos de imagem, diff por bloco (depende de 26) |
+| 29 | [S29-solicitacao-e-workflow.md](S29-solicitacao-e-workflow.md) | `Sonnet` | Solicitação de Alteração (DB), workflow, fila e pendências (depende de 27 e 28) |
+| 30 | [S30-vinculo-e-publicacao.md](S30-vinculo-e-publicacao.md) | `Opus` | Vínculo DB↔rascunhos, congelamento, publicação atômica (depende de 29) |
+| 31 | [S31-release-e-timeline.md](S31-release-e-timeline.md) | `Sonnet` | Release de política e timeline do Diário de Bordo (depende de 30) |
+| 32 | [S32-pacote-fabrica.md](S32-pacote-fabrica.md) | `Sonnet` | Pacote para a Fábrica: HTML imprimível + Markdown (depende de 30) |
+| 33 | [S33-fotografia-historica.md](S33-fotografia-historica.md) | `Opus` | Política inteira em qualquer data e comparações A×B (depende de 30) |
+| 34 | [S34-carga-de-componentes.md](S34-carga-de-componentes.md) | `Sonnet` | Carga inicial da política via Markdown estruturado (depende de 27) |
 
 ## Regras válidas para todas as sessões
 

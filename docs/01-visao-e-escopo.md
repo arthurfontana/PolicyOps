@@ -16,7 +16,9 @@ Matrizes de política de crédito (os "cineminhas") hoje vivem em Excel, PowerPo
 
 E, dada a restrição corporativa, ela é uma coisa muito específica: **um único arquivo `.html` que roda no navegador sem instalar nada**, colocado numa biblioteca do SharePoint, que qualquer pessoa do time abre, edita e salva.
 
-O que ela **não** é: motor de decisão, integração com PowerCurve, workflow de aprovação, editor colaborativo em tempo real.
+O que ela **não** é: motor de decisão, integração com PowerCurve, editor colaborativo em tempo real, sistema com autenticação real.
+
+Com o épico Governança de Alterações ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), 🔮 planejado), o escopo se amplia: além das matrizes, a ferramenta passa a versionar a **política inteira como árvore de componentes** e a estruturar o processo de alteração (Diário de Bordo como solicitação, aprovação registrada, releases e pacote para a fábrica) — sempre como **governança processual dentro do arquivo**, sem servidor e sem login (DEC-GOV-004).
 
 ## 3. As duas restrições que definem a arquitetura
 
@@ -136,12 +138,12 @@ Isso é o que torna a solução escalável de 10 para 500 matrizes.
 | 16 | Merge de documentos em conflito |
 | 17 | Exportação (CSV / JSON / PNG / impressão) |
 
-Depois do MVP, duas frentes se somaram a partir de casos reais: a evolução da Biblioteca de Variáveis (faixas com agrupamento hierárquico, colagem de tabela, paletas — sessões 18–20) e a **carga de matrizes a partir da tabela do sistema de origem** ([`12-carga-de-matrizes.md`](12-carga-de-matrizes.md), sessões 21–25), que traz uma extração de milhares de linhas para dentro do documento e, nas cargas seguintes, versiona apenas as matrizes que de fato mudaram.
+Depois do MVP, duas frentes se somaram a partir de casos reais: a evolução da Biblioteca de Variáveis (faixas com agrupamento hierárquico, colagem de tabela, paletas — sessões 18–20) e a **carga de matrizes a partir da tabela do sistema de origem** ([`12-carga-de-matrizes.md`](12-carga-de-matrizes.md), sessões 21–25), que traz uma extração de milhares de linhas para dentro do documento e, nas cargas seguintes, versiona apenas as matrizes que de fato mudaram. A terceira frente é o épico **Governança de Alterações** ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), sessões 26–34): a política inteira como árvore de componentes versionados e o Diário de Bordo como solicitação estruturada, com releases e pacote para a fábrica.
 
 ## 7. Fora do MVP
 
 - Servidor, banco de dados, API.
-- Login, permissões por usuário, workflow de aprovação.
+- Login e permissões por usuário no sentido forte (autenticação). O workflow de aprovação do épico GOV é processual — identificação, não segurança.
 - Edição colaborativa simultânea.
 - Integração online com PowerCurve, publicação automática no motor, leitura direta do sistema de origem. A carga de matrizes (`12-carga-de-matrizes.md`) não contradiz isto: ela é sempre iniciada por uma pessoa, com um arquivo em mãos, sem nenhuma requisição de rede.
 - Mais de 3 níveis por eixo.

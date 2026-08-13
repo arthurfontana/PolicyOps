@@ -1,6 +1,6 @@
 # Roadmap de Entregas
 
-25 sessões incrementais — as 17 do MVP, 18–20 pós-MVP (biblioteca de variáveis) e 21–25 do épico Carga. Cada uma termina com algo que roda, testado, commitado, e com `dist/PolicyOps.html` atualizado.
+34 sessões incrementais — as 17 do MVP, 18–20 pós-MVP (biblioteca de variáveis), 21–25 do épico Carga e 26–34 do épico Governança de Alterações. Cada uma termina com algo que roda, testado, commitado, e com `dist/PolicyOps.html` atualizado.
 
 ## Quadro geral
 
@@ -31,6 +31,15 @@
 | 23 | Tags de matriz, filtro e schema 3 | **Sonnet** | ✅ **Entregue** — schema 3, migração 2→3 puramente aditiva, tags de matriz com facetas de filtro, perfis de carga persistidos | 20 |
 | 24 | Aplicação da carga e versionamento seletivo | **Opus** | ✅ **Entregue** — carga aplicada: rascunho só nas alteradas, fila de revisão, perfil salvo, auditoria e idempotência | 22, 23 |
 | 25 | Evolução estrutural na carga ✅ | **Opus** | Faixa nova no arquivo vira nova versão de variável adotada no rascunho, sem caminho manual | 24 |
+| 26 | Modelo de componentes e schema 4 | **Opus** | `PolicyComponent`/`ComponentVersion`/`ChangeRequest`/`Release` no schema, migração 3→4 aditiva, invariantes I23–I26, comandos de árvore com inverso — 100% testado, sem tela | 23 |
+| 27 | Árvore da política e cadastro de regras | **Sonnet** | Árvore navegável por projeto, CRUD de componente por tipo, versionar/publicar regra com vigência, timeline do componente | 26 |
+| 28 | Editor rico de especificação | **Opus** | `RichDoc` de blocos próprios: editar, colar do Word/Excel, imagem-anexo com teto, diff por bloco | 26 |
+| 29 | Solicitação de Alteração e workflow | **Sonnet** | Criar DB multi-componente (motivadores, atual×proposto, impactos, critérios, testes), grafo de 12 estados, fila de aprovação, painel de pendências | 27, 28 |
+| 30 | Vínculo DB ↔ rascunhos e publicação | **Opus** | Item do DB vincula rascunho (componente ou matriz), congelamento pós-aprovação, publicação atômica com vigência, rebase quando a base mudou | 29 |
+| 31 | Release e timeline do Diário de Bordo | **Sonnet** | Release agrupa DBs, publica em lote (reutiliza S30), timeline cronológica dos DBs publicados | 30 |
+| 32 | Pacote para a Fábrica | **Sonnet** | HTML imprimível + Markdown gerados do DB, template de boilerplate por projeto | 30 |
+| 33 | Fotografia histórica da política | **Opus** | Política inteira (componentes + matrizes) em qualquer data, comparação data A × data B e release × release | 30 |
+| 34 | Carga inicial de componentes | **Sonnet** | Importar Markdown estruturado → Identificar → Revisar → Confirmar, com origem preservada e undo total | 27 |
 
 > **Sessão 21 entregue.** O motor vive em `src/core/import/` (`issues`, `parse-table`, `profile`,
 > `resolve`, `plan`, `library-gaps`, `hash`), com 100% de cobertura e os cenários CT-01 a CT-10 e
@@ -84,6 +93,8 @@
 
 > **Sessões 21–25 são o épico Carga** ([`12-carga-de-matrizes.md`](12-carga-de-matrizes.md), decisões `DEC-CARGA-*` em [`13-decisoes.md`](13-decisoes.md)), nascido do caso real de trazer a extração `CINEMINHA` (6.678 linhas → 102 matrizes) para dentro do documento e mantê-la atualizada mês a mês. Dependem do diff (14) e, para o passo de biblioteca, do que as sessões 19–20 já entregaram. **23 é independente das demais** — tags e migração de schema não dependem do motor de carga — e pode ser executada em paralelo com 21/22.
 
+> **Sessões 26–34 são o épico Governança de Alterações** ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), decisões `DEC-GOV-*` em [`13-decisoes.md`](13-decisoes.md)): a política inteira como árvore de componentes versionados, o Diário de Bordo como Solicitação de Alteração estruturada com workflow, releases e Pacote para a Fábrica gerado. A ordem recomendada prioriza valor cedo: 26 → 27 → 34 (a árvore já carregada com a política real) → 28 → 29 → 30 → 31/32 (paralelizáveis) → 33. As perguntas abertas do §12 de `14-governanca-de-alteracoes.md` devem ser fechadas antes das sessões que as citam.
+
 > **Sessões 18–20 são pós-MVP**, adicionadas depois do fechamento das 17 originais, a pedido de um caso real de score B2B com corte por regional e, na sequência, por Regional × Porte × Tipo de Empresa (ver `docs/prompts/S18-faixa-regional.md`, `S19-import-generico-e-paletas.md`, `S20-agrupamentos-hierarquicos.md`). Não bloqueiam nem dependem de nenhum marco M1–M5; só precisam da Biblioteca de Variáveis (06) pronta. **19 e 20 evoluem o que a 18 entregou** — a colagem específica de "regional" e o schema `regionalDimension` da sessão 18 são substituídos (não mantidos em paralelo) pela colagem genérica e por `groupingDimensions` ao final da 20; ver a nota de migração em `docs/03-modelo-do-documento.md` §10.
 
 ## Por que cada modelo
@@ -110,6 +121,10 @@
 
 **20** é Opus: renomeia e reestrutura um campo do schema já publicado (exige migração de `schemaVersion`, `docs/03` §10), generaliza uma invariante (I9/I19) para combinatória de caminhos que **não** é fixa (hierarquias assimétricas, sem completude obrigatória) e reescreve o editor de domínios de grid pivotado para tabela tidy — é exatamente o perfil "invariante que corrompe dado em silêncio se sair errada" que justifica Opus em 03/12/16.
 
+**26, 28, 30 e 33** são Opus: a 26 desenha o schema e as invariantes que todo o épico herda (erro aqui corrompe dados em silêncio, o perfil de 03/12/16); a 28 tem perda de trabalho do usuário como modo de falha (texto longo digitado num editor próprio) e serialização que precisa nascer estável; a 30 é o coração da governança — congelamento, publicação atômica e rebase, a mesma matemática de borda de 04/05/24; a 33 é comparação semântica sobre duas fontes (componentes + matrizes) onde falso negativo apaga evidência de mudança, o perfil da 14/21.
+
+**27, 29, 31, 32 e 34** são Sonnet: composição de telas e CRUD sobre contratos que `14-governanca-de-alteracoes.md` e a S26 já fecham (árvore, formulários do DB, grafo de estados transcrito, release, geração de documento derivado, parser de Markdown convencionado). Vale a válvula de escape de sempre: decisão de arquitetura não coberta pela documentação → **parar e perguntar**.
+
 ## Marcos utilizáveis
 
 | Marco | Após | O que já dá para fazer |
@@ -120,6 +135,9 @@
 | **M4 — Substitui o Excel** | 15 | Fonte oficial: versionar, publicar, comparar, consultar por data |
 | **M5 — MVP completo** | 17 | Escala: evolução da biblioteca, templates, merge, exportação |
 | **M6 — Carga em produção** | 24 | A extração mensal entra por arquivo: 102 matrizes carregadas na primeira vez, e nas seguintes só as que mudaram viram versão |
+| **M7 — Política estruturada** | 34 | A política inteira (não só matrizes) vive na ferramenta: árvore navegável, regras versionadas com vigência, carga inicial feita a partir da documentação real |
+| **M8 — DB estruturado** | 30 | O Diário de Bordo deixa o Word: solicitação com atual×proposto, aprovação registrada e publicação com vigência amarrada às versões |
+| **M9 — Governança completa** | 33 | Release, Pacote para a Fábrica gerado e a pergunta "qual era a política vigente em 15/05?" respondida em dois cliques |
 
 M4 é o ponto em que a ferramenta passa a valer mais que a planilha. As sessões 16–17 são o que a torna sustentável em escala. M6 é o que dispensa a digitação: enquanto a política nasce fora do PolicyOps, é a carga que mantém as duas pontas coerentes — e a sessão 22 já entrega valor sozinha, porque monta a biblioteca inteira a partir do arquivo.
 

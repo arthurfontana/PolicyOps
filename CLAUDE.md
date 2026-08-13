@@ -12,8 +12,9 @@ Leia antes de mexer em código:
 - [`docs/05-regras-de-negocio.md`](docs/05-regras-de-negocio.md) — versionamento, células, diff, catálogo de erros (§9).
 - [`docs/07-ux-e-editor.md`](docs/07-ux-e-editor.md) — shell, grid, seleção, inspector, tags e filtro.
 - [`docs/12-carga-de-matrizes.md`](docs/12-carga-de-matrizes.md) — carga de tabela externa: perfil, plano, versionamento seletivo.
+- [`docs/14-governanca-de-alteracoes.md`](docs/14-governanca-de-alteracoes.md) — épico GOV (sessões 26–34): árvore de componentes, Solicitações de Alteração (DB), releases, pacote para a fábrica.
 - [`docs/13-decisoes.md`](docs/13-decisoes.md) — catálogo de decisões (o **porquê** por trás dos normativos).
-- [`docs/09-roadmap-de-entregas.md`](docs/09-roadmap-de-entregas.md) e [`docs/prompts/`](docs/prompts/) — as 25 sessões de implementação, uma por vez.
+- [`docs/09-roadmap-de-entregas.md`](docs/09-roadmap-de-entregas.md) e [`docs/prompts/`](docs/prompts/) — as 34 sessões de implementação, uma por vez.
 
 ## As 8 regras (docs/prompts/README.md)
 
