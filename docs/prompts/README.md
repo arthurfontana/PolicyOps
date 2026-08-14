@@ -29,6 +29,12 @@ Um arquivo por sessão. Abra uma conversa nova do Claude Code na raiz do reposit
 | 23 | [S23-tags-e-schema-3.md](S23-tags-e-schema-3.md) | `Sonnet` | Tags de matriz, filtro por facetas e `schemaVersion: 3` (depende de 20; paralelizável) |
 | 24 | [S24-aplicacao-da-carga.md](S24-aplicacao-da-carga.md) | `Opus` | Aplicação da carga, versionamento seletivo e fila de revisão (depende de 22 e 23) |
 | 25 | [S25-evolucao-estrutural-na-carga.md](S25-evolucao-estrutural-na-carga.md) | `Opus` | Faixa nova no arquivo vira versão de variável adotada no rascunho (depende de 24) |
+| 26 | [S26-servidor-local.md](S26-servidor-local.md) | `Opus` | Servidor local: persistência atômica, conflito, lock, backups, token (épico Plataforma) |
+| 27 | [S27-modo-server.md](S27-modo-server.md) | `Sonnet` | `server-adapter` e modo `SERVER` no front (depende de 26) |
+| 28 | [S28-launcher-e-distribuicao.md](S28-launcher-e-distribuicao.md) | `Sonnet` | `iniciar.bat`, `instalar.bat`, pacote `dist/plataforma/` (depende de 27) |
+| 29 | [S29-identidade-e-papeis.md](S29-identidade-e-papeis.md) | `Sonnet` | Identidade Windows, `meta.acl` e papéis — schema 4 (depende de 27) |
+| 30 | [S30-evidencias.md](S30-evidencias.md) | `Opus` | Evidências: acervo navegável com hash (depende de 27 e 29) |
+| 31 | [S31-guardrails-de-contexto.md](S31-guardrails-de-contexto.md) | `Sonnet` | CLAUDE.md índice, guard mecânico, âncoras de região (independente) |
 
 ## Regras válidas para todas as sessões
 
@@ -38,7 +44,7 @@ Repetidas dentro de cada prompt; ficam aqui como referência.
 2. Não tomar decisões de arquitetura fora do que está documentado — **parar e perguntar**.
 3. Não adicionar dependências fora da lista de `docs/02-arquitetura.md` §2 sem perguntar.
 4. **`src/core/` é TypeScript puro**: sem React, sem Zustand, sem DOM, sem `window`.
-5. **Zero requisições de rede** em tempo de execução. Sem CDN, sem fontes web, sem `eval`.
+5. **Zero requisições de rede externas** em tempo de execução. Sem CDN, sem fontes web, sem `eval`. A única comunicação permitida é com o servidor local same-origin (`/api/*`, `docs/14-plataforma-local.md` §5).
 6. Escopo é escopo: não implementar sessões futuras "já que estou aqui".
-7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes, o orçamento de 1,5 MB respeitado, e **`dist/PolicyOps.html` atualizado no commit**.
+7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes (e `python -m pytest server/tests` quando a sessão tocar `server/`), o orçamento de 1,5 MB respeitado, e **`dist/PolicyOps.html` atualizado no commit**.
 8. Commitar na branch de trabalho e fazer push.

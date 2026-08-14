@@ -9,6 +9,133 @@ domínio funcional (`CARGA` = carga de matrizes, `12-carga-de-matrizes.md`).
 
 ---
 
+## ADR-001: a plataforma ganha um servidor local por usuário
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Abandonar a estratégia "HTML aberto do SharePoint" como modo principal. O produto passa a ser distribuído numa **pasta de rede** com um **servidor Python local por usuário** (launcher `iniciar.bat`), que serve a SPA em `http://127.0.0.1` e faz todo o I/O contra a pasta. Sem máquina central. |
+| **Data / gatilho** | 2026-08-14, revisão de arquitetura após o fechamento dos épicos MVP/Carga. |
+| **Páginas afetadas** | `14-plataforma-local.md` (novo), `01-visao-e-escopo.md` §2–§3, §7–§8, `02-arquitetura.md` §1, `06-persistencia-e-concorrencia.md`, `11-operacao.md` |
+
+**Contexto.** A premissa original ("zero instalação, abre do SharePoint") falhou no ambiente
+real: o time abre o HTML por caminho de rede/cópia local (`file://`), onde a File System Access
+API não existe — **o modo `FULL` nunca funcionou** e todo uso caiu no `DOWNLOAD_ONLY` (abrir por
+seletor, salvar por download), que é operacionalmente ruim. Ao mesmo tempo, o ambiente real tem o
+que a premissa proibia: pastas de rede compartilhadas e Python instalável nas máquinas
+(padrão já validado em produção corporativa pelo AppCreditoSimulador).
+
+**Justificativa.**
+
+- Um servidor local elimina a dependência do navegador para tocar arquivo: salvar direto,
+  conflito, lock e backup passam a funcionar em qualquer navegador.
+- Servidor **por usuário** (e não central) preserva a propriedade mais valiosa da arquitetura
+  atual: zero operação — nenhuma máquina sempre ligada, nenhuma porta na rede, nenhum dono de
+  serviço. A coordenação entre usuários continua pelos arquivos (hash + lock consultivo).
+- Abre as três capacidades pedidas pelo negócio que o navegador sozinho não dá: identidade
+  amarrada ao Windows (ADR-003), evidências hospedadas (ADR-004) e um caminho natural para, se
+  um dia fizer sentido, promover o mesmo servidor a uma máquina central — o contrato da API não
+  mudaria.
+
+## ADR-002: o servidor entra por baixo do `StorageAdapter`; o front e o core não mudam de dono
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A SPA React/TypeScript e o `src/core/` permanecem integralmente. O servidor é **infraestrutura**: um novo `server-adapter.ts` implementa a interface `StorageAdapter` existente sobre HTTP local, e o Python **nunca** contém regra de negócio — não valida invariantes, não migra schema, não interpreta o documento além de `meta.acl`. A regra "zero requisições de rede" passa a ser lida como "zero requisições **externas**". |
+| **Data / gatilho** | 2026-08-14, junto com ADR-001. |
+| **Páginas afetadas** | `02-arquitetura.md` §2–§4, `06-persistencia-e-concorrencia.md` §1–§2, `14-plataforma-local.md` §3–§4 |
+
+**Contexto.** A alternativa era migrar a aplicação para um web app Python "de verdade" (templates
+ou API por entidade + front fino). Isso jogaria fora ~45 mil linhas testadas de core/UI e
+duplicaria as invariantes em duas linguagens — o tipo de reescrita big-bang que os guardrails da
+metodologia proíbem.
+
+**Justificativa.** O ponto fraco da arquitetura nunca foi o front — foi o navegador não poder
+gravar arquivo. Trocando só a camada que já era trocável por desenho (os adapters), o custo da
+migração fica confinado: um adapter novo + um servidor pequeno e testável. O documento continua
+sendo salvo inteiro (o modelo de concorrência hash+merge de `06` não muda), e os modos `FULL` e
+`DOWNLOAD_ONLY` sobrevivem como fallback de graça.
+
+## ADR-003: identidade é o login Windows, capturado pelo servidor; papéis vivem no documento
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | No modo `SERVER`, a identidade é o login de rede (`getpass.getuser()`), capturado no boot e carimbado em auditoria, `savedBy`, lock e evidências — sem senha, sem diálogo. O documento ganha `meta.acl` opcional com papéis `READER`/`EDITOR`/`PUBLISHER`/`ADMIN` (`schemaVersion: 4`, aditiva). ACL vazia = modo aberto. Enforcement fino na interface; o servidor recusa gravação de `READER`. |
+| **Data / gatilho** | 2026-08-14, pedido de "visão mais amarrada de identificação dos usuários". |
+| **Páginas afetadas** | `14-plataforma-local.md` §6, `02-arquitetura.md` §6, `03-modelo-do-documento.md` (na S29), `01-visao-e-escopo.md` §3.1 |
+
+**Contexto.** As alternativas eram manter o nome digitado (identidade fraca — qualquer um digita
+qualquer coisa), criar login/senha próprio (atrito diário, senha para esquecer, e uma promessa de
+segurança que a arquitetura de arquivo compartilhado não pode cumprir) ou autenticação Windows
+integrada de verdade (SSPI/Kerberos — complexidade desproporcional para um processo local).
+
+**Justificativa.** O login de rede capturado na máquina do próprio usuário é gratuito, não
+falsificável por descuido (ninguém "esquece" de trocar o nome) e é exatamente o identificador que
+uma auditoria interna reconhece. Papéis no documento dão o controle organizacional que faltava
+(quem pode publicar, quem pode carregar) sem fingir ser segurança: quem tem escrita na pasta
+edita o JSON na mão, e a documentação continua dizendo isso explicitamente.
+
+## ADR-004: evidências em acervo gerenciado, navegável e em claro — nunca opaco
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Anexar evidência = **copiar** o arquivo para `_evidencias/` na pasta de rede, em estrutura legível por humanos (`{projeto}/{matriz}/{versão}/{data}_{nome original}`), com SHA-256 registrado no documento. **Sem criptografia, sem nomes opacos, sem banco de blobs.** Evidência é imutável; excluir move para `_evidencias/_lixeira/`, nunca apaga. |
+| **Data / gatilho** | 2026-08-14, necessidade de anexar arquivos de evidência (DBs, ofícios) às políticas. |
+| **Páginas afetadas** | `14-plataforma-local.md` §7, `03-modelo-do-documento.md` (na S30), `11-operacao.md` §1–§2 |
+
+**Contexto.** As alternativas eram (a) só referenciar caminhos de rede existentes (zero cópia,
+mas o link quebra silenciosamente quando alguém move o arquivo — inaceitável para evidência de
+auditoria), (b) acervo opaco/criptografado com nomes por hash (integridade máxima, mas os
+arquivos ficam reféns da aplicação), (c) acervo gerenciado em claro.
+
+**Justificativa.** O requisito decisivo é o cenário de desastre: **se a aplicação quebrar, o
+time precisa continuar acessando os arquivos históricos pelo Explorer**. Por isso o acervo é um
+diretório comum, navegável, com nomes originais preservados — a aplicação é a porta de entrada
+preferencial, não a única. A integridade que a criptografia daria vem do hash: o documento
+registra o SHA-256 e o download confere, o que detecta adulteração/corrupção sem esconder nada.
+A cópia (em vez da referência) garante que o link não quebra, porque o acervo pertence à
+aplicação e a regra operacional é "não renomear nem mover" (`11-operacao.md` §1).
+
+## ADR-005: FastAPI com instalação em camadas — venv + índice pip + wheels offline embarcadas
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O servidor usa **FastAPI + uvicorn** (+ `python-multipart`), instalados por `instalar.bat` numa venv descartável: tenta o índice pip corporativo primeiro e cai para as **wheels Windows x64 embarcadas** no pacote (`pip install --no-index --find-links wheels`). O `iniciar.bat` do dia a dia não instala nada e não bloqueia. Segurança de processo: bind exclusivo `127.0.0.1`, token aleatório por boot em `X-PolicyOps-Token`, zero rede externa. |
+| **Data / gatilho** | 2026-08-14, junto com ADR-001. |
+| **Páginas afetadas** | `14-plataforma-local.md` §3, §5, §9, `02-arquitetura.md` §2 |
+
+**Contexto.** A alternativa conservadora era um servidor 100% stdlib (`http.server`), imune a
+pip bloqueado. O usuário preferiu FastAPI pela produtividade e manutenção, **desde que** o time
+final só execute um `.bat` sem nenhuma intervenção.
+
+**Justificativa.** O risco do pip corporativo é neutralizado embarcando as wheels no próprio
+artefato publicado — a instalação vira determinística e offline. O padrão inteiro (venv em
+camadas com contingência de wheels, launcher que orienta em vez de travar, bind local + token) é
+transcrição do que já roda em produção no mesmo ambiente corporativo no AppCreditoSimulador
+(`release/iniciar.bat`, `release/python/instalar_motor.bat`, DEC-HX-008 daquele projeto) — não é
+aposta, é reuso de solução validada. Contrapartida assumida: cada dependência Python nova exige
+wheel embarcada, por isso a lista é fechada em três e ampliá-la requer aprovação explícita.
+
+## ADR-006: o custo de contexto das sessões é tratado como requisito de arquitetura
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Adotar os guardrails de consumo de contexto da metodologia (skill `especificacao-e-sessoes`): `CLAUDE.md` como índice enxuto com mapa "onde vive o quê", documentação em camadas, guard mecânico de tamanho no CI, âncoras de região nos arquivos grandes e pesquisa exploratória via subagent. A reorganização é a sessão S31 — **extração incremental, nunca reescrita big-bang**. |
+| **Data / gatilho** | 2026-08-14, sintoma relatado: custo alto de tokens a cada ajuste/evolução. |
+| **Páginas afetadas** | `CLAUDE.md`, `09-roadmap-de-entregas.md`, prompt `S31` |
+
+**Contexto.** O repositório chegou a ~45 mil linhas de TS e ~4.200 linhas de documentação
+normativa. Cada sessão de evolução paga um custo fixo de boot mais Reads extensos — o mesmo
+sintoma diagnosticado e resolvido no AppCreditoSimulador (corte de ~92% do custo de boot), cuja
+estrutura (`CLAUDE.md` índice ≤450 linhas + docs em camadas + `check-claude-md` no CI) serve de
+modelo pronto.
+
+**Justificativa.** O custo de tokens é recorrente e cresce com o produto; tratá-lo como
+"incômodo" garante que piore. Tratá-lo como requisito — com teto mecânico e estrutura de
+camadas — o torna estável: feature nova passa a custar 1 linha de índice + 1 doc de domínio, e
+sessões leem por ponteiro em vez de por varredura.
+
+---
+
 ## DEC-CARGA-001: uma matriz por canal de venda
 
 | Campo | Conteúdo |
