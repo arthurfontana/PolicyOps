@@ -5,17 +5,26 @@
 ## 1. A forma do produto
 
 ```
-\\SharePoint\Politicas\
-   ├── PolicyOps.html          ← a aplicação inteira (~500 KB), nunca muda
-   ├── politicas.json          ← todos os dados (bibliotecas, matrizes, versões, histórico)
-   └── _backups/
-        ├── politicas.2026-08-05T14-32.json
-        └── ...
+\\rede\Politicas\                       ← pasta de rede do time
+   ├── politicas.json                   ← todos os dados (bibliotecas, matrizes, versões, histórico)
+   ├── _backups/                        ← cópias automáticas feitas pelo servidor
+   ├── _evidencias/                     ← acervo de anexos, navegável no Explorer
+   └── _app/                            ← a aplicação, publicada pela TI
+        ├── iniciar.bat                 ← o usuário só executa isto
+        ├── PolicyOps.html              ← a SPA inteira em arquivo único (~1,2 MB)
+        └── server/                     ← servidor local FastAPI + wheels offline
 ```
 
-O usuário abre `PolicyOps.html`, a aplicação pede o arquivo de dados, e a partir daí tudo acontece no navegador. **Nenhuma requisição de rede sai da página.**
+Cada usuário executa `iniciar.bat`: um **servidor Python local** sobe em `http://127.0.0.1`,
+serve o `PolicyOps.html` e faz todo o I/O contra a pasta de rede. Um servidor **por usuário**,
+todos apontando para a mesma pasta — não há máquina central nem serviço para operar. O navegador
+nunca toca arquivo; **nenhuma requisição sai da máquina** (a única comunicação é com o próprio
+`127.0.0.1`). O contrato completo do servidor, identidade, papéis e evidências está em
+[`14-plataforma-local.md`](14-plataforma-local.md); o porquê da mudança, em ADR-001/ADR-002.
 
-Separar aplicação e dados é deliberado: o `.html` é imutável e a TI o publica uma vez; o `.json` é o que muda, é legível, é diffável e ganha histórico de versões do SharePoint de graça.
+Separar aplicação e dados continua deliberado: `_app/` é imutável e a TI o publica; o `.json` é o
+que muda, é legível e diffável. E o `PolicyOps.html` continua abrindo sozinho por duplo clique,
+sem Python, no modo degradado `DOWNLOAD_ONLY` — fallback universal.
 
 ## 2. Stack (decidida)
 
@@ -35,16 +44,18 @@ Separar aplicação e dados é deliberado: o `.html` é imutável e a TI o publi
 | Testes | Vitest + Testing Library | — |
 | E2E | Playwright | Dirige tanto `file://` quanto servidor local |
 | Gerenciador | pnpm | — |
+| Servidor local | Python 3.9+ · FastAPI + uvicorn + python-multipart | Infraestrutura de I/O e identidade; **nunca** regra de negócio (`14-plataforma-local.md` §3) |
+| Testes do servidor | pytest + httpx | — |
 
 **Restrições absolutas do bundle:**
 
-- Zero requisições externas em tempo de execução — sem CDN, sem fontes web, sem telemetria. A página precisa funcionar offline e dentro de qualquer política de rede.
+- Zero requisições **externas** em tempo de execução — sem CDN, sem fontes web, sem telemetria. A única comunicação permitida é com o servidor local same-origin (`/api/*`, `14-plataforma-local.md` §5); a página precisa continuar funcionando offline e sem servidor.
 - Fontes: pilha do sistema (`ui-sans-serif, system-ui, "Segoe UI", …`).
 - Nada de `eval` nem de `new Function` — CSPs corporativas frequentemente bloqueiam.
 - Tudo em um arquivo: sem code splitting, sem lazy chunks, sem service worker.
 - Orçamento de tamanho: **1,5 MB** para o HTML final. O build falha acima disso. (Elevado do 1 MB original em 2026-08 para acomodar as Sessões 19-20, que já haviam estourado o teto anterior.)
 
-**Proibido sem aprovação explícita:** qualquer backend, IndexedDB como armazenamento primário, biblioteca de grid de terceiros (AG Grid, Handsontable), canvas/WebGL para o grid, framework de estado adicional.
+**Proibido sem aprovação explícita:** banco de dados, serviço central sempre ligado, IndexedDB como armazenamento primário, biblioteca de grid de terceiros (AG Grid, Handsontable), canvas/WebGL para o grid, framework de estado adicional, dependência Python fora da lista acima (cada uma exige wheel Windows embarcada — `14-plataforma-local.md` §9).
 
 ## 3. Camadas
 
@@ -57,9 +68,17 @@ Separar aplicação e dados é deliberado: o `.html` é imutável e a TI o publi
 │  core/                 Regra de negócio — TypeScript puro │
 │    document/  axes/  versioning/  diff/  reconcile/       │
 ├──────────────────────────────────────────────────────────┤
-│  storage/              Adapters de arquivo, autosave      │
+│  storage/              Adapters: server (HTTP local),     │
+│                        fsa, download; autosave            │
+├──────────────────────────────────────────────────────────┤
+│  server/  (Python)     I/O na pasta de rede, identidade,  │
+│                        lock, backups, evidências          │
 └──────────────────────────────────────────────────────────┘
 ```
+
+O servidor é infraestrutura: valida token, resolve o usuário Windows, grava com escrita atômica e
+serve arquivos. **Toda regra de negócio permanece em `src/core/`** — o servidor não conhece o
+schema além do envelope `meta.acl` (ADR-002).
 
 ### Regra arquitetural inegociável
 
@@ -106,6 +125,7 @@ Componentes e store nunca implementam regra de negócio — apenas invocam `core
 │   │   └── errors.ts
 │   ├── storage/
 │   │   ├── adapter.ts             # interface StorageAdapter
+│   │   ├── server-adapter.ts      # HTTP contra o servidor local (modo SERVER)
 │   │   ├── fsa-adapter.ts         # File System Access API
 │   │   ├── download-adapter.ts    # fallback: input + download
 │   │   ├── local-buffer.ts        # IndexedDB: autosave e recuperação
@@ -119,6 +139,12 @@ Componentes e store nunca implementam regra de negócio — apenas invocam `core
 │   │   ├── shell/  grid/  inspector/  library/  dialogs/  ui/
 │   ├── lib/                       # colors, format, hash, download
 │   └── types/
+├── server/
+│   ├── policyops_server.py        # servidor FastAPI (14-plataforma-local.md)
+│   ├── requirements.txt
+│   ├── wheels/                    # wheels Windows x64 embarcadas (contingência do pip)
+│   ├── iniciar.bat  instalar.bat
+│   └── tests/                     # pytest
 ├── tests/
 │   ├── unit/                      # espelha src/core/
 │   ├── fixtures/                  # documentos .json de teste
@@ -129,19 +155,28 @@ Componentes e store nunca implementam regra de negócio — apenas invocam `core
 
 ## 5. O artefato buildado é commitado
 
-`dist/PolicyOps.html` **fica versionado no repositório**. Motivo: o usuário final precisa conseguir baixar o arquivo direto do GitHub e colocá-lo no SharePoint, sem instalar Node nem rodar build.
+`dist/PolicyOps.html` **fica versionado no repositório**. Motivo: o usuário final precisa conseguir baixar o arquivo direto do GitHub e colocá-lo na pasta de rede (`_app/`), sem instalar Node nem rodar build. O pacote completo `dist/plataforma/` (HTML + servidor + wheels) é gerado pelo build a partir da S28 e **não** é commitado.
 
 Toda sessão de implementação termina com `pnpm build` e o `dist/PolicyOps.html` atualizado no commit. Isso é critério de aceite de todas elas.
 
 ## 6. Identidade do usuário
 
-Não há login. Na primeira abertura, um diálogo pede o nome ("Como você quer ser identificado no histórico?"), guardado em `localStorage`. Esse nome carimba eventos de auditoria e o campo `savedBy` do arquivo.
+No modo `SERVER`, a identidade é o **login de rede do Windows**, capturado automaticamente pelo
+servidor local e carimbado em auditoria, `savedBy`, lock e evidências — sem senha e sem diálogo.
+O documento pode declarar **papéis** (`READER`/`EDITOR`/`PUBLISHER`/`ADMIN`) em `meta.acl`;
+contrato completo e regras de enforcement em [`14-plataforma-local.md`](14-plataforma-local.md) §6.
 
-É identificação, não autenticação — e a interface diz isso, para ninguém confundir com controle de acesso. Um toggle "modo somente leitura" existe por conveniência (evitar edição acidental ao consultar), não como segurança.
+Nos modos sem servidor, permanece o diálogo de nome guardado em `localStorage`. Em qualquer modo
+vale a mesma honestidade: é identificação e organização de trabalho, não segurança — quem tem
+acesso de escrita à pasta de rede sempre poderá editar o arquivo diretamente, e a interface diz
+isso com essas palavras.
 
 ## 7. Compatibilidade de navegador
 
-A aplicação **detecta recursos em tempo de execução** (`src/storage/capabilities.ts`) e se adapta:
+A aplicação **detecta recursos em tempo de execução** (`src/storage/capabilities.ts`) e se adapta.
+No modo `SERVER` (SPA servida pelo servidor local), o navegador deixa de importar: **tudo funciona
+em qualquer navegador**, porque quem toca arquivo é o Python. A tabela abaixo vale para os modos
+sem servidor:
 
 | Recurso | Chromium 110+ | Firefox / Safari |
 |---|---|---|
@@ -151,7 +186,9 @@ A aplicação **detecta recursos em tempo de execução** (`src/storage/capabili
 | `CompressionStream` | ✅ | ✅ (Safari 16.4+) |
 | Drag-and-drop de arquivo | ✅ | ✅ |
 
-A tela inicial informa, em português, qual modo está ativo e o que muda. **Nunca** presuma que a File System Access API existe: toda chamada passa pela detecção.
+Ordem de preferência dos modos: `SERVER` → `FULL` → `DOWNLOAD_ONLY`
+(`14-plataforma-local.md` §8). A tela inicial informa, em português, qual modo está ativo e o que
+muda. **Nunca** presuma que a File System Access API existe: toda chamada passa pela detecção.
 
 ## 8. Desempenho — alvos
 

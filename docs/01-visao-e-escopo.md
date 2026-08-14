@@ -14,24 +14,36 @@ Matrizes de política de crédito (os "cineminhas") hoje vivem em Excel, PowerPo
 
 **A fonte oficial das matrizes de política**, com representação visual, versionada, auditável e fácil de consultar.
 
-E, dada a restrição corporativa, ela é uma coisa muito específica: **um único arquivo `.html` que roda no navegador sem instalar nada**, colocado numa biblioteca do SharePoint, que qualquer pessoa do time abre, edita e salva.
+E, dado o ambiente corporativo real, ela tem uma forma específica: uma aplicação que vive numa
+**pasta de rede do time** — os dados num `politicas.json`, as evidências em `_evidencias/` — e
+que cada pessoa abre executando um `iniciar.bat`: um **servidor Python local** sobe na própria
+máquina, abre o navegador e faz todo o trabalho de arquivo contra a pasta de rede
+([`14-plataforma-local.md`](14-plataforma-local.md)). Sem máquina central, sem banco de dados,
+sem serviço para operar. O mesmo `PolicyOps.html` continua abrindo sozinho, sem Python, num modo
+degradado — fallback universal.
 
-O que ela **não** é: motor de decisão, integração com PowerCurve, workflow de aprovação, editor colaborativo em tempo real.
+O que ela **não** é: motor de decisão, integração com PowerCurve, editor colaborativo em tempo real, sistema com autenticação real.
+
+Com o épico Governança de Alterações ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), 🔮 planejado), o escopo se amplia: além das matrizes, a ferramenta passa a versionar a **política inteira como árvore de componentes** e a estruturar o processo de alteração (Diário de Bordo como solicitação, aprovação registrada, releases e pacote para a fábrica) — sempre como **governança processual dentro do arquivo**, sem servidor central e sem login (DEC-GOV-004).
 
 ## 3. As duas restrições que definem a arquitetura
 
-### 3.1 Zero instalação
+### 3.1 Infraestrutura mínima: pasta de rede + Python local
 
-Não há servidor, não há banco de dados, não há Node rodando na máquina de ninguém. A aplicação inteira é um arquivo HTML autocontido (`PolicyOps.html`, ~500 KB) com todo o JavaScript e CSS embutidos, e os dados vivem num arquivo `.json` ao lado dele.
+Não há servidor central, não há banco de dados, não há serviço para a TI operar. A infraestrutura
+inteira é o que o ambiente já oferece: uma **pasta de rede compartilhada** (onde vivem dados,
+evidências e a aplicação) e o **Python das máquinas do time**, usado por um launcher de dois
+cliques que sobe um servidor exclusivamente local (`127.0.0.1`). A aplicação em si continua sendo
+um arquivo HTML autocontido com todo o JavaScript e CSS embutidos.
 
 Consequências assumidas:
 
 | Consequência | Como fica |
 |---|---|
-| Não há login | Cada pessoa informa o próprio nome na primeira abertura; ele carimba as edições e o histórico |
-| Não há permissões | Quem abre o arquivo pode editar. Há um modo somente-leitura opcional, por conveniência, não por segurança |
+| Não há login com senha | A identidade é o login de rede do Windows, capturado automaticamente; papéis opcionais (`READER`/`EDITOR`/`PUBLISHER`/`ADMIN`) no próprio documento controlam quem edita e publica |
+| Permissões são organizacionais, não segurança | Quem tem acesso de escrita à pasta de rede sempre pode editar o `.json` na mão — a interface é honesta sobre isso |
 | Não há edição simultânea | Um editor por vez, com aviso de bloqueio e detecção de conflito no salvamento |
-| Backup e versionamento do arquivo | Ficam por conta do histórico de versões do SharePoint |
+| Backup e versionamento do arquivo | `_backups/` automático do servidor local + cópia externa periódica; histórico nativo da plataforma (SharePoint/OneDrive) quando existir |
 
 ### 3.2 Eixos aninhados
 
@@ -118,7 +130,7 @@ Isso é o que torna a solução escalável de 10 para 500 matrizes.
 
 | # | Entrega |
 |---|---------|
-| 1 | Arquivo HTML único, sem instalação, abrindo do SharePoint |
+| 1 | Arquivo HTML único, sem instalação, abrindo de uma pasta compartilhada |
 | 2 | Abrir / salvar / salvar como, com autosave e recuperação de queda |
 | 3 | Detecção de conflito quando duas pessoas salvam o mesmo arquivo |
 | 4 | Cadastro de projetos (cada projeto = uma política) |
@@ -136,12 +148,15 @@ Isso é o que torna a solução escalável de 10 para 500 matrizes.
 | 16 | Merge de documentos em conflito |
 | 17 | Exportação (CSV / JSON / PNG / impressão) |
 
-Depois do MVP, duas frentes se somaram a partir de casos reais: a evolução da Biblioteca de Variáveis (faixas com agrupamento hierárquico, colagem de tabela, paletas — sessões 18–20) e a **carga de matrizes a partir da tabela do sistema de origem** ([`12-carga-de-matrizes.md`](12-carga-de-matrizes.md), sessões 21–25), que traz uma extração de milhares de linhas para dentro do documento e, nas cargas seguintes, versiona apenas as matrizes que de fato mudaram.
+Depois do MVP, quatro frentes se somaram a partir de casos reais: a evolução da Biblioteca de Variáveis (faixas com agrupamento hierárquico, colagem de tabela, paletas — sessões 18–20); a **carga de matrizes a partir da tabela do sistema de origem** ([`12-carga-de-matrizes.md`](12-carga-de-matrizes.md), sessões 21–25), que traz uma extração de milhares de linhas para dentro do documento e, nas cargas seguintes, versiona apenas as matrizes que de fato mudaram; a **Plataforma Local** ([`14-plataforma-local.md`](14-plataforma-local.md), sessões 26–31): o servidor Python por usuário que dá salvamento direto na pasta de rede, identidade Windows com papéis e o acervo de evidências anexadas às políticas; e o épico **Governança de Alterações** ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), sessões 32–40, 🔮 planejado): a política inteira como árvore de componentes versionados e o Diário de Bordo como solicitação estruturada, com releases e pacote para a fábrica.
 
-## 7. Fora do MVP
+## 7. Fora de escopo
 
-- Servidor, banco de dados, API.
-- Login, permissões por usuário, workflow de aprovação.
+- Servidor central sempre ligado, banco de dados, API exposta na rede. (O servidor **local** por
+  usuário, restrito a `127.0.0.1`, é a plataforma — `14-plataforma-local.md`.)
+- Login com senha e autenticação real. (Identidade Windows + papéis organizacionais existem —
+  `14-plataforma-local.md` §6 — e o workflow de aprovação do épico Governança é processual,
+  identificação e não controle de acesso — `14-governanca-de-alteracoes.md`, DEC-GOV-004.)
 - Edição colaborativa simultânea.
 - Integração online com PowerCurve, publicação automática no motor, leitura direta do sistema de origem. A carga de matrizes (`12-carga-de-matrizes.md`) não contradiz isto: ela é sempre iniciada por uma pessoa, com um arquivo em mãos, sem nenhuma requisição de rede.
 - Mais de 3 níveis por eixo.
@@ -152,8 +167,9 @@ Depois do MVP, duas frentes se somaram a partir de casos reais: a evolução da 
 
 | Premissa | Decisão |
 |---|---|
-| Distribuição | Biblioteca do SharePoint (https) ou pasta do OneDrive sincronizada |
-| Navegador | Edge ou Chrome corporativo (Chromium 110+). Firefox e Safari funcionam em modo degradado |
+| Distribuição | Pasta de rede do time (`\\rede\Politicas\`), com a aplicação em `_app/` e launcher `iniciar.bat` |
+| Máquinas | Windows corporativo com Python 3.9+ instalável; instalação por máquina sem intervenção (venv + wheels offline) |
+| Navegador | Qualquer um no modo `SERVER`. Sem servidor: Edge/Chrome (Chromium 110+); Firefox e Safari em modo degradado |
 | Escala | Centenas de matrizes num único arquivo; alerta em 1.500 células por matriz, teto de 6.000 |
 | Tamanho do arquivo de dados | Alvo abaixo de 10 MB; compressão opcional |
 | Idioma | Interface e documentação em pt-BR; código em inglês |

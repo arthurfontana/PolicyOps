@@ -2,33 +2,50 @@
 
 Um arquivo por sessão. Abra uma conversa nova do Claude Code na raiz do repositório, selecione o modelo indicado com `/model`, e cole o conteúdo do arquivo inteiro.
 
-| # | Arquivo | Modelo | Tema |
-|---|---|---|---|
-| 01 | [S01-scaffold.md](S01-scaffold.md) | `Sonnet` | Vite → arquivo único, shell, tema |
-| 02 | [S02-documento.md](S02-documento.md) | `Sonnet` | Schema Zod, validação, exemplo, migração |
-| 03 | [S03-eixos-aninhados.md](S03-eixos-aninhados.md) | `Opus` | Tuplas, compatibilidade, cabeçalhos |
-| 04 | [S04-store-e-comandos.md](S04-store-e-comandos.md) | `Opus` | Command pattern, undo/redo |
-| 05 | [S05-persistencia.md](S05-persistencia.md) | `Opus` | Abrir, salvar, conflito, autosave, lock |
-| 06 | [S06-biblioteca-variaveis.md](S06-biblioteca-variaveis.md) | `Sonnet` | Biblioteca de Variáveis |
-| 07 | [S07-biblioteca-compatibilidade.md](S07-biblioteca-compatibilidade.md) | `Sonnet` | Biblioteca de Compatibilidade |
-| 08 | [S08-biblioteca-conteudo.md](S08-biblioteca-conteudo.md) | `Haiku` | Catálogo de ofertas/decisões/limites |
-| 09 | [S09-grid-e-matrizes.md](S09-grid-e-matrizes.md) | `Sonnet` | Projetos, matrizes, grid aninhado |
-| 10 | [S10-selecao.md](S10-selecao.md) | `Opus` | Engine de seleção hierárquica |
-| 11 | [S11-inspector-e-edicao-massa.md](S11-inspector-e-edicao-massa.md) | `Sonnet` | Inspector e edição em massa |
-| 12 | [S12-operacoes-de-nivel.md](S12-operacoes-de-nivel.md) | `Opus` | Adicionar/remover/reordenar nível |
-| 13 | [S13-ciclo-de-vida.md](S13-ciclo-de-vida.md) | `Sonnet` | Rascunho, publicação, histórico |
-| 14 | [S14-diff-e-comparacao.md](S14-diff-e-comparacao.md) | `Opus` | Diff e tela de comparação |
-| 15 | [S15-vigencia-por-data.md](S15-vigencia-por-data.md) | `Sonnet` | Vigência, linha do tempo, portfólio |
-| 16 | [S16-reconciliacao.md](S16-reconciliacao.md) | `Opus` | Evolução da biblioteca e resnapshot |
-| 17 | [S17-templates-merge-export.md](S17-templates-merge-export.md) | `Opus` | Templates, merge, export, polimento |
-| 18 | [S18-faixa-regional.md](S18-faixa-regional.md) | `Sonnet` | Faixas regionais e duplicação de variáveis (pós-MVP, depende de 06) |
-| 19 | [S19-import-generico-e-paletas.md](S19-import-generico-e-paletas.md) | `Sonnet` | Importação genérica de domínios e paletas de cor (pós-MVP, depende de 18) |
-| 20 | [S20-agrupamentos-hierarquicos.md](S20-agrupamentos-hierarquicos.md) | `Opus` | Agrupamentos hierárquicos de faixas — generaliza regional em N níveis (pós-MVP, depende de 19) |
-| 21 | [S21-motor-de-carga.md](S21-motor-de-carga.md) | `Opus` | Motor da carga de matrizes: parser, perfil, plano e diff (épico Carga, depende de 14) |
-| 22 | [S22-assistente-de-carga-mapeamento.md](S22-assistente-de-carga-mapeamento.md) | `Sonnet` | Assistente de carga, passos 1–4: arquivo, colunas e biblioteca (depende de 21) |
-| 23 | [S23-tags-e-schema-3.md](S23-tags-e-schema-3.md) | `Sonnet` | Tags de matriz, filtro por facetas e `schemaVersion: 3` (depende de 20; paralelizável) |
-| 24 | [S24-aplicacao-da-carga.md](S24-aplicacao-da-carga.md) | `Opus` | Aplicação da carga, versionamento seletivo e fila de revisão (depende de 22 e 23) |
-| 25 | [S25-evolucao-estrutural-na-carga.md](S25-evolucao-estrutural-na-carga.md) | `Opus` | Faixa nova no arquivo vira versão de variável adotada no rascunho (depende de 24) |
+Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
+
+| # | Executado | Arquivo | Modelo | Tema |
+|---|---|---|---|---|
+| 01 | [x] | [S01-scaffold.md](S01-scaffold.md) | `Sonnet` | Vite → arquivo único, shell, tema |
+| 02 | [x] | [S02-documento.md](S02-documento.md) | `Sonnet` | Schema Zod, validação, exemplo, migração |
+| 03 | [x] | [S03-eixos-aninhados.md](S03-eixos-aninhados.md) | `Opus` | Tuplas, compatibilidade, cabeçalhos |
+| 04 | [x] | [S04-store-e-comandos.md](S04-store-e-comandos.md) | `Opus` | Command pattern, undo/redo |
+| 05 | [x] | [S05-persistencia.md](S05-persistencia.md) | `Opus` | Abrir, salvar, conflito, autosave, lock |
+| 06 | [x] | [S06-biblioteca-variaveis.md](S06-biblioteca-variaveis.md) | `Sonnet` | Biblioteca de Variáveis |
+| 07 | [x] | [S07-biblioteca-compatibilidade.md](S07-biblioteca-compatibilidade.md) | `Sonnet` | Biblioteca de Compatibilidade |
+| 08 | [x] | [S08-biblioteca-conteudo.md](S08-biblioteca-conteudo.md) | `Haiku` | Catálogo de ofertas/decisões/limites |
+| 09 | [x] | [S09-grid-e-matrizes.md](S09-grid-e-matrizes.md) | `Sonnet` | Projetos, matrizes, grid aninhado |
+| 10 | [x] | [S10-selecao.md](S10-selecao.md) | `Opus` | Engine de seleção hierárquica |
+| 11 | [x] | [S11-inspector-e-edicao-massa.md](S11-inspector-e-edicao-massa.md) | `Sonnet` | Inspector e edição em massa |
+| 12 | [x] | [S12-operacoes-de-nivel.md](S12-operacoes-de-nivel.md) | `Opus` | Adicionar/remover/reordenar nível |
+| 13 | [x] | [S13-ciclo-de-vida.md](S13-ciclo-de-vida.md) | `Sonnet` | Rascunho, publicação, histórico |
+| 14 | [x] | [S14-diff-e-comparacao.md](S14-diff-e-comparacao.md) | `Opus` | Diff e tela de comparação |
+| 15 | [x] | [S15-vigencia-por-data.md](S15-vigencia-por-data.md) | `Sonnet` | Vigência, linha do tempo, portfólio |
+| 16 | [x] | [S16-reconciliacao.md](S16-reconciliacao.md) | `Opus` | Evolução da biblioteca e resnapshot |
+| 17 | [x] | [S17-templates-merge-export.md](S17-templates-merge-export.md) | `Opus` | Templates, merge, export, polimento |
+| 18 | [x] | [S18-faixa-regional.md](S18-faixa-regional.md) | `Sonnet` | Faixas regionais e duplicação de variáveis (pós-MVP, depende de 06) |
+| 19 | [x] | [S19-import-generico-e-paletas.md](S19-import-generico-e-paletas.md) | `Sonnet` | Importação genérica de domínios e paletas de cor (pós-MVP, depende de 18) |
+| 20 | [x] | [S20-agrupamentos-hierarquicos.md](S20-agrupamentos-hierarquicos.md) | `Opus` | Agrupamentos hierárquicos de faixas — generaliza regional em N níveis (pós-MVP, depende de 19) |
+| 21 | [x] | [S21-motor-de-carga.md](S21-motor-de-carga.md) | `Opus` | Motor da carga de matrizes: parser, perfil, plano e diff (épico Carga, depende de 14) |
+| 22 | [x] | [S22-assistente-de-carga-mapeamento.md](S22-assistente-de-carga-mapeamento.md) | `Sonnet` | Assistente de carga, passos 1–4: arquivo, colunas e biblioteca (depende de 21) |
+| 23 | [x] | [S23-tags-e-schema-3.md](S23-tags-e-schema-3.md) | `Sonnet` | Tags de matriz, filtro por facetas e `schemaVersion: 3` (depende de 20; paralelizável) |
+| 24 | [x] | [S24-aplicacao-da-carga.md](S24-aplicacao-da-carga.md) | `Opus` | Aplicação da carga, versionamento seletivo e fila de revisão (depende de 22 e 23) |
+| 25 | [x] | [S25-evolucao-estrutural-na-carga.md](S25-evolucao-estrutural-na-carga.md) | `Opus` | Faixa nova no arquivo vira versão de variável adotada no rascunho (depende de 24) |
+| 26 | [ ] | [S26-servidor-local.md](S26-servidor-local.md) | `Opus` | Servidor local: persistência atômica, conflito, lock, backups, token (épico Plataforma) |
+| 27 | [ ] | [S27-modo-server.md](S27-modo-server.md) | `Sonnet` | `server-adapter` e modo `SERVER` no front (depende de 26) |
+| 28 | [ ] | [S28-launcher-e-distribuicao.md](S28-launcher-e-distribuicao.md) | `Sonnet` | `iniciar.bat`, `instalar.bat`, pacote `dist/plataforma/` (depende de 27) |
+| 29 | [ ] | [S29-identidade-e-papeis.md](S29-identidade-e-papeis.md) | `Sonnet` | Identidade Windows, `meta.acl` e papéis — schema 4 (depende de 27) |
+| 30 | [ ] | [S30-evidencias.md](S30-evidencias.md) | `Opus` | Evidências: acervo navegável com hash (depende de 27 e 29) |
+| 31 | [ ] | [S31-guardrails-de-contexto.md](S31-guardrails-de-contexto.md) | `Sonnet` | CLAUDE.md índice, guard mecânico, âncoras de região (independente) |
+| 32 | [ ] | [S32-modelo-de-componentes.md](S32-modelo-de-componentes.md) | `Opus` | Schema 5: componentes, DBs, releases, invariantes I23–I26 (épico Governança, depende de 29) |
+| 33 | [ ] | [S33-arvore-da-politica.md](S33-arvore-da-politica.md) | `Sonnet` | Árvore da política e cadastro/versionamento de regras (depende de 32) |
+| 34 | [ ] | [S34-editor-rico.md](S34-editor-rico.md) | `Opus` | Editor rico de blocos, anexos de imagem, diff por bloco (depende de 32) |
+| 35 | [ ] | [S35-solicitacao-e-workflow.md](S35-solicitacao-e-workflow.md) | `Sonnet` | Solicitação de Alteração (DB), workflow, fila e pendências (depende de 33 e 34) |
+| 36 | [ ] | [S36-vinculo-e-publicacao.md](S36-vinculo-e-publicacao.md) | `Opus` | Vínculo DB↔rascunhos, congelamento, publicação atômica (depende de 35) |
+| 37 | [ ] | [S37-release-e-timeline.md](S37-release-e-timeline.md) | `Sonnet` | Release de política e timeline do Diário de Bordo (depende de 36) |
+| 38 | [ ] | [S38-pacote-fabrica.md](S38-pacote-fabrica.md) | `Sonnet` | Pacote para a Fábrica: HTML imprimível + Markdown (depende de 36) |
+| 39 | [ ] | [S39-fotografia-historica.md](S39-fotografia-historica.md) | `Opus` | Política inteira em qualquer data e comparações A×B (depende de 36) |
+| 40 | [ ] | [S40-carga-de-componentes.md](S40-carga-de-componentes.md) | `Sonnet` | Carga inicial da política via Markdown estruturado (depende de 33) |
 
 ## Regras válidas para todas as sessões
 
@@ -38,7 +55,7 @@ Repetidas dentro de cada prompt; ficam aqui como referência.
 2. Não tomar decisões de arquitetura fora do que está documentado — **parar e perguntar**.
 3. Não adicionar dependências fora da lista de `docs/02-arquitetura.md` §2 sem perguntar.
 4. **`src/core/` é TypeScript puro**: sem React, sem Zustand, sem DOM, sem `window`.
-5. **Zero requisições de rede** em tempo de execução. Sem CDN, sem fontes web, sem `eval`.
+5. **Zero requisições de rede externas** em tempo de execução. Sem CDN, sem fontes web, sem `eval`. A única comunicação permitida é com o servidor local same-origin (`/api/*`, `docs/14-plataforma-local.md` §5).
 6. Escopo é escopo: não implementar sessões futuras "já que estou aqui".
-7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes, o orçamento de 1,5 MB respeitado, e **`dist/PolicyOps.html` atualizado no commit**.
+7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes (e `python -m pytest server/tests` quando a sessão tocar `server/`), o orçamento de 1,5 MB respeitado, e **`dist/PolicyOps.html` atualizado no commit**.
 8. Commitar na branch de trabalho e fazer push.

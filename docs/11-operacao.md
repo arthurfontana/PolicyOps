@@ -5,29 +5,33 @@
 ## 1. Onde colocar os arquivos
 
 ```
-\\SharePoint\Politicas\
-   ├── PolicyOps.html          ← a aplicação, publicada uma vez
+\\rede\Politicas\
    ├── politicas.json          ← todos os dados
-   └── _backups\
-        ├── politicas.2026-08-05T14-32.json
-        └── ...
+   ├── _backups\               ← cópias automáticas do servidor (20 mais recentes)
+   ├── _evidencias\            ← anexos das políticas, navegável no Explorer
+   └── _app\                   ← a aplicação, publicada pela TI (§4)
+        ├── iniciar.bat        ← o que o usuário executa no dia a dia
+        ├── instalar.bat       ← uma vez por máquina
+        ├── PolicyOps.html
+        └── server\
 ```
 
-- **`PolicyOps.html`** é a aplicação inteira. Não muda sozinha — só quando o time de desenvolvimento publica uma versão nova (§4).
-- **`politicas.json`** é onde vive tudo: bibliotecas, matrizes, versões, histórico. É o único arquivo que muda no dia a dia, e é ele que precisa de backup de verdade.
-- **`_backups\`** é gerada automaticamente pela própria aplicação a cada salvamento (mantém as 20 cópias mais recentes) — é um cinto de segurança além do controle de versão do SharePoint, não o backup principal.
+- **`_app\`** é a aplicação inteira (HTML + servidor local). Não muda sozinha — só quando o time de desenvolvimento publica uma versão nova (§4).
+- **`politicas.json`** é onde vive tudo: bibliotecas, matrizes, versões, histórico. É o arquivo que muda no dia a dia, e é ele que precisa de backup de verdade.
+- **`_evidencias\`** guarda os arquivos anexados às políticas, em estrutura legível (`projeto\matriz\versão\`). **Nunca renomeie nem mova arquivos aí dentro** — o documento aponta para esses caminhos e confere o conteúdo por hash. Excluir anexo pela aplicação apenas move o arquivo para `_evidencias\_lixeira\`; esvaziar a lixeira é decisão manual de quem opera a pasta.
+- **`_backups\`** é gerada automaticamente pelo servidor a cada salvamento.
 
-Os dois arquivos (`.html` e `.json`) devem estar na **mesma biblioteca de documentos**, para que o time abra o `.html` pelo endereço do SharePoint (não por duplo clique) — é isso que garante o modo completo, com salvamento direto e detecção de conflito. Duplo clique local funciona, mas cai num modo mais limitado (o Guia do Usuário explica a diferença).
+Uso normal: cada pessoa executa `_app\iniciar.bat` (na primeira vez em cada máquina, antes, o `instalar.bat`). O duplo clique direto no `PolicyOps.html` continua funcionando como plano B, num modo mais limitado (o Guia do Usuário explica a diferença).
 
 ## 2. Como fazer backup
 
 Três camadas, cada uma cobrindo um risco diferente:
 
-1. **Histórico de versões do SharePoint** (automático, já vem com a plataforma) — é o backup principal. Cobre "alguém salvou algo errado" e "preciso do arquivo de terça-feira passada". Ative o histórico de versões na biblioteca de documentos, se ainda não estiver ativo.
-2. **`_backups\` local**, gerada pela própria aplicação antes de cada salvamento — cobre o caso de o histórico do SharePoint estar temporariamente indisponível ou mal configurado. Não precisa de ação manual; só verifique de vez em quando que a pasta está sendo escrita.
-3. **Cópia externa periódica** (recomendado, mensal ou antes de mudanças grandes) — baixe `politicas.json` para um local fora do SharePoint (outro storage, e-mail para o responsável, o que fizer sentido na sua organização). Cobre o cenário raro de perda da biblioteca inteira.
+1. **`_backups\`**, gerada pelo servidor antes de cada salvamento — cobre "alguém salvou algo errado" e "preciso do estado de hoje mais cedo". Não precisa de ação manual; só verifique de vez em quando que a pasta está sendo escrita.
+2. **Backup corporativo da pasta de rede** (rotina da TI, quando existir) ou histórico de versões nativo (SharePoint/OneDrive, se a pasta viver lá) — cobre "preciso do arquivo de terça-feira passada".
+3. **Cópia externa periódica** (recomendado, mensal ou antes de mudanças grandes) — copie `politicas.json` **e a pasta `_evidencias\`** para um local fora da pasta de rede. Cobre o cenário raro de perda da pasta inteira; as evidências são tão históricas quanto o documento.
 
-Não é preciso fazer backup do `PolicyOps.html` com a mesma frequência — ele só muda quando uma nova versão é publicada pelo time de desenvolvimento (§4), e o próprio repositório de código guarda todo esse histórico.
+Não é preciso fazer backup de `_app\` com a mesma frequência — ele só muda quando uma nova versão é publicada pelo time de desenvolvimento (§4), e o próprio repositório de código guarda todo esse histórico.
 
 ## 3. O que fazer em caso de conflito
 
@@ -44,13 +48,13 @@ Se conflitos estiverem acontecendo com frequência, o problema não é técnico 
 - Combine quem edita quando (o **bloqueio consultivo** da aplicação já avisa "Fulano está editando este arquivo desde 09:00", mas não impede a edição — é um aviso, não uma trava).
 - Salve com mais frequência: `Ctrl+S` custa pouco e reduz a janela de tempo em que um conflito pode acontecer.
 
-## 4. Como atualizar o `PolicyOps.html` sem perder dados
+## 4. Como atualizar a aplicação sem perder dados
 
-A separação entre aplicação (`.html`) e dados (`.json`) existe exatamente para isto: atualizar a aplicação **nunca** toca nos dados.
+A separação entre aplicação (`_app\`) e dados existe exatamente para isto: atualizar a aplicação **nunca** toca nos dados.
 
-1. Baixe a versão nova de `PolicyOps.html` (do repositório do projeto — "Download raw file" no GitHub, ou peça ao time de desenvolvimento).
-2. Substitua o arquivo antigo na mesma pasta do SharePoint, com o mesmo nome. Não precisa (e não deve) tocar em `politicas.json` nem em `_backups\`.
-3. Avise o time para recarregar a página da próxima vez que abrirem — abas já abertas continuam rodando a versão antiga até serem recarregadas.
+1. Baixe o pacote novo (`dist/plataforma/`, do repositório do projeto — ou peça ao time de desenvolvimento).
+2. Substitua o conteúdo de `_app\` na pasta de rede. Não precisa (e não deve) tocar em `politicas.json`, `_backups\` nem `_evidencias\`.
+3. Avise o time para fechar e reabrir pelo `iniciar.bat` — sessões já abertas continuam rodando a versão antiga até serem reiniciadas. Se a versão nova trouxer dependências Python novas, o `iniciar.bat` avisa para rodar o `instalar.bat` de novo (as wheels vêm no pacote; não depende de rede liberada).
 4. Se a aplicação nova usa uma versão mais nova do formato de dados (`schemaVersion`), ela migra o arquivo automaticamente na primeira abertura, de forma compatível com versões anteriores — nenhuma ação manual é necessária. O caminho inverso (abrir um arquivo novo numa aplicação antiga) é bloqueado com uma mensagem clara, para não arriscar interpretar dados novos com regras velhas.
 
 Nunca é preciso recriar bibliotecas, matrizes ou histórico por causa de uma atualização da aplicação.
