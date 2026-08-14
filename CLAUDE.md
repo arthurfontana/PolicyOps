@@ -44,6 +44,9 @@ pnpm test:e2e             # Playwright contra dist/PolicyOps.html por file://
 pnpm check-size           # falha se dist/PolicyOps.html > 1,5 MB
 pnpm check-selfcontained  # falha se o HTML tiver qualquer referência externa
 pnpm check:claude-md      # falha se este arquivo passar de ~450 linhas
+
+python -m pytest server/tests   # servidor local (server/requirements.txt + pytest)
+python server/policyops_server.py --data-dir <pasta>   # sobe o servidor em 127.0.0.1
 ```
 
 Convenções que toda sessão repete (suíte de contrato dos adapters, fixtures canônicas, checklist
@@ -75,7 +78,7 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 │   ├── store/             # Zustand: document-store, editor-store, ui-store, persistence-store
 │   ├── components/        # shell, grid, inspector, library, dialogs, import, matrix, ui
 │   └── lib/                # colors, format, hash, download
-├── server/                # servidor Python local — planejado, S26-S30 (não existe ainda)
+├── server/                # servidor Python local (FastAPI): policyops_server.py + tests/ — S26
 ├── tests/                 # unit/ (espelha src/core/), fixtures/, e2e/
 └── scripts/               # check-size, check-selfcontained, check-claude-md, finalize-dist
 ```
@@ -92,7 +95,7 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 | Reconciliação da biblioteca (evolução de variável) | `docs/05-regras-de-negocio.md` §5 | `src/core/reconcile/` |
 | Import/carga de matrizes externas | `docs/12-carga-de-matrizes.md` | `src/core/import/`, `src/components/import/` |
 | Storage e adapters (FSA, download, lock, backups) | `docs/06-persistencia-e-concorrencia.md` | `src/storage/`, `src/store/persistence-store.ts` |
-| Servidor local (planejado, S26) | `docs/14-plataforma-local.md` §3–5 | `server/` (não existe ainda) |
+| Servidor local (API v1, token, lock, backups) | `docs/14-plataforma-local.md` §3–5 | `server/policyops_server.py`, `server/tests/` |
 | Identidade e papéis (planejado, S29) | `docs/14-plataforma-local.md` §6 | `meta.acl` no schema (S29), servidor |
 | Evidências — acervo navegável (planejado, S30) | `docs/14-plataforma-local.md` §7 | `attachments` no schema (S30) |
 | Grid e UX (shell, seleção, inspector, tags/filtro) | `docs/07-ux-e-editor.md` | `src/components/grid/`, `src/components/` |
