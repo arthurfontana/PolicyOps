@@ -8,19 +8,21 @@ Nada aqui pode ser presumido. A aplicação testa o ambiente na inicialização:
 
 ```ts
 type Capabilities = {
+  localServer: boolean;        // fetch('/api/health') respondeu e há token na sessão
   fileSystemAccess: boolean;   // window.showOpenFilePicker existe E é utilizável
   origin: 'https' | 'http' | 'file' | 'other';
   indexedDB: boolean;
   compressionStream: boolean;
-  mode: 'FULL' | 'DOWNLOAD_ONLY';
+  mode: 'SERVER' | 'FULL' | 'DOWNLOAD_ONLY';
 };
 ```
 
 A File System Access API exige contexto seguro e origem não opaca. Páginas abertas por `file://` têm origem opaca e, na prática, não a têm disponível — mas **isso não pode ser assumido no código**: teste a existência da função e faça uma chamada real na primeira interação do usuário, capturando a falha.
 
-`mode`:
+`mode` (ordem de preferência fixa):
 
-- **`FULL`** — abrir/salvar direto no arquivo, autosave, bloqueio consultivo. Requer `fileSystemAccess`. É o cenário SharePoint (https) ou OneDrive sincronizado.
+- **`SERVER`** — a SPA foi servida pelo servidor local (`14-plataforma-local.md`): abrir/salvar direto na pasta de rede via API, conflito, lock, backups, identidade Windows e evidências, em qualquer navegador. É o modo recomendado de operação.
+- **`FULL`** — abrir/salvar direto no arquivo via File System Access API, autosave, bloqueio consultivo. Requer `fileSystemAccess` (cenário https/OneDrive sincronizado). Mantido como legado por custo ~zero.
 - **`DOWNLOAD_ONLY`** — abrir por seletor/arrastar, salvar por download. Fallback universal.
 
 A tela inicial informa o modo ativo em português e o que muda em cada um. Nunca falhe silenciosamente para o modo pior: diga ao usuário.
@@ -52,11 +54,13 @@ type SaveResult =
   | { ok: false; reason: 'CANCELLED' | 'PERMISSION' | 'IO'; message: string };
 ```
 
-Duas implementações: `fsa-adapter.ts` e `download-adapter.ts`. **A aplicação inteira só conhece a interface.**
+Três implementações: `server-adapter.ts` (traduz a API do servidor local — o `409` do
+`PUT /api/document` vira `{ ok: false, reason: 'CONFLICT', remote }`), `fsa-adapter.ts` e
+`download-adapter.ts`. **A aplicação inteira só conhece a interface.**
 
 ## 3. Formato do arquivo
 
-- Padrão: `.json`, UTF-8, `JSON.stringify(doc, null, 2)` — legível, diffável, versionável pelo SharePoint.
+- Padrão: `.json`, UTF-8, `JSON.stringify(doc, null, 2)` — legível, diffável, versionável por qualquer plataforma com histórico de arquivos.
 - Acima de 5 MB, a aplicação oferece `.pmz` (mesmo JSON com gzip via `CompressionStream`), tipicamente 8–12× menor. A leitura detecta o formato pelo magic number, não pela extensão.
 - O nome sugerido em "Salvar como" é `{slug do nome do documento}.json`.
 
@@ -68,9 +72,9 @@ Duas implementações: `fsa-adapter.ts` e `download-adapter.ts`. **A aplicação
 
 ## 5. Detecção de conflito
 
-O caso real: duas pessoas abrem o mesmo arquivo do SharePoint às 9h; uma salva às 10h, a outra às 10h05.
+O caso real: duas pessoas abrem o mesmo arquivo da pasta de rede às 9h; uma salva às 10h, a outra às 10h05 — cada uma através do **seu próprio** servidor local.
 
-Fluxo de `save()` no modo `FULL`:
+Fluxo de `save()` nos modos `SERVER` (executado pelo servidor, `14-plataforma-local.md` §4) e `FULL` (executado pelo navegador):
 
 ```
 1. relê o arquivo do disco
@@ -93,7 +97,9 @@ No modo `DOWNLOAD_ONLY` não há como reler: a aplicação avisa que a detecçã
 
 ## 6. Bloqueio consultivo — `src/storage/lock.ts`
 
-Apenas no modo `FULL`. Ao abrir um documento, a aplicação grava `{nome}.lock.json` ao lado:
+Nos modos `SERVER` (quem grava o lock é o servidor local, pela API) e `FULL` (quem grava é o
+navegador). O formato no disco é o mesmo, então usuários em modos diferentes se enxergam. Ao
+abrir um documento, grava-se `{nome}.lock.json` ao lado:
 
 ```json
 { "holder": "Arthur", "since": "2026-08-05T12:00:00.000Z",
@@ -153,11 +159,15 @@ Isso cobre queda do navegador, fechamento acidental e travamento da máquina —
 
 ## 9. Backups automáticos
 
-No modo `FULL`, antes de cada salvamento, a aplicação copia o conteúdo anterior para `_backups/{nome}.{timestamp}.json`, mantendo os **20 mais recentes** e apagando os excedentes.
+Nos modos `SERVER` (feito pelo servidor local, dentro do próprio `PUT /api/document`) e `FULL`
+(feito pelo navegador), antes de cada salvamento o conteúdo anterior é copiado para
+`_backups/{nome}.{timestamp}.json`, mantendo os **20 mais recentes** e apagando os excedentes.
 
 Se a pasta `_backups` não puder ser criada (permissão), avisa uma vez e segue sem backup — não bloqueia o salvamento.
 
-No SharePoint isso é redundante com o histórico de versões nativo, e a interface diz isso: o backup local é cinto e suspensório.
+Numa pasta com versionamento nativo (SharePoint/OneDrive) isso é redundante com o histórico da
+plataforma, e a interface diz isso: o backup local é cinto e suspensório. Numa pasta de rede
+comum, é a única rede de segurança além da cópia externa (`11-operacao.md` §2).
 
 ## 10. Modo de recuperação
 

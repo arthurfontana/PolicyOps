@@ -5,7 +5,135 @@
 > revertida ganha uma DEC nova com o campo **Substitui** apontando a antiga.
 
 Prefixos em uso: `ADR-` para decisões globais de arquitetura, `DEC-<ÉPICO>-` para decisões de um
-domínio funcional (`CARGA` = carga de matrizes, `12-carga-de-matrizes.md`).
+domínio funcional (`CARGA` = carga de matrizes, `12-carga-de-matrizes.md`; `GOV` = governança de
+alterações, `14-governanca-de-alteracoes.md`).
+
+---
+
+## ADR-001: a plataforma ganha um servidor local por usuário
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Abandonar a estratégia "HTML aberto do SharePoint" como modo principal. O produto passa a ser distribuído numa **pasta de rede** com um **servidor Python local por usuário** (launcher `iniciar.bat`), que serve a SPA em `http://127.0.0.1` e faz todo o I/O contra a pasta. Sem máquina central. |
+| **Data / gatilho** | 2026-08-14, revisão de arquitetura após o fechamento dos épicos MVP/Carga. |
+| **Páginas afetadas** | `14-plataforma-local.md` (novo), `01-visao-e-escopo.md` §2–§3, §7–§8, `02-arquitetura.md` §1, `06-persistencia-e-concorrencia.md`, `11-operacao.md` |
+
+**Contexto.** A premissa original ("zero instalação, abre do SharePoint") falhou no ambiente
+real: o time abre o HTML por caminho de rede/cópia local (`file://`), onde a File System Access
+API não existe — **o modo `FULL` nunca funcionou** e todo uso caiu no `DOWNLOAD_ONLY` (abrir por
+seletor, salvar por download), que é operacionalmente ruim. Ao mesmo tempo, o ambiente real tem o
+que a premissa proibia: pastas de rede compartilhadas e Python instalável nas máquinas
+(padrão já validado em produção corporativa pelo AppCreditoSimulador).
+
+**Justificativa.**
+
+- Um servidor local elimina a dependência do navegador para tocar arquivo: salvar direto,
+  conflito, lock e backup passam a funcionar em qualquer navegador.
+- Servidor **por usuário** (e não central) preserva a propriedade mais valiosa da arquitetura
+  atual: zero operação — nenhuma máquina sempre ligada, nenhuma porta na rede, nenhum dono de
+  serviço. A coordenação entre usuários continua pelos arquivos (hash + lock consultivo).
+- Abre as três capacidades pedidas pelo negócio que o navegador sozinho não dá: identidade
+  amarrada ao Windows (ADR-003), evidências hospedadas (ADR-004) e um caminho natural para, se
+  um dia fizer sentido, promover o mesmo servidor a uma máquina central — o contrato da API não
+  mudaria.
+
+## ADR-002: o servidor entra por baixo do `StorageAdapter`; o front e o core não mudam de dono
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A SPA React/TypeScript e o `src/core/` permanecem integralmente. O servidor é **infraestrutura**: um novo `server-adapter.ts` implementa a interface `StorageAdapter` existente sobre HTTP local, e o Python **nunca** contém regra de negócio — não valida invariantes, não migra schema, não interpreta o documento além de `meta.acl`. A regra "zero requisições de rede" passa a ser lida como "zero requisições **externas**". |
+| **Data / gatilho** | 2026-08-14, junto com ADR-001. |
+| **Páginas afetadas** | `02-arquitetura.md` §2–§4, `06-persistencia-e-concorrencia.md` §1–§2, `14-plataforma-local.md` §3–§4 |
+
+**Contexto.** A alternativa era migrar a aplicação para um web app Python "de verdade" (templates
+ou API por entidade + front fino). Isso jogaria fora ~45 mil linhas testadas de core/UI e
+duplicaria as invariantes em duas linguagens — o tipo de reescrita big-bang que os guardrails da
+metodologia proíbem.
+
+**Justificativa.** O ponto fraco da arquitetura nunca foi o front — foi o navegador não poder
+gravar arquivo. Trocando só a camada que já era trocável por desenho (os adapters), o custo da
+migração fica confinado: um adapter novo + um servidor pequeno e testável. O documento continua
+sendo salvo inteiro (o modelo de concorrência hash+merge de `06` não muda), e os modos `FULL` e
+`DOWNLOAD_ONLY` sobrevivem como fallback de graça.
+
+## ADR-003: identidade é o login Windows, capturado pelo servidor; papéis vivem no documento
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | No modo `SERVER`, a identidade é o login de rede (`getpass.getuser()`), capturado no boot e carimbado em auditoria, `savedBy`, lock e evidências — sem senha, sem diálogo. O documento ganha `meta.acl` opcional com papéis `READER`/`EDITOR`/`PUBLISHER`/`ADMIN` (`schemaVersion: 4`, aditiva). ACL vazia = modo aberto. Enforcement fino na interface; o servidor recusa gravação de `READER`. |
+| **Data / gatilho** | 2026-08-14, pedido de "visão mais amarrada de identificação dos usuários". |
+| **Páginas afetadas** | `14-plataforma-local.md` §6, `02-arquitetura.md` §6, `03-modelo-do-documento.md` (na S29), `01-visao-e-escopo.md` §3.1 |
+
+**Contexto.** As alternativas eram manter o nome digitado (identidade fraca — qualquer um digita
+qualquer coisa), criar login/senha próprio (atrito diário, senha para esquecer, e uma promessa de
+segurança que a arquitetura de arquivo compartilhado não pode cumprir) ou autenticação Windows
+integrada de verdade (SSPI/Kerberos — complexidade desproporcional para um processo local).
+
+**Justificativa.** O login de rede capturado na máquina do próprio usuário é gratuito, não
+falsificável por descuido (ninguém "esquece" de trocar o nome) e é exatamente o identificador que
+uma auditoria interna reconhece. Papéis no documento dão o controle organizacional que faltava
+(quem pode publicar, quem pode carregar) sem fingir ser segurança: quem tem escrita na pasta
+edita o JSON na mão, e a documentação continua dizendo isso explicitamente.
+
+## ADR-004: evidências em acervo gerenciado, navegável e em claro — nunca opaco
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Anexar evidência = **copiar** o arquivo para `_evidencias/` na pasta de rede, em estrutura legível por humanos (`{projeto}/{matriz}/{versão}/{data}_{nome original}`), com SHA-256 registrado no documento. **Sem criptografia, sem nomes opacos, sem banco de blobs.** Evidência é imutável; excluir move para `_evidencias/_lixeira/`, nunca apaga. |
+| **Data / gatilho** | 2026-08-14, necessidade de anexar arquivos de evidência (DBs, ofícios) às políticas. |
+| **Páginas afetadas** | `14-plataforma-local.md` §7, `03-modelo-do-documento.md` (na S30), `11-operacao.md` §1–§2 |
+
+**Contexto.** As alternativas eram (a) só referenciar caminhos de rede existentes (zero cópia,
+mas o link quebra silenciosamente quando alguém move o arquivo — inaceitável para evidência de
+auditoria), (b) acervo opaco/criptografado com nomes por hash (integridade máxima, mas os
+arquivos ficam reféns da aplicação), (c) acervo gerenciado em claro.
+
+**Justificativa.** O requisito decisivo é o cenário de desastre: **se a aplicação quebrar, o
+time precisa continuar acessando os arquivos históricos pelo Explorer**. Por isso o acervo é um
+diretório comum, navegável, com nomes originais preservados — a aplicação é a porta de entrada
+preferencial, não a única. A integridade que a criptografia daria vem do hash: o documento
+registra o SHA-256 e o download confere, o que detecta adulteração/corrupção sem esconder nada.
+A cópia (em vez da referência) garante que o link não quebra, porque o acervo pertence à
+aplicação e a regra operacional é "não renomear nem mover" (`11-operacao.md` §1).
+
+## ADR-005: FastAPI com instalação em camadas — venv + índice pip + wheels offline embarcadas
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O servidor usa **FastAPI + uvicorn** (+ `python-multipart`), instalados por `instalar.bat` numa venv descartável: tenta o índice pip corporativo primeiro e cai para as **wheels Windows x64 embarcadas** no pacote (`pip install --no-index --find-links wheels`). O `iniciar.bat` do dia a dia não instala nada e não bloqueia. Segurança de processo: bind exclusivo `127.0.0.1`, token aleatório por boot em `X-PolicyOps-Token`, zero rede externa. |
+| **Data / gatilho** | 2026-08-14, junto com ADR-001. |
+| **Páginas afetadas** | `14-plataforma-local.md` §3, §5, §9, `02-arquitetura.md` §2 |
+
+**Contexto.** A alternativa conservadora era um servidor 100% stdlib (`http.server`), imune a
+pip bloqueado. O usuário preferiu FastAPI pela produtividade e manutenção, **desde que** o time
+final só execute um `.bat` sem nenhuma intervenção.
+
+**Justificativa.** O risco do pip corporativo é neutralizado embarcando as wheels no próprio
+artefato publicado — a instalação vira determinística e offline. O padrão inteiro (venv em
+camadas com contingência de wheels, launcher que orienta em vez de travar, bind local + token) é
+transcrição do que já roda em produção no mesmo ambiente corporativo no AppCreditoSimulador
+(`release/iniciar.bat`, `release/python/instalar_motor.bat`, DEC-HX-008 daquele projeto) — não é
+aposta, é reuso de solução validada. Contrapartida assumida: cada dependência Python nova exige
+wheel embarcada, por isso a lista é fechada em três e ampliá-la requer aprovação explícita.
+
+## ADR-006: o custo de contexto das sessões é tratado como requisito de arquitetura
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Adotar os guardrails de consumo de contexto da metodologia (skill `especificacao-e-sessoes`): `CLAUDE.md` como índice enxuto com mapa "onde vive o quê", documentação em camadas, guard mecânico de tamanho no CI, âncoras de região nos arquivos grandes e pesquisa exploratória via subagent. A reorganização é a sessão S31 — **extração incremental, nunca reescrita big-bang**. |
+| **Data / gatilho** | 2026-08-14, sintoma relatado: custo alto de tokens a cada ajuste/evolução. |
+| **Páginas afetadas** | `CLAUDE.md`, `09-roadmap-de-entregas.md`, prompt `S31` |
+
+**Contexto.** O repositório chegou a ~45 mil linhas de TS e ~4.200 linhas de documentação
+normativa. Cada sessão de evolução paga um custo fixo de boot mais Reads extensos — o mesmo
+sintoma diagnosticado e resolvido no AppCreditoSimulador (corte de ~92% do custo de boot), cuja
+estrutura (`CLAUDE.md` índice ≤450 linhas + docs em camadas + `check-claude-md` no CI) serve de
+modelo pronto.
+
+**Justificativa.** O custo de tokens é recorrente e cresce com o produto; tratá-lo como
+"incômodo" garante que piore. Tratá-lo como requisito — com teto mecânico e estrutura de
+camadas — o torna estável: feature nova passa a custar 1 linha de índice + 1 doc de domínio, e
+sessões leem por ponteiro em vez de por varredura.
 
 ---
 
@@ -434,3 +562,120 @@ real.
 | **Por quê** | O código reservado (docs/05 §1.1) nunca teve conteúdo publicado — não há "a versão anterior" para comparar nem para herdar eixos: é, na prática, a mesma pergunta que criar a matriz pela primeira vez, só que o código já existe. Tratar como matriz nova (opção b) mantém uma verdade só sobre "que eixos uma matriz teria hoje" — a mesma que `matrix/create` e `planNewMatrix` já respondem — em vez de deixar essa resposta depender de quando, meses atrás, alguém descartou um rascunho. `version/_createWithoutBase` não é comando de catálogo (mesmo espírito de `restoreArchivedMatrix`, DEC-CARGA-018): só `import/apply` compõe isto, e só para uma matriz `ARCHIVED` restaurada sem publicação alguma. |
 | **Custo aceito** | Um comando interno a mais em `lifecycle.ts` que duplica a resolução de níveis/eixos de `matrix/create` (`resolveLevel`, `buildAxis`, as validações I13/I14/I16) em vez de reaproveitá-la — aceito porque `matrix/create` está amarrado a criar um `Matrix` novo (unicidade de código, `MATRIX_CREATED`), e forçar essa amarração a aceitar uma matriz já existente teria acoplado dois conceitos que hoje são independentes. `MatrixPlan.matrixId` definido numa entrada `status: 'NEW'` passa a significar "matriz restaurada sem publicação", não mais exclusivamente "matriz nova"; `apply.ts` decide entre `matrix/create` e `version/_createWithoutBase` checando esse campo. |
 | **Páginas afetadas** | `12-carga-de-matrizes.md` §5.5 (tabela de status); `08-camada-de-comandos.md` §3 Carga de matrizes e Versões |
+
+---
+
+## DEC-GOV-001: a política vira árvore de componentes tipados — a matriz não vira "só mais um texto"
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O documento ganha `components: PolicyComponent[]` — árvore por projeto com tipos `SECTION`, `RULE`, `MATRIX`, `LIST`, `REASON_CODE`, `POLICY_VARIABLE`, `OTHER`, cada tipo com payload próprio e todos compartilhando o mesmo ciclo de versão/vigência das matrizes. |
+| **Data / gatilho** | 2026-08-13, análise da Especificação Funcional da Jornada de Gestão de Alterações + documento real *Filtros e Critérios de Crédito B2C*. |
+| **Alternativas** | (a) uma entidade "Regra" plana, sem árvore — não representa o sumário hierárquico real do documento de política (4 níveis) nem permite a fotografia histórica da política inteira; (b) forçar tudo (regras, listas, reason codes) a virar matriz — regra textual não é grid, produziria matrizes 1×1 artificiais e mataria a legibilidade; (c) documento rico único versionado por seção — perde o vínculo componente↔DB↔versão que é o coração da rastreabilidade pedida. |
+| **Por quê** | O princípio da spec funcional (§33) é explícito: plataforma comum de governança com representações próprias por tipo. Compartilhar identificação, versão, vigência, histórico e relacionamento com alterações — e nada além — é exatamente o que o `versioning/` existente já sabe fazer; payloads tipados dão a cada componente sua forma sem inventar um segundo mecanismo de versão. |
+| **Custo aceito** | Um schema novo grande (S32) e telas de árvore/CRUD (S33). Tetos definidos para não degradar: profundidade 6, alerta em 300 e teto de 1.000 componentes por projeto. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3; `03-modelo-do-documento.md` (S32) |
+
+---
+
+## DEC-GOV-002: componente MATRIX é espelho, nunca reversiona a matriz
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O nó de árvore `type: MATRIX` referencia `matrixId` e tem `versions: []` (invariante I23). Nome, estado, vigência, diff e timeline vêm da `Matrix` existente. Num DB, o item sobre uma matriz vincula um **rascunho da matriz** — o mecanismo atual, sem duplicação. |
+| **Data / gatilho** | 2026-08-13, desenho do épico GOV. |
+| **Alternativas** | (a) migrar `Matrix` para dentro de `PolicyComponent` — reescreveria o coração do produto (25 sessões, 6 invariantes I13–I22) para ganhar só um lugar na árvore; risco máximo, ganho mínimo; (b) duplicar a matriz num payload — duas fontes de verdade para a mesma vigência, corrupção histórica garantida no primeiro descompasso. |
+| **Por quê** | A matriz já tem o versionamento mais maduro do sistema; a árvore precisa apenas apontá-la. Uma matriz referenciada por no máximo um componente mantém a fotografia histórica sem ambiguidade. |
+| **Custo aceito** | A fotografia da política em uma data combina duas fontes (componentes + matrizes); telas de consulta precisam compor as duas — custo de leitura, não de integridade. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3.1, §6 (I23) |
+
+---
+
+## DEC-GOV-003: DB é entidade multi-componente com workflow de 12 estados
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `ChangeRequest` com 1..N itens (cada item = componente + tipo de alteração + atual×proposto + rascunho vinculado), status num grafo fixo (`14-governanca-de-alteracoes.md` §5) e trilha própria de eventos. Itens congelam a partir de `APPROVED` (I25). |
+| **Data / gatilho** | 2026-08-13; DB-519 real altera regra de quantidade **e** regra de saída da Classe D no mesmo documento — 1 DB : 1 regra é ficção. |
+| **Alternativas** | (a) um DB por componente — multiplicaria DBs artificiais para uma mudança de negócio única, contra a spec (§8); (b) workflow reduzido (rascunho→aprovado→publicado) — não representa devolução, desenvolvimento na fábrica e validação, que são os estados onde os DBs reais passam a maior parte da vida. |
+| **Por quê** | O grafo espelha o processo real da área (fábrica desenvolve depois da aprovação; publicação é evento separado — RN-GOV-04). Congelar itens após aprovação é o que dá valor à assinatura do gestor: o que foi aprovado é o que será publicado. |
+| **Custo aceito** | Máquina de estados com 12 estados exige disciplina de UI (ações visíveis por estado) e testes de transição exaustivos. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3.3, §5, §6 |
+
+---
+
+## DEC-GOV-004: workflow sem servidor central = governança processual, não autenticação
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Aprovação, papéis e "quem fez o quê" usam a identificação existente — o login de rede capturado pelo servidor local (ADR-003) quando disponível, ou o nome em `localStorage` nos modos sem servidor —, sem senha, sem criptografia, sem bloqueio técnico por papel além do enforcement organizacional já descrito em `14-plataforma-local.md` §6. A UI declara isso. Notificações viram o painel "Pendências" ao abrir o documento. Publicação direta sem DB continua possível, carimbada como tal (RN-GOV-07). |
+| **Data / gatilho** | 2026-08-13; a spec funcional pede permissões e notificações, e a restrição de não existir servidor **central** (`01-visao-e-escopo.md` §3.1) torna autenticação real impossível no sentido forte. |
+| **Alternativas** | (a) senha/PIN local por papel — segurança teatral: qualquer um edita o JSON; pior que declarar a limitação; (b) recusar o workflow inteiro até existir servidor central — jogaria fora o valor de padronização e rastro, que não dependem de autenticação real. |
+| **Por quê** | O valor pedido (governança, rastreabilidade, padronização) é processual: registro de quem/quando/porquê com trilha imutável de eventos. É o mesmo contrato de confiança do `savedBy`/identidade Windows do épico Plataforma, que a área já aceita. Se um dia houver autenticação real, o modelo de dados já registra tudo que ela precisaria assinar. |
+| **Custo aceito** | Uma aprovação pode ser forjada por quem editar o arquivo diretamente na pasta de rede — mitigado pelo histórico de versões/backups (`11-operacao.md` §2) e pela trilha de eventos, e explicitado na interface para ninguém supor segurança que não existe. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §2, §11; `01-visao-e-escopo.md` §2 |
+
+---
+
+## DEC-GOV-005: editor rico de blocos próprio, sem dependência nova
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `RichDoc` = lista de blocos tipados próprios (parágrafo, títulos, listas, tabela, imagem-anexo, callout, citação) com marcas inline mínimas, editado por componentes próprios sobre `contentEditable` por bloco. Nenhuma biblioteca de editor entra no bundle. |
+| **Data / gatilho** | 2026-08-13; a spec pede editor "tipo Word" e o orçamento do bundle é 1,5 MB com ~todas as folgas já consumidas pelas S19–20. |
+| **Alternativas** | (a) TipTap/ProseMirror — o padrão de mercado, mas ~150–300 KB gzip e dependência fora da lista do `02-arquitetura.md` §2; estouraria o orçamento ou forçaria novo aumento; (b) `contentEditable` livre com HTML salvo — HTML arbitrário no documento é indiffável, inseguro (sanitização) e quebra a promessa de `.json` legível; (c) Markdown puro em textarea — barato, mas sem tabela/imagem inline decentes, e a spec pede explicitamente imagens e tabelas. |
+| **Por quê** | Blocos JSON tipados dão o que o produto realmente precisa do editor: serialização estável, diff por bloco, validação Zod e zero dependência. O teto de sofisticação (sem colunas, sem merge de células, sem embeds) é aceitável para especificação de política. |
+| **Custo aceito** | Esforço de UI relevante (S34, Opus) e um editor menos polido que ProseMirror — colar do Word preserva texto e tabelas, não formatação completa. Imagens: ≤ 300 KB cada, redimensionadas no cliente, com aviso a partir de 3 MB de anexos no documento. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §7 |
+
+---
+
+## DEC-GOV-006: pacote para a fábrica em HTML imprimível + Markdown; .docx fora
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O pacote é gerado como HTML de impressão (mesma técnica do export atual) e Markdown baixável, a partir de um template por projeto (`factoryTemplate`) que carrega o boilerplate real dos DBs (checklist Serasa, comunicados). Export `.docx` não entra. |
+| **Data / gatilho** | 2026-08-13; os DBs 513/515/519 mostram ~70% de boilerplate idêntico redigitado a cada demanda. |
+| **Alternativas** | (a) gerar `.docx` com a lib `docx` — fidelidade ao formato atual, mas dependência nova (~100 KB+) e manutenção de layout Word dentro do bundle; (b) só Markdown — a fábrica recebe hoje Word; um `.md` cru quebraria o hábito sem ganho. |
+| **Por quê** | HTML imprimível vira PDF em um clique (hábito corporativo já existente) e preserva imagens/tabelas; Markdown serve automação futura. O documento é sempre **derivado** (RN-GOV-08) — regenerável, nunca editado à parte, o que elimina a deriva entre "o que foi aprovado" e "o que foi enviado". |
+| **Custo aceito** | A fábrica deixa de receber `.docx` editável. Se isso for bloqueio real na prática, uma DEC futura reavalia a lib `docx` contra o orçamento. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §8 |
+
+---
+
+## DEC-GOV-007: carga inicial via Markdown estruturado; IA fica fora do runtime
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A ferramenta importa **Markdown estruturado** (headings = hierarquia; blocos convencionados = campos do componente), com fluxo Importar→Identificar→Revisar→Confirmar e `origin` obrigatório. A conversão de Word/PDF para esse Markdown acontece fora da ferramenta — manualmente ou com IA (prompt de conversão fornecido na documentação da funcionalidade). |
+| **Data / gatilho** | 2026-08-13; a spec pede carga a partir de Word/PDF/imagens, e o runtime é zero-eval e zero-requisição-externa por restrição corporativa. |
+| **Alternativas** | (a) parser de `.docx` embutido (unzip + XML no cliente) — tecnicamente viável, mas Word real (o *Filtros e Critérios* tem anexos, tabelas irregulares, sumário) produziria estrutura ruim sem heurística pesada, inflando o bundle para um resultado que ainda exigiria revisão total; (b) esperar "evolução futura com IA" para carregar — adia o valor da árvore por meses. |
+| **Por quê** | O gargalo real não é parsear Word — é **decidir** o que é seção, o que é regra e o que é lixo. Essa decisão fica melhor num passo humano/IA fora da ferramenta, barato e auditável; o import dentro dela fica determinístico, testável e pequeno. Mesma filosofia da carga de matrizes: sempre iniciada por uma pessoa, com um arquivo em mãos. |
+| **Custo aceito** | Um passo manual a mais na primeira carga. Mitigado pelo prompt de conversão pronto e pelo fato de a carga inicial ser um evento raro por política. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §9 |
+
+---
+
+## DEC-GOV-008: release publica em lote, atômica, reutilizando a publicação existente
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `Release` agrupa DBs; publicar a release valida todos os rascunhos vinculados e publica tudo-ou-nada com a vigência de cada DB (RN-GOV-05), compondo os comandos de publicação existentes — mesma mecânica do `import/apply` da carga. |
+| **Data / gatilho** | 2026-08-13; o processo real da área sobe várias demandas juntas numa "subida" datada. |
+| **Alternativas** | (a) publicar DB a DB manualmente na data — funciona, mas o estado "o que entrou na subida de setembro" deixaria de existir como fato de primeira classe; (b) release com vigência única forçada para todos os DBs — contraria casos reais de vigências distintas aprovadas juntas. |
+| **Por quê** | Atomicidade em lote já tem precedente testado no produto (S24); reusar o padrão custa pouco e dá à área a resposta "o que mudou nessa release" de graça, via diff entre a fotografia anterior e a posterior. |
+| **Custo aceito** | Um DB pode ficar `READY_FOR_RELEASE` esperando a release inteira ficar pronta — fila explícita no painel de pendências. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3.4, §6 (RN-GOV-05) |
+
+---
+
+## DEC-GOV-009: schemaVersion 5, migração puramente aditiva
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O épico entra com `schemaVersion: 5` (a 4 já está ocupada pelo épico Plataforma — `meta.acl`, ADR-003, S29): coleções novas (`components`, `changeRequests`, `releases`, `attachments`) e kinds novos de catálogo (`MOTIVATOR`, `IMPACT_CATEGORY`), sem alterar a forma de nenhum campo existente. Migração 4→5 preenche as coleções com `[]`. |
+| **Data / gatilho** | 2026-08-13, desenho do épico GOV; renumerado de 4 para 5 ao consolidar com o épico Plataforma, priorizado antes na ordem de execução (26–31). |
+| **Alternativas** | Espalhar os campos por dentro de `Project`/`Matrix` sem subir o schema — esconderia uma mudança estrutural grande atrás de campos opcionais e quebraria a regra de que forma nova de documento = versão nova de schema. |
+| **Por quê** | Mesmo padrão das migrações 2→3 (S23) e 3→4 (S29), que já provaram o caminho: aditiva, testada com documento real da versão anterior e com a cadeia completa desde v1. |
+| **Custo aceito** | Documentos salvos por um `PolicyOps.html` novo não abrem em versões antigas do app — já é assim entre versões de schema anteriores; o aviso de versão existente cobre. |
+| **Páginas afetadas** | `03-modelo-do-documento.md` §1, §10 (S32); `14-governanca-de-alteracoes.md` §3.5 |
