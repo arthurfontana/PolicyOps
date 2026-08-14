@@ -19,6 +19,7 @@ import { diffVersions, type VersionDiff } from '@/core/diff';
 import { MIN_NOTES_LENGTH, publishVersion } from '@/core/versioning/lifecycle';
 import type { Matrix, MatrixVersion } from '@/core/document/schema';
 import { useDocumentStore } from '@/store/document-store';
+import { useRoleGate } from '@/hooks/useRole';
 
 export interface PublishVersionDialogProps {
   open: boolean;
@@ -76,6 +77,7 @@ export function PublishVersionDialog({
   const document = useDocumentStore((s) => s.document);
   const dispatch = useDocumentStore((s) => s.dispatch);
   const { toast } = useToast();
+  const roleGate = useRoleGate('version/publish');
 
   const [notes, setNotes] = useState('');
   const [schedule, setSchedule] = useState<'now' | 'scheduled'>('now');
@@ -106,7 +108,8 @@ export function PublishVersionDialog({
 
   const notesValid = notes.trim().length >= MIN_NOTES_LENGTH;
   const confirmValid = confirmNumber.trim() === String(version.number);
-  const canPublish = notesValid && confirmValid && (schedule === 'now' || scheduledDate !== '');
+  const canPublish =
+    notesValid && confirmValid && (schedule === 'now' || scheduledDate !== '') && roleGate.allowed;
 
   function handlePublish() {
     const effectiveFrom =
@@ -243,9 +246,17 @@ export function PublishVersionDialog({
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button type="button" disabled={!canPublish} onClick={handlePublish}>
+          <Button
+            type="button"
+            disabled={!canPublish}
+            onClick={handlePublish}
+            title={roleGate.reason ?? undefined}
+          >
             Publicar versão {version.number}
           </Button>
+          {roleGate.reason !== null && (
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">{roleGate.reason}</p>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

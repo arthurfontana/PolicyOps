@@ -12,6 +12,7 @@ import { usePersistenceStore } from '@/store/persistence-store';
 import { useUiStore } from '@/store/ui-store';
 import { useToast } from '@/components/ui/use-toast';
 import { groupBySeverity } from '@/storage/recovery';
+import { useEffectiveRole } from '@/hooks/useRole';
 
 /**
  * Tela do documento aberto. Até as telas de biblioteca e de matriz chegarem
@@ -29,6 +30,11 @@ export function DocumentScreen() {
   const readOnly = usePersistenceStore((s) => s.readOnly);
   const openedWithIssues = usePersistenceStore((s) => s.openedWithIssues);
   const { toast } = useToast();
+  const role = useEffectiveRole();
+  // READER nunca salva (docs/14 §6): a interface recusa aqui, e o servidor
+  // recusa de novo em `PUT /api/document` (403) se isso for contornado.
+  const roleBlocksSave = role === 'READER';
+  const saveReason = roleBlocksSave ? 'Requer papel EDITOR ou superior — você é READER.' : undefined;
 
   const [name, setName] = useState(document?.meta.name ?? '');
   useEffect(() => setName(document?.meta.name ?? ''), [document?.meta.name]);
@@ -76,6 +82,7 @@ export function DocumentScreen() {
           <Badge variant="secondary">{fileName}</Badge>
         )}
         {readOnly && <Badge variant="outline">somente leitura</Badge>}
+        {roleBlocksSave && <Badge variant="outline">papel READER — só consulta</Badge>}
       </div>
 
       {openedWithIssues !== null && (
@@ -140,7 +147,7 @@ export function DocumentScreen() {
             </span>
           </div>
           <div className="flex gap-2">
-            <Button onClick={() => void save()} disabled={readOnly}>
+            <Button onClick={() => void save()} disabled={readOnly || roleBlocksSave} title={saveReason}>
               <Save className="mr-2 h-4 w-4" /> Salvar
             </Button>
             <Button variant="secondary" onClick={() => void saveAs()}>

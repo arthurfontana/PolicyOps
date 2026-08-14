@@ -134,6 +134,13 @@ Comandos de eixo guardam no inverso **todas** as células afetadas — é o que 
 ### Templates
 `template/create` · `template/update` · `template/archive` · `template/instantiate`
 
+### Papéis
+| Comando | Entrada | Inverso |
+|---|---|---|
+| `acl/set` | `{ acl: Acl \| null }` — substitui `meta.acl` inteira; `null` volta ao modo aberto. Recusa (`ACL_REQUIRES_ADMIN`) se a lista resultante tiver `users` não vazio sem nenhum `ADMIN` | o próprio comando com a ACL anterior |
+
+`acl/set` gera `ACL_CHANGED` só quando `before` e `after` diferem (mesmo padrão de "nada mudou, sem evento" de `matrix/setTags`). Papel mínimo `ADMIN` — com a exceção estreita de §6 abaixo.
+
 ## 4. Consultas (puras, sem comando)
 
 Funções de leitura em `src/core/`, chamadas direto pelos componentes:
@@ -196,3 +203,35 @@ R1;Varejo;até 100k;Aprovado;Oferta Premium;LIM_5000;5000,00;#16A34A;
 ```
 
 Separador `;`, decimal com vírgula, UTF-8 **com BOM** — sem isso o Excel em português abre errado.
+
+## 6. Papéis mínimos por comando (gate do dispatcher, sessão 29)
+
+`src/store/document-store.ts#dispatch` (não `execute`, nem `undo`/`redo` — ver a nota no fim desta
+seção) checa o papel efetivo **antes** de rodar o comando: `resolveRole(document, identity.username)`
+contra `minRoleForCommand(command.type)`, os dois em `src/core/document/roles.ts`
+(`docs/14-plataforma-local.md` §6, ADR-003). Sem papel suficiente, `dispatch` devolve
+`{ ok: false, error }` com `DomainError('ROLE_REQUIRED', …)` — o comando **nunca roda**, documento e
+pilhas de undo ficam intocados, igual a qualquer outro erro de comando (§1 regra 4).
+
+| Papel mínimo | Comandos |
+|---|---|
+| `EDITOR` (piso padrão) | Todo comando de rascunho, biblioteca (variáveis, compatibilidade, catálogo), tags, eixos, projetos, templates e perfis de carga — qualquer `command.type` fora das duas linhas abaixo |
+| `PUBLISHER` | `version/publish`, `import/apply`, `matrix/archive` |
+| `ADMIN` | `acl/set` |
+
+Notas:
+
+- **Comandos internos** (prefixo `_`, ex. `catalog/_removeCreated`) nunca são despachados pela
+  interface — só aparecem como `inverse` de undo/redo, que chamam `execute` diretamente. Por isso o
+  gate não precisa (e não tenta) classificá-los: `minRoleForCommand` de um tipo desconhecido cai no
+  piso `EDITOR`, mas isso nunca é exercitado na prática.
+- **Undo/redo não passam pelo gate.** Reaplicar o inverso de um comando que o próprio usuário já
+  tinha permissão de disparar não deveria ficar bloqueado por uma ACL editada nesse meio-tempo — o
+  gate é sobre o que entra pela interface, não sobre desfazer o que já entrou.
+- **Bootstrap da ACL**: `acl/set` tem uma exceção estreita — em "modo aberto" (`isOpenMode(document)`,
+  `14-plataforma-local.md` §6: ACL ausente, vazia, ou populada sem nenhum `ADMIN`), o gate libera
+  `acl/set` mesmo com o papel efetivo em `PUBLISHER`. Sem isso, ninguém jamais poderia criar o
+  primeiro `ADMIN` — "o controle liga quando um ADMIN é definido" precisa de alguém que ligue.
+- O servidor local **não reavalia nada disto por comando** (ADR-002): `PUT /api/document` só recusa
+  o caso grosso de papel efetivo `READER` (`14-plataforma-local.md` §4). A tabela acima é inteiramente
+  responsabilidade do front.

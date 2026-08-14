@@ -34,8 +34,9 @@ Antes de haver documento aberto:
 ```
 
 - Sidebar e inspector colapsáveis (`[` e `]`).
-- Barra de status no rodapé: nome do arquivo, `Salvo` / `Alterações não salvas` / `Salvando…` / `Erro`, revisão, e quem detém o lock.
+- Barra de status no rodapé: nome do arquivo, `Salvo` / `Alterações não salvas` / `Salvando…` / `Erro`, revisão, quem detém o lock, a identidade (login do Windows no modo `SERVER`, nome digitado nos demais) e o **papel efetivo** no documento aberto (`READER`/`EDITOR`/`PUBLISHER`/`ADMIN` — `14-plataforma-local.md` §6, S29).
 - `Ctrl+S` salva. `Ctrl+Shift+S` salva como. Isso é explícito: o usuário decide quando publicar o arquivo para o time.
+- Ações que o papel efetivo não permite ficam desabilitadas com o motivo visível (`title` do botão e, nos casos mais visados — publicar, salvar —, um texto ao lado: *"Requer papel PUBLISHER — você é EDITOR."*). A sidebar ganha o item **Acesso** (§16) só para quem pode vê-lo.
 
 ## 3. Badges de estado
 
@@ -269,3 +270,23 @@ Um projeto com mais de algumas dezenas de matrizes não é navegável por lista.
 - Tag arquivada some dos filtros e do autocompletar, mas continua visível nas matrizes que já a têm, com a marca de arquivada — mesma regra dos demais itens de catálogo (`05-regras-de-negocio.md` §5.5).
 
 O filtro é estado de interface (`ui-store`), não do documento: ele não é salvo no `.json` nem viaja entre pessoas.
+
+## 16. Tela de acesso (ACL)
+
+Rota `#/acl`, atrás do papel `ADMIN` (`14-plataforma-local.md` §6, S29) — item **Acesso** na
+sidebar, visível só para `ADMIN`, e também em **modo aberto** (nenhuma ACL ainda, ou uma sem
+nenhum `ADMIN`), porque alguém precisa poder criar o primeiro `ADMIN`. Fora dessas duas
+condições, a rota mostra "Requer papel ADMIN — você é X" em vez do conteúdo.
+
+- **Lista de usuários**: login (`username`) e papel por linha, adicionar por formulário (login +
+  seletor de papel), remover por linha. Sem confirmação por linha — a mudança só grava ao clicar
+  em "Salvar lista de acesso"; "Descartar alterações" volta ao que está no documento.
+- **`defaultRole`**: seletor `READER`/`EDITOR` — o papel de quem não está na lista.
+- **A invariante "nunca sem ADMIN" trava no próprio botão de salvar**, não só avisa depois: se a
+  lista em edição tem usuários mas nenhum `ADMIN`, "Salvar" fica desabilitado com o motivo. Login
+  duplicado na lista em edição tem o mesmo efeito.
+- **Texto honesto** (mesma frase de `14-plataforma-local.md` §6, sempre visível no topo da tela):
+  isto é organização, não segurança — quem tem acesso de escrita à pasta de rede sempre pode
+  editar o arquivo do documento na mão, por fora da aplicação.
+- Zerar a lista de usuários e salvar volta o documento ao modo aberto (`meta.acl` removida, não
+  uma ACL com `users: []` — mesmo efeito para `resolveRole`, mas mantém o arquivo limpo).

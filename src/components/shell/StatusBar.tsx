@@ -1,6 +1,8 @@
 import { Circle, Loader2, Lock, TriangleAlert } from 'lucide-react';
 import { useUiStore } from '@/store/ui-store';
 import { useActor } from '@/hooks/useActor';
+import { useEffectiveRole } from '@/hooks/useRole';
+import { useDocumentStore } from '@/store/document-store';
 import { SAVE_STATUS_LABEL, usePersistenceStore } from '@/store/persistence-store';
 
 /**
@@ -19,6 +21,8 @@ function StatusIcon({ status }: { status: ReturnType<typeof usePersistenceStore.
 export function StatusBar() {
   const openIdentityDialog = useUiStore((s) => s.openIdentityDialog);
   const { actor } = useActor();
+  const role = useEffectiveRole();
+  const hasDocument = useDocumentStore((s) => s.document !== null);
 
   const fileName = usePersistenceStore((s) => s.fileName);
   const filePath = usePersistenceStore((s) => s.filePath);
@@ -93,7 +97,7 @@ export function StatusBar() {
           // Identidade resolvida pelo servidor (ADR-003) — não é editável
           // por aqui, e o diálogo "como você quer ser identificado?" não
           // existe neste modo (docs/02 §6).
-          <span title="Identidade resolvida pelo servidor local">
+          <span title="Identidade resolvida pelo login do Windows, pelo servidor local">
             {serverConnection?.displayName ?? serverConnection?.username ?? 'Anônimo'}
           </span>
         ) : (
@@ -101,10 +105,19 @@ export function StatusBar() {
             type="button"
             onClick={openIdentityDialog}
             className="rounded px-1.5 py-0.5 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
-            title="Trocar identificação"
+            title="Trocar identificação (nome digitado, não é login)"
           >
             {actor ?? 'Identificar-se'}
           </button>
+        )}
+        {hasDocument && (
+          <span
+            data-testid="effective-role"
+            title="Papel efetivo neste documento (docs/14-plataforma-local.md §6)"
+            className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] uppercase dark:bg-neutral-800"
+          >
+            {role}
+          </span>
         )}
       </div>
     </footer>

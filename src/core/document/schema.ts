@@ -605,6 +605,7 @@ export const DOC_EVENT_TYPES = [
   'IMPORT_RUN',
   'IMPORT_PROFILE_SAVED',
   'MATRIX_TAGGED',
+  'ACL_CHANGED',
 ] as const;
 
 export type DocEventType = (typeof DOC_EVENT_TYPES)[number];
@@ -651,6 +652,47 @@ export const DocEventSchema: z.ZodType<DocEvent> = z
 // ---------------------------------------------------------------------------
 // #region: 1-estrutura-de-topo
 
+/**
+ * Papéis de acesso (docs/14-plataforma-local.md §6, ADR-003). Ordem crescente
+ * de poder — `ROLE_RANK` em `./roles` depende desta ordem para comparação.
+ */
+export type Role = 'READER' | 'EDITOR' | 'PUBLISHER' | 'ADMIN';
+export const ROLES: readonly Role[] = ['READER', 'EDITOR', 'PUBLISHER', 'ADMIN'];
+export const RoleSchema: z.ZodType<Role> = z.enum(['READER', 'EDITOR', 'PUBLISHER', 'ADMIN']);
+
+/** Papel de quem não está na lista — nunca `PUBLISHER`/`ADMIN` (docs/14 §6). */
+export type DefaultRole = 'READER' | 'EDITOR';
+export const DefaultRoleSchema: z.ZodType<DefaultRole> = z.enum(['READER', 'EDITOR']);
+
+export type AclEntry = {
+  username: string;
+  role: Role;
+};
+
+export const AclEntrySchema: z.ZodType<AclEntry> = z
+  .object({
+    username: z.string().min(1),
+    role: RoleSchema,
+  })
+  .strict();
+
+/**
+ * ACL do documento (`meta.acl?`, schemaVersion 4, docs/14 §6). Ausente ou com
+ * `users` vazio = modo aberto: todo mundo é `PUBLISHER` (`resolveRole`, em
+ * `./roles`).
+ */
+export type Acl = {
+  users: AclEntry[];
+  defaultRole: DefaultRole;
+};
+
+export const AclSchema: z.ZodType<Acl> = z
+  .object({
+    users: z.array(AclEntrySchema),
+    defaultRole: DefaultRoleSchema,
+  })
+  .strict();
+
 export type DocumentMeta = {
   id: string;
   name: string;
@@ -660,6 +702,8 @@ export type DocumentMeta = {
   savedBy: string | null;
   appVersion: string;
   createdAt: string;
+  /** Papéis de acesso — ausente = modo aberto (docs/14 §6). */
+  acl?: Acl;
 };
 
 export const DocumentMetaSchema: z.ZodType<DocumentMeta> = z
@@ -672,11 +716,12 @@ export const DocumentMetaSchema: z.ZodType<DocumentMeta> = z
     savedBy: z.union([z.string().min(1), z.null()]),
     appVersion: z.string().min(1),
     createdAt: isoDateSchema,
+    acl: AclSchema.optional(),
   })
   .strict();
 
 export type PolicyOpsDocument = {
-  schemaVersion: 3;
+  schemaVersion: 4;
   meta: DocumentMeta;
   variables: Variable[];
   compatibility: CompatibilityRule[];
@@ -689,12 +734,13 @@ export type PolicyOpsDocument = {
 };
 
 /**
- * 3 desde a sessão 23 — `importProfiles` no topo do documento e migração
- * puramente aditiva 2 → 3 (docs/03 §7.1, §10, `migrate.ts`). `ImportProfile`
- * é importado de `../import/profile` (S21) em vez de redeclarado aqui — ver
- * o comentário em `./primitives` sobre o ciclo que essa importação evita.
+ * 4 desde a sessão 29 — `meta.acl?` opcional (papéis de acesso, docs/14 §6) e
+ * migração puramente aditiva 3 → 4 que não escreve `acl` nenhum (ausente =
+ * modo aberto, `migrate.ts`). `ImportProfile` é importado de `../import/profile`
+ * (S21) em vez de redeclarado aqui — ver o comentário em `./primitives` sobre
+ * o ciclo que essa importação evita.
  */
-export const CURRENT_SCHEMA_VERSION = 3 as const;
+export const CURRENT_SCHEMA_VERSION = 4 as const;
 
 export const PolicyOpsDocumentSchema: z.ZodType<PolicyOpsDocument> = z
   .object({

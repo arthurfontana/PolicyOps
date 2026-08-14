@@ -16,6 +16,7 @@ import { DraftsScreen } from '@/components/drafts/DraftsScreen';
 import { TimelineScreen } from '@/components/timeline/TimelineScreen';
 import { TemplatesScreen } from '@/components/templates/TemplatesScreen';
 import { ImportWizard } from '@/components/import/ImportWizard';
+import { AclScreen } from '@/components/library/AclScreen';
 import { IdentityDialog } from '@/components/dialogs/IdentityDialog';
 import { ConflictDialog } from '@/components/dialogs/ConflictDialog';
 import { MergeDialog } from '@/components/dialogs/MergeDialog';
@@ -64,6 +65,7 @@ function CurrentView() {
   if (view === 'timeline') return <TimelineScreen />;
   if (view === 'templates') return <TemplatesScreen />;
   if (view === 'import') return <ImportWizard />;
+  if (view === 'acl') return <AclScreen />;
   return <UnderConstruction view={view} />;
 }
 

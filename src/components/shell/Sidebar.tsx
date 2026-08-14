@@ -7,11 +7,14 @@ import {
   ListTree,
   PencilLine,
   Shuffle,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUiStore, type View } from '@/store/ui-store';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
+import { useEffectiveRole } from '@/hooks/useRole';
+import { isOpenMode } from '@/core/document/roles';
 import { listMatrices, listOpenDrafts, listProjects } from '@/core/queries';
 import { Badge } from '@/components/ui/badge';
 
@@ -147,10 +150,13 @@ function ProjectNav() {
   );
 }
 
+const ACL_ITEM: NavItem = { view: 'acl', label: 'Acesso', icon: ShieldCheck, implemented: true };
+
 export function Sidebar() {
   const view = useUiStore((s) => s.view);
   const setView = useUiStore((s) => s.setView);
   const document = useDocumentStore((s) => s.document);
+  const role = useEffectiveRole();
   const openDraftCount = document === null ? 0 : listOpenDrafts(document).length;
 
   return (
@@ -176,6 +182,14 @@ export function Sidebar() {
             count={item.view === 'drafts' ? openDraftCount : undefined}
           />
         ))}
+        {/*
+          ADMIN vê a tela de acesso; em modo aberto (sem ACL, ou sem nenhum
+          ADMIN na lista) ela também aparece para todo mundo — é como o
+          primeiro ADMIN nasce (docs/14-plataforma-local.md §6).
+        */}
+        {document !== null && (role === 'ADMIN' || isOpenMode(document)) && (
+          <NavButton item={ACL_ITEM} isActive={view === 'acl'} onClick={() => setView('acl')} />
+        )}
       </div>
     </nav>
   );

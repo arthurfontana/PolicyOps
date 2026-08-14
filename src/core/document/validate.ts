@@ -600,6 +600,55 @@ export function checkI20(doc: PolicyOpsDocument): ValidationIssue[] {
 }
 
 // ---------------------------------------------------------------------------
+// I23 — meta.acl: username único na lista (ERROR). Papel válido e username
+// não vazio já são garantidos pelo Zod (AclEntrySchema, invariant 'SCHEMA').
+// ---------------------------------------------------------------------------
+// #region: i23-acl-username-unico
+
+export function checkI23(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const acl = doc.meta.acl;
+  if (acl === undefined) return issues;
+
+  const seen = new Set<string>();
+  acl.users.forEach((entry, i) => {
+    if (seen.has(entry.username)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I23',
+        path: `meta.acl.users[${i}]`,
+        message: `O usuário "${entry.username}" aparece mais de uma vez na lista de acesso.`,
+      });
+    }
+    seen.add(entry.username);
+  });
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// I24 — ACL populada sem nenhum ADMIN é aviso, não erro: um documento externo
+// que chegue assim abre em modo aberto com aviso (a invariante dura de "nunca
+// ficar sem ADMIN" é de interface — docs/14-plataforma-local.md §6 —, não do
+// documento em si).
+// ---------------------------------------------------------------------------
+// #region: i24-acl-populada-sem-admin-e-aviso
+
+export function checkI24(doc: PolicyOpsDocument): ValidationIssue[] {
+  const acl = doc.meta.acl;
+  if (acl === undefined || acl.users.length === 0) return [];
+  if (acl.users.some((entry) => entry.role === 'ADMIN')) return [];
+  return [
+    {
+      severity: 'WARNING',
+      invariant: 'I24',
+      path: 'meta.acl.users',
+      message:
+        'A lista de acesso não tem nenhum ADMIN — o documento abre em modo aberto (todos PUBLISHER) até alguém virar ADMIN.',
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // I21 / I22 — ImportProfile: code único no documento, projectId existente,
 // colunas e regras de decisão estruturalmente corretas (I21), variableId de
 // cada coluna de eixo apontando para variável existente (I22). A checagem em
@@ -1136,6 +1185,8 @@ function runAllChecks(doc: PolicyOpsDocument): ValidationIssue[] {
     ...checkI18(doc),
     ...checkI19(doc),
     ...checkI20(doc),
+    ...checkI23(doc),
+    ...checkI24(doc),
     ...checkImportProfiles(doc),
     ...checkPositions(doc),
   ];

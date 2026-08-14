@@ -16,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  ShieldCheck,
   Shuffle,
   SquarePen,
   StickyNote,
@@ -75,6 +76,7 @@ const EVENT_ICONS: Record<DocEventType, LucideIcon> = {
   IMPORT_RUN: Upload,
   IMPORT_PROFILE_SAVED: Save,
   MATRIX_TAGGED: Tag,
+  ACL_CHANGED: ShieldCheck,
 };
 
 const ALL_FILTER = 'TODOS';

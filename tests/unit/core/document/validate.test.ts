@@ -22,6 +22,8 @@ import {
   checkI17,
   checkI18,
   checkI19,
+  checkI23,
+  checkI24,
   checkPositions,
   validateDocument,
 } from '@/core/document/validate';
@@ -819,6 +821,75 @@ describe('I18 — todo code é único no seu escopo', () => {
     const issues = checkI18(doc);
     expect(issues.some((i) => i.invariant === 'I18')).toBe(true);
     expect(issues.every((i) => i.severity === 'WARNING')).toBe(true);
+    expect(validateDocument(doc).ok).toBe(true);
+  });
+});
+
+describe('I23 — meta.acl: username único na lista de acesso', () => {
+  it('válido: acl ausente', () => {
+    expect(checkI23(base())).toEqual([]);
+  });
+
+  it('válido: usernames distintos', () => {
+    const doc = base();
+    doc.meta.acl = {
+      users: [
+        { username: 'jsilva', role: 'ADMIN' },
+        { username: 'msouza', role: 'EDITOR' },
+      ],
+      defaultRole: 'READER',
+    };
+    expect(checkI23(doc)).toEqual([]);
+    expect(validateDocument(doc).ok).toBe(true);
+  });
+
+  it('inválido (ERROR): username repetido na lista', () => {
+    const doc = base();
+    doc.meta.acl = {
+      users: [
+        { username: 'jsilva', role: 'ADMIN' },
+        { username: 'jsilva', role: 'EDITOR' },
+      ],
+      defaultRole: 'READER',
+    };
+    const issues = checkI23(doc);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.severity).toBe('ERROR');
+    expect(issues[0]!.invariant).toBe('I23');
+    expect(validateDocument(doc).ok).toBe(false);
+  });
+});
+
+describe('I24 — ACL populada sem nenhum ADMIN é WARNING (modo aberto com aviso)', () => {
+  it('sem issue: acl ausente', () => {
+    expect(checkI24(base())).toEqual([]);
+  });
+
+  it('sem issue: acl com users vazio', () => {
+    const doc = base();
+    doc.meta.acl = { users: [], defaultRole: 'READER' };
+    expect(checkI24(doc)).toEqual([]);
+  });
+
+  it('sem issue: acl com ao menos um ADMIN', () => {
+    const doc = base();
+    doc.meta.acl = { users: [{ username: 'jsilva', role: 'ADMIN' }], defaultRole: 'READER' };
+    expect(checkI24(doc)).toEqual([]);
+  });
+
+  it('WARNING, não ERROR: acl populada sem nenhum ADMIN não bloqueia validateDocument', () => {
+    const doc = base();
+    doc.meta.acl = {
+      users: [
+        { username: 'jsilva', role: 'EDITOR' },
+        { username: 'msouza', role: 'PUBLISHER' },
+      ],
+      defaultRole: 'READER',
+    };
+    const issues = checkI24(doc);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]!.severity).toBe('WARNING');
+    expect(issues[0]!.invariant).toBe('I24');
     expect(validateDocument(doc).ok).toBe(true);
   });
 });

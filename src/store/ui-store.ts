@@ -18,7 +18,8 @@ export type View =
   | 'drafts'
   | 'matrix'
   | 'compare'
-  | 'import';
+  | 'import'
+  | 'acl';
 
 export type Theme = 'light' | 'dark';
 
@@ -38,6 +39,7 @@ export const HASH_BY_VIEW: Record<View, string> = {
   matrix: '#/matrix',
   compare: '#/compare',
   import: '#/import',
+  acl: '#/acl',
 };
 
 const VIEW_BY_HASH: Partial<Record<string, View>> = Object.fromEntries(

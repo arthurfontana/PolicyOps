@@ -12,6 +12,7 @@ const regionalFixturePath = fileURLToPath(
   new URL('../../../fixtures/regional-v1-document.json', import.meta.url),
 );
 const v2FixturePath = fileURLToPath(new URL('../../../fixtures/v2-document.json', import.meta.url));
+const v3FixturePath = fileURLToPath(new URL('../../../fixtures/v3-document.json', import.meta.url));
 
 function readRegionalFixture(): Record<string, unknown> {
   return JSON.parse(readFileSync(regionalFixturePath, 'utf-8')) as Record<string, unknown>;
@@ -19,6 +20,11 @@ function readRegionalFixture(): Record<string, unknown> {
 
 function readV2Fixture(): Record<string, unknown> {
   return JSON.parse(readFileSync(v2FixturePath, 'utf-8')) as Record<string, unknown>;
+}
+
+/** Documento real de schemaVersion 3 — `sample-document.json` antes da migração da S29. */
+function readV3Fixture(): Record<string, unknown> {
+  return JSON.parse(readFileSync(v3FixturePath, 'utf-8')) as Record<string, unknown>;
 }
 
 function omit(obj: Record<string, unknown>, keys: string[]): Record<string, unknown> {
@@ -72,10 +78,11 @@ describe('migração 1 → 2: regionalDimension → groupingDimensions', () => {
     expect(result.migrationsApplied).toEqual([
       'Sessão 20: regionalDimension/regionalRanges → groupingDimensions/groupingRanges.',
       'Sessão 23: acrescenta importProfiles: [] (tags de matriz e grupo de tag são opcionais).',
+      'Sessão 29: meta.acl? opcional (papéis de acesso) — nenhum campo é escrito.',
     ]);
 
     const doc = result.document as Record<string, never>;
-    expect(doc.schemaVersion).toBe(3);
+    expect(doc.schemaVersion).toBe(4);
     expect(doc.importProfiles).toEqual([]);
 
     const version = (doc.variables as never[])[0]!.versions[0]!;
@@ -176,10 +183,11 @@ describe('migração 2 → 3: importProfiles', () => {
 
     expect(result.migrationsApplied).toEqual([
       'Sessão 23: acrescenta importProfiles: [] (tags de matriz e grupo de tag são opcionais).',
+      'Sessão 29: meta.acl? opcional (papéis de acesso) — nenhum campo é escrito.',
     ]);
 
     const after = result.document as Record<string, unknown>;
-    expect(after.schemaVersion).toBe(3);
+    expect(after.schemaVersion).toBe(4);
     expect(after.importProfiles).toEqual([]);
 
     const beforeRest = omit(before, ['schemaVersion']);
@@ -201,17 +209,55 @@ describe('migração 2 → 3: importProfiles', () => {
     expect(raw).toEqual(snapshot);
   });
 
-  it('documento v1 continua migrando em cadeia 1 → 2 → 3', () => {
+  it('documento v1 continua migrando em cadeia 1 → 2 → 3 → 4', () => {
     const result = migrateDocument(readRegionalFixture());
-    expect(result.migrationsApplied).toHaveLength(2);
-    expect((result.document as Record<string, unknown>).schemaVersion).toBe(3);
+    expect(result.migrationsApplied).toHaveLength(3);
+    expect((result.document as Record<string, unknown>).schemaVersion).toBe(4);
     expect(validateDocument(result.document).ok).toBe(true);
   });
+});
 
-  it('documento schemaVersion 4 é recusado com DOCUMENT_SCHEMA_TOO_NEW', () => {
+/**
+ * Migração 3 → 4 (sessão 29) — docs/03-modelo-do-documento.md §10. Puramente
+ * aditiva e, mais que isso, não escreve nenhum campo: `meta.acl` ausente já É
+ * o estado migrado ("modo aberto", docs/14-plataforma-local.md §6). A fixture
+ * é `sample-document.json` como estava antes desta sessão (schemaVersion 3).
+ */
+describe('migração 3 → 4: meta.acl (aditiva, nada escrito)', () => {
+  it('só troca o schemaVersion — o resto do documento é idêntico campo a campo', () => {
+    const before = readV3Fixture();
+    const result = migrateDocument(before);
+
+    expect(result.migrationsApplied).toEqual([
+      'Sessão 29: meta.acl? opcional (papéis de acesso) — nenhum campo é escrito.',
+    ]);
+
+    const after = result.document as Record<string, unknown>;
+    expect(after.schemaVersion).toBe(4);
+    expect(omit(after, ['schemaVersion'])).toEqual(omit(before, ['schemaVersion']));
+
+    const meta = after.meta as Record<string, unknown>;
+    expect(meta.acl).toBeUndefined();
+  });
+
+  it('o documento migrado passa por validateDocument sem nenhum ERROR', () => {
+    const result = migrateDocument(readV3Fixture());
+    const validated = validateDocument(result.document);
+    if (!validated.ok) expect(validated.issues).toEqual([]);
+    expect(validated.ok).toBe(true);
+  });
+
+  it('não muta o objeto recebido', () => {
+    const raw = readV3Fixture();
+    const snapshot = structuredClone(raw);
+    migrateDocument(raw);
+    expect(raw).toEqual(snapshot);
+  });
+
+  it('documento schemaVersion 5 é recusado com DOCUMENT_SCHEMA_TOO_NEW', () => {
     expect.assertions(3);
     try {
-      migrateDocument({ ...readV2Fixture(), schemaVersion: 4 });
+      migrateDocument({ ...readV3Fixture(), schemaVersion: 5 });
     } catch (error) {
       expect(isDomainError(error)).toBe(true);
       if (isDomainError(error)) {
@@ -274,11 +320,25 @@ describe('applyMigrations — infraestrutura de encadeamento', () => {
           return { ...doc, schemaVersion: 3 };
         },
       },
+      {
+        from: 3,
+        to: 4,
+        description: 'fictícia 3 → 4',
+        migrate: (doc) => {
+          applied.push(3);
+          return { ...doc, schemaVersion: 4 };
+        },
+      },
     ];
 
     const result = applyMigrations({ schemaVersion: 0 }, chain);
-    expect(applied).toEqual([0, 1, 2]);
-    expect(result.migrationsApplied).toEqual(['fictícia 0 → 1', 'fictícia 1 → 2', 'fictícia 2 → 3']);
+    expect(applied).toEqual([0, 1, 2, 3]);
+    expect(result.migrationsApplied).toEqual([
+      'fictícia 0 → 1',
+      'fictícia 1 → 2',
+      'fictícia 2 → 3',
+      'fictícia 3 → 4',
+    ]);
   });
 
   it('falha com DOCUMENT_INVALID quando não há caminho de migração para a versão atual', () => {
