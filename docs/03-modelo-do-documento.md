@@ -6,7 +6,7 @@
 
 ```ts
 type PolicyOpsDocument = {
-  schemaVersion: 3;                // 1 até a sessão 18; migrado na leitura (§10)
+  schemaVersion: 4;                // 1 até a sessão 18; migrado na leitura (§10)
   meta: DocumentMeta;
   variables: Variable[];
   compatibility: CompatibilityRule[];
@@ -27,6 +27,15 @@ type DocumentMeta = {
   savedBy: string | null;   // nome informado pelo usuário
   appVersion: string;       // versão do PolicyOps.html que salvou
   createdAt: string;
+  acl?: Acl;                 // papéis de acesso — ausente = modo aberto (sessão 29, §9, I23/I24)
+};
+
+/** Papéis de acesso do documento — `14-plataforma-local.md` §6, ADR-003. */
+type Role = 'READER' | 'EDITOR' | 'PUBLISHER' | 'ADMIN';
+
+type Acl = {
+  users: Array<{ username: string; role: Role }>;
+  defaultRole: 'READER' | 'EDITOR';   // papel de quem não está na lista
 };
 ```
 
@@ -424,7 +433,8 @@ type DocEventType =
   | 'VERSION_PUBLISHED' | 'VERSION_SUPERSEDED' | 'NOTE_ADDED'
   | 'VARIABLE_PUBLISHED' | 'COMPATIBILITY_PUBLISHED'
   | 'CATALOG_CHANGED'
-  | 'IMPORT_RUN' | 'IMPORT_PROFILE_SAVED' | 'MATRIX_TAGGED';
+  | 'IMPORT_RUN' | 'IMPORT_PROFILE_SAVED' | 'MATRIX_TAGGED'
+  | 'ACL_CHANGED';
 ```
 
 `IMPORT_RUN` é o evento de nível de documento que registra uma carga inteira (arquivo, hash,
@@ -436,7 +446,7 @@ a originou (`12-carga-de-matrizes.md` US-10).
 
 ## 9. Invariantes
 
-Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas **na leitura do arquivo** e **antes de todo salvamento** — exceto I8, I9, I19 e a unicidade de código de domínio de I18, que são avisos não bloqueantes (nota após a tabela).
+Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas **na leitura do arquivo** e **antes de todo salvamento** — exceto I8, I9, I19, I24 e a unicidade de código de domínio de I18, que são avisos não bloqueantes (nota após a tabela).
 
 | # | Invariante |
 |---|---|
@@ -462,8 +472,12 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I20 | Toda entrada de `Matrix.tags` aponta para um `CatalogItem` existente de kind `TAG`, e não há repetição dentro da mesma matriz |
 | I21 | `ImportProfile.code` é único no documento; `projectId` aponta para projeto existente; `columns` tem ao menos uma coluna `PARTITION` e ao menos um nível de eixo em cada eixo, com níveis contíguos a partir de 0; `decisionRules` termina com exatamente uma regra `otherwise` |
 | I22 | Todo `variableId` referenciado por `ImportProfile.columns[].axis` aponta para variável existente |
+| I23 | Se `meta.acl` está presente, todo `username` de `acl.users` é único na lista |
+| I24 | Se `meta.acl` está presente com `users` não vazio, ao menos um `AclEntry` tem `role: 'ADMIN'` (aviso não bloqueante — nota após a tabela) |
 
 **I19 é deliberadamente mais fraca que a antiga regra de completude regional.** Não existe invariante exigindo que todo domínio `RANGE` tenha uma entrada em `groupingRanges` para toda combinação possível de opções — hierarquias reais são assimétricas (nem toda Regional tem MEI, por exemplo), e forçar o preenchimento de combinações que não existem no negócio seria pior do que não validar nada. O editor de domínios (`07-ux-e-editor.md` §11) ainda **avisa** (não bloqueia) quando um `path` usado por alguns domínios está ausente por completo de outros — o caso provável de "esqueci de colar uma linha" — mas isso é um aviso de UX, não uma falha de I19.
+
+**I24 é aviso, não erro, pelo mesmo motivo do "documento externo" de `14-plataforma-local.md` §6**: uma ACL populada sem nenhum `ADMIN` não pode travar quem abre o arquivo fora do controle da aplicação — `resolveRole` (`src/core/document/roles.ts`) trata esse caso como modo aberto (todo mundo `PUBLISHER`) na hora de resolver o papel efetivo, e `checkI24` só avisa que a lista está nesse estado.
 
 **I8, I9, I19 e a unicidade de código de domínio de I18 (dentro de `version.domains`) são avisos não bloqueantes, não invariantes garantidas.** `checkI8`, `checkI9` e `checkI19` (e a checagem de código duplicado de domínio dentro de `checkI18`) produzem `ValidationIssue` com `severity: 'WARNING'` em vez de `'ERROR'` — não derrubam `validateDocument().ok`, então não impedem `variable/saveDomains`, `variable/publish` nem a gravação do arquivo (`prepareSave`, `06-persistencia-e-concorrencia.md` §4). Um documento salvo pode ter uma variável `BOOLEAN` com número errado de domínios, faixas `RANGE` não contíguas ou sobrepostas, ou um agrupamento com `path` inválido — a interface continua avisando em tempo real (`07-ux-e-editor.md` §11), mas quem decide se aquilo é aceitável é quem edita a política, não a aplicação. O restante de I18 (código de variável, de regra de compatibilidade, de item de catálogo, de projeto, de matriz, de template) continua `ERROR` — são identificadores referenciados em todo o documento, fora do escopo desta mudança.
 
@@ -471,7 +485,7 @@ Falha de invariante na leitura **não descarta o arquivo**: a aplicação abre e
 
 ## 10. Versionamento do schema e migração
 
-`schemaVersion` no topo. `src/core/document/migrate.ts` aplica migrações em cadeia (`1 → 2 → 3`) ao abrir um arquivo mais antigo, e recusa arquivos mais novos que a aplicação, com a mensagem: *"Este arquivo foi salvo por uma versão mais nova do PolicyOps. Atualize o PolicyOps.html."*
+`schemaVersion` no topo. `src/core/document/migrate.ts` aplica migrações em cadeia (`1 → 2 → 3 → 4`) ao abrir um arquivo mais antigo, e recusa arquivos mais novos que a aplicação, com a mensagem: *"Este arquivo foi salvo por uma versão mais nova do PolicyOps. Atualize o PolicyOps.html."*
 
 Migrações são funções puras, testadas com fixtures reais em `tests/fixtures/`.
 
@@ -490,6 +504,8 @@ Documentos sem `regionalDimension` em nenhuma variável passam por `schemaVersio
 - `CatalogItem.group` permanece ausente em todo item existente.
 
 Um documento `schemaVersion: 2` migrado e reserializado difere do original apenas pelo campo `importProfiles: []` e pelo número de versão. A migração é testada com as fixtures reais das sessões anteriores, comparando o resto do documento por igualdade estrutural.
+
+**Migração 3 → 4 (sessão 29): `meta.acl?`.** A mais simples de todas: aditiva a ponto de **não escrever nenhum campo**. `meta.acl` é opcional, e sua ausência **é** o estado migrado — "modo aberto" (`14-plataforma-local.md` §6). A migração só troca o número de `schemaVersion`; todo o resto do documento fica byte a byte igual. Testada com `sample-document.json` como estava antes desta sessão (`tests/fixtures/v3-document.json`).
 
 ## 11. Documento de exemplo
 

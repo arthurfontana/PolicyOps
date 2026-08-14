@@ -170,6 +170,30 @@
 > real, `pip install` do índice e via `--no-index --find-links`, `launcher.py` de ponta a ponta:
 > health → navegador → salvar → reabrir → `Ctrl+C` limpo) documentado no PR.
 
+> **Sessão 29 entregue — marco M8 fechado.** `schemaVersion: 4`: `meta.acl?` opcional
+> (`users: Array<{ username, role }>`, `defaultRole`), migração 3 → 4 puramente aditiva a ponto de
+> não escrever nenhum campo (`meta.acl` ausente já é o estado migrado). `resolveRole(doc, username)`
+> (`src/core/document/roles.ts`, puro): ACL ausente, vazia, ou populada sem nenhum `ADMIN` é modo
+> aberto (`isOpenMode`, todo mundo `PUBLISHER`); listado, o papel da lista; não listado,
+> `defaultRole`. O gate central fica no `dispatch` de `document-store.ts` — nunca em `execute`,
+> `undo` nem `redo` —, comparando `minRoleForCommand(command.type)` contra o papel efetivo antes de
+> rodar qualquer comando, com uma exceção estreita para `acl/set` em modo aberto poder criar o
+> primeiro `ADMIN` (DEC-PLAT-004). Comando novo `acl/set` substitui `meta.acl` inteira, recusa
+> (`ACL_REQUIRES_ADMIN`) ficar sem nenhum `ADMIN`, e gera `ACL_CHANGED` com `{ before, after }`. No
+> servidor, `resolve_effective_role()` deriva o papel de `meta.acl` lido direto do disco
+> (defensivo — arquivo ilegível cai em modo aberto) a cada chamada de `whoami` e de `PUT
+> /api/document`, que passa a recusar com `403 FORBIDDEN` quem tem papel efetivo `READER` — antes
+> de qualquer outra checagem. A tela `#/acl` (atrás de `ADMIN`, e liberada em modo aberto para o
+> bootstrap) lista usuários e `defaultRole`, trava o botão de salvar se a lista ficaria sem `ADMIN`,
+> e mostra o texto honesto de `14` §6 ("organização, não segurança"). A identidade estruturada
+> (`{ username, source: 'windows' | 'typed' }`) vive em `document-store.identity`, separada do
+> `actor` de exibição — corrige um gap real do S27: `savedBy`/lock já usavam o login resolvido por
+> `whoami`, mas `DocEvent.actor`/`createdBy` ainda vinham do nome digitado em `localStorage`, mesmo
+> no modo `SERVER`. 41 testes de unidade novos (`resolveRole`/gate por linha da tabela de papéis,
+> migração 3→4 com fixture real, `checkI23`/`checkI24`) mais 11 pytest (`whoami` com ACL
+> ausente/vazia/populada/sem ADMIN, `403` para `READER`, `403` antes do hash) e 1 E2E que sobe o
+> servidor real com uma ACL definindo o usuário do SO como `READER` e confirma as duas camadas.
+
 > **Sessão 31 entregue.** `CLAUDE.md` reescrito como índice em camadas (114 linhas, teto de 450
 > guardado por `pnpm check:claude-md` — `scripts/check-claude-md.mjs`, registrado no CI logo após
 > `pnpm install`), com a tabela "Onde vive o quê" cobrindo os 12 domínios pedidos mais 5 extras

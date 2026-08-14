@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Command, Ctx } from '@/core/command';
 import { defineCommand, irreversible } from '@/core/command';
-import { createProject, updateProject } from '@/core/document/commands';
-import type { PolicyOpsDocument } from '@/core/document/schema';
+import { createProject, setAcl, updateProject } from '@/core/document/commands';
+import type { Acl, PolicyOpsDocument, Role } from '@/core/document/schema';
 import { validateDocument } from '@/core/document/validate';
 import { applyCellPatch } from '@/core/versioning/cells';
 import {
@@ -293,6 +293,110 @@ describe('undo e redo', () => {
     expect(result?.ok).toBe(false);
     expect(result && !result.ok && result.error.code).toBe('VERSION_IMMUTABLE');
     expect(store().document).toBe(publicado);
+  });
+});
+
+/** Comando de fachada: só existe para o gate de papéis enxergar um `type` real sem montar fixtures de versão/matriz. */
+function fakeCommand(type: string): Command<unknown, void> {
+  return defineCommand({
+    type,
+    input: undefined,
+    label: type,
+    execute: (document) => ({
+      document,
+      data: undefined,
+      events: [],
+      inverse: irreversible(`"${type}" é só de teste, sem inverso.`),
+    }),
+  });
+}
+
+function documentWithAcl(acl: Acl | undefined): PolicyOpsDocument {
+  const doc = baseDocument();
+  if (acl === undefined) delete doc.meta.acl;
+  else doc.meta.acl = acl;
+  return doc;
+}
+
+describe('gate de papéis no dispatch (docs/14-plataforma-local.md §6, docs/08 §3)', () => {
+  const ACL: Acl = {
+    users: [
+      { username: 'admin1', role: 'ADMIN' },
+      { username: 'pub1', role: 'PUBLISHER' },
+      { username: 'ed1', role: 'EDITOR' },
+      { username: 'read1', role: 'READER' },
+    ],
+    defaultRole: 'READER',
+  };
+
+  function resetAs(username: string): void {
+    reset(documentWithAcl(ACL));
+    useDocumentStore.getState().setIdentity({ username, source: 'typed' });
+  }
+
+  it('sem ACL (modo aberto): qualquer identidade dispara qualquer comando, inclusive acl/set', () => {
+    reset(documentWithAcl(undefined));
+    useDocumentStore.getState().setIdentity({ username: 'ninguem-na-lista', source: 'typed' });
+    expect(store().dispatch(fakeCommand('version/publish')).ok).toBe(true);
+    expect(store().dispatch(fakeCommand('acl/set')).ok).toBe(true);
+  });
+
+  it.each<[Role, string, string, boolean]>([
+    ['READER', 'read1', 'version/createDraft', false],
+    ['EDITOR', 'ed1', 'version/createDraft', true],
+    ['EDITOR', 'ed1', 'version/publish', false],
+    ['PUBLISHER', 'pub1', 'version/publish', true],
+    ['PUBLISHER', 'pub1', 'import/apply', true],
+    ['PUBLISHER', 'pub1', 'matrix/archive', true],
+    ['PUBLISHER', 'pub1', 'acl/set', false],
+    ['ADMIN', 'admin1', 'acl/set', true],
+    ['ADMIN', 'admin1', 'version/createDraft', true],
+    ['ADMIN', 'admin1', 'version/publish', true],
+  ])('%s (%s) → %s: permitido = %s', (_role, username, commandType, allowed) => {
+    resetAs(username);
+    const result = store().dispatch(fakeCommand(commandType));
+    expect(result.ok).toBe(allowed);
+    if (!allowed) {
+      expect(!result.ok && result.error.code).toBe('ROLE_REQUIRED');
+      expect(!result.ok && result.error.message).toContain('Requer papel');
+    }
+  });
+
+  it('username não listado usa o defaultRole da ACL', () => {
+    resetAs('alguem-fora-da-lista');
+    expect(store().dispatch(fakeCommand('version/createDraft')).ok).toBe(false); // defaultRole READER
+  });
+
+  it('ROLE_REQUIRED não altera o documento nem empilha undo', () => {
+    resetAs('read1');
+    const before = store().document;
+    const result = store().dispatch(fakeCommand('version/createDraft'));
+    expect(result.ok).toBe(false);
+    expect(store().document).toBe(before);
+    expect(store().undoStack).toHaveLength(0);
+  });
+
+  it('undo/redo não passam pelo gate (executam o inverso de um comando já permitido)', () => {
+    resetAs('ed1');
+    const result = store().dispatch(createProject({ code: 'PROJ_C', name: 'C' }));
+    expect(result.ok).toBe(true);
+    // Rebaixa a própria identidade para READER só depois de já ter editado —
+    // undo() ainda deve funcionar, porque quem gatilha é `execute`, não `dispatch`.
+    useDocumentStore.getState().setIdentity({ username: 'read1', source: 'typed' });
+    const undone = store().undo();
+    expect(undone?.ok).toBe(true);
+  });
+
+  it('acl/set (ADMIN) troca a ACL e o inverso restaura a anterior', () => {
+    resetAs('admin1');
+    const next: Acl = { users: [{ username: 'admin1', role: 'ADMIN' }], defaultRole: 'EDITOR' };
+    const result = store().dispatch(setAcl({ acl: next }));
+    expect(result.ok).toBe(true);
+    expect(store().document!.meta.acl).toEqual(next);
+    expect(store().document!.events.at(-1)!.type).toBe('ACL_CHANGED');
+
+    store().undo();
+    expect(store().document!.meta.acl).toEqual(ACL);
   });
 });
 

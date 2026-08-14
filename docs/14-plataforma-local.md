@@ -111,7 +111,8 @@ Regras transversais da API:
 - **Envelope de erro uniforme**: `{ code, detail, ...extra }`, sempre com `X-PolicyOps-Api`.
   Códigos da v1: `UNAUTHORIZED` (401), `BAD_REQUEST` e `INVALID_JSON` (400), `NOT_FOUND` e
   `HTML_NOT_FOUND` (404), `CONFLICT` (409, com `remoteRaw`/`remoteHash`), `LOCK_NOT_OWNED` (409),
-  `LOCKED` (423, com `lock`), `NOT_UTF8` (422), `IO` (500).
+  `LOCKED` (423, com `lock`), `NOT_UTF8` (422), `FORBIDDEN` (403, papel efetivo `READER` em
+  `PUT /api/document` — S29, §6), `IO` (500).
 - **Lock**: o servidor escreve o mesmo `{nome}.lock.json` do modo `FULL` e acrescenta um campo
   aditivo `username`, que passa a ser o critério de propriedade (o `holder` continua sendo o
   rótulo exibido: `displayName` ou o login). Lock escrito pelo modo `FULL`, sem `username`, é
@@ -152,15 +153,18 @@ documentação continuam honestas sobre isso (§6).
 ### Identidade
 
 O servidor resolve o usuário **uma vez, no boot**, pelo login de rede do Windows
-(`getpass.getuser()`), e o carimba em toda operação. O diálogo atual "como você quer ser
-identificado?" deixa de existir no modo `SERVER`: `savedBy`, eventos de auditoria, lock e
-evidências passam a registrar `{ username, displayName }` — `username` é o login (imutável),
-`displayName` é opcional e editável (apenas cosmético). Nos modos sem servidor, o comportamento
-atual (nome digitado) permanece, e a auditoria marca a procedência: `source: 'windows' | 'typed'`.
+(`getpass.getuser()`), e o carimba em toda operação. O diálogo "como você quer ser identificado?"
+não existe no modo `SERVER`: `savedBy`, o `actor` de todo evento de auditoria e o `holder` do lock
+continuam sendo a mesma string legível de sempre (`displayName ?? username`, sem mudança de forma
+no schema) — o que muda é a fonte: vem de `GET /api/whoami`, não do nome digitado. Em paralelo, o
+front guarda a identidade **estruturada** `{ username, source: 'windows' | 'typed' }`
+(`src/store/document-store.ts`, campo `identity`) só para resolver papel: `username` é o login
+(imutável, nunca o `displayName`), e é contra ele que `resolveRole` casa `acl.users[].username`.
+Nos modos sem servidor, `username` e o nome digitado são o mesmo valor, com `source: 'typed'`.
 
 ### Papéis
 
-O documento ganha, no `meta`, uma ACL (`schemaVersion: 4`, migração puramente aditiva):
+O documento ganha, no `meta`, uma ACL (`schemaVersion: 4`, migração puramente aditiva — S29):
 
 ```ts
 meta.acl?: {
@@ -176,18 +180,32 @@ meta.acl?: {
 | `PUBLISHER` | + publicar versões, aplicar carga, restaurar/arquivar matriz |
 | `ADMIN` | + editar a própria ACL |
 
+`resolveRole(doc, username)` (`src/core/document/roles.ts`) resolve o papel efetivo: listado → o
+papel da lista; não listado → `defaultRole`; ACL ausente, vazia, **ou populada sem nenhum
+`ADMIN`** → **modo aberto**, todo mundo `PUBLISHER` — as três condições que `isOpenMode(doc)`
+também reconhece. As três colapsam no mesmo caso porque uma ACL sem `ADMIN` é tão inoperante
+quanto nenhuma: ninguém poderia mais editá-la de volta pela tela.
+
 Regras:
 
-- **ACL ausente ou vazia = modo aberto** (todos `PUBLISHER`) — compatibilidade com o documento
-  existente e com times que não querem controle. O controle liga quando um `ADMIN` é definido.
+- **Modo aberto** (as três condições acima) é compatibilidade com o documento existente e com
+  times que não querem controle — todos `PUBLISHER`. O controle liga quando um `ADMIN` é definido.
 - Enforcement em duas camadas: a **interface** desabilita o que o papel não permite (com o
-  motivo visível), e o **servidor** recusa `PUT /api/document` de quem tem papel efetivo
-  `READER` (`403`). O servidor não re-deriva permissões finas por comando — a camada fina é da
-  aplicação. É controle de acidente e de organização, não defesa contra usuário malicioso
-  (que sempre poderá editar o arquivo na mão; §5).
-- A ACL nunca pode ficar sem `ADMIN` por edição da própria tela (invariante de interface); um
-  documento externo que chegue assim abre em modo aberto com aviso.
-- Toda mudança de ACL gera evento de auditoria (`ACL_CHANGED`, com antes/depois).
+  motivo visível, "Requer papel X — você é Y."), e o **servidor** recusa `PUT /api/document` de
+  quem tem papel efetivo `READER` (`403 FORBIDDEN`). O servidor não re-deriva permissões finas
+  por comando — a camada fina é o gate do `dispatch` do front (`docs/08-camada-de-comandos.md`
+  §6). É controle de acidente e de organização, não defesa contra usuário malicioso (que sempre
+  poderá editar o arquivo na mão; §5) — a tela de acesso é honesta sobre isso.
+- A ACL nunca pode ficar sem `ADMIN` por edição da própria tela: o botão de salvar trava com essa
+  invariante (`wouldHaveNoAdmin`, `AclScreen.tsx`), e o comando `acl/set` recusa o mesmo caso com
+  `ACL_REQUIRES_ADMIN` como segunda linha de defesa. Um documento externo que chegue assim abre
+  em modo aberto com aviso (`checkI24`, `WARNING` — `03-modelo-do-documento.md` §9).
+- **Bootstrap**: em modo aberto, ninguém tem `ADMIN` — mas alguém precisa poder criar o primeiro,
+  senão o controle nunca liga. `acl/set` tem uma exceção estreita para esse caso específico:
+  liberado mesmo com papel efetivo `PUBLISHER`, só quando `isOpenMode(doc)` é verdadeiro (gate do
+  dispatcher, e a tela de acesso fica visível para todo mundo nesse estado). Fora do modo aberto,
+  `acl/set` exige `ADMIN` normalmente.
+- Toda mudança de ACL gera evento de auditoria (`ACL_CHANGED`, com `payload: { before, after }`).
 
 ## 7. Evidências — o acervo navegável
 
@@ -282,11 +300,29 @@ S27" abaixo.
   depois de obsoleto.
 - **Identidade** (ADR-003, adiantado da S27): `GET /api/whoami` resolve `savedBy` e o nome exibido
   na barra de status; o diálogo "como você quer ser identificado?" não abre no modo `SERVER`. A ACL
-  de papéis (`meta.acl`, enforcement na interface e no servidor) continua sendo a S29 — até lá,
-  `whoami` sempre devolve `roles: ['PUBLISHER']` (modo aberto).
+  de papéis (`meta.acl`, enforcement na interface e no servidor) chegou na S29 — ver "Detalhamento
+  fechado na S29" abaixo.
 - **Sem seletor, sem "salvar como", sem recentes**: o arquivo é fixo pela pasta que o servidor
   serve. `saveAs()` e `openFromDrop()` devolvem falha clara em vez de abrir qualquer coisa;
   `openRecent()` devolve `null` sempre — a tela inicial esconde os cartões correspondentes.
+
+### Detalhamento fechado na S29
+
+- **`whoami.roles` deixa de ser fixo**: o servidor reavalia `resolve_effective_role(config)` a
+  cada chamada de `GET /api/whoami` e de `PUT /api/document`, lendo `meta.acl` direto do
+  `politicas.json` em disco (`read_document_acl`, defensivo — arquivo ausente, JSON quebrado ou
+  `meta`/`acl` fora do formato caem em modo aberto, nunca derrubam o boot nem a chamada). O front
+  não confia nesse valor para gate nenhum — ele roda `resolveRole` de novo, contra o documento que
+  já tem em memória (mais preciso: vê uma ACL editada na sessão antes do próximo save).
+- **O papel efetivo do front usa o `username`, nunca o `displayName`** — `document-store.identity`
+  (não o `actor` de exibição) é o que `resolveRole` casa contra `acl.users[].username`; ver
+  "Identidade" em §6.
+- **`acl/set` e o bootstrap** ficam inteiramente no front (`src/core/document/commands.ts`,
+  `src/store/document-store.ts`) — o servidor só enxerga o resultado já salvo em `meta.acl` na
+  próxima leitura do documento; ele não participa da decisão de quem pode editar a ACL.
+- **`403 FORBIDDEN`** é checado antes de qualquer outra coisa em `PUT /api/document` — antes do
+  parse do JSON, antes do lock, antes do hash — porque é o gate mais barato e mais fundamental: um
+  `READER` não tem nada a ganhar vendo um `409` ou um `423` em vez do motivo real.
 
 ## 9. Distribuição e instalação
 

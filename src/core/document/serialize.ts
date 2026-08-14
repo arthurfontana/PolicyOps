@@ -1,4 +1,6 @@
 import type {
+  Acl,
+  AclEntry,
   Axis,
   AxisLevel,
   CatalogItem,
@@ -253,6 +255,16 @@ function canonicalDocEvent(e: DocEvent): DocEvent {
   };
 }
 
+const ACL_ENTRY_KEYS = ['username', 'role'] as const;
+function canonicalAclEntry(entry: AclEntry): AclEntry {
+  return pick(entry, ACL_ENTRY_KEYS);
+}
+
+const ACL_KEYS = ['users', 'defaultRole'] as const;
+function canonicalAcl(acl: Acl): Acl {
+  return { ...pick(acl, ACL_KEYS), users: acl.users.map(canonicalAclEntry) };
+}
+
 const DOCUMENT_META_KEYS = [
   'id',
   'name',
@@ -262,9 +274,12 @@ const DOCUMENT_META_KEYS = [
   'savedBy',
   'appVersion',
   'createdAt',
+  'acl',
 ] as const;
 function canonicalDocumentMeta(meta: DocumentMeta): DocumentMeta {
-  return pick(meta, DOCUMENT_META_KEYS);
+  const picked = pick(meta, DOCUMENT_META_KEYS);
+  if (picked.acl) picked.acl = canonicalAcl(picked.acl);
+  return picked;
 }
 
 const DOCUMENT_KEYS = [

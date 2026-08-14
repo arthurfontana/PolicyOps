@@ -51,6 +51,9 @@ export const DOMAIN_ERROR_CODES = [
   'IMPORT_TARGET_ARCHIVED',
   'IMPORT_STRUCTURE_RESOLUTION_INVALID',
   'TAG_NOT_FOUND',
+  // Identidade e papéis — docs/14-plataforma-local.md §6, S29.
+  'ROLE_REQUIRED',
+  'ACL_REQUIRES_ADMIN',
 ] as const;
 
 export type DomainErrorCode = (typeof DOMAIN_ERROR_CODES)[number];

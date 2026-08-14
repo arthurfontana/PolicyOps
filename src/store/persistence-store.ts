@@ -593,6 +593,14 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
     serverInfo = { token, dataFileName: health.dataFile, dataDir: health.dataDir };
     serverActorName = identity?.displayName ?? identity?.username ?? null;
 
+    // Papéis (docs/14 §6, ADR-003): `resolveRole` roda no front, contra o
+    // `meta.acl` do documento aberto — mais preciso que confiar num `roles`
+    // resolvido pelo servidor no boot, que não veria uma ACL editada depois.
+    // O que o servidor precisa aqui é só o `username` (login, nunca o nome de
+    // exibição) para casar contra `acl.users[].username`.
+    useDocumentStore.getState().setActor(serverActorName ?? 'Anônimo');
+    useDocumentStore.getState().setIdentity({ username: identity?.username ?? 'Anônimo', source: 'windows' });
+
     adapter?.close();
     adapter = buildAdapter('SERVER', warnBackup);
     advisoryLock = null;
@@ -682,9 +690,15 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       // `savedBy` **e** o `actor` de todo evento de auditoria. O store do
       // documento é quem monta o `Ctx` dos comandos, então ele precisa de uma
       // cópia — sem isso, todo evento gerado pela interface nasceria sem autor
-      // e o documento seria recusado na validação do salvamento (§4).
+      // e o documento seria recusado na validação do salvamento (§4). Aqui
+      // também é o `username` (`source: 'typed'`, docs/14 §6) que o gate de
+      // papéis usa — nos modos sem servidor, o único identificador que existe
+      // é este mesmo nome digitado. O modo `SERVER` sobrescreve os dois com o
+      // login resolvido por `whoami` logo abaixo (`detectServer`).
       const syncActor = (name: string | null): void => {
-        useDocumentStore.getState().setActor(name ?? 'Anônimo');
+        const resolved = name ?? 'Anônimo';
+        useDocumentStore.getState().setActor(resolved);
+        useDocumentStore.getState().setIdentity({ username: resolved, source: 'typed' });
       };
       syncActor(useUiStore.getState().actor);
       useUiStore.subscribe((state, previous) => {

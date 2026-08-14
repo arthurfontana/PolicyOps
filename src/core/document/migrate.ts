@@ -95,6 +95,19 @@ function migrateImportProfiles(raw: Record<string, unknown>): Record<string, unk
   return doc;
 }
 
+/**
+ * Migração 3 → 4 (sessão 29) — docs/03-modelo-do-documento.md §10.
+ *
+ * Puramente aditiva, e mais: não escreve nenhum campo novo. `meta.acl` é
+ * opcional e sua ausência **é** o estado migrado — "modo aberto" (docs/14
+ * §6). Só existe para os documentos existentes trocarem de `schemaVersion`.
+ */
+function migrateAcl(raw: Record<string, unknown>): Record<string, unknown> {
+  const doc = structuredClone(raw);
+  doc.schemaVersion = 4;
+  return doc;
+}
+
 const MIGRATIONS: Migration[] = [
   {
     from: 1,
@@ -107,6 +120,12 @@ const MIGRATIONS: Migration[] = [
     to: 3,
     description: 'Sessão 23: acrescenta importProfiles: [] (tags de matriz e grupo de tag são opcionais).',
     migrate: migrateImportProfiles,
+  },
+  {
+    from: 3,
+    to: 4,
+    description: 'Sessão 29: meta.acl? opcional (papéis de acesso) — nenhum campo é escrito.',
+    migrate: migrateAcl,
   },
 ];
 

@@ -1,7 +1,14 @@
 import { nanoid } from 'nanoid';
 import { create } from 'zustand';
 import { isIrreversible, type Command, type CommandResult, type Ctx } from '@/core/command';
-import type { PolicyOpsDocument } from '@/core/document/schema';
+import type { PolicyOpsDocument, Role } from '@/core/document/schema';
+import {
+  isOpenMode,
+  minRoleForCommand,
+  resolveRole,
+  roleAtLeast,
+  describeRoleRequirement,
+} from '@/core/document/roles';
 import { DomainError } from '@/core/errors';
 import type { SaveStamp } from '@/storage/document-io';
 
@@ -41,6 +48,18 @@ export const createRuntimeCtx: CtxFactory = (actor) => ({
   newId: () => nanoid(12),
 });
 
+/**
+ * Identidade para resolução de papel (docs/14-plataforma-local.md §6,
+ * ADR-003) — distinta do `actor` de exibição/auditoria porque `resolveRole`
+ * precisa do **login** (`username`), nunca do nome de exibição, que pode
+ * divergir. No modo `SERVER`, `username` vem de `GET /api/whoami` e
+ * `source` é `'windows'`; nos demais modos é o nome digitado, com
+ * `source: 'typed'` — sem diálogo próprio, é o mesmo nome de `actor`.
+ */
+export type Identity = { username: string; source: 'windows' | 'typed' };
+
+const DEFAULT_IDENTITY: Identity = { username: '', source: 'typed' };
+
 export interface DocumentStoreState {
   document: PolicyOpsDocument | null;
   dirty: boolean;
@@ -50,10 +69,15 @@ export interface DocumentStoreState {
   canRedo: boolean;
   /** Nome de exibição usado nos eventos de auditoria (docs/02 §6). */
   actor: string;
+  /** Login usado para resolver o papel efetivo (docs/14 §6). */
+  identity: Identity;
   /** Fábrica do `Ctx`. Os testes trocam por uma determinística. */
   ctxFactory: CtxFactory;
 
   setActor: (actor: string) => void;
+  setIdentity: (identity: Identity) => void;
+  /** Papel efetivo da identidade atual no documento aberto (`PUBLISHER` sem documento). */
+  effectiveRole: () => Role;
   /** Abre um documento e zera as pilhas — elas pertencem ao documento aberto. */
   openDocument: (document: PolicyOpsDocument) => void;
   closeDocument: () => void;
@@ -107,9 +131,15 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
     canUndo: false,
     canRedo: false,
     actor: '',
+    identity: DEFAULT_IDENTITY,
     ctxFactory: createRuntimeCtx,
 
     setActor: (actor) => set({ actor }),
+    setIdentity: (identity) => set({ identity }),
+    effectiveRole: () => {
+      const { document, identity } = get();
+      return document === null ? 'PUBLISHER' : resolveRole(document, identity.username);
+    },
 
     openDocument: (document) =>
       set({ document, dirty: false, undoStack: [], redoStack: [], canUndo: false, canRedo: false }),
@@ -134,6 +164,29 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
       }),
 
     dispatch: (command) => {
+      // Gate central de papéis (docs/14 §6, docs/08 §3): checado só aqui, no
+      // dispatcher público — undo/redo chamam `execute` direto e reaplicam um
+      // comando que o próprio usuário já tinha permissão de disparar.
+      const { document, identity } = get();
+      if (document !== null) {
+        const required = minRoleForCommand(command.type);
+        const effective = resolveRole(document, identity.username);
+        // Exceção estreita: em modo aberto, ninguém tem ADMIN (todos são
+        // PUBLISHER), mas alguém precisa poder criar o primeiro ADMIN — senão
+        // a ACL nunca liga (docs/14 §6, `isOpenMode`).
+        const bootstrappingAcl = command.type === 'acl/set' && isOpenMode(document);
+        if (!bootstrappingAcl && !roleAtLeast(effective, required)) {
+          return {
+            ok: false,
+            error: new DomainError('ROLE_REQUIRED', describeRoleRequirement(required, effective), {
+              commandType: command.type,
+              required,
+              effective,
+            }),
+          };
+        }
+      }
+
       const result = execute(command);
       if (!result.ok) return result;
 

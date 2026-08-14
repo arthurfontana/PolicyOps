@@ -70,6 +70,8 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
     'Esta matriz está arquivada — confirme "Restaurar e aplicar" no plano antes de recarregá-la.',
   IMPORT_STRUCTURE_RESOLUTION_INVALID:
     'A resolução de estrutura desta matriz não pôde ser calculada com segurança — recarregue o plano e tente de novo.',
+  ROLE_REQUIRED: 'Você não tem o papel necessário para esta ação.',
+  ACL_REQUIRES_ADMIN: 'A lista de acesso precisa de pelo menos um ADMIN — sem isso, ninguém poderia editá-la de volta.',
 };
 
 export function getErrorMessage(code: DomainErrorCode): string {

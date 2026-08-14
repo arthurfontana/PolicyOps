@@ -334,6 +334,70 @@ def lock_is_mine(lock: Dict[str, Any], config: "ServerConfig") -> bool:
     return lock.get("holder") == config.holder
 
 
+# #region: identidade-e-papeis
+
+
+VALID_ROLES = ("READER", "EDITOR", "PUBLISHER", "ADMIN")
+"""docs/14-plataforma-local.md §6 — mesmo catálogo de `Role` em `src/core/document/schema.ts`."""
+
+
+def read_document_acl(config: "ServerConfig") -> Optional[Dict[str, Any]]:
+    """Lê só `meta.acl` do documento em disco, defensivamente (ADR-002).
+
+    O servidor não valida o schema nem as invariantes do documento — só
+    precisa deste envelope mínimo para resolver papéis (docs/14 §3, §6).
+    Qualquer forma inesperada (arquivo ausente, JSON inválido, `meta`/`acl`
+    fora do formato) devolve `None`, que `resolve_effective_role` lê como
+    "sem ACL" — modo aberto, nunca uma falha de boot.
+    """
+    try:
+        raw = json.loads(config.document_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    meta = raw.get("meta")
+    if not isinstance(meta, dict):
+        return None
+    acl = meta.get("acl")
+    return acl if isinstance(acl, dict) else None
+
+
+def resolve_effective_role(config: "ServerConfig") -> str:
+    """Papel efetivo do usuário do boot — mesma regra de `resolveRole` do front (docs/14 §6).
+
+    ACL ausente, vazia, ou populada sem nenhum `ADMIN`: modo aberto,
+    `PUBLISHER` para todo mundo. Listado: o papel da lista. Não listado:
+    `defaultRole`. Este resultado só alimenta o `whoami` e o `403` grosso de
+    `PUT /api/document` — o servidor não re-deriva permissão fina por
+    comando (ADR-002, docs/14 §6).
+    """
+    acl = read_document_acl(config)
+    if acl is None:
+        return "PUBLISHER"
+    users = acl.get("users")
+    if not isinstance(users, list) or not users:
+        return "PUBLISHER"
+
+    def entry_role(entry: Any) -> Optional[str]:
+        if not isinstance(entry, dict):
+            return None
+        role = entry.get("role")
+        return role if role in VALID_ROLES else None
+
+    if not any(entry_role(entry) == "ADMIN" for entry in users):
+        return "PUBLISHER"
+
+    for entry in users:
+        if isinstance(entry, dict) and entry.get("username") == config.username:
+            role = entry_role(entry)
+            if role is not None:
+                return role
+
+    default_role = acl.get("defaultRole")
+    return default_role if default_role in ("READER", "EDITOR") else "READER"
+
+
 # #region: envelope-de-erros-e-app
 
 
@@ -437,15 +501,15 @@ def create_app(config: ServerConfig) -> FastAPI:
 
     @app.get("/api/whoami")
     def whoami() -> Dict[str, Any]:
-        """Identidade resolvida no boot (ADR-003).
+        """Identidade resolvida no boot (ADR-003) e o papel efetivo de `meta.acl` (docs/14 §6).
 
-        `roles` já vem no formato final do contrato, mas fixo em `PUBLISHER`: papéis de verdade
-        (derivados de `meta.acl`) são a S29 — até lá, modo aberto, como manda docs/14 §6.
+        `roles` é reavaliado a cada chamada (o ACL vive no documento, que muda) — o front usa isto
+        só como referência; quem manda no `PUT` é `resolve_effective_role` de novo, na hora.
         """
         return {
             "username": config.username,
             "displayName": config.display_name,
-            "roles": ["PUBLISHER"],
+            "roles": [resolve_effective_role(config)],
         }
 
     # #region: api-document
@@ -486,7 +550,18 @@ def create_app(config: ServerConfig) -> FastAPI:
 
         A ordem é a mesma do modo `FULL`, agora executada aqui: relê o disco → compara o hash →
         divergiu, devolve `409` **sem gravar** → igual, faz backup do anterior e grava atômico.
+
+        Papel efetivo `READER` é `403` antes de tudo (docs/14 §4, §6) — o servidor só recusa esse
+        caso grosso; permissão fina por comando (rascunho vs. publicar) é da interface.
         """
+        if resolve_effective_role(config) == "READER":
+            return json_error(
+                403,
+                "FORBIDDEN",
+                "Seu papel neste documento é READER — só consulta. Peça a um ADMIN para mudar seu "
+                "papel na lista de acesso.",
+            )
+
         path = config.document_path
 
         try:

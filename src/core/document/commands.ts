@@ -1,6 +1,6 @@
 import { applyToDocument, defineCommand, isoFrom, makeEvent, type Command } from '../command';
 import { DomainError } from '../errors';
-import { CODE_REGEX, type Matrix, type PolicyOpsDocument, type Project } from './schema';
+import { CODE_REGEX, type Acl, type Matrix, type PolicyOpsDocument, type Project } from './schema';
 
 /**
  * Comandos de documento, projeto e metadados de matriz — docs/08 §3.
@@ -516,4 +516,72 @@ export function restoreArchivedMatrix(input: { matrixId: string }): Command<
   void
 > {
   return setMatrixArchived({ matrixId: input.matrixId, archivedAt: null });
+}
+
+// ---------------------------------------------------------------------------
+// acl/set — docs/14-plataforma-local.md §6. Papel mínimo ADMIN (docs/08 §3,
+// gate no dispatcher — src/core/document/roles.ts).
+// ---------------------------------------------------------------------------
+
+export type SetAclInput = { acl: Acl | null };
+
+function assertAclShape(acl: Acl): void {
+  const seen = new Set<string>();
+  for (const entry of acl.users) {
+    if (seen.has(entry.username)) {
+      throw new DomainError(
+        'INVALID_INPUT',
+        `O usuário "${entry.username}" aparece mais de uma vez na lista de acesso.`,
+        { username: entry.username },
+      );
+    }
+    seen.add(entry.username);
+  }
+  if (acl.users.length > 0 && !acl.users.some((entry) => entry.role === 'ADMIN')) {
+    throw new DomainError(
+      'ACL_REQUIRES_ADMIN',
+      'A lista de acesso precisa de pelo menos um ADMIN — sem isso, ninguém poderia editá-la de volta.',
+    );
+  }
+}
+
+export function setAcl(input: SetAclInput): Command<SetAclInput, void> {
+  return defineCommand({
+    type: 'acl/set',
+    input,
+    label: 'Alterar a lista de acesso (ACL)',
+    execute(doc, ctx) {
+      if (input.acl !== null) assertAclShape(input.acl);
+
+      const before = doc.meta.acl ?? null;
+      const after = input.acl;
+      const inverse = setAcl({ acl: before });
+
+      if (JSON.stringify(before) === JSON.stringify(after)) {
+        return { document: doc, data: undefined, events: [], inverse };
+      }
+
+      const events = [
+        makeEvent(ctx, {
+          type: 'ACL_CHANGED',
+          scope: {},
+          summary:
+            after === null
+              ? `${ctx.actor} removeu a lista de acesso — o documento volta ao modo aberto.`
+              : `${ctx.actor} alterou a lista de acesso (ACL) do documento.`,
+          payload: { before, after },
+        }),
+      ];
+
+      return {
+        document: applyToDocument(doc, events, (draft) => {
+          if (after === null) delete draft.meta.acl;
+          else draft.meta.acl = after;
+        }),
+        data: undefined,
+        events,
+        inverse,
+      };
+    },
+  });
 }
