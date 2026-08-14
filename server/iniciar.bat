@@ -1,8 +1,35 @@
 @echo off
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
-if exist "server\.venv\Scripts\python.exe" goto RODA
+rem Este script roda tanto na raiz do pacote publicado (com uma subpasta "server\")
+rem quanto direto de dentro da propria pasta "server\" (uso local/teste) - detecta
+rem onde estao os arquivos em vez de fixar o prefixo, para nao duplicar o caminho.
+if exist "server\launcher.py" (
+    set "SRV=server\"
+    set "DATA_DIR=.."
+) else if exist "launcher.py" (
+    set "SRV="
+    set "DATA_DIR=."
+)
 
+if not exist "!SRV!.venv\Scripts\python.exe" goto SEMINSTALACAO
+
+echo Policy Matrix Studio
+echo =====================================================
+echo.
+echo Subindo o servidor local...
+echo.
+
+"!SRV!.venv\Scripts\python.exe" "!SRV!launcher.py" --data-dir "!DATA_DIR!"
+
+echo.
+echo O servidor foi encerrado.
+echo.
+pause
+exit /b 0
+
+:SEMINSTALACAO
 echo Policy Matrix Studio
 echo =====================================================
 echo.
@@ -17,18 +44,3 @@ echo rede^).
 echo.
 pause
 exit /b 1
-
-:RODA
-echo Policy Matrix Studio
-echo =====================================================
-echo.
-echo Subindo o servidor local...
-echo.
-
-"server\.venv\Scripts\python.exe" "server\launcher.py" --data-dir ".."
-
-echo.
-echo O servidor foi encerrado.
-echo.
-pause
-exit /b 0
