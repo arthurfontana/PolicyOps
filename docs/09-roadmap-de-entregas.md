@@ -32,7 +32,7 @@
 | 24 | Aplicação da carga e versionamento seletivo | **Opus** | ✅ **Entregue** — carga aplicada: rascunho só nas alteradas, fila de revisão, perfil salvo, auditoria e idempotência | 22, 23 |
 | 25 | Evolução estrutural na carga ✅ | **Opus** | Faixa nova no arquivo vira nova versão de variável adotada no rascunho, sem caminho manual | 24 |
 | 26 | Servidor local: núcleo de persistência | **Opus** | ✅ **Entregue** — `server/policyops_server.py` (FastAPI, `127.0.0.1`, token por boot): `GET/PUT /api/document` com escrita atômica e conflito 409, lock consultivo com 423, backups com rotação de 20, `whoami` e `health`; 55 testes pytest contra pasta temporária | — |
-| 27 | Modo `SERVER` no front | **Sonnet** | `server-adapter` + detecção de modo; abrir/salvar/conflito/merge rodando ponta a ponta contra o servidor real (E2E) | 26 |
+| 27 | Modo `SERVER` no front | **Sonnet** | ✅ **Entregue** — `server-adapter` + detecção de modo (`localServer`); abrir/salvar/conflito/merge rodando ponta a ponta contra o servidor real (E2E) | 26 |
 | 28 | Launcher e distribuição | **Sonnet** | `iniciar.bat` + `instalar.bat` (venv + wheels offline) e o pacote `dist/plataforma/` gerado pelo build — dois cliques numa máquina limpa | 27 |
 | 29 | Identidade Windows e papéis | **Sonnet** | `whoami` carimba auditoria/saves; `meta.acl` (schema 4) com papéis aplicados na interface e no servidor | 27 |
 | 30 | Evidências: acervo navegável | **Opus** | Anexar/abrir/desanexar evidência com hash conferido; acervo legível no Explorer; `attachments` no schema 4 | 27, 29 |
@@ -120,6 +120,27 @@
 > servidor de `14-plataforma-local.md` §11 exceto papéis (S29) e evidências (S30). Nenhuma linha de
 > TypeScript mudou; os ajustes finos de contrato descobertos aqui estão em `14` §4 e em
 > DEC-PLAT-001.
+
+> **Sessão 27 entregue.** `capabilities.ts` ganhou o terceiro estágio (assíncrono, depois dos dois
+> síncronos de sempre): token por `?t=` na URL — guardado em `sessionStorage`, removido da barra de
+> endereço via `history.replaceState` — mais `GET /api/health` com `X-PolicyOps-Api` compatível.
+> API mais nova que a do front vira aviso na tela inicial (`degraded`), nunca "tentar mesmo assim".
+> `server-adapter.ts` implementa `StorageAdapter` sobre `fetch`: `open()`/`save()` conversam com
+> `GET`/`PUT /api/document`, `409` vira `CONFLICT` (com o `remoteHash` guardado para "sobrescrever
+> mesmo assim"/"mesclar" — diferente do modo `FULL`, o `force` do servidor só destrava o lock, nunca
+> ignora o `baseHash`, então um conflito repetido continua voltando `409`), erro de rede vira `IO`
+> perguntando se o servidor caiu, e `saveAs`/`openFromDrop`/recentes ficam indisponíveis (arquivo
+> fixo pela pasta). `lock.ts` ganhou `ApiAdvisoryLock`, atrás da porta comum `AdvisoryLockPort` —
+> mesmo `{nome}.lock.json`, `423` vira `HELD` no mesmo formato do modo `FULL`. Identidade resolvida
+> por `GET /api/whoami` (ADR-003): sem diálogo "como você quer ser identificado?", tela inicial
+> pulada quando o documento da pasta abre direto. 51 testes de unidade novos (contrato do
+> `server-adapter` com servidor falso via `fetch` mockado, `ApiAdvisoryLock`, terceiro estágio de
+> `capabilities` — suíte total 1.353 → 1.404) mais 5 E2E que sobem o servidor real da S26 contra
+> pasta temporária: abrir → editar → salvar → reabrir → conflito simulado (gravação externa no
+> arquivo) → mesclar, além de bootstrap sem arquivo e servidor caindo no meio da edição.
+> DEC-PLAT-002 registra o refinamento do
+> `force` e a mensagem nova de `423` na defesa em profundidade do `PUT` (mapeada para `PERMISSION`,
+> não uma variante nova de `SaveResult`).
 
 > **Sessão 31 entregue.** `CLAUDE.md` reescrito como índice em camadas (114 linhas, teto de 450
 > guardado por `pnpm check:claude-md` — `scripts/check-claude-md.mjs`, registrado no CI logo após

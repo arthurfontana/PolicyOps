@@ -29,6 +29,7 @@ export function StatusBar() {
   const lockHeldByOther = usePersistenceStore((s) => s.lockHeldByOther);
   const lockOwned = usePersistenceStore((s) => s.lockOwned);
   const errorMessage = usePersistenceStore((s) => s.errorMessage);
+  const serverConnection = usePersistenceStore((s) => s.serverConnection);
 
   const lockLabel = lockHeldByOther
     ? `Bloqueio consultivo: ${lockHeldByOther.info.holder}`
@@ -82,17 +83,29 @@ export function StatusBar() {
             {lockLabel}
           </span>
         )}
-        <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] uppercase dark:bg-neutral-800">
+        <span
+          data-testid="storage-mode"
+          className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] uppercase dark:bg-neutral-800"
+        >
           {mode}
         </span>
-        <button
-          type="button"
-          onClick={openIdentityDialog}
-          className="rounded px-1.5 py-0.5 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
-          title="Trocar identificação"
-        >
-          {actor ?? 'Identificar-se'}
-        </button>
+        {mode === 'SERVER' ? (
+          // Identidade resolvida pelo servidor (ADR-003) — não é editável
+          // por aqui, e o diálogo "como você quer ser identificado?" não
+          // existe neste modo (docs/02 §6).
+          <span title="Identidade resolvida pelo servidor local">
+            {serverConnection?.displayName ?? serverConnection?.username ?? 'Anônimo'}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={openIdentityDialog}
+            className="rounded px-1.5 py-0.5 hover:bg-neutral-200 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-100"
+            title="Trocar identificação"
+          >
+            {actor ?? 'Identificar-se'}
+          </button>
+        )}
       </div>
     </footer>
   );

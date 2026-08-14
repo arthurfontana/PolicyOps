@@ -9,6 +9,8 @@ import type { OpenedFile, SaveResult, StorageAdapter } from '@/storage/adapter';
 import {
   classifyPickerFailure,
   detectCapabilities,
+  detectServer,
+  serverIncompatibleMessage,
   type Capabilities,
   type StorageMode,
 } from '@/storage/capabilities';
@@ -23,11 +25,15 @@ import {
 } from '@/storage/format';
 import {
   AdvisoryLock,
+  ApiAdvisoryLock,
   describeLock,
   isStale,
+  type AdvisoryLockPort,
+  type LockAcquisition,
   type LockInfo,
 } from '@/storage/lock';
 import { createLocalBuffer, type BufferEntry, type LocalBuffer } from '@/storage/local-buffer';
+import { createServerAdapter } from '@/storage/server-adapter';
 import { listRecents, recentId, rememberRecent, type RecentEntry } from '@/storage/recents';
 import { repairDocument, type RepairResult } from '@/storage/recovery';
 import { useDocumentStore } from './document-store';
@@ -97,11 +103,19 @@ export type DegradedState = {
 
 // #region: interface-persistence-state
 
+export type ServerConnection = {
+  dataDir: string;
+  username: string | null;
+  displayName: string | null;
+};
+
 interface PersistenceState {
   capabilities: Capabilities;
   mode: StorageMode;
-  /** Preenchido quando a chamada real ao seletor derrubou o modo (§1). */
+  /** Preenchido quando a chamada real ao seletor derrubou o modo (§1), ou quando o servidor local tem uma API incompatível. */
   degraded: DegradedState | null;
+  /** Preenchido no modo `SERVER`: a pasta e a identidade resolvidas pelo servidor (docs/14 §6 e §8). */
+  serverConnection: ServerConnection | null;
 
   fileName: string | null;
   filePath: string | null;
@@ -190,18 +204,32 @@ interface PersistenceState {
 
 // #region: helpers-de-modulo-fora-do-react
 
+/** Preenchido no modo `SERVER`: a identidade resolvida por `GET /api/whoami` (ADR-003) manda em vez do nome digitado. */
+let serverActorName: string | null = null;
+
 function actorName(): string {
-  return useUiStore.getState().actor ?? 'Anônimo';
+  return serverActorName ?? useUiStore.getState().actor ?? 'Anônimo';
 }
 
 let adapter: StorageAdapter | null = null;
 /** Salvamento parado à espera da resposta da oferta de compactação (§3). */
 let pendingSave: { kind: 'save' | 'saveAs'; options?: { suggestedName?: string } } | null = null;
 let buffer: LocalBuffer | null = null;
-let advisoryLock: AdvisoryLock | null = null;
+let advisoryLock: AdvisoryLockPort | null = null;
 let initialized = false;
 
+/** Token e nomes resolvidos por `detectServer`/`GET /api/health` — o que `buildAdapter('SERVER', …)` precisa. */
+let serverInfo: { token: string; dataFileName: string; dataDir: string } | null = null;
+
 function buildAdapter(mode: StorageMode, onBackupUnavailable: (message: string) => void): StorageAdapter {
+  if (mode === 'SERVER' && serverInfo !== null) {
+    return createServerAdapter({
+      getActor: actorName,
+      token: serverInfo.token,
+      dataFileName: serverInfo.dataFileName,
+      dataDir: serverInfo.dataDir,
+    });
+  }
   return mode === 'FULL'
     ? createFsaAdapter({ getActor: actorName, onBackupUnavailable })
     : createDownloadAdapter({ getActor: actorName });
@@ -231,7 +259,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
     return adapter;
   }
 
-  async function afterOpen(opened: OpenedFile, source: 'picker' | 'drop' | 'recent'): Promise<void> {
+  async function afterOpen(opened: OpenedFile, source: 'picker' | 'drop' | 'recent' | 'server'): Promise<void> {
     // Modo de recuperação: nada entra no store do documento até o usuário
     // aceitar as correções (§10).
     if (opened.issues.length > 0) {
@@ -284,8 +312,42 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
     await offerBufferRecovery(opened.document);
   }
 
+  function applyLockAcquisition(result: LockAcquisition): void {
+    if (result.ok) {
+      advisoryLock?.startHeartbeat();
+      set({ lockOwned: true, lockHeldByOther: null, lockUnavailableReason: null });
+      return;
+    }
+    if (result.reason === 'HELD') {
+      const now = new Date();
+      set({
+        lockOwned: false,
+        lockHeldByOther: {
+          info: result.lock,
+          stale: isStale(result.lock, now),
+          description: describeLock(result.lock, now),
+        },
+        // "Abrir somente leitura" é o recomendado (§6).
+        readOnly: true,
+        lockUnavailableReason: null,
+      });
+      return;
+    }
+    set({ lockOwned: false, lockHeldByOther: null, lockUnavailableReason: result.message });
+  }
+
   async function acquireLock(doc: PolicyOpsDocument): Promise<void> {
     const active = currentAdapter();
+
+    // Modo SERVER (docs/14 §4): o lock fala com a API, não com uma pasta do
+    // navegador — sempre disponível, sem o passo extra de "dar acesso à
+    // pasta" que o modo FULL precisa.
+    if (active.mode === 'SERVER' && serverInfo !== null) {
+      advisoryLock = new ApiAdvisoryLock({ token: serverInfo.token });
+      applyLockAcquisition(await advisoryLock.acquire(doc.meta.revision));
+      return;
+    }
+
     const directory = active.getDirectory();
     const fileName = get().fileName;
     if (directory === null || fileName === null || active.mode !== 'FULL') {
@@ -306,28 +368,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       holder: actorName(),
     });
 
-    const result = await advisoryLock.acquire(doc.meta.revision);
-    if (result.ok) {
-      advisoryLock.startHeartbeat();
-      set({ lockOwned: true, lockHeldByOther: null, lockUnavailableReason: null });
-      return;
-    }
-    if (result.reason === 'HELD') {
-      const now = new Date();
-      set({
-        lockOwned: false,
-        lockHeldByOther: {
-          info: result.lock,
-          stale: isStale(result.lock, now),
-          description: describeLock(result.lock, now),
-        },
-        // "Abrir somente leitura" é o recomendado (§6).
-        readOnly: true,
-        lockUnavailableReason: null,
-      });
-      return;
-    }
-    set({ lockOwned: false, lockHeldByOther: null, lockUnavailableReason: result.message });
+    applyLockAcquisition(await advisoryLock.acquire(doc.meta.revision));
   }
 
   async function offerBufferRecovery(doc: PolicyOpsDocument): Promise<void> {
@@ -416,11 +457,13 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
 
     // §3: acima de 5 MB a aplicação **oferece** `.pmz` — não decide sozinha.
     // A pergunta é feita uma vez por sessão de edição; a resposta vale para
-    // os salvamentos seguintes.
+    // os salvamentos seguintes. No modo SERVER não há oferta: a API só grava
+    // texto (docs/14 §4, "content é texto, não objeto") — `server-adapter`
+    // ignora o formato pedido e sempre serializa como `.json`.
     let format = get().preferredFormat;
     if (format === null) {
       const bytes = new TextEncoder().encode(serialize(validated.document)).byteLength;
-      if (shouldOfferCompression(bytes)) {
+      if (shouldOfferCompression(bytes) && get().mode !== 'SERVER') {
         pendingSave = { kind, options };
         set({ compressionOffer: { bytes }, status: 'dirty' });
         return;
@@ -450,7 +493,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
 
   async function openWith(
     run: (active: StorageAdapter) => Promise<OpenedFile>,
-    source: 'picker' | 'drop' | 'recent',
+    source: 'picker' | 'drop' | 'recent' | 'server',
   ): Promise<void> {
     try {
       const opened = await run(currentAdapter());
@@ -486,6 +529,89 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
     }
   }
 
+  /**
+   * Terceiro estágio da detecção (docs/06 §1, docs/14 §5 e §8), assíncrono:
+   * token na sessão + `/api/health` compatível. Sem os dois, a aplicação
+   * segue na cadeia síncrona já resolvida em `detectCapabilities()` (FULL ou
+   * DOWNLOAD_ONLY) — nunca em silêncio: API incompatível vira aviso na tela
+   * inicial (`degraded`), igual à degradação de §1.
+   */
+  async function enterServerMode(): Promise<void> {
+    if (typeof window === 'undefined') return;
+
+    const detection = await detectServer(
+      {
+        location: window.location,
+        sessionStorage: window.sessionStorage,
+        replaceUrl: (url) => window.history.replaceState(null, '', url),
+      },
+      (...args) => fetch(...args),
+    );
+
+    // Achou token mas o servidor não deu certo (incompatível ou fora do ar):
+    // a aba quase certamente foi aberta por ele, então o diálogo de
+    // identificação que `hasServerTokenHint` suprimiu no boot (ui-store.ts)
+    // precisa reaparecer — senão a sessão fica sem `actor` para sempre.
+    function reopenIdentityIfNeeded(): void {
+      if (detection.token !== null && useUiStore.getState().actor === null) {
+        useUiStore.getState().openIdentityDialog();
+      }
+    }
+
+    if (detection.incompatible) {
+      set({
+        degraded: {
+          from: 'SERVER',
+          message: serverIncompatibleMessage(detection.health?.apiVersion ?? null),
+        },
+      });
+      reopenIdentityIfNeeded();
+      return;
+    }
+    if (!detection.available || detection.token === null || detection.health === null) {
+      reopenIdentityIfNeeded();
+      return;
+    }
+
+    const { token, health } = detection;
+
+    // Identidade resolvida pelo servidor no boot (ADR-003): sem diálogo "como
+    // você quer ser identificado?" (docs/02 §6) — `savedBy` e o `actor` da
+    // sessão passam a ser o que `whoami` disser.
+    let identity: { username: string; displayName: string | null } | null = null;
+    try {
+      const response = await fetch('/api/whoami', { headers: { 'X-PolicyOps-Token': token } });
+      if (response.ok) {
+        const body = (await response.json()) as { username: string; displayName: string | null };
+        identity = { username: body.username, displayName: body.displayName };
+      }
+    } catch {
+      // Sem whoami, a barra de status cai para "Anônimo" — abrir e salvar
+      // continuam funcionando, só a identificação fica incompleta.
+    }
+
+    serverInfo = { token, dataFileName: health.dataFile, dataDir: health.dataDir };
+    serverActorName = identity?.displayName ?? identity?.username ?? null;
+
+    adapter?.close();
+    adapter = buildAdapter('SERVER', warnBackup);
+    advisoryLock = null;
+    useUiStore.getState().closeIdentityDialog();
+
+    set({
+      mode: 'SERVER',
+      capabilities: { ...get().capabilities, localServer: true, mode: 'SERVER' },
+      degraded: null,
+      serverConnection: {
+        dataDir: health.dataDir,
+        username: identity?.username ?? null,
+        displayName: identity?.displayName ?? null,
+      },
+    });
+
+    await openWith((active) => active.open(), 'server');
+  }
+
   /** Documento que ainda não tem arquivo: novo em branco e exemplo (§1 de docs/07). */
   function adoptInMemory(doc: PolicyOpsDocument): void {
     adapter?.close();
@@ -519,6 +645,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
     capabilities,
     mode: capabilities.mode,
     degraded: null,
+    serverConnection: null,
 
     fileName: null,
     filePath: null,
@@ -578,6 +705,12 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
           if (status !== 'saving') set({ status: 'dirty' });
         }
       });
+
+      // Terceiro estágio, assíncrono (docs/06 §1, docs/14 §5 e §8): entra em
+      // SERVER quando há token + `/api/health` compatível. Sem isso, a
+      // aplicação já está operando na cadeia síncrona (FULL/DOWNLOAD_ONLY)
+      // calculada acima — nunca fica travada esperando a rede.
+      void enterServerMode();
     },
 
     openWithPicker: () => openWith((active) => active.open(), 'picker'),

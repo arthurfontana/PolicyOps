@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { memoryDirectory } from '@/storage/directory';
 import {
   AdvisoryLock,
+  ApiAdvisoryLock,
   LOCK_ADVISORY_NOTE,
   LOCK_HEARTBEAT_MS,
   LOCK_STALE_MS,
@@ -11,6 +12,7 @@ import {
   parseLock,
   type LockInfo,
 } from '@/storage/lock';
+import { fakeServer } from './server-fake';
 
 /** Bloqueio consultivo — docs/06-persistencia-e-concorrencia.md §6 e §11. */
 
@@ -214,5 +216,152 @@ describe('AdvisoryLock', () => {
     await lock.release();
 
     expect(JSON.parse(directory.readText('politicas.lock.json')!).holder).toBe('Beatriz');
+  });
+});
+
+describe('ApiAdvisoryLock (modo SERVER — docs/14-plataforma-local.md §4)', () => {
+  it('toma o bloqueio quando está livre, no mesmo formato de LockInfo', async () => {
+    const clock = { current: T0 };
+    const server = fakeServer({ now: () => clock.current });
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+
+    const result = await lock.acquire(41);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.lock.docRevision).toBe(41);
+    expect(lock.current).toEqual(result.lock);
+  });
+
+  it('recusa (HELD) quando outra pessoa detém o bloqueio ativo, sem sobrescrever', async () => {
+    const clock = { current: T0 };
+    const server = fakeServer({ now: () => clock.current });
+    server.setExternalLock('Beatriz', T0.toISOString());
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+
+    const result = await lock.acquire(41);
+    expect(result.ok).toBe(false);
+    if (result.ok || result.reason !== 'HELD') throw new Error('esperava HELD');
+    expect(result.lock.holder).toBe('Beatriz');
+    expect(server.currentLock()?.holder).toBe('Beatriz');
+  });
+
+  it('toma o bloqueio obsoleto (mais de 10 min sem heartbeat)', async () => {
+    const server = fakeServer({ now: () => at(LOCK_STALE_MS + 1) });
+    server.setExternalLock('Beatriz', T0.toISOString(), T0.toISOString());
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+
+    const result = await lock.acquire(42);
+    expect(result.ok).toBe(true);
+    expect(server.currentLock()?.holder).not.toBe('Beatriz');
+  });
+
+  it('"editar assim mesmo" toma o bloqueio ativo de outra pessoa (force)', async () => {
+    const server = fakeServer({ now: () => T0 });
+    server.setExternalLock('Beatriz', T0.toISOString());
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+
+    const result = await lock.acquire(41, { force: true });
+    expect(result.ok).toBe(true);
+  });
+
+  it('beat() renova sem force — e não reivindica de volta um lock que outra pessoa tomou depois de obsoleto', async () => {
+    const clock = { current: T0 };
+    const server = fakeServer({ now: () => clock.current });
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+    await lock.acquire(41);
+
+    // O heartbeat parou por mais de 10 min e outra pessoa tomou o bloqueio.
+    clock.current = at(LOCK_STALE_MS + 1);
+    server.setExternalLock('Beatriz', clock.current.toISOString());
+
+    const beaten = await lock.beat(41);
+    // beat() engole o 423 e mantém o último estado conhecido — nunca
+    // sobrescreve o bloqueio de Beatriz de volta para o meu.
+    expect(server.currentLock()?.holder).toBe('Beatriz');
+    expect(beaten).not.toBeNull();
+  });
+
+  it('beat() renova o heartbeat quando o bloqueio ainda é meu', async () => {
+    const clock = { current: T0 };
+    const server = fakeServer({ now: () => clock.current });
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+    await lock.acquire(41);
+
+    clock.current = at(LOCK_HEARTBEAT_MS);
+    const beaten = await lock.beat(42);
+    expect(beaten?.heartbeat).toBe(at(LOCK_HEARTBEAT_MS).toISOString());
+    expect(beaten?.docRevision).toBe(42);
+    expect(server.currentLock()?.heartbeat).toBe(at(LOCK_HEARTBEAT_MS).toISOString());
+  });
+
+  it('o temporizador de 60 s dispara o heartbeat', async () => {
+    const clock = { current: T0 };
+    const server = fakeServer({ now: () => clock.current });
+    let tick: (() => void) | null = null;
+    let interval = 0;
+    const lock = new ApiAdvisoryLock({
+      token: server.token,
+      fetchImpl: server.fetchImpl,
+      setInterval: (handler, ms) => {
+        tick = handler;
+        interval = ms;
+        return 7;
+      },
+      clearInterval: () => {
+        tick = null;
+      },
+    });
+
+    await lock.acquire(41);
+    lock.startHeartbeat();
+    expect(interval).toBe(LOCK_HEARTBEAT_MS);
+
+    clock.current = at(LOCK_HEARTBEAT_MS);
+    tick!();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(server.currentLock()?.heartbeat).toBe(at(LOCK_HEARTBEAT_MS).toISOString());
+
+    lock.stopHeartbeat();
+    expect(tick).toBeNull();
+  });
+
+  it('release() libera o bloqueio no servidor', async () => {
+    const server = fakeServer();
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+    await lock.acquire(41);
+    await lock.release();
+    expect(server.currentLock()).toBeNull();
+    expect(lock.current).toBeNull();
+  });
+
+  it('erro de rede na aquisição vira UNAVAILABLE, sem lançar', async () => {
+    const server = fakeServer();
+    server.goOffline();
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+
+    const result = await lock.acquire(41);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('UNAVAILABLE');
+  });
+
+  it('erro de rede em beat() é engolido — o lock é consultivo, um heartbeat perdido não derruba a edição', async () => {
+    const server = fakeServer();
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+    const acquired = await lock.acquire(41);
+    expect(acquired.ok).toBe(true);
+
+    server.goOffline();
+    const beaten = await lock.beat(42);
+    expect(beaten).toEqual(lock.current);
+  });
+
+  it('release() com o servidor fora do ar não lança — melhor esforço', async () => {
+    const server = fakeServer();
+    const lock = new ApiAdvisoryLock({ token: server.token, fetchImpl: server.fetchImpl });
+    await lock.acquire(41);
+    server.goOffline();
+    await expect(lock.release()).resolves.toBeUndefined();
   });
 });
