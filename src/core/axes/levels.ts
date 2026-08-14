@@ -39,6 +39,7 @@ export type GridImpact = {
 // ---------------------------------------------------------------------------
 // Utilitários internos
 // ---------------------------------------------------------------------------
+// #region: utilitarios-internos
 
 /** docs/05 §1.5: todo comando que toca `axes` ou `cells` passa por aqui. */
 function assertEditable(version: MatrixVersion): void {
@@ -151,6 +152,7 @@ function assertIndexInRange(index: number, min: number, max: number, what: strin
 // ---------------------------------------------------------------------------
 // §5.1 Adicionar nível
 // ---------------------------------------------------------------------------
+// #region: 5-1-adicionar-nivel
 
 export type AddLevelInput = {
   /**
@@ -304,6 +306,7 @@ export function addLevel(
 // ---------------------------------------------------------------------------
 // §5.2 Remover nível
 // ---------------------------------------------------------------------------
+// #region: 5-2-remover-nivel
 
 export type RemoveLevelInput = {
   levelIndex: number;
@@ -474,6 +477,7 @@ export function removeLevel(
 // ---------------------------------------------------------------------------
 // §5.3 Reordenar níveis
 // ---------------------------------------------------------------------------
+// #region: 5-3-reordenar-niveis
 
 export type ReorderLevelsInput = {
   fromIndex: number;

@@ -30,6 +30,7 @@ import {
 // com import/profile.ts) e reexportados aqui: todo o resto do código
 // continua importando de '@/core/document/schema' sem mudança nenhuma.
 // ---------------------------------------------------------------------------
+// #region: primitivos-definidos-em-primitives-ver-o-comentario-la-sobre-o-ciclo
 
 export {
   CODE_REGEX,
@@ -49,6 +50,7 @@ export type { ImportProfile };
 // ---------------------------------------------------------------------------
 // §2 Biblioteca de Variáveis
 // ---------------------------------------------------------------------------
+// #region: 2-biblioteca-de-variaveis
 
 export type VariableType = 'ORDINAL' | 'CATEGORICAL' | 'RANGE' | 'BOOLEAN';
 export const VariableTypeSchema: z.ZodType<VariableType> = z.enum([
@@ -224,6 +226,7 @@ export const VariableSchema: z.ZodType<Variable> = z
 // ---------------------------------------------------------------------------
 // §3 Biblioteca de Compatibilidade
 // ---------------------------------------------------------------------------
+// #region: 3-biblioteca-de-compatibilidade
 
 export type DefaultForUnlisted = 'ALL' | 'NONE';
 export const DefaultForUnlistedSchema: z.ZodType<DefaultForUnlisted> = z.enum(['ALL', 'NONE']);
@@ -289,6 +292,7 @@ export const CompatibilityRuleSchema: z.ZodType<CompatibilityRule> = z
 // ---------------------------------------------------------------------------
 // §4 Biblioteca de Conteúdo
 // ---------------------------------------------------------------------------
+// #region: 4-biblioteca-de-conteudo
 
 export type CatalogItemKind = 'DECISION' | 'OFFER' | 'LIMIT' | 'TAG';
 export const CatalogItemKindSchema: z.ZodType<CatalogItemKind> = z.enum([
@@ -332,6 +336,7 @@ export const CatalogItemSchema: z.ZodType<CatalogItem> = z
 // ---------------------------------------------------------------------------
 // §5 Projetos e Matrizes
 // ---------------------------------------------------------------------------
+// #region: 5-projetos-e-matrizes
 
 export type Project = {
   id: string;
@@ -358,6 +363,7 @@ export const ProjectSchema: z.ZodType<Project> = z
 // ---------------------------------------------------------------------------
 // §6 Versão de matriz
 // ---------------------------------------------------------------------------
+// #region: 6-versao-de-matriz
 
 export type AxisRole = 'X' | 'Y';
 export const AxisRoleSchema: z.ZodType<AxisRole> = z.enum(['X', 'Y']);
@@ -500,6 +506,7 @@ export const MatrixSchema: z.ZodType<Matrix> = z
 // ---------------------------------------------------------------------------
 // §7 Templates
 // ---------------------------------------------------------------------------
+// #region: 7-templates
 
 /** Casa caminhos por prefixo de nível. `null` num nível = qualquer valor. */
 export type PathMatcher = Array<string | null>;
@@ -575,6 +582,7 @@ export const TemplateSchema: z.ZodType<Template> = z
 // ---------------------------------------------------------------------------
 // §8 Auditoria
 // ---------------------------------------------------------------------------
+// #region: 8-auditoria
 
 export const DOC_EVENT_TYPES = [
   'DOCUMENT_CREATED',
@@ -641,6 +649,7 @@ export const DocEventSchema: z.ZodType<DocEvent> = z
 // ---------------------------------------------------------------------------
 // §1 Estrutura de topo
 // ---------------------------------------------------------------------------
+// #region: 1-estrutura-de-topo
 
 export type DocumentMeta = {
   id: string;

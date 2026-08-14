@@ -62,6 +62,7 @@ import { assertEditable, locateVersion, resolveLevel, versionScope } from './lif
 // ---------------------------------------------------------------------------
 // Utilitários
 // ---------------------------------------------------------------------------
+// #region: utilitarios
 
 function axisOf(version: MatrixVersion, role: AxisRole): Axis {
   return role === 'X' ? version.axes.x : version.axes.y;
@@ -116,6 +117,7 @@ function dataFor<P>(preview: P, before: Axis, after: MatrixVersion, role: AxisRo
 // ---------------------------------------------------------------------------
 // Inverso comum: restaurar o eixo e as células
 // ---------------------------------------------------------------------------
+// #region: inverso-comum-restaurar-o-eixo-e-as-celulas
 
 export type RestoreAxisInput = {
   versionId: string;
@@ -173,6 +175,7 @@ function snapshotOf(version: MatrixVersion, role: AxisRole, versionId: string): 
 // ---------------------------------------------------------------------------
 // axis/addLevel — docs/04 §5.1
 // ---------------------------------------------------------------------------
+// #region: axis-add-level-docs-04-5-1
 
 export type AddLevelCommandInput = {
   versionId: string;
@@ -248,6 +251,7 @@ export function addLevelCommand(
 // ---------------------------------------------------------------------------
 // axis/removeLevel — docs/04 §5.2
 // ---------------------------------------------------------------------------
+// #region: axis-remove-level-docs-04-5-2
 
 export type RemoveLevelCommandInput = {
   versionId: string;
@@ -314,6 +318,7 @@ export function removeLevelCommand(
 // ---------------------------------------------------------------------------
 // axis/reorderLevels — docs/04 §5.3
 // ---------------------------------------------------------------------------
+// #region: axis-reorder-levels-docs-04-5-3
 
 export type ReorderLevelsCommandInput = {
   versionId: string;
@@ -383,6 +388,7 @@ export function reorderLevelsCommand(
 // ---------------------------------------------------------------------------
 // axis/suppressTuples e axis/restoreTuples — docs/04 §5.4, docs/07 §8
 // ---------------------------------------------------------------------------
+// #region: axis-suppress-tuples-e-axis-restore-tuples-docs-04-5-4-docs-07-8
 
 export type SuppressionPreview = {
   role: AxisRole;
@@ -582,6 +588,7 @@ export function restoreTuplesCommand(
 // ---------------------------------------------------------------------------
 // axis/resnapshot — docs/05 §5.4
 // ---------------------------------------------------------------------------
+// #region: axis-resnapshot-docs-05-5-4
 
 export type ResnapshotAxisInput = { versionId: string; role: AxisRole };
 
@@ -672,6 +679,7 @@ export function resnapshotAxisCommand(
 // ---------------------------------------------------------------------------
 // Escrita e revalidação
 // ---------------------------------------------------------------------------
+// #region: escrita-e-revalidacao
 
 /** Grava eixos e células calculados por `src/core/axes/levels.ts` no rascunho. */
 function writeVersion(target: MatrixVersion, computed: MatrixVersion): void {
@@ -687,6 +695,7 @@ function assertCombinationsFit(version: MatrixVersion): void {
 // ---------------------------------------------------------------------------
 // Previews — a interface nunca aplica sem mostrar antes (docs/07 §7)
 // ---------------------------------------------------------------------------
+// #region: previews-a-interface-nunca-aplica-sem-mostrar-antes-docs-07-7
 
 /**
  * Id de mentira para os previews: nada do que o preview produz é gravado — o

@@ -66,6 +66,8 @@ const EMPTY_SELECTION_VIEW = { x: { axis: { tuples: [] } }, y: { axis: { tuples:
  * inspector) chega na S11: a seleção funciona em qualquer estado de versão,
  * inclusive publicada, porque selecionar é leitura.
  */
+// #region: matrix-screen-estado-e-hooks
+
 export function MatrixScreen() {
   const document = useDocumentStore((s) => s.document);
   const currentMatrixId = useEditorStore((s) => s.currentMatrixId);
@@ -115,6 +117,7 @@ export function MatrixScreen() {
   const [pulsePending, setPulsePending] = useState(false);
   const pulseTimeoutRef = useRef<number | null>(null);
 
+  // #region: matrix-screen-efeitos-e-derivados
   useEffect(() => {
     return () => {
       if (pulseTimeoutRef.current !== null) window.clearTimeout(pulseTimeoutRef.current);
@@ -164,6 +167,7 @@ export function MatrixScreen() {
   // engine recebe um grid vazio e simplesmente não tem o que selecionar.
   const baseSelectionApi = useGridSelection(view ?? EMPTY_SELECTION_VIEW);
 
+  // #region: matrix-screen-handlers
   function runClear(coords: { xPath: string; yPath: string }[]) {
     if (currentVersionId === null || coords.length === 0) return;
     const set = Object.fromEntries(CELL_FIELDS.map((field) => [field, null]));
@@ -340,6 +344,7 @@ export function MatrixScreen() {
     { key: 'png', label: 'Exportar PNG', onSelect: handleExportPng, disabled: pngPending !== null },
   ];
 
+  // #region: matrix-screen-jsx
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* Cabeçalho e rodapé só de impressão — docs/07 §12: matriz, versão e

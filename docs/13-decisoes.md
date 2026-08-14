@@ -135,6 +135,36 @@ modelo pronto.
 camadas — o torna estável: feature nova passa a custar 1 linha de índice + 1 doc de domínio, e
 sessões leem por ponteiro em vez de por varredura.
 
+## ADR-007: âncoras de região são um comentário `// #region: <slug>` só, sem par de fechamento
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Nos arquivos de `src/` acima de ~600 linhas, cada seção lógica ganha um comentário `// #region: <slug-kebab-case>` logo no início (derivado do título já existente, quando havia um bloco divisor `// ---...---`). **Sem** `// #endregion` de fechamento — o contrato é `grep -rn "// #region:" src/`, não dobra/expande de editor. Nenhum código foi movido ou renomeado; a extração de módulo fica para quando uma sessão futura tocar o arquivo por outro motivo (incremental, nunca big-bang). Índice em `docs/claude/Mapa-de-regioes.md`. |
+| **Data / gatilho** | 2026-08-14, sessão S31 (ADR-006), execução das âncoras de região (G5). |
+| **Páginas afetadas** | `docs/claude/Mapa-de-regioes.md` (novo), `CLAUDE.md` § Onde vive o quê |
+
+**Contexto.** O AppCreditoSimulador (modelo pronto citado na ADR-006) usa `// ═══ REGIÃO: <nome>
+═══` com um mapa por arquivo (`docs/claude/Mapa-App.md`) para o único arquivo gigante daquele
+projeto (`App.jsx`, um componente). O PolicyOps tem 17 arquivos acima de ~600 linhas espalhados
+entre `src/core/` e `src/components/` — um mapa por arquivo teria virado 17 documentos pequenos
+por pouco ganho; a alternativa avaliada era não ter marcador nenhum e confiar só nos nomes de
+função exportada, mas isso não ajuda em arquivos com muita lógica não-exportada entre as seções
+(ex.: os componentes React grandes) nem permite grep único do repositório inteiro.
+
+**Justificativa.** Um único slug ASCII grep-ável por seção, sem par de fechamento, é o menor
+comprometimento que ainda cumpre o objetivo (navegação por 1 grep) sem impor uma sintaxe de
+editor (dobra/expande) que a base de código não usava até aqui. Um `Mapa-de-regioes.md` único
+para o repositório inteiro (em vez de 17 arquivos) evita o próprio problema que a S31 existe
+para resolver: mais um lugar sujeito a desatualizar. A maioria das seções (13 dos 17 arquivos)
+já tinha blocos divisores com título — a âncora reaproveita esse título como slug em vez de
+inventar um vocabulário novo, então a maior parte do trabalho foi mecânico (script de uso único,
+descartado depois da sessão) em vez de julgamento arquivo por arquivo.
+
+**Trade-off aceito.** Sem `#endregion`, o editor não dobra a seção automaticamente — aceito
+porque o caso de uso real é "onde fica X" (grep), não "recolher tudo e ver o esqueleto do
+arquivo" (que os blocos divisores já existentes, em 13 dos 17 arquivos, resolvem sozinhos com
+`// ---...---`).
+
 ---
 
 ## DEC-CARGA-001: uma matriz por canal de venda

@@ -115,6 +115,7 @@ function assertVariableDraft(version: VariableVersion): void {
 // ---------------------------------------------------------------------------
 // variable/create
 // ---------------------------------------------------------------------------
+// #region: variable-create
 
 export type CreateVariableInput = {
   code: string;
@@ -239,6 +240,7 @@ function restoreVariable(
 // ---------------------------------------------------------------------------
 // variable/updateMeta
 // ---------------------------------------------------------------------------
+// #region: variable-update-meta
 
 export type UpdateVariableMetaInput = {
   variableId: string;
@@ -282,6 +284,7 @@ export function updateVariableMeta(
 // ---------------------------------------------------------------------------
 // variable/createDraft · variable/discardDraft
 // ---------------------------------------------------------------------------
+// #region: variable-create-draft-variable-discard-draft
 
 export type CreateVariableDraftInput = { variableId: string };
 export type CreateVariableDraftData = { versionId: string; number: number; basedOnNumber: number };
@@ -406,6 +409,7 @@ function restoreVariableVersion(
 // ---------------------------------------------------------------------------
 // variable/saveDomains
 // ---------------------------------------------------------------------------
+// #region: variable-save-domains
 
 export type SaveVariableDomainsInput = {
   variableId: string;
@@ -538,6 +542,7 @@ function setVariableDomains(
 // ---------------------------------------------------------------------------
 // variable/publish
 // ---------------------------------------------------------------------------
+// #region: variable-publish
 
 export type PublishVariableInput = { variableId: string; versionId: string; notes?: string };
 export type PublishVariableData = { versionId: string; supersededVersionId: string | null };
@@ -614,6 +619,7 @@ export function publishVariable(
 // ---------------------------------------------------------------------------
 // variable/archive
 // ---------------------------------------------------------------------------
+// #region: variable-archive
 
 export type ArchiveVariableInput = { variableId: string };
 
@@ -686,6 +692,7 @@ function setVariableArchived(
 // ---------------------------------------------------------------------------
 // variable/duplicate
 // ---------------------------------------------------------------------------
+// #region: variable-duplicate
 
 export type DuplicateVariableInput = {
   sourceVariableId: string;

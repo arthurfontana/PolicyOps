@@ -178,6 +178,7 @@ const ARROW_DIRECTIONS: Record<string, Direction> = {
 // ---------------------------------------------------------------------------
 // Célula
 // ---------------------------------------------------------------------------
+// #region: celula
 
 interface GridCellProps {
   xPath: string;
@@ -397,6 +398,7 @@ const GridCell = memo(GridCellImpl, (prev, next) => {
 // ---------------------------------------------------------------------------
 // Grid
 // ---------------------------------------------------------------------------
+// #region: grid
 
 export function Grid({
   view,

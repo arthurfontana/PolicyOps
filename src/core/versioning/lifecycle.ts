@@ -51,6 +51,7 @@ import { buildSeedCells, type SkippedSeedRule } from '../templates/seed';
 // ---------------------------------------------------------------------------
 // §1.5 Imutabilidade — a guarda mais importante do sistema
 // ---------------------------------------------------------------------------
+// #region: 1-5-imutabilidade-a-guarda-mais-importante-do-sistema
 
 /**
  * Lança `VERSION_IMMUTABLE` se a versão não estiver em `DRAFT`. **Todo**
@@ -87,6 +88,7 @@ export function assertDraft(version: MatrixVersion): void {
 // ---------------------------------------------------------------------------
 // Localização
 // ---------------------------------------------------------------------------
+// #region: localizacao
 
 export type VersionLocation = {
   matrix: Matrix;
@@ -129,6 +131,7 @@ export function versionScope(matrix: Matrix, versionId: string): DocEvent['scope
 // ---------------------------------------------------------------------------
 // §1.1 matrix/create
 // ---------------------------------------------------------------------------
+// #region: 1-1-matrix-create
 
 export type AxisLevelRef = { variableId: string; label?: string };
 export type CreateMatrixInput = {
@@ -421,6 +424,7 @@ function restoreMatrix(input: { matrix: Matrix; index: number }): Command<
 // ---------------------------------------------------------------------------
 // §1.2 version/createDraft
 // ---------------------------------------------------------------------------
+// #region: 1-2-version-create-draft
 
 export type CreateDraftInput = { matrixId: string; baseVersionId?: string };
 export type CreateDraftData = { versionId: string; number: number; baseVersionNumber: number };
@@ -520,6 +524,7 @@ export function createDraft(input: CreateDraftInput): Command<CreateDraftInput, 
 // ---------------------------------------------------------------------------
 // version/_createWithoutBase — restauração de matriz nunca publicada
 // ---------------------------------------------------------------------------
+// #region: version-create-without-base-restauracao-de-matriz-nunca-publicada
 
 export type CreateDraftWithoutBaseInput = {
   matrixId: string;
@@ -659,6 +664,7 @@ function restoreVersion(input: { matrixId: string; version: MatrixVersion; index
 // ---------------------------------------------------------------------------
 // §1.3 version/publish
 // ---------------------------------------------------------------------------
+// #region: 1-3-version-publish
 
 export type PublishInput = { versionId: string; effectiveFrom?: string; notes: string };
 export type PublishData = {
@@ -853,6 +859,7 @@ export function publishVersion(input: PublishInput): Command<PublishInput, Publi
 // ---------------------------------------------------------------------------
 // §1.4 version/discardDraft
 // ---------------------------------------------------------------------------
+// #region: 1-4-version-discard-draft
 
 export type DiscardDraftInput = { versionId: string };
 export type DiscardDraftData = { versionId: string; number: number; editedCells: number };
@@ -899,6 +906,7 @@ export function discardDraft(input: DiscardDraftInput): Command<DiscardDraftInpu
 // ---------------------------------------------------------------------------
 // version/addNote
 // ---------------------------------------------------------------------------
+// #region: version-add-note
 
 export type AddNoteInput = { versionId: string; text: string };
 
@@ -935,6 +943,7 @@ export function addNote(input: AddNoteInput): Command<AddNoteInput, { eventId: s
 // ---------------------------------------------------------------------------
 // Consultas de apoio
 // ---------------------------------------------------------------------------
+// #region: consultas-de-apoio
 
 /** Combinações sem decisão nesta versão — pendência é derivada, nunca armazenada (§2.1). */
 export function pendingCoords(version: MatrixVersion): CellCoord[] {

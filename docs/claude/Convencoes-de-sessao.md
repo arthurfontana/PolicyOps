@@ -1,0 +1,61 @@
+# Convenções de sessão
+
+> Ponteiro a partir de: `CLAUDE.md` § Comandos. Sessão S31 (ADR-006). O que toda sessão de
+> implementação repete — não duplica nada de `docs/01..14`, só resume o operacional.
+
+## Comandos de verificação (fechamento de sessão)
+
+Regra 7 das 8 regras (`docs/prompts/README.md`) — rodar antes de considerar a sessão terminada:
+
+```bash
+pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build
+```
+
+- `pnpm build` já roda `check-size` (orçamento de 1,5 MB) como parte do script.
+- Se a sessão tocou `server/`: também `python -m pytest server/tests`.
+- Se a sessão tocou `CLAUDE.md`: também `pnpm check:claude-md` (guard de ~450 linhas, ADR-006).
+- Antes de commitar mudança de UI: `pnpm check-selfcontained` (zero referência de rede externa no
+  `dist/PolicyOps.html`) — normalmente coberto pelo CI, mas vale rodar local se a sessão mexeu em
+  algo que poderia introduzir uma URL externa (fonte, ícone, script).
+- `pnpm test:e2e` roda contra `dist/PolicyOps.html` por `file://` — só depois de `pnpm build`.
+- `dist/PolicyOps.html` precisa estar atualizado **no mesmo commit** que gerou a mudança (regra 7).
+
+## Suíte de contrato dos adapters
+
+`src/storage/adapter.ts` define a interface `StorageAdapter` implementada por `fsa-adapter.ts`
+(File System Access API) e `download-adapter.ts` (fallback `<input>`/`<a download>`); o modo
+`SERVER` (S27, planejado) adiciona `server-adapter.ts` sobre a mesma interface (ADR-002). Um
+adapter novo — ou uma mudança de contrato num adapter existente — precisa cobrir o mesmo conjunto
+de comportamentos que `tests/unit/storage/fsa-adapter.test.ts` e
+`tests/unit/storage/download-adapter.test.ts` já cobrem cada um à sua maneira (não é uma suíte
+parametrizada única — é a mesma lista de `describe` replicada por adapter):
+
+- abrir e salvar, com hash acompanhando a revisão salva;
+- detecção de conflito (`docs/06-persistencia-e-concorrencia.md` §5) — hash divergente devolve
+  `CONFLICT` sem gravar nada; "sobrescrever mesmo assim" só grava depois de aceitar o remoto como
+  base;
+- documento inválido nunca é gravado (§4) — `save()` devolve `IO` com a explicação, disco
+  intocado;
+- comportamento específico do adapter: `fsa-adapter` cobre backups automáticos (§9) e arquivo que
+  virou lixo no disco; `download-adapter` cobre o aviso de ausência de detecção de conflito
+  (`DOWNLOAD_ONLY_CONFLICT_WARNING`) e a leitura do arquivo baixado de volta
+  (`readDocumentFromBytes`).
+
+`tests/unit/storage/fakes.ts` (`fakeFileHandle`) e `@/storage/directory` (`memoryDirectory`) são
+os dublês usados pelos dois arquivos — reuse-os em vez de mockar a File System Access API na mão.
+
+## Fixtures canônicas
+
+`tests/fixtures/*.json` são documentos completos usados em vários arquivos de teste — não crie
+uma fixture nova se uma destas já cobre o cenário:
+
+| Fixture | Uso |
+|---|---|
+| `sample-document.json` | Documento de exemplo completo, mesmo conteúdo de `createSampleDocument()` |
+| `valid-base.json`, `valid-minimal.json` | Documentos válidos mínimos para testes de validação/schema |
+| `defect-*.json` | Um defeito plantado por arquivo (referência de catálogo ausente, coordenada de célula inválida, tupla órfã, gap de `position`, duas versões `PUBLISHED`) — usados pelos testes de `validate.ts` |
+| `migration-v0-raw.json`, `v2-document.json`, `regional-v1-document.json` | Documentos em versões antigas de schema, para os testes de `migrate.ts` |
+| `cineminha-recorte.csv` | Recorte real (231 linhas) do `CINEMINHA_20260708.csv` original — fixture do épico Carga (`docs/12-carga-de-matrizes.md`), usada pelo assistente de importação ponta a ponta |
+
+Fixture nova só quando nenhuma das acima serve o cenário — e documenta o motivo num comentário no
+próprio teste que a usa pela primeira vez (por que as fixtures existentes não bastam).

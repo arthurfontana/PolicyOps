@@ -37,6 +37,7 @@ import { locateMatrix, locateVersion } from './versioning/lifecycle';
 // ---------------------------------------------------------------------------
 // Vigência — docs/05 §6
 // ---------------------------------------------------------------------------
+// #region: vigencia-docs-05-6
 
 /**
  * Versão vigente em `at`: intervalo **semiaberto** `[effectiveFrom, effectiveTo)`.
@@ -79,6 +80,7 @@ export function getPortfolioAt(
 // ---------------------------------------------------------------------------
 // Linha do tempo de vigência — docs/07-ux-e-editor.md §10, docs/prompts/S15
 // ---------------------------------------------------------------------------
+// #region: linha-do-tempo-de-vigencia-docs-07-ux-e-editor-md-10-docs-prompts-s15
 
 export type TimelineSegment = {
   versionId: string;
@@ -118,6 +120,7 @@ export function getMatrixTimeline(matrix: Matrix): TimelineSegment[] {
 // ---------------------------------------------------------------------------
 // Histórico e auditoria
 // ---------------------------------------------------------------------------
+// #region: historico-e-auditoria
 
 export type MatrixVersionSummary = {
   id: string;
@@ -181,6 +184,7 @@ export function countPending(doc: PolicyOpsDocument, versionId: string): number 
 // ---------------------------------------------------------------------------
 // Defasagem de eixo — docs/05 §5.2
 // ---------------------------------------------------------------------------
+// #region: defasagem-de-eixo-docs-05-5-2
 
 /**
  * A detecção vive em `src/core/reconcile/stale.ts` (S16): é regra de
@@ -251,6 +255,7 @@ export function defaultComparePair(
 // ---------------------------------------------------------------------------
 // Tela de rascunhos — docs/prompts/S13-ciclo-de-vida.md item 5
 // ---------------------------------------------------------------------------
+// #region: tela-de-rascunhos-docs-prompts-s13-ciclo-de-vida-md-item-5
 
 export type OpenDraftEntry = {
   matrix: Matrix;
@@ -278,6 +283,7 @@ export function listOpenDrafts(doc: PolicyOpsDocument): OpenDraftEntry[] {
 // ---------------------------------------------------------------------------
 // Navegação de projeto → matriz → versão — docs/09 S09
 // ---------------------------------------------------------------------------
+// #region: navegacao-de-projeto-matriz-versao-docs-09-s09
 
 /**
  * A versão que "abrir uma matriz" deve mostrar: a vigente; se não houver, o
@@ -361,6 +367,7 @@ export function listProjectMatrices(
 // ---------------------------------------------------------------------------
 // Tags e filtro de matrizes — docs/07-ux-e-editor.md §15, docs/03 §4/§5
 // ---------------------------------------------------------------------------
+// #region: tags-e-filtro-de-matrizes-docs-07-ux-e-editor-md-15-docs-03-4-5
 
 export type TagFacetOption = {
   code: string;
@@ -473,6 +480,7 @@ export function listMatrices(doc: PolicyOpsDocument, filter: ListMatricesFilter 
 // ---------------------------------------------------------------------------
 // Biblioteca de variáveis
 // ---------------------------------------------------------------------------
+// #region: biblioteca-de-variaveis
 
 export type VariableFilter = { search?: string; type?: VariableType; includeArchived?: boolean };
 
@@ -568,6 +576,7 @@ export function listVariables(
 // ---------------------------------------------------------------------------
 // Biblioteca de compatibilidade — docs/08 §4, docs/07 §11
 // ---------------------------------------------------------------------------
+// #region: biblioteca-de-compatibilidade-docs-08-4-docs-07-11
 
 function variableVersionDomains(
   doc: PolicyOpsDocument,
@@ -738,6 +747,7 @@ export function getApplicableRule(
 // ---------------------------------------------------------------------------
 // getEditorView — tudo que o grid precisa, calculado uma vez só
 // ---------------------------------------------------------------------------
+// #region: get-editor-view-tudo-que-o-grid-precisa-calculado-uma-vez-so
 
 export type EditorAxisView = {
   axis: Axis;
@@ -887,6 +897,7 @@ export function resetEditorViewComputations(): void {
 // ---------------------------------------------------------------------------
 // Templates — docs/07-ux-e-editor.md §11, docs/prompts/S17 Parte A
 // ---------------------------------------------------------------------------
+// #region: templates-docs-07-ux-e-editor-md-11-docs-prompts-s17-parte-a
 
 export type TemplateSummary = {
   template: Template;
@@ -929,6 +940,7 @@ export function listTemplates(
 // ---------------------------------------------------------------------------
 // Carga de matrizes — origem dos rascunhos (docs/12 §6.2, US-10)
 // ---------------------------------------------------------------------------
+// #region: carga-de-matrizes-origem-dos-rascunhos-docs-12-6-2-us-10
 
 /** Uma rodada de carga, lida do evento `IMPORT_RUN` que a registrou. */
 export type ImportRunSummary = {

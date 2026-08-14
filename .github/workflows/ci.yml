@@ -21,6 +21,9 @@ jobs:
       - name: Instalar dependências
         run: pnpm install --frozen-lockfile
 
+      - name: Checar tamanho do CLAUDE.md (guard ADR-006 — ver CLAUDE.md § Documentação em camadas)
+        run: pnpm check:claude-md
+
       - name: Lint
         run: pnpm lint
 

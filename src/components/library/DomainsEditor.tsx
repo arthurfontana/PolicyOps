@@ -69,6 +69,8 @@ export interface DomainsEditorProps {
 
 type Row = { rowId: string; domain: Domain };
 
+// #region: helpers-de-linha-e-dominio
+
 function toRows(domains: Domain[]): Row[] {
   return [...domains]
     .sort((a, b) => a.position - b.position)
@@ -115,6 +117,8 @@ function autoSuggestColors(domains: Domain[]): Domain[] {
 }
 
 /** Linhas de exemplo — fonte única para o modelo `.csv` e o preview inline (docs/07 §11). */
+// #region: templates-e-csv
+
 function domainTemplateRows(type: VariableType): string[][] {
   if (type === 'RANGE') {
     return [
@@ -156,6 +160,8 @@ function downloadCsv(rows: string[][], filename: string): void {
 }
 
 /** Lista de erros (vermelho) ou avisos (âmbar) de um resultado de colagem. */
+// #region: feedback-de-parse-e-colagem
+
 function ParseFeedback({ items, tone }: { items: string[]; tone: 'error' | 'warning' }) {
   if (items.length === 0) return null;
   const cls =
@@ -229,6 +235,8 @@ function PasteDialog({
   );
 }
 
+// #region: helpers-de-issues
+
 function issuesFor(issues: DomainValidationIssue[], code: string): DomainValidationIssue[] {
   if (code === '') return [];
   return issues.filter((issue) => issue.domainCodes?.includes(code));
@@ -242,6 +250,8 @@ function generalIssues(issues: DomainValidationIssue[]): DomainValidationIssue[]
 function issuesForPath(issues: DomainValidationIssue[], key: string): DomainValidationIssue[] {
   return issues.filter((issue) => issue.path !== undefined && groupingPathKey(issue.path) === key);
 }
+
+// #region: sortable-row
 
 function SortableRow({
   row,
@@ -418,6 +428,8 @@ function SortableRow({
   );
 }
 
+// #region: sortable-grouping-row
+
 function SortableGroupingRow({
   id,
   dimension,
@@ -492,6 +504,8 @@ function SortableGroupingRow({
  * reordenar (docs/07 §11). Populada principalmente pela colagem; a edição
  * manual aqui é complementar (renomear, reordenar, remover, adicionar vazio).
  */
+// #region: grouping-dimensions-editor
+
 function GroupingDimensionsEditor({
   dimensions,
   disabled,
@@ -559,6 +573,8 @@ function GroupingDimensionsEditor({
 }
 
 /** Uma linha da tabela tidy: `(agrupamento…, domínio, mín, máx, cor)` dentro de um grupo. */
+// #region: grouping-range-row
+
 function GroupingRangeRow({
   domain,
   range,
@@ -630,6 +646,8 @@ function GroupingRangeRow({
  * contiguidade validada por caminho distinto. O editor de agrupamentos é
  * populado principalmente por "Colar tabela"; a edição manual é complementar.
  */
+// #region: domains-editor
+
 export function DomainsEditor({
   type,
   domains,
@@ -839,6 +857,7 @@ export function DomainsEditor({
   const topIssues = generalIssues(issues);
   const showPaletteButton = type === 'RANGE' || type === 'CATEGORICAL' || type === 'ORDINAL';
 
+  // #region: domains-editor-jsx
   return (
     <div className="flex flex-col gap-2">
       {type === 'RANGE' && onBoundaryModeChange !== undefined && (

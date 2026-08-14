@@ -36,7 +36,7 @@
 | 28 | Launcher e distribuição | **Sonnet** | `iniciar.bat` + `instalar.bat` (venv + wheels offline) e o pacote `dist/plataforma/` gerado pelo build — dois cliques numa máquina limpa | 27 |
 | 29 | Identidade Windows e papéis | **Sonnet** | `whoami` carimba auditoria/saves; `meta.acl` (schema 4) com papéis aplicados na interface e no servidor | 27 |
 | 30 | Evidências: acervo navegável | **Opus** | Anexar/abrir/desanexar evidência com hash conferido; acervo legível no Explorer; `attachments` no schema 4 | 27, 29 |
-| 31 | Guardrails de contexto e reorganização documental | **Sonnet** | `CLAUDE.md` índice ≤450 linhas com mapa "onde vive o quê", guard mecânico no CI, âncoras nos arquivos grandes | — |
+| 31 | Guardrails de contexto e reorganização documental | **Sonnet** | ✅ **Entregue** — `CLAUDE.md` índice ≤450 linhas com mapa "onde vive o quê", guard mecânico no CI, âncoras nos arquivos grandes | — |
 | 32 | Modelo de componentes e schema 5 | **Opus** | `PolicyComponent`/`ComponentVersion`/`ChangeRequest`/`Release` no schema, migração aditiva, invariantes I23–I26, comandos de árvore com inverso — 100% testado, sem tela | 29 |
 | 33 | Árvore da política e cadastro de regras | **Sonnet** | Árvore navegável por projeto, CRUD de componente por tipo, versionar/publicar regra com vigência, timeline do componente | 32 |
 | 34 | Editor rico de especificação | **Opus** | `RichDoc` de blocos próprios: editar, colar do Word/Excel, imagem-anexo com teto, diff por bloco | 32 |
@@ -108,6 +108,18 @@
 > este épico foi priorizado antes na ordem de execução. A **S31 é independente** e recomendada o
 > quanto antes — ela barateia todas as sessões seguintes. A S29 e a S30 dependem do modo `SERVER`
 > (27); a S30 usa a identidade da 29 para carimbar quem anexou.
+
+> **Sessão 31 entregue.** `CLAUDE.md` reescrito como índice em camadas (114 linhas, teto de 450
+> guardado por `pnpm check:claude-md` — `scripts/check-claude-md.mjs`, registrado no CI logo após
+> `pnpm install`), com a tabela "Onde vive o quê" cobrindo os 12 domínios pedidos mais 5 extras
+> (bibliotecas, templates, consultas, export, governança). `docs/claude/` criado com dois arquivos:
+> `Mapa-de-regioes.md` (índice das âncoras) e `Convencoes-de-sessao.md` (comandos de fechamento,
+> contrato dos adapters, fixtures canônicas) — nada duplicado de `docs/01..14`, só ponteiro. Os 17
+> arquivos de `src/` acima de ~600 linhas (`merge/documents.ts`, `validate.ts`, `lifecycle.ts`,
+> `Grid.tsx` e mais 13) ganharam 126 âncoras `// #region: <slug>` grep-áveis — puramente aditivo,
+> nenhuma linha de código movida ou alterada (confirmado por `git diff --stat`: só `+`), suíte de
+> 1.353 testes e `lint`/`typecheck` verdes sem tocar. Padrão da âncora documentado em ADR-007.
+> `docs/prompts/README.md` ganhou a nota de higiene de prompts (G6).
 
 > **Sessões 32–40 são o épico Governança de Alterações** ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), decisões `DEC-GOV-*` em [`13-decisoes.md`](13-decisoes.md), 🔮 planejado): a política inteira como árvore de componentes versionados, o Diário de Bordo como Solicitação de Alteração estruturada com workflow, releases e Pacote para a Fábrica gerado. Nasceu com numeração própria (26–34) numa sessão de especificação separada da do épico Plataforma e foi renumerado para 32–40 ao consolidar as duas — inclusive o schema, que sai de `schemaVersion: 4` para `schemaVersion: 5` porque a 4 já é do épico Plataforma (`meta.acl`, S29; ver DEC-GOV-009). A ordem recomendada prioriza valor cedo: 32 → 33 → 40 (a árvore já carregada com a política real) → 34 → 35 → 36 → 37/38 (paralelizáveis) → 39. As perguntas abertas do §12 de `14-governanca-de-alteracoes.md` devem ser fechadas antes das sessões que as citam.
 

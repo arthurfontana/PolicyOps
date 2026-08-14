@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "check-size": "node scripts/check-size.mjs",
-    "check-selfcontained": "node scripts/check-selfcontained.mjs"
+    "check-selfcontained": "node scripts/check-selfcontained.mjs",
+    "check:claude-md": "node scripts/check-claude-md.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
