@@ -33,6 +33,16 @@ jobs:
       - name: Testes unitários
         run: pnpm test:unit
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências do servidor local (docs/14-plataforma-local.md §3)
+        run: python -m pip install -r server/requirements.txt pytest httpx
+
+      - name: Testes do servidor local
+        run: python -m pytest server/tests
+
       - name: Build (inclui check-size)
         run: pnpm build
 

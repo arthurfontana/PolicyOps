@@ -31,7 +31,7 @@
 | 23 | Tags de matriz, filtro e schema 3 | **Sonnet** | ✅ **Entregue** — schema 3, migração 2→3 puramente aditiva, tags de matriz com facetas de filtro, perfis de carga persistidos | 20 |
 | 24 | Aplicação da carga e versionamento seletivo | **Opus** | ✅ **Entregue** — carga aplicada: rascunho só nas alteradas, fila de revisão, perfil salvo, auditoria e idempotência | 22, 23 |
 | 25 | Evolução estrutural na carga ✅ | **Opus** | Faixa nova no arquivo vira nova versão de variável adotada no rascunho, sem caminho manual | 24 |
-| 26 | Servidor local: núcleo de persistência | **Opus** | `PUT /api/document` com escrita atômica, conflito 409, lock, backups e token — pytest verde contra pasta temporária | — |
+| 26 | Servidor local: núcleo de persistência | **Opus** | ✅ **Entregue** — `server/policyops_server.py` (FastAPI, `127.0.0.1`, token por boot): `GET/PUT /api/document` com escrita atômica e conflito 409, lock consultivo com 423, backups com rotação de 20, `whoami` e `health`; 55 testes pytest contra pasta temporária | — |
 | 27 | Modo `SERVER` no front | **Sonnet** | `server-adapter` + detecção de modo; abrir/salvar/conflito/merge rodando ponta a ponta contra o servidor real (E2E) | 26 |
 | 28 | Launcher e distribuição | **Sonnet** | `iniciar.bat` + `instalar.bat` (venv + wheels offline) e o pacote `dist/plataforma/` gerado pelo build — dois cliques numa máquina limpa | 27 |
 | 29 | Identidade Windows e papéis | **Sonnet** | `whoami` carimba auditoria/saves; `meta.acl` (schema 4) com papéis aplicados na interface e no servidor | 27 |
@@ -108,6 +108,18 @@
 > este épico foi priorizado antes na ordem de execução. A **S31 é independente** e recomendada o
 > quanto antes — ela barateia todas as sessões seguintes. A S29 e a S30 dependem do modo `SERVER`
 > (27); a S30 usa a identidade da 29 para carimbar quem anexou.
+
+> **Sessão 26 entregue.** `server/policyops_server.py` (≈600 linhas, FastAPI) sobe em `127.0.0.1`
+> numa porta livre de 8770–8799, serve o `PolicyOps.html` sem cache e expõe a API v1:
+> `health`/`whoami`, `GET/PUT /api/document` com hash SHA-256, conflito `409` que **não grava** e
+> escrita atômica (`.tmp` + `fsync` + `os.replace`), lock consultivo no mesmo `{nome}.lock.json` do
+> modo `FULL` (`423` para o segundo usuário, obsoleto aos 10 min), backup do conteúdo anterior a
+> cada save com rotação de 20 e `GET /api/backups`. Token aleatório por boot em
+> `X-PolicyOps-Token` (401 sem ele; só `/api/health` dispensa) e `X-PolicyOps-Api: 1` em toda
+> resposta. 55 testes pytest (`server/tests/`, rodando contra `tmp_path`) cobrem o bloco de
+> servidor de `14-plataforma-local.md` §11 exceto papéis (S29) e evidências (S30). Nenhuma linha de
+> TypeScript mudou; os ajustes finos de contrato descobertos aqui estão em `14` §4 e em
+> DEC-PLAT-001.
 
 > **Sessão 31 entregue.** `CLAUDE.md` reescrito como índice em camadas (114 linhas, teto de 450
 > guardado por `pnpm check:claude-md` — `scripts/check-claude-md.mjs`, registrado no CI logo após

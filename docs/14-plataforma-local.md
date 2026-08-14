@@ -73,13 +73,13 @@ API maior que a sua (mesma regra do `schemaVersion`: nunca "tentar mesmo assim")
 | Método e rota | Faz | Resposta / erros |
 |---|---|---|
 | `GET /` e estáticos | Serve `PolicyOps.html` | — |
-| `GET /api/health` | Ping sem token | `{ app, apiVersion, dataDir, started }` |
+| `GET /api/health` | Ping sem token | `{ app, apiVersion, dataDir, dataFile, started }` |
 | `GET /api/whoami` | Identidade da sessão (§6) | `{ username, displayName, roles }` |
 | `GET /api/document` | Lê `politicas.json` | `{ raw, hash, bytes, mtime }` · `404` se não existe |
-| `PUT /api/document` | Salva com detecção de conflito | Corpo `{ baseHash, content }`. `200 { hash, savedAt }` · `409 { remoteRaw, remoteHash }` se o hash em disco ≠ `baseHash` · `423` se lock ativo de outro usuário e `force` ausente |
-| `POST /api/document/lock` | Adquire/renova o lock consultivo | Espelha `{nome}.lock.json` de `06` §6 |
-| `DELETE /api/document/lock` | Libera o lock | Só o próprio dono |
-| `GET /api/backups` | Lista `_backups/` | Restauração é manual e documentada (`11-operacao.md`) — a API não restaura |
+| `PUT /api/document` | Salva com detecção de conflito | Corpo `{ baseHash, content, force? }`. `200 { hash, savedAt, bytes, backup }` · `409 { remoteRaw, remoteHash }` se o hash em disco ≠ `baseHash` · `423 { lock }` se lock ativo de outro usuário e `force` ausente |
+| `POST /api/document/lock` | Adquire/renova o lock consultivo | Corpo `{ docRevision?, force? }` · `200 { lock }` · `423 { lock }`. Espelha `{nome}.lock.json` de `06` §6 |
+| `DELETE /api/document/lock` | Libera o lock | `200 { released }` · `409 LOCK_NOT_OWNED` — só o próprio dono libera |
+| `GET /api/backups` | Lista `_backups/` | `{ backups: [{ name, bytes, mtime }] }`, do mais novo para o mais antigo. Restauração é manual e documentada (`11-operacao.md`) — a API não restaura |
 | `POST /api/evidences` | Anexa arquivo (multipart) ao acervo (§7) | `201 { id, relPath, sha256, bytes }` |
 | `GET /api/evidences/{id}` | Faz o download/stream do arquivo | `404` se removido; `409 HASH_MISMATCH` se o conteúdo não bate com o hash registrado |
 | `DELETE /api/evidences/{id}` | Move o arquivo para `_evidencias/_lixeira/` | Nunca apaga de verdade (§7) |
@@ -95,6 +95,39 @@ Regras transversais da API:
 - O servidor **não valida invariantes do documento** — quem valida é o front via
   `src/core/document/validate.ts`, antes de chamar a API (como hoje). O servidor só recusa JSON
   sintaticamente inválido e corpo sem `baseHash`.
+
+### Detalhamento fechado na S26 (DEC-PLAT-001)
+
+- **`content` é texto, não objeto.** O servidor grava exatamente os bytes que o front serializou,
+  para que o `hash` devolvido seja o mesmo que o front calculou. Formatação canônica
+  (`JSON.stringify(doc, null, 2)`, chaves ordenadas) continua sendo assunto de
+  `src/core/document/serialize.ts` — o Python nunca reserializa (ADR-002).
+- **`hash` é SHA-256 em hexadecimal** dos bytes do arquivo, idêntico ao `hashDocument()` do front.
+  `baseHash: null` significa "eu não vi arquivo nenhum": se já existir um no disco, é `409`.
+  Arquivo apagado por outra pessoa também é `409` (com `remoteHash: null`), nunca gravação nova
+  silenciosa.
+- **Datas** (`mtime`, `savedAt`, `since`, `heartbeat`, `started`) são ISO 8601 em UTC com
+  milissegundos e sufixo `Z` — o mesmo formato do `Date#toISOString()` do front.
+- **Envelope de erro uniforme**: `{ code, detail, ...extra }`, sempre com `X-PolicyOps-Api`.
+  Códigos da v1: `UNAUTHORIZED` (401), `BAD_REQUEST` e `INVALID_JSON` (400), `NOT_FOUND` e
+  `HTML_NOT_FOUND` (404), `CONFLICT` (409, com `remoteRaw`/`remoteHash`), `LOCK_NOT_OWNED` (409),
+  `LOCKED` (423, com `lock`), `NOT_UTF8` (422), `IO` (500).
+- **Lock**: o servidor escreve o mesmo `{nome}.lock.json` do modo `FULL` e acrescenta um campo
+  aditivo `username`, que passa a ser o critério de propriedade (o `holder` continua sendo o
+  rótulo exibido: `displayName` ou o login). Lock escrito pelo modo `FULL`, sem `username`, é
+  reconhecido pelo `holder` — os dois modos se enxergam nas duas direções.
+- **Backup**: dois saves dentro do mesmo segundo colidiriam no nome
+  (`{nome}.{AAAA-MM-DDThh-mm-ss}.json`); o servidor avança o carimbo de um segundo até achar um
+  nome livre em vez de sobrescrever — o formato do nome é compartilhado com o front e não comporta
+  sufixo. Falha na pasta `_backups` vira aviso no log e **não** bloqueia o salvamento (`06` §9).
+- **Estáticos**: só `GET /` e `GET /PolicyOps.html` são servidos, do diretório do próprio servidor
+  — não há árvore de estáticos para percorrer nem caminho arbitrário a pedir. Em checkout de
+  desenvolvimento, o servidor aceita o build em `../dist/PolicyOps.html`; `--html` aponta um
+  arquivo explícito.
+- **Configuração**: precedência linha de comando > `config.json` ao lado do servidor > padrão
+  (`--data-dir` cai no pai do diretório do script, `--data-file` em `politicas.json`). Chaves
+  reconhecidas no `config.json`: `dataDir`, `dataFile`, `displayName`, `html`. Arquivo ausente ou
+  inválido é ignorado com aviso — configuração errada não impede o servidor de subir.
 
 ## 5. Segurança do processo local
 

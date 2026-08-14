@@ -13,3 +13,10 @@ test-results/
 playwright-report/
 blob-report/
 coverage/
+
+# Servidor local (server/, docs/14-plataforma-local.md)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+server/.venv/
+server/config.json

@@ -5,8 +5,9 @@
 > revertida ganha uma DEC nova com o campo **Substitui** apontando a antiga.
 
 Prefixos em uso: `ADR-` para decisões globais de arquitetura, `DEC-<ÉPICO>-` para decisões de um
-domínio funcional (`CARGA` = carga de matrizes, `12-carga-de-matrizes.md`; `GOV` = governança de
-alterações, `14-governanca-de-alteracoes.md`).
+domínio funcional (`CARGA` = carga de matrizes, `12-carga-de-matrizes.md`; `PLAT` = plataforma
+local, `14-plataforma-local.md`; `GOV` = governança de alterações,
+`14-governanca-de-alteracoes.md`).
 
 ---
 
@@ -709,3 +710,16 @@ real.
 | **Por quê** | Mesmo padrão das migrações 2→3 (S23) e 3→4 (S29), que já provaram o caminho: aditiva, testada com documento real da versão anterior e com a cadeia completa desde v1. |
 | **Custo aceito** | Documentos salvos por um `PolicyOps.html` novo não abrem em versões antigas do app — já é assim entre versões de schema anteriores; o aviso de versão existente cobre. |
 | **Páginas afetadas** | `03-modelo-do-documento.md` §1, §10 (S32); `14-governanca-de-alteracoes.md` §3.5 |
+
+---
+
+## DEC-PLAT-001: o detalhamento da API v1 fechado na implementação do servidor
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Os pontos que `14-plataforma-local.md` §4 deixava em aberto foram fechados na S26 e estão descritos em §4 "Detalhamento fechado na S26": `content` do `PUT` é **texto** (o servidor grava os bytes do front e nunca reserializa); `hash` é SHA-256 hexadecimal, igual ao `hashDocument()` do front; datas em ISO 8601 UTC com `Z`; envelope de erro uniforme `{ code, detail, ... }` com um código por caso; o `.lock.json` ganha o campo aditivo `username` como critério de propriedade; colisão de nome de backup no mesmo segundo avança o carimbo em vez de sobrescrever; estáticos limitados a `GET /` e `GET /PolicyOps.html`. |
+| **Data / gatilho** | 2026-08-14, implementação da S26 (servidor local). |
+| **Alternativas** | (a) `content` como objeto JSON, deixando o Python serializar — quebraria a igualdade de hash entre front e servidor e mudaria de dono a formatação canônica, contra ADR-002; (b) sufixo ` (2)` no nome do backup em colisão — o formato do nome é compartilhado com o modo `FULL`, cuja rotação não reconheceria o arquivo com sufixo e o deixaria acumular para sempre; (c) comparar dono do lock só pelo `holder` — o rótulo é `displayName`, editável e não único. |
+| **Por quê** | Todas as escolhas seguem a mesma regra: o servidor é infraestrutura e o front continua dono do conteúdo (ADR-002), e nada no formato em disco pode impedir usuários em `FULL` e em `SERVER` de se enxergarem (`06` §6, §9). |
+| **Custo aceito** | O front precisa mandar o texto já serializado (é o que ele tem em mãos de qualquer forma, para calcular o hash) e um `.lock.json` do modo `SERVER` tem um campo a mais do que o do modo `FULL` — aditivo, ignorado por `parseLock` de `src/storage/lock.ts`. |
+| **Páginas afetadas** | `14-plataforma-local.md` §4 |
