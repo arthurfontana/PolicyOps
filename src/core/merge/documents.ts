@@ -1,15 +1,19 @@
 import type {
+  Attachment,
   CatalogItem,
   CatalogItemKind,
   Cell,
+  ChangeRequest,
   CompatibilityRule,
   DocEvent,
   DocumentMeta,
   ImportProfile,
   Matrix,
   MatrixVersion,
+  PolicyComponent,
   PolicyOpsDocument,
   Project,
+  Release,
   Template,
   Variable,
 } from '../document/schema';
@@ -1342,11 +1346,15 @@ function rewriteCatalogCode(
   to: string,
   side: MergeSide,
 ): void {
+  // `null` = kind que nenhuma célula referencia; renomear o código dele não
+  // obriga a reescrever matriz nem template.
   const field: Record<CatalogItemKind, keyof Cell | null> = {
     DECISION: 'decision',
     OFFER: 'offer',
     LIMIT: 'limit',
     TAG: null,
+    MOTIVATOR: null,
+    IMPACT_CATEGORY: null,
   };
   const cellField = field[item.kind];
 
@@ -1572,6 +1580,80 @@ const IMPORT_PROFILE_SPEC: ItemSpec<ImportProfile> = {
   matcher: () => () => false,
 };
 
+const COMPONENT_SPEC: ItemSpec<PolicyComponent> = {
+  entityKind: 'COMPONENT',
+  actionKind: 'UNION_COMPONENT',
+  noun: 'O componente',
+  label: (component) => `${component.code} — ${component.name}`,
+  matcher: (component) => scopeMatcher('componentId', component.id),
+};
+
+/**
+ * Componentes de política (schema 5).
+ *
+ * `PolicyComponent` tem `versions` com o mesmo ciclo de três estados das
+ * bibliotecas, então reusa `mergeLibraryCollection` inteiro — inclusive a
+ * normalização de I29 (uma `DRAFT`, uma `PUBLISHED`, números sem repetição),
+ * que é a mesma de I11. O que **não** é reusado é `position`: a de componente é
+ * 0-based por grupo de irmãos (I28), não pela coleção inteira.
+ */
+function mergeComponents(ctx: MergeCtx): PolicyComponent[] {
+  const merged = mergeLibraryCollection(
+    ctx,
+    ctx.mine.components,
+    ctx.theirs.components,
+    COMPONENT_SPEC,
+    'O componente',
+  );
+  return renumberSiblingPositions(merged);
+}
+
+/** `position` 0-based sem buracos **entre irmãos** (I28), grupo a grupo. */
+function renumberSiblingPositions(components: PolicyComponent[]): PolicyComponent[] {
+  const groups = new Map<string, PolicyComponent[]>();
+  for (const component of components) {
+    const key = `${component.projectId}/${component.parentId ?? ''}`;
+    groups.set(key, [...(groups.get(key) ?? []), component]);
+  }
+  const renumbered = new Map<string, PolicyComponent>();
+  for (const group of groups.values()) {
+    for (const component of renumberPositions(group)) renumbered.set(component.id, component);
+  }
+  return components.map((component) => renumbered.get(component.id)!);
+}
+
+/**
+ * Alcance mínimo para as coleções que nenhum comando escreve ainda
+ * (`changeRequests`, `releases`, `attachments` — S32b/S34): **união por id**,
+ * lado esquerdo com preferência quando o id existe nos dois. Não perder o dado
+ * é o requisito; comparar campo a campo um DB ou uma release é da S32b, junto
+ * dos comandos que os criam.
+ */
+function unionById<T extends { id: string }>(
+  ctx: MergeCtx,
+  mine: T[],
+  theirs: T[],
+  noun: string,
+): T[] {
+  const mineById = byId(mine);
+  const out = mine.map(clone);
+  let fromTheirs = 0;
+  for (const item of theirs) {
+    if (mineById.has(item.id)) continue;
+    out.push(clone(item));
+    fromTheirs++;
+  }
+  if (fromTheirs > 0) {
+    addAction(ctx, {
+      kind: 'UNION_GOVERNANCE',
+      side: 'THEIRS',
+      entity: { kind: 'DOCUMENT', id: 'governance', label: noun },
+      summary: `${fromTheirs} ${noun} existia(m) só no arquivo e entra(m) por união.`,
+    });
+  }
+  return out;
+}
+
 /**
  * I12: uma única regra de compatibilidade publicada por par (pai, filho). Dois
  * lados podem ter criado e publicado regras diferentes para o mesmo par —
@@ -1666,6 +1748,20 @@ export function mergeDocuments(
     theirs.importProfiles,
     IMPORT_PROFILE_SPEC,
   );
+  const components = mergeComponents(ctx);
+  const changeRequests = unionById<ChangeRequest>(
+    ctx,
+    mine.changeRequests,
+    theirs.changeRequests,
+    'solicitação(ões) de alteração',
+  );
+  const releases = unionById<Release>(ctx, mine.releases, theirs.releases, 'release(s)');
+  const attachments = unionById<Attachment>(
+    ctx,
+    mine.attachments ?? [],
+    theirs.attachments ?? [],
+    'anexo(s)',
+  );
   const matrices = mergeMatrices(ctx);
   const events = mergeEvents(ctx);
 
@@ -1679,8 +1775,13 @@ export function mergeDocuments(
     matrices,
     templates,
     importProfiles,
+    components,
+    changeRequests,
+    releases,
     events,
   };
+  // Lista vazia não é gravada (docs/03 §1): o campo é opcional e some inteiro.
+  if (attachments.length > 0) merged.attachments = attachments;
 
   resolveCodeClashes(ctx, 'variables', 'VARIABLE', 'A variável', merged.variables, (entity, code) => {
     merged.variables.find((variable) => variable.id === entity.id)!.code = code;
@@ -1720,6 +1821,16 @@ export function mergeDocuments(
     );
   }
   for (const project of merged.projects) {
+    resolveCodeClashes(
+      ctx,
+      `components:${project.id}`,
+      'COMPONENT',
+      'O componente',
+      merged.components.filter((component) => component.projectId === project.id),
+      (entity, code) => {
+        merged.components.find((component) => component.id === entity.id)!.code = code;
+      },
+    );
     resolveCodeClashes(
       ctx,
       `matrices:${project.id}`,

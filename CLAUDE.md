@@ -104,7 +104,8 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 | Templates de matriz | `docs/05-regras-de-negocio.md` §8 | `src/core/templates/`, `src/components/templates/` |
 | Consultas de leitura (vigência, timeline, auditoria) | `docs/05-regras-de-negocio.md` §6 | `src/core/queries.ts` |
 | Export (JSON/CSV canônico) | `docs/07-ux-e-editor.md` §9 | `src/core/export/` |
-| Governança de alterações (épico GOV, S32–40, 🔮 planejado) | `docs/14-governanca-de-alteracoes.md` | — |
+| Componentes de política (árvore, versões, schema 5) | `docs/03-modelo-do-documento.md` §12–13 | `src/core/document/components.ts`, `src/core/versioning/component-lifecycle.ts` |
+| Governança de alterações (épico GOV, S32b–40, 🚧 em andamento) | `docs/14-governanca-de-alteracoes.md` | — |
 
 Mapa das âncoras de região dos arquivos grandes (`// #region: <slug>`, `docs/claude/Mapa-de-regioes.md`) — grep rápido: `grep -rn "// #region:" src/`.
 

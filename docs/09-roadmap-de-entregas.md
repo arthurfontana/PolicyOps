@@ -37,8 +37,8 @@
 | 29 | Identidade Windows e papéis | **Sonnet** | `whoami` carimba auditoria/saves; `meta.acl` (schema 4) com papéis aplicados na interface e no servidor | 27 |
 | 30 | Evidências: acervo navegável | **Opus** | ✅ **Entregue** — anexar/abrir/desanexar evidência com hash conferido; acervo legível no Explorer; `attachments` no schema 4 | 27, 29 |
 | 31 | Guardrails de contexto e reorganização documental | **Sonnet** | ✅ **Entregue** — `CLAUDE.md` índice ≤450 linhas com mapa "onde vive o quê", guard mecânico no CI, âncoras nos arquivos grandes | — |
-| 32a | Núcleo de componentes e schema 5 | **Opus** | `schemaVersion: 5` inteiro (uma migração aditiva), `PolicyComponent`/`ComponentVersion`, invariantes I23–I24, comandos de árvore e de versão com inverso — 100% testado, sem tela | 29 |
-| 32b | DB, release e workflow (núcleo) | **Opus** | Comandos de `ChangeRequest`/`Release`, grafo de 12 estados, aprovações, I25–I26 — sem tela. **Pré-requisito da 35**, não da 33/40 | 32a |
+| 32a ✅ | Núcleo de componentes e schema 5 | **Opus** | `schemaVersion: 5` inteiro numa migração só, `PolicyComponent`/`ComponentVersion`, invariantes **I27–I29** (renumeradas — DEC-GOV-014), comandos de árvore e de versão com inverso, catálogo `E-GOV` completo — 100% testado, sem tela | 29 |
+| 32b | DB, release e workflow (núcleo) | **Opus** | Comandos de `ChangeRequest`/`Release`, grafo de 12 estados, aprovações, **I30–I31** — sem tela; o schema das entidades já entrou na 32a. **Pré-requisito da 35**, não da 33/40 | 32a |
 | 33a | Árvore da política (esqueleto) | **Sonnet** | Árvore como tela do projeto: criar/renomear/mover/arquivar seção, nó MATRIX apontando matriz existente, busca, facetas, contagens, breadcrumb, inspector mínimo. Sem payload de regra e sem ciclo de vida | 32a |
 | 33b | Cadastro e versionamento de regras | **Sonnet** | Formulário por tipo (`RulePayload` e demais), rascunho/publicar com vigência, timeline, ergonomia de entrada em volume, vigência da fundação e publicação em lote | 33a |
 | 34 | Editor rico de especificação | **Opus** | `RichDoc` de blocos próprios: editar, colar do Word/Excel, imagem-anexo com teto, diff por bloco | 32a |

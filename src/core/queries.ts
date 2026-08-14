@@ -796,6 +796,10 @@ function buildCatalog(catalog: CatalogItem[]): EditorCatalog {
     OFFER: {},
     LIMIT: {},
     TAG: {},
+    // Kinds do épico Governança (schema 5): não têm uso no grid, mas o mapa é
+    // total por kind e um item solto sem entrada aqui estouraria em runtime.
+    MOTIVATOR: {},
+    IMPACT_CATEGORY: {},
   };
   for (const item of catalog) byCode[item.kind][item.code] = item;
   return {

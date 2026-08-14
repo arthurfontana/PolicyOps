@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { isDomainError } from '@/core/errors';
 import { createEmptyDocument } from '@/core/document/create';
 import { CURRENT_SCHEMA_VERSION } from '@/core/document/schema';
+import { deserialize, serialize } from '@/core/document/serialize';
 import { validateDocument } from '@/core/document/validate';
 import { applyMigrations, migrateDocument, SCHEMA_TOO_NEW_MESSAGE, type Migration } from '@/core/document/migrate';
 
@@ -13,6 +14,7 @@ const regionalFixturePath = fileURLToPath(
 );
 const v2FixturePath = fileURLToPath(new URL('../../../fixtures/v2-document.json', import.meta.url));
 const v3FixturePath = fileURLToPath(new URL('../../../fixtures/v3-document.json', import.meta.url));
+const v4FixturePath = fileURLToPath(new URL('../../../fixtures/v4-document.json', import.meta.url));
 
 function readRegionalFixture(): Record<string, unknown> {
   return JSON.parse(readFileSync(regionalFixturePath, 'utf-8')) as Record<string, unknown>;
@@ -25,6 +27,11 @@ function readV2Fixture(): Record<string, unknown> {
 /** Documento real de schemaVersion 3 — `sample-document.json` antes da migração da S29. */
 function readV3Fixture(): Record<string, unknown> {
   return JSON.parse(readFileSync(v3FixturePath, 'utf-8')) as Record<string, unknown>;
+}
+
+/** Documento real de schemaVersion 4 — `sample-document.json` antes da migração da S32a. */
+function readV4Fixture(): Record<string, unknown> {
+  return JSON.parse(readFileSync(v4FixturePath, 'utf-8')) as Record<string, unknown>;
 }
 
 function omit(obj: Record<string, unknown>, keys: string[]): Record<string, unknown> {
@@ -79,10 +86,11 @@ describe('migração 1 → 2: regionalDimension → groupingDimensions', () => {
       'Sessão 20: regionalDimension/regionalRanges → groupingDimensions/groupingRanges.',
       'Sessão 23: acrescenta importProfiles: [] (tags de matriz e grupo de tag são opcionais).',
       'Sessão 29: meta.acl? opcional (papéis de acesso) — nenhum campo é escrito.',
+      'Sessão 32a: acrescenta components, changeRequests e releases, e carimba kind: "EVIDENCE" nos anexos existentes.',
     ]);
 
     const doc = result.document as Record<string, never>;
-    expect(doc.schemaVersion).toBe(4);
+    expect(doc.schemaVersion).toBe(5);
     expect(doc.importProfiles).toEqual([]);
 
     const version = (doc.variables as never[])[0]!.versions[0]!;
@@ -184,14 +192,21 @@ describe('migração 2 → 3: importProfiles', () => {
     expect(result.migrationsApplied).toEqual([
       'Sessão 23: acrescenta importProfiles: [] (tags de matriz e grupo de tag são opcionais).',
       'Sessão 29: meta.acl? opcional (papéis de acesso) — nenhum campo é escrito.',
+      'Sessão 32a: acrescenta components, changeRequests e releases, e carimba kind: "EVIDENCE" nos anexos existentes.',
     ]);
 
     const after = result.document as Record<string, unknown>;
-    expect(after.schemaVersion).toBe(4);
+    expect(after.schemaVersion).toBe(5);
     expect(after.importProfiles).toEqual([]);
 
     const beforeRest = omit(before, ['schemaVersion']);
-    const afterRest = omit(after, ['schemaVersion', 'importProfiles']);
+    const afterRest = omit(after, [
+      'schemaVersion',
+      'importProfiles',
+      'components',
+      'changeRequests',
+      'releases',
+    ]);
     expect(afterRest).toEqual(beforeRest);
   });
 
@@ -209,10 +224,10 @@ describe('migração 2 → 3: importProfiles', () => {
     expect(raw).toEqual(snapshot);
   });
 
-  it('documento v1 continua migrando em cadeia 1 → 2 → 3 → 4', () => {
+  it('documento v1 continua migrando em cadeia 1 → 2 → 3 → 4 → 5', () => {
     const result = migrateDocument(readRegionalFixture());
-    expect(result.migrationsApplied).toHaveLength(3);
-    expect((result.document as Record<string, unknown>).schemaVersion).toBe(4);
+    expect(result.migrationsApplied).toHaveLength(4);
+    expect((result.document as Record<string, unknown>).schemaVersion).toBe(5);
     expect(validateDocument(result.document).ok).toBe(true);
   });
 });
@@ -230,11 +245,14 @@ describe('migração 3 → 4: meta.acl (aditiva, nada escrito)', () => {
 
     expect(result.migrationsApplied).toEqual([
       'Sessão 29: meta.acl? opcional (papéis de acesso) — nenhum campo é escrito.',
+      'Sessão 32a: acrescenta components, changeRequests e releases, e carimba kind: "EVIDENCE" nos anexos existentes.',
     ]);
 
     const after = result.document as Record<string, unknown>;
-    expect(after.schemaVersion).toBe(4);
-    expect(omit(after, ['schemaVersion'])).toEqual(omit(before, ['schemaVersion']));
+    expect(after.schemaVersion).toBe(5);
+    expect(
+      omit(after, ['schemaVersion', 'components', 'changeRequests', 'releases']),
+    ).toEqual(omit(before, ['schemaVersion']));
 
     const meta = after.meta as Record<string, unknown>;
     expect(meta.acl).toBeUndefined();
@@ -254,10 +272,10 @@ describe('migração 3 → 4: meta.acl (aditiva, nada escrito)', () => {
     expect(raw).toEqual(snapshot);
   });
 
-  it('documento schemaVersion 5 é recusado com DOCUMENT_SCHEMA_TOO_NEW', () => {
+  it('documento schemaVersion 6 é recusado com DOCUMENT_SCHEMA_TOO_NEW', () => {
     expect.assertions(3);
     try {
-      migrateDocument({ ...readV3Fixture(), schemaVersion: 5 });
+      migrateDocument({ ...readV3Fixture(), schemaVersion: 6 });
     } catch (error) {
       expect(isDomainError(error)).toBe(true);
       if (isDomainError(error)) {
@@ -265,6 +283,87 @@ describe('migração 3 → 4: meta.acl (aditiva, nada escrito)', () => {
         expect(error.message).toBe(SCHEMA_TOO_NEW_MESSAGE);
       }
     }
+  });
+});
+
+/**
+ * Migração 4 → 5 (sessão 32a) — docs/03-modelo-do-documento.md §10, núcleo do
+ * épico Governança. A fixture é `sample-document.json` como estava antes desta
+ * sessão (schemaVersion 4, documento real com duas matrizes, biblioteca
+ * completa e auditoria).
+ */
+describe('migração 4 → 5: componentes e entidades de governança', () => {
+  it('acrescenta as três coleções novas — o resto do documento é idêntico campo a campo', () => {
+    const before = readV4Fixture();
+    const result = migrateDocument(before);
+
+    expect(result.migrationsApplied).toEqual([
+      'Sessão 32a: acrescenta components, changeRequests e releases, e carimba kind: "EVIDENCE" nos anexos existentes.',
+    ]);
+
+    const after = result.document as Record<string, unknown>;
+    expect(after.schemaVersion).toBe(5);
+    expect(after.components).toEqual([]);
+    expect(after.changeRequests).toEqual([]);
+    expect(after.releases).toEqual([]);
+    // Campos opcionais continuam ausentes — a migração não inventa nada.
+    expect(after.attachments).toBeUndefined();
+    expect((after.projects as Array<Record<string, unknown>>)[0]!.foundationEffectiveFrom).toBeUndefined();
+    expect((after.projects as Array<Record<string, unknown>>)[0]!.factoryTemplate).toBeUndefined();
+
+    expect(
+      omit(after, ['schemaVersion', 'components', 'changeRequests', 'releases']),
+    ).toEqual(omit(before, ['schemaVersion']));
+  });
+
+  it('o documento v4 real migrado passa por validateDocument sem nenhum ERROR', () => {
+    const result = migrateDocument(readV4Fixture());
+    const validated = validateDocument(result.document);
+    if (!validated.ok) expect(validated.issues).toEqual([]);
+    expect(validated.ok).toBe(true);
+  });
+
+  it('carimba kind: EVIDENCE nos anexos já existentes, sem tocar em mais nada deles', () => {
+    const before = readV4Fixture();
+    before.attachments = [
+      {
+        id: 'anexo1234567',
+        fileName: 'parecer.pdf',
+        relPath: 'politica-pf/mtz-limite-pf/v1/parecer.pdf',
+        sha256: 'abc123',
+        bytes: 1024,
+        addedBy: { username: 'arthur' },
+        addedAt: '2026-08-01T12:00:00.000Z',
+        target: { kind: 'PROJECT', projectId: (before.projects as Array<{ id: string }>)[0]!.id },
+      },
+    ];
+
+    const after = migrateDocument(before).document as Record<string, unknown>;
+    const attachments = after.attachments as Array<Record<string, unknown>>;
+    expect(attachments[0]!.kind).toBe('EVIDENCE');
+    expect(omit(attachments[0]!, ['kind'])).toEqual(
+      omit((before.attachments as Array<Record<string, unknown>>)[0]!, []),
+    );
+    expect(validateDocument(after).ok).toBe(true);
+  });
+
+  it('não muta o objeto recebido', () => {
+    const raw = readV4Fixture();
+    const snapshot = structuredClone(raw);
+    migrateDocument(raw);
+    expect(raw).toEqual(snapshot);
+  });
+
+  it('o documento v4 real migrado re-serializa canonicamente e reabre igual', () => {
+    const migrated = validateDocument(migrateDocument(readV4Fixture()).document);
+    expect(migrated.ok).toBe(true);
+    if (!migrated.ok) return;
+
+    const once = serialize(migrated.document);
+    const reopened = validateDocument(deserialize(once));
+    expect(reopened.ok).toBe(true);
+    if (!reopened.ok) return;
+    expect(serialize(reopened.document)).toBe(once);
   });
 });
 
@@ -329,15 +428,25 @@ describe('applyMigrations — infraestrutura de encadeamento', () => {
           return { ...doc, schemaVersion: 4 };
         },
       },
+      {
+        from: 4,
+        to: 5,
+        description: 'fictícia 4 → 5',
+        migrate: (doc) => {
+          applied.push(4);
+          return { ...doc, schemaVersion: 5 };
+        },
+      },
     ];
 
     const result = applyMigrations({ schemaVersion: 0 }, chain);
-    expect(applied).toEqual([0, 1, 2, 3]);
+    expect(applied).toEqual([0, 1, 2, 3, 4]);
     expect(result.migrationsApplied).toEqual([
       'fictícia 0 → 1',
       'fictícia 1 → 2',
       'fictícia 2 → 3',
       'fictícia 3 → 4',
+      'fictícia 4 → 5',
     ]);
   });
 

@@ -13,6 +13,8 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   OFFER: 'Ofertas',
   LIMIT: 'Limites',
   TAG: 'Tags',
+  MOTIVATOR: 'Motivadores',
+  IMPACT_CATEGORY: 'Categorias de impacto',
 };
 
 /** Uma seção do passo 3 por kind de catálogo com itens faltando — US-03/US-04. */

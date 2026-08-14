@@ -162,7 +162,7 @@ function catalogItem(
  */
 export function baseDocument(): PolicyOpsDocument {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     meta: {
       id: fixedId('doc'),
       name: 'Documento de teste',
@@ -264,6 +264,9 @@ export function baseDocument(): PolicyOpsDocument {
     matrices: [],
     templates: [],
     importProfiles: [],
+    components: [],
+    changeRequests: [],
+    releases: [],
     events: [
       {
         id: fixedId('evt1'),

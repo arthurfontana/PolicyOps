@@ -54,7 +54,8 @@ uma fixture nova se uma destas já cobre o cenário:
 | `sample-document.json` | Documento de exemplo completo, mesmo conteúdo de `createSampleDocument()` |
 | `valid-base.json`, `valid-minimal.json` | Documentos válidos mínimos para testes de validação/schema |
 | `defect-*.json` | Um defeito plantado por arquivo (referência de catálogo ausente, coordenada de célula inválida, tupla órfã, gap de `position`, duas versões `PUBLISHED`) — usados pelos testes de `validate.ts` |
-| `migration-v0-raw.json`, `v2-document.json`, `regional-v1-document.json` | Documentos em versões antigas de schema, para os testes de `migrate.ts` |
+| `migration-v0-raw.json`, `v2-document.json`, `v3-document.json`, `v4-document.json`, `regional-v1-document.json` | Documentos em versões antigas de schema, para os testes de `migrate.ts` — `vN-document.json` é o `sample-document.json` de antes da migração `N → N+1` |
+| `mini-politica.json` | Mini-política no formato do documento real (capítulo com Visão Geral versionada, duas seções puras, 3 regras, espelho de matriz e de variável) — fixture das invariantes I27–I29 e do round-trip da árvore |
 | `cineminha-recorte.csv` | Recorte real (231 linhas) do `CINEMINHA_20260708.csv` original — fixture do épico Carga (`docs/12-carga-de-matrizes.md`), usada pelo assistente de importação ponta a ponta |
 
 Fixture nova só quando nenhuma das acima serve o cenário — e documenta o motivo num comentário no

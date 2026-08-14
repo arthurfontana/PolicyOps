@@ -1,4 +1,4 @@
-import type { Attachment, AttachmentTarget, PolicyOpsDocument } from '@/core/document/schema';
+import type { AttachmentTarget, EvidenceAttachment, PolicyOpsDocument } from '@/core/document/schema';
 import { DomainError } from '@/core/errors';
 
 /**
@@ -155,7 +155,7 @@ export class EvidenceApi {
    * conferir o hash registrado. Divergência vira erro aqui, não um download
    * silencioso de conteúdo adulterado.
    */
-  async download(attachment: Attachment): Promise<Blob> {
+  async download(attachment: EvidenceAttachment): Promise<Blob> {
     const query = new URLSearchParams({ relPath: attachment.relPath, sha256: attachment.sha256 });
     let response: Response;
     try {

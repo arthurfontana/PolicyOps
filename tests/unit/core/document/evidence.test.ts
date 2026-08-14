@@ -261,6 +261,7 @@ describe('I25 / I26', () => {
   }
 
   const base = {
+    kind: 'EVIDENCE' as const,
     id: 'ev0000000001',
     fileName: 'a.docx',
     relPath: 'proj-a/a.docx',
@@ -342,15 +343,18 @@ describe('schema e serialização', () => {
       'matrices',
       'templates',
       'importProfiles',
+      'components',
+      'changeRequests',
+      'releases',
       'attachments',
       'events',
     ]);
   });
 
-  it('continua schemaVersion 4: um documento sem anexos não muda em nada', () => {
+  it('schemaVersion 5: um documento sem anexos não ganha a chave attachments', () => {
     const doc = baseDocument();
 
-    expect(doc.schemaVersion).toBe(4);
+    expect(doc.schemaVersion).toBe(5);
     expect(serialize(doc)).not.toContain('attachments');
     expect(validateDocument(JSON.parse(serialize(doc))).ok).toBe(true);
   });

@@ -82,6 +82,16 @@ const EVENT_ICONS: Record<DocEventType, LucideIcon> = {
   // O desanexo manda o arquivo para a lixeira do acervo — mesmo ícone do
   // descarte, que é o que a ação parece para quem lê o histórico.
   EVIDENCE_DETACHED: Trash2,
+  // Componentes de política (schema 5): o histórico deles tem tela própria no
+  // épico Governança (S33a+); aqui só o ícone, para o mapa continuar total.
+  COMPONENT_CREATED: FilePlus,
+  COMPONENT_UPDATED: SquarePen,
+  COMPONENT_MOVED: GitMerge,
+  COMPONENT_ARCHIVED: Trash2,
+  COMPONENT_DRAFT_CREATED: FilePlus2,
+  COMPONENT_DRAFT_DISCARDED: Trash2,
+  COMPONENT_VERSION_PUBLISHED: CheckCircle2,
+  COMPONENT_VERSION_SUPERSEDED: HistoryIcon,
 };
 
 const ALL_FILTER = 'TODOS';

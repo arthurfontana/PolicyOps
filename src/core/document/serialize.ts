@@ -4,17 +4,26 @@ import type {
   Attachment,
   Axis,
   AxisLevel,
+  Block,
   CatalogItem,
   Cell,
+  ChangeRequest,
+  ChangeRequestItem,
   CompatibilityRule,
   CompatibilityVersion,
+  ComponentPayload,
+  ComponentVersion,
   Domain,
   DocEvent,
   DocumentMeta,
+  FactoryTemplate,
   Matrix,
   MatrixVersion,
+  PolicyComponent,
   PolicyOpsDocument,
   Project,
+  Release,
+  RichDoc,
   SeedRule,
   Template,
   Variable,
@@ -148,9 +157,52 @@ function canonicalCatalogItem(item: CatalogItem): CatalogItem {
   return pick(item, CATALOG_ITEM_KEYS);
 }
 
-const PROJECT_KEYS = ['id', 'code', 'name', 'description', 'position', 'archivedAt', 'createdAt'] as const;
+// ---------------------------------------------------------------------------
+// RichDoc (§4.1) — a ordem de `blocks` é conteúdo, nunca reordenada; o que se
+// canonicaliza é a ordem das **chaves** de cada bloco.
+// ---------------------------------------------------------------------------
+
+function canonicalBlock(block: Block): Block {
+  switch (block.type) {
+    case 'bulletList':
+    case 'numberList':
+      return pick(block, ['id', 'type', 'items'] as const);
+    case 'table':
+      return pick(block, ['id', 'type', 'header', 'rows'] as const);
+    case 'image':
+      return pick(block, ['id', 'type', 'attachmentId', 'caption'] as const);
+    default:
+      return pick(block, ['id', 'type', 'text'] as const);
+  }
+}
+
+function canonicalRichDoc(doc: RichDoc): RichDoc {
+  return { blocks: doc.blocks.map(canonicalBlock) };
+}
+
+function canonicalFactoryTemplate(template: FactoryTemplate): FactoryTemplate {
+  return {
+    ...pick(template, ['boilerplate', 'contacts'] as const),
+    boilerplate: canonicalRichDoc(template.boilerplate),
+    contacts: template.contacts?.map((contact) => pick(contact, ['name', 'role', 'email'] as const)),
+  };
+}
+
+const PROJECT_KEYS = [
+  'id',
+  'code',
+  'name',
+  'description',
+  'position',
+  'foundationEffectiveFrom',
+  'factoryTemplate',
+  'archivedAt',
+  'createdAt',
+] as const;
 function canonicalProject(p: Project): Project {
-  return pick(p, PROJECT_KEYS);
+  const picked = pick(p, PROJECT_KEYS);
+  if (picked.factoryTemplate) picked.factoryTemplate = canonicalFactoryTemplate(picked.factoryTemplate);
+  return picked;
 }
 
 const AXIS_LEVEL_KEYS = ['id', 'variableId', 'variableVersionId', 'label', 'domains'] as const;
@@ -251,9 +303,176 @@ const DOC_EVENT_KEYS = ['id', 'at', 'actor', 'type', 'scope', 'summary', 'payloa
 function canonicalDocEvent(e: DocEvent): DocEvent {
   return {
     ...pick(e, DOC_EVENT_KEYS),
-    scope: pick(e.scope, ['projectId', 'matrixId', 'versionId', 'variableId', 'compatibilityId'] as const),
+    scope: pick(e.scope, [
+      'projectId',
+      'matrixId',
+      'versionId',
+      'variableId',
+      'compatibilityId',
+      'componentId',
+      'componentVersionId',
+    ] as const),
     payload: e.payload ? (deepSortKeys(e.payload) as Record<string, unknown>) : undefined,
   };
+}
+
+// ---------------------------------------------------------------------------
+// §12 Componentes de política
+// ---------------------------------------------------------------------------
+
+function canonicalComponentPayload(payload: ComponentPayload): ComponentPayload {
+  switch (payload.kind) {
+    case 'RULE':
+      return pick(payload, [
+        'kind',
+        'businessDescription',
+        'technicalDefinition',
+        'inputs',
+        'conditions',
+        'outcome',
+        'reasonCodes',
+        'dependencies',
+        'notes',
+      ] as const);
+    case 'LIST':
+      return pick(payload, ['kind', 'businessDescription', 'purpose', 'fields', 'notes'] as const);
+    case 'REASON_CODE':
+      return pick(payload, [
+        'kind',
+        'businessDescription',
+        'code',
+        'decision',
+        'message',
+        'notes',
+      ] as const);
+    case 'POLICY_VARIABLE':
+      return pick(payload, [
+        'kind',
+        'businessDescription',
+        'technicalName',
+        'source',
+        'domainDescription',
+        'notes',
+      ] as const);
+    default:
+      return pick(payload, ['kind', 'businessDescription', 'notes'] as const);
+  }
+}
+
+const COMPONENT_VERSION_KEYS = [
+  'id',
+  'number',
+  'state',
+  'effectiveFrom',
+  'effectiveTo',
+  'createdAt',
+  'createdBy',
+  'publishedAt',
+  'publishedBy',
+  'changeRequestId',
+  'payload',
+  'spec',
+] as const;
+function canonicalComponentVersion(v: ComponentVersion): ComponentVersion {
+  const picked = pick(v, COMPONENT_VERSION_KEYS);
+  picked.payload = canonicalComponentPayload(v.payload);
+  if (picked.spec) picked.spec = canonicalRichDoc(picked.spec);
+  return picked;
+}
+
+const POLICY_COMPONENT_KEYS = [
+  'id',
+  'projectId',
+  'parentId',
+  'position',
+  'code',
+  'name',
+  'type',
+  'matrixId',
+  'variableId',
+  'tags',
+  'origin',
+  'reviewStatus',
+  'archivedAt',
+  'createdAt',
+  'versions',
+] as const;
+function canonicalPolicyComponent(component: PolicyComponent): PolicyComponent {
+  const picked = pick(component, POLICY_COMPONENT_KEYS);
+  if (picked.origin) picked.origin = pick(picked.origin, ['source', 'locator'] as const);
+  picked.versions = component.versions.map(canonicalComponentVersion);
+  return picked;
+}
+
+// ---------------------------------------------------------------------------
+// §13 Entidades de governança
+// ---------------------------------------------------------------------------
+
+const CHANGE_REQUEST_ITEM_KEYS = [
+  'componentId',
+  'changeType',
+  'baseVersionId',
+  'draftVersionId',
+  'currentSummary',
+  'proposedSummary',
+] as const;
+function canonicalChangeRequestItem(item: ChangeRequestItem): ChangeRequestItem {
+  return pick(item, CHANGE_REQUEST_ITEM_KEYS);
+}
+
+const CHANGE_REQUEST_KEYS = [
+  'id',
+  'code',
+  'title',
+  'status',
+  'motivators',
+  'motivationText',
+  'requestedBy',
+  'owner',
+  'priority',
+  'items',
+  'spec',
+  'acceptanceCriteria',
+  'testScenarios',
+  'impacts',
+  'proposedEffectiveDate',
+  'releaseId',
+  'approvals',
+  'events',
+  'createdAt',
+] as const;
+function canonicalChangeRequest(cr: ChangeRequest): ChangeRequest {
+  const picked = pick(cr, CHANGE_REQUEST_KEYS);
+  if (picked.motivationText) picked.motivationText = canonicalRichDoc(picked.motivationText);
+  if (picked.spec) picked.spec = canonicalRichDoc(picked.spec);
+  picked.items = cr.items.map(canonicalChangeRequestItem);
+  picked.acceptanceCriteria = cr.acceptanceCriteria.map((criterion) =>
+    pick(criterion, ['given', 'when', 'then'] as const),
+  );
+  picked.testScenarios = cr.testScenarios.map((scenario) =>
+    pick(scenario, ['kind', 'description'] as const),
+  );
+  picked.impacts = cr.impacts.map((impact) => pick(impact, ['category', 'description'] as const));
+  picked.approvals = cr.approvals.map((approval) =>
+    pick(approval, ['by', 'at', 'decision', 'comment'] as const),
+  );
+  picked.events = cr.events.map(canonicalDocEvent);
+  return picked;
+}
+
+const RELEASE_KEYS = [
+  'id',
+  'code',
+  'name',
+  'plannedDate',
+  'status',
+  'publishedAt',
+  'publishedBy',
+  'notes',
+  'createdAt',
+] as const;
+function canonicalRelease(release: Release): Release {
+  return pick(release, RELEASE_KEYS);
 }
 
 const ACL_ENTRY_KEYS = ['username', 'role'] as const;
@@ -266,7 +485,8 @@ function canonicalAcl(acl: Acl): Acl {
   return { ...pick(acl, ACL_KEYS), users: acl.users.map(canonicalAclEntry) };
 }
 
-const ATTACHMENT_KEYS = [
+const EVIDENCE_ATTACHMENT_KEYS = [
+  'kind',
   'id',
   'fileName',
   'relPath',
@@ -277,10 +497,31 @@ const ATTACHMENT_KEYS = [
   'note',
   'target',
 ] as const;
+
+const INLINE_IMAGE_ATTACHMENT_KEYS = [
+  'kind',
+  'id',
+  'fileName',
+  'mimeType',
+  'data',
+  'bytes',
+  'width',
+  'height',
+  'addedBy',
+  'addedAt',
+  'note',
+] as const;
+
 function canonicalAttachment(attachment: Attachment): Attachment {
+  if (attachment.kind === 'INLINE_IMAGE') {
+    return {
+      ...pick(attachment, INLINE_IMAGE_ATTACHMENT_KEYS),
+      addedBy: pick(attachment.addedBy, ['username', 'displayName'] as const),
+    };
+  }
   const target = attachment.target;
   return {
-    ...pick(attachment, ATTACHMENT_KEYS),
+    ...pick(attachment, EVIDENCE_ATTACHMENT_KEYS),
     addedBy: pick(attachment.addedBy, ['username', 'displayName'] as const),
     target:
       target.kind === 'VERSION'
@@ -318,6 +559,9 @@ const DOCUMENT_KEYS = [
   'matrices',
   'templates',
   'importProfiles',
+  'components',
+  'changeRequests',
+  'releases',
   'attachments',
   'events',
 ] as const;
@@ -336,6 +580,9 @@ export function canonicalizeDocument(doc: PolicyOpsDocument): PolicyOpsDocument 
     // os campos exatos do schema (`.strict()` no Zod garante isso); só o
     // pass-through evita perder o campo, sem reordenar as chaves internas.
     importProfiles: doc.importProfiles,
+    components: doc.components.map(canonicalPolicyComponent),
+    changeRequests: doc.changeRequests.map(canonicalChangeRequest),
+    releases: doc.releases.map(canonicalRelease),
     // Campo opcional: `pick` já o omite quando ausente, e a lista vazia também
     // não é gravada — "campos vazios omitidos, nunca `null`" (docs/03 §1).
     attachments:

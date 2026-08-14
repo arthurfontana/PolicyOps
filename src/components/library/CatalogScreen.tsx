@@ -17,11 +17,16 @@ import { useDocumentStore } from '@/store/document-store';
 import { CatalogItemDialog } from './CatalogItemDialog';
 import { CatalogTableRow } from './CatalogTableRow';
 
+// `MOTIVATOR` e `IMPACT_CATEGORY` (schema 5) só ganham tela no épico
+// Governança; entram aqui porque o mapa é total por kind, e ficam fora de
+// `KINDS` — a tela de Conteúdo continua com as quatro abas de sempre.
 const KIND_LABELS: Record<CatalogItemKind, string> = {
   DECISION: 'Decisões',
   OFFER: 'Ofertas',
   LIMIT: 'Limites',
   TAG: 'Tags',
+  MOTIVATOR: 'Motivadores',
+  IMPACT_CATEGORY: 'Categorias de impacto',
 };
 
 const KIND_ICONS: Record<CatalogItemKind, React.ReactNode> = {
@@ -29,6 +34,8 @@ const KIND_ICONS: Record<CatalogItemKind, React.ReactNode> = {
   OFFER: '◇',
   LIMIT: '£',
   TAG: <Tag className="h-4 w-4" />,
+  MOTIVATOR: '⚑',
+  IMPACT_CATEGORY: '◎',
 };
 
 const KINDS: CatalogItemKind[] = ['DECISION', 'OFFER', 'LIMIT', 'TAG'];

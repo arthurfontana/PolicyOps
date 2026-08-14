@@ -1,0 +1,422 @@
+{
+  "schemaVersion": 5,
+  "meta": {
+    "id": "minipolitica",
+    "name": "Fixture — mini-política B2C (S32a)",
+    "description": "Recorte real do capítulo \"Regras Duras e Prevenção a Fraude\", no formato da política de crédito B2C.",
+    "revision": 0,
+    "savedAt": null,
+    "savedBy": null,
+    "appVersion": "0.1.0",
+    "createdAt": "2026-01-01T00:00:00.000Z"
+  },
+  "variables": [
+    {
+      "id": "var000000001",
+      "code": "RISCO",
+      "name": "Risco",
+      "type": "ORDINAL",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "varv00000001",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-01-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "domains": [
+            {
+              "code": "A",
+              "label": "A",
+              "position": 0
+            },
+            {
+              "code": "B",
+              "label": "B",
+              "position": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "var000000002",
+      "code": "STATUS",
+      "name": "Status",
+      "type": "CATEGORICAL",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "varv00000002",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-01-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "domains": [
+            {
+              "code": "S1",
+              "label": "S1",
+              "position": 0
+            },
+            {
+              "code": "S2",
+              "label": "S2",
+              "position": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "compatibility": [],
+  "catalog": [
+    {
+      "id": "cat000000001",
+      "kind": "DECISION",
+      "code": "APROVADO",
+      "label": "Aprovado",
+      "position": 0,
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cat000000002",
+      "kind": "TAG",
+      "code": "CANAL_DIGITAL",
+      "label": "Canal: Digital",
+      "group": "Canal",
+      "position": 0,
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "cat000000003",
+      "kind": "TAG",
+      "code": "CLUSTER_G7",
+      "label": "Cluster: G7",
+      "group": "Cluster",
+      "position": 1,
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "projects": [
+    {
+      "id": "proj00000001",
+      "code": "PROJ",
+      "name": "Projeto",
+      "position": 0,
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "matrices": [
+    {
+      "id": "mtx000000001",
+      "projectId": "proj00000001",
+      "code": "MTZ",
+      "name": "Matriz",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "mtxv00000001",
+          "number": 1,
+          "state": "PUBLISHED",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-01-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "effectiveFrom": "2026-01-01T00:00:00.000Z",
+          "axes": {
+            "x": {
+              "role": "X",
+              "levels": [
+                {
+                  "id": "lvlx00000001",
+                  "variableId": "var000000001",
+                  "variableVersionId": "varv00000001",
+                  "label": "Risco",
+                  "domains": [
+                    {
+                      "code": "A",
+                      "label": "A",
+                      "position": 0
+                    },
+                    {
+                      "code": "B",
+                      "label": "B",
+                      "position": 1
+                    }
+                  ]
+                }
+              ],
+              "tuples": [
+                "A",
+                "B"
+              ],
+              "derivedFrom": {
+                "compatibilityVersionIds": []
+              }
+            },
+            "y": {
+              "role": "Y",
+              "levels": [
+                {
+                  "id": "lvly00000001",
+                  "variableId": "var000000002",
+                  "variableVersionId": "varv00000002",
+                  "label": "Status",
+                  "domains": [
+                    {
+                      "code": "S1",
+                      "label": "S1",
+                      "position": 0
+                    },
+                    {
+                      "code": "S2",
+                      "label": "S2",
+                      "position": 1
+                    }
+                  ]
+                }
+              ],
+              "tuples": [
+                "S1",
+                "S2"
+              ],
+              "derivedFrom": {
+                "compatibilityVersionIds": []
+              }
+            }
+          },
+          "cells": {
+            "A::S1": {
+              "decision": "APROVADO"
+            },
+            "A::S2": {
+              "decision": "APROVADO"
+            },
+            "B::S1": {
+              "decision": "APROVADO"
+            },
+            "B::S2": {
+              "decision": "APROVADO"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "templates": [],
+  "importProfiles": [],
+  "components": [
+    {
+      "id": "cmp000000001",
+      "projectId": "proj00000001",
+      "position": 0,
+      "code": "CAP_REGRAS_DURAS",
+      "name": "4.2 Regras Duras e Prevenção a Fraude",
+      "type": "SECTION",
+      "origin": {
+        "source": "Filtros e Critérios de Crédito B2C",
+        "locator": "p. 9"
+      },
+      "reviewStatus": "VALIDATED",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "cmp00000ver1",
+          "number": 1,
+          "state": "PUBLISHED",
+          "effectiveFrom": "2026-02-01T00:00:00.000Z",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-02-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "payload": {
+            "kind": "OTHER",
+            "businessDescription": "Visão Geral: as regras duras são avaliadas antes do modelo de crédito e reprovam o pedido sem apreciação posterior.",
+            "notes": "Bloco de política com vigência própria — é o caso de seção versionada de I29."
+          }
+        }
+      ]
+    },
+    {
+      "id": "cmp000000002",
+      "projectId": "proj00000001",
+      "parentId": "cmp000000001",
+      "position": 0,
+      "code": "BLOQUEIOS_POR_DIVIDA",
+      "name": "Bloqueios por Dívida",
+      "type": "SECTION",
+      "reviewStatus": "VALIDATED",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": []
+    },
+    {
+      "id": "cmp000000003",
+      "projectId": "proj00000001",
+      "parentId": "cmp000000001",
+      "position": 1,
+      "code": "PREVENCAO_A_FRAUDE",
+      "name": "Prevenção a Fraude",
+      "type": "SECTION",
+      "reviewStatus": "VALIDATED",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": []
+    },
+    {
+      "id": "cmp000000004",
+      "projectId": "proj00000001",
+      "parentId": "cmp000000002",
+      "position": 0,
+      "code": "REGRA_DIVIDA_5000",
+      "name": "Dívida Acima de R$ 5.000",
+      "type": "RULE",
+      "origin": {
+        "source": "Filtros e Critérios de Crédito B2C",
+        "locator": "p. 10"
+      },
+      "reviewStatus": "VALIDATED",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "cmp00000ver1",
+          "number": 1,
+          "state": "PUBLISHED",
+          "effectiveFrom": "2026-02-01T00:00:00.000Z",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-02-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "payload": {
+            "kind": "RULE",
+            "businessDescription": "Bloqueia o cliente com dívida em aberto igual ou superior a R$ 5.000.",
+            "technicalDefinition": "Aging > 0 e Valor >= 5000",
+            "outcome": "Reprovar",
+            "reasonCodes": [
+              "DV01"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cmp000000005",
+      "projectId": "proj00000001",
+      "parentId": "cmp000000002",
+      "position": 1,
+      "code": "REGRA_DIVIDA_VENCIDA",
+      "name": "Dívida Vencida na Própria Base",
+      "type": "RULE",
+      "reviewStatus": "VALIDATED",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "cmp00000ver1",
+          "number": 1,
+          "state": "PUBLISHED",
+          "effectiveFrom": "2026-02-01T00:00:00.000Z",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-02-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "payload": {
+            "kind": "RULE",
+            "businessDescription": "Bloqueia o cliente com fatura vencida há mais de 30 dias na própria base.",
+            "technicalDefinition": "DiasAtraso > 30",
+            "outcome": "Reprovar",
+            "reasonCodes": [
+              "DV02"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cmp000000006",
+      "projectId": "proj00000001",
+      "parentId": "cmp000000003",
+      "position": 0,
+      "code": "REGRA_ORIGEM_LEGADO",
+      "name": "Origem em Sistema Legado",
+      "type": "RULE",
+      "tags": [
+        "CANAL_DIGITAL"
+      ],
+      "reviewStatus": "VALIDATED",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "cmp00000ver1",
+          "number": 1,
+          "state": "PUBLISHED",
+          "effectiveFrom": "2026-02-01T00:00:00.000Z",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-02-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "payload": {
+            "kind": "RULE",
+            "businessDescription": "Reprova o pedido originado em sistema legado sem conferência de identidade.",
+            "technicalDefinition": "OrigemSistema in (\"LEGADO\")",
+            "outcome": "Reprovar",
+            "reasonCodes": [
+              "NG01"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cmp000000007",
+      "projectId": "proj00000001",
+      "parentId": "cmp000000001",
+      "position": 2,
+      "code": "MTZ_CORTE_DIGITAL",
+      "name": "Matriz de corte — Canal Digital",
+      "type": "MATRIX",
+      "matrixId": "mtx000000001",
+      "tags": [
+        "CANAL_DIGITAL",
+        "CLUSTER_G7"
+      ],
+      "reviewStatus": "VALIDATED",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": []
+    },
+    {
+      "id": "cmp000000008",
+      "projectId": "proj00000001",
+      "parentId": "cmp000000001",
+      "position": 3,
+      "code": "VAR_RISCO",
+      "name": "Faixa de Risco",
+      "type": "POLICY_VARIABLE",
+      "variableId": "var000000001",
+      "reviewStatus": "VALIDATED",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "versions": [
+        {
+          "id": "cmp00000ver8",
+          "number": 1,
+          "state": "PUBLISHED",
+          "effectiveFrom": "2026-02-01T00:00:00.000Z",
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "createdBy": "Arthur",
+          "publishedAt": "2026-02-01T00:00:00.000Z",
+          "publishedBy": "Arthur",
+          "payload": {
+            "kind": "POLICY_VARIABLE",
+            "businessDescription": "Faixa de risco usada como eixo das matrizes de corte.",
+            "technicalName": "RISCO",
+            "source": "Biblioteca de Variáveis"
+          }
+        }
+      ]
+    }
+  ],
+  "changeRequests": [],
+  "releases": [],
+  "events": []
+}

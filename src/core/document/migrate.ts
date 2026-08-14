@@ -108,6 +108,40 @@ function migrateAcl(raw: Record<string, unknown>): Record<string, unknown> {
   return doc;
 }
 
+/**
+ * Migração 4 → 5 (sessão 32a) — docs/03-modelo-do-documento.md §10, núcleo do
+ * épico Governança (`14-governanca-de-alteracoes.md` §3.5).
+ *
+ * Aditiva: acrescenta as três coleções novas do topo e **não** toca em nenhum
+ * campo existente, com uma única exceção deliberada — o discriminador `kind`
+ * dos anexos. A S30 criou `attachments` para o acervo `_evidencias/`; o schema
+ * 5 passa a usar a mesma coleção para as imagens embutidas do editor rico
+ * (docs/14 §7), e o discriminador é o que separa as duas. Todo anexo já
+ * gravado é evidência, então o valor é conhecido sem ambiguidade.
+ *
+ * `Project.foundationEffectiveFrom`, `Project.factoryTemplate` e
+ * `PolicyComponent.tags` são opcionais e ficam **ausentes** em todo registro
+ * existente — nada a migrar neles (docs/03 §1).
+ */
+function migratePolicyComponents(raw: Record<string, unknown>): Record<string, unknown> {
+  const doc = structuredClone(raw);
+  doc.schemaVersion = 5;
+
+  if (!Array.isArray(doc.components)) doc.components = [];
+  if (!Array.isArray(doc.changeRequests)) doc.changeRequests = [];
+  if (!Array.isArray(doc.releases)) doc.releases = [];
+
+  // A coleção é opcional e sua ausência é o estado migrado: um documento sem
+  // anexos continua sem a chave (docs/03 §1), sem ganhar um array vazio.
+  if (Array.isArray(doc.attachments)) {
+    for (const attachment of doc.attachments) {
+      if (isRecord(attachment) && attachment.kind === undefined) attachment.kind = 'EVIDENCE';
+    }
+  }
+
+  return doc;
+}
+
 const MIGRATIONS: Migration[] = [
   {
     from: 1,
@@ -126,6 +160,13 @@ const MIGRATIONS: Migration[] = [
     to: 4,
     description: 'Sessão 29: meta.acl? opcional (papéis de acesso) — nenhum campo é escrito.',
     migrate: migrateAcl,
+  },
+  {
+    from: 4,
+    to: 5,
+    description:
+      'Sessão 32a: acrescenta components, changeRequests e releases, e carimba kind: "EVIDENCE" nos anexos existentes.',
+    migrate: migratePolicyComponents,
   },
 ];
 

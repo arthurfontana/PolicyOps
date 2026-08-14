@@ -28,7 +28,7 @@ Arquivos de `src/` acima de ~600 linhas ganham comentários-âncora grep-áveis 
   sincronizado linha a linha; ele existe para orientar por nome de arquivo + slug, não por
   número exato.
 
-## Arquivos anotados (17)
+## Arquivos anotados (19)
 
 ### `src/core/document/schema.ts`
 | Linha | Âncora |
@@ -37,15 +37,18 @@ Arquivos de `src/` acima de ~600 linhas ganham comentários-âncora grep-áveis 
 | 53 | `2-biblioteca-de-variaveis` |
 | 229 | `3-biblioteca-de-compatibilidade` |
 | 295 | `4-biblioteca-de-conteudo` |
-| 339 | `5-projetos-e-matrizes` |
-| 366 | `6-versao-de-matriz` |
-| 509 | `7-templates` |
-| 585 | `8-auditoria` |
-| 655 | `9-evidencias` |
-| 720 | `1-estrutura-de-topo` |
+| 366 | `4-1-rich-doc-documentacao-livre-em-blocos-proprios` |
+| 439 | `5-projetos-e-matrizes` |
+| 503 | `6-versao-de-matriz` |
+| 646 | `7-templates` |
+| 722 | `8-auditoria` |
+| 809 | `9-evidencias` |
+| 946 | `12-componentes-de-politica` |
+| 1263 | `13-entidades-de-governanca` |
+| 1498 | `1-estrutura-de-topo` |
 
 ### `src/core/document/validate.ts`
-Uma âncora por invariante (`i1-...` a `i26-...`, mais uma checagem adicional fora da tabela
+Uma âncora por invariante (`i1-...` a `i29-...`, mais uma checagem adicional fora da tabela
 I1–I18) — `grep -n "// #region: i" src/core/document/validate.ts` isola qualquer `checkIN`
 individualmente.
 
@@ -74,6 +77,25 @@ individualmente.
 | 862 | `1-4-version-discard-draft` |
 | 909 | `version-add-note` |
 | 946 | `consultas-de-apoio` |
+
+### `src/core/versioning/component-lifecycle.ts`
+| Linha | Âncora |
+|---|---|
+| 58 | `localizacao-e-guardas` |
+| 144 | `component-version-create-draft` |
+| 323 | `component-version-update` |
+| 382 | `component-version-publish` |
+| 497 | `component-version-discard-draft` |
+
+### `src/core/document/components.ts`
+| Linha | Âncora |
+|---|---|
+| 44 | `localizacao-e-utilitarios-de-arvore` |
+| 270 | `component-create` |
+| 466 | `component-update` |
+| 550 | `component-move` |
+| 658 | `component-archive` |
+| 744 | `component-set-review-status` |
 
 ### `src/core/versioning/axis-commands.ts`
 | Linha | Âncora |

@@ -65,6 +65,10 @@ const PUBLISHER_COMMANDS: ReadonlySet<string> = new Set([
   'version/publish',
   'import/apply',
   'matrix/archive',
+  // Componentes de política (schema 5): mesmo critério das matrizes — publicar
+  // e tirar de circulação são atos de publicação, o resto da árvore é edição.
+  'componentVersion/publish',
+  'component/archive',
 ]);
 
 const ADMIN_COMMANDS: ReadonlySet<string> = new Set(['acl/set']);

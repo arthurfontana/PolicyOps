@@ -510,6 +510,31 @@ TAG_NOT_FOUND
 
 Mais os do épico Plataforma (`14-plataforma-local.md`): `ROLE_REQUIRED` e `ACL_REQUIRES_ADMIN` (papéis, §6, sessão 29), `EVIDENCE_NOT_FOUND` e `EVIDENCE_DUPLICATE_PATH` (evidências, §7, sessão 30).
 
+### 9.1 Épico Governança — o catálogo `E-GOV` (sessão 32a)
+
+`14-governanca-de-alteracoes.md` §6 nomeia os erros do épico como `E-GOV-01..06`. Esses rótulos são
+de leitura do documento normativo; no código eles são códigos simbólicos, como todos os outros. A
+correspondência é esta, e o catálogo entra **inteiro** na S32a — os de workflow ficam sem emissor
+até a S32b ligar os comandos de DB e release:
+
+| Rótulo | `DomainErrorCode` | Quando acontece | Emissor |
+|---|---|---|---|
+| `E-GOV-01` | `CR_TRANSITION_INVALID` | Transição de status fora do grafo de §5 de `docs/14`, ou tentativa de mexer em item de DB já congelado (I30) | S32b |
+| `E-GOV-02` | `CR_BASE_VERSION_STALE` | A versão vigente do componente mudou depois que o item foi escrito: publicar exige rebase explícito (RN-GOV-02) | S32b |
+| `E-GOV-03` | `CR_INCOMPLETE` | Submeter sem motivador, sem item com `proposedSummary` ou sem vigência proposta (RN-GOV-03) | S32b |
+| `E-GOV-04` | `RELEASE_PUBLISH_BLOCKED` | Publicação de DB ou release abortada inteira por pendência em algum item (RN-GOV-05) — nada é publicado | S32b |
+| `E-GOV-05` | `ATTACHMENT_TOO_LARGE` | Imagem embutida acima do teto de 300 KB (`03-modelo-do-documento.md` §8.1) | S34 |
+| `E-GOV-06` | `COMPONENT_CODE_DUPLICATE` | `PolicyComponent.code` repetido no mesmo projeto (I28). É o que a carga por recorte usa para impedir o mesmo capítulo de entrar duas vezes | **S32a** |
+
+Fora do catálogo `E-GOV`, a árvore de componentes acrescenta **um** código próprio:
+`COMPONENT_TREE_INVALID`, a recusa em tempo de comando do que I27/I28 garantem no documento parado —
+ciclo em `component/move`, profundidade acima de 6 níveis, filho pendurado num `MATRIX`, espelho de
+matriz ou de variável já ocupado. Os demais erros dos comandos de componente reusam o catálogo que
+já existia: `NOT_FOUND`, `INVALID_INPUT`, `TAG_NOT_FOUND`, `DRAFT_ALREADY_EXISTS`,
+`NO_VERSION_TO_DERIVE`, `VERSION_NOT_DRAFT`, `VERSION_IMMUTABLE` e `EFFECTIVE_DATE_INVALID` — o
+ciclo de vida do componente é o das matrizes, e recusar com códigos diferentes seria inventar
+vocabulário para a mesma regra.
+
 Os dez últimos do bloco acima pertencem à carga de matrizes; quando cada um acontece e o que o usuário faz a respeito está em `12-carga-de-matrizes.md` §5.8.
 
 `RANGE_REGIONAL_INCOMPLETE`, `RANGE_REGIONAL_NOT_CONTIGUOUS`, `REGIONAL_CODE_DUPLICATE` e `REGIONAL_IMPORT_PARSE_ERROR` (sessão 18) são removidos na sessão 20 — substituídos pelos códigos genéricos acima. `RANGE_REGIONAL_INCOMPLETE` não tem substituto direto: a completude por combinação deixou de ser invariante (`03-modelo-do-documento.md` §9, nota após I19) e virou aviso não bloqueante na interface, não um `DomainError`.

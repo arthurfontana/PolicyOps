@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "meta": {
     "id": "bbbbbbbbbbbb",
     "name": "Fixture — célula com coordenada inválida (I5)",
@@ -135,5 +135,8 @@
   ],
   "templates": [],
   "importProfiles": [],
+  "components": [],
+  "changeRequests": [],
+  "releases": [],
   "events": []
 }

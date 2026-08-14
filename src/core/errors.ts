@@ -57,6 +57,20 @@ export const DOMAIN_ERROR_CODES = [
   // Evidências — docs/14-plataforma-local.md §7, S30.
   'EVIDENCE_NOT_FOUND',
   'EVIDENCE_DUPLICATE_PATH',
+  // Governança de alterações — docs/14-governanca-de-alteracoes.md §6. O
+  // catálogo `E-GOV-01..06` entra inteiro na S32a (docs/05 §9 traz a
+  // correspondência); só os dois de componente/carga têm emissor aqui, os de
+  // workflow ficam sem até a S32b ligar os comandos de DB e release.
+  'CR_TRANSITION_INVALID', // E-GOV-01
+  'CR_BASE_VERSION_STALE', // E-GOV-02
+  'CR_INCOMPLETE', // E-GOV-03
+  'RELEASE_PUBLISH_BLOCKED', // E-GOV-04
+  'ATTACHMENT_TOO_LARGE', // E-GOV-05
+  'COMPONENT_CODE_DUPLICATE', // E-GOV-06
+  // Árvore de componentes (S32a): ciclo, profundidade, contenção e espelho.
+  // Não é um E-GOV — é a recusa em tempo de comando do que I27/I28 garantem
+  // no documento em repouso.
+  'COMPONENT_TREE_INVALID',
 ] as const;
 
 export type DomainErrorCode = (typeof DOMAIN_ERROR_CODES)[number];
