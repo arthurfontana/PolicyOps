@@ -1,11 +1,25 @@
 import { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Columns3, Download, Maximize2, Minus, Plus, Trash2, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Columns3,
+  Download,
+  Maximize2,
+  Minus,
+  Pin,
+  PinOff,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Grid, MAX_ZOOM, MIN_ZOOM } from '@/components/grid/Grid';
 import { useToast } from '@/components/ui/use-toast';
 import type { Matrix, MatrixVersion } from '@/core/document/schema';
-import { getEditorView } from '@/core/queries';
+import { getEditorView, listMatrices, resolveOpenVersion } from '@/core/queries';
 import { boardPngFileName, exportNodeAsPng } from '@/lib/export-png';
 import { versionBadge, vigenciaText } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
@@ -78,11 +92,15 @@ export function ComparisonBoardScreen() {
       <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
         <Columns3 className="h-8 w-8 text-neutral-300 dark:text-neutral-700" />
         <p className="max-w-sm text-sm text-neutral-500 dark:text-neutral-400">
-          Nada fixado ainda. Abra uma matriz e use <strong>&quot;Adicionar à comparação&quot;</strong> para trazer
-          até {MAX_BOARD_ITEMS} matrizes lado a lado aqui — pensado para levar direto a uma
-          reunião.
+          Nada fixado ainda. Busque uma matriz abaixo para trazer até {MAX_BOARD_ITEMS} lado a
+          lado aqui — pensado para levar direto a uma reunião.
         </p>
-        <Button onClick={() => setView('projects')}>Ir para projetos</Button>
+        <div className="flex items-center gap-2">
+          <AddMatrixPopover />
+          <Button variant="ghost" onClick={() => setView('projects')}>
+            Ir para projetos
+          </Button>
+        </div>
       </div>
     );
   }
@@ -98,6 +116,7 @@ export function ComparisonBoardScreen() {
         <span className="text-xs text-neutral-500 dark:text-neutral-400">
           {boardItems.length} de {MAX_BOARD_ITEMS} fixadas
         </span>
+        <AddMatrixPopover />
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <div className="flex items-center gap-0.5 rounded-md border border-neutral-200 px-1 dark:border-neutral-800">
@@ -162,6 +181,118 @@ export function ComparisonBoardScreen() {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * Busca-e-fixa direto na tela de comparação: sem isso, o único jeito de
+ * adicionar uma matriz era ir até `/projects`, pinar por lá e voltar — a
+ * fricção que esta caixa resolve. Reaproveita `listMatrices` sem `projectId`
+ * (busca cruza todos os projetos) e o mesmo par pin/unpin do board; o popover
+ * não fecha ao pinar, para dar para ir adicionando várias em sequência.
+ */
+function AddMatrixPopover() {
+  const document = useDocumentStore((s) => s.document);
+  const boardItems = useEditorStore((s) => s.boardItems);
+  const pinToBoard = useEditorStore((s) => s.pinToBoard);
+  const unpinFromBoard = useEditorStore((s) => s.unpinFromBoard);
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const pinnedIds = useMemo(() => new Set(boardItems.map((item) => item.matrixId)), [boardItems]);
+  const results = useMemo(
+    () => (document === null ? [] : listMatrices(document, { search: query }).matrices),
+    [document, query],
+  );
+
+  function projectName(projectId: string): string {
+    return document?.projects.find((candidate) => candidate.id === projectId)?.name ?? '';
+  }
+
+  function toggle(matrixId: string) {
+    if (pinnedIds.has(matrixId)) {
+      unpinFromBoard(matrixId);
+      return;
+    }
+    const matrix = document?.matrices.find((candidate) => candidate.id === matrixId);
+    const version = matrix === undefined ? null : resolveOpenVersion(matrix);
+    if (version === null) {
+      toast({
+        title: 'Sem versão para comparar',
+        description: 'Esta matriz ainda não tem rascunho nem versão publicada.',
+      });
+      return;
+    }
+    if (boardItems.length >= MAX_BOARD_ITEMS) {
+      toast({
+        title: 'Comparação cheia',
+        description: `Só é possível comparar até ${MAX_BOARD_ITEMS} matrizes de uma vez. Remova uma antes de adicionar outra.`,
+      });
+      return;
+    }
+    pinToBoard(matrixId, version.id);
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery('');
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm">
+          <Search className="mr-1.5 h-3.5 w-3.5" /> Adicionar matriz
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-2" align="start">
+        <Input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar por código ou nome…"
+          className="mb-2"
+        />
+        <ul role="listbox" className="max-h-72 overflow-auto">
+          {results.length === 0 && (
+            <li className="px-2 py-1.5 text-sm text-neutral-500 dark:text-neutral-400">Nenhuma matriz encontrada.</li>
+          )}
+          {results.map((matrix) => {
+            const pinned = pinnedIds.has(matrix.id);
+            return (
+              <li key={matrix.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={pinned}
+                  onClick={() => toggle(matrix.id)}
+                  className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate font-medium text-neutral-900 dark:text-neutral-100">
+                        {matrix.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-xs text-neutral-400">{matrix.code}</span>
+                    </span>
+                    <span className="block truncate text-xs text-neutral-500 dark:text-neutral-400">
+                      {projectName(matrix.projectId)}
+                    </span>
+                  </span>
+                  {pinned ? (
+                    <PinOff className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" />
+                  ) : (
+                    <Pin className="h-4 w-4 shrink-0 text-neutral-400" />
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </PopoverContent>
+    </Popover>
   );
 }
 
