@@ -87,6 +87,7 @@ function splitCellKey(key: string): { xPath: string; yPath: string } | null {
 // ---------------------------------------------------------------------------
 // I1 — no máximo uma MatrixVersion em DRAFT por matriz
 // ---------------------------------------------------------------------------
+// #region: i1-no-maximo-uma-matrix-version-em-draft-por-matriz
 
 export function checkI1(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -107,6 +108,7 @@ export function checkI1(doc: PolicyOpsDocument): ValidationIssue[] {
 // ---------------------------------------------------------------------------
 // I2 — no máximo uma MatrixVersion em PUBLISHED por matriz
 // ---------------------------------------------------------------------------
+// #region: i2-no-maximo-uma-matrix-version-em-published-por-matriz
 
 export function checkI2(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -133,6 +135,7 @@ export function checkI2(doc: PolicyOpsDocument): ValidationIssue[] {
 // estática, é a consistência estrutural que sustenta essa garantia: uma
 // versão nesses estados precisa carregar os registros que a "selam".
 // ---------------------------------------------------------------------------
+// #region: i3-versao-published-superseded-archived-e-imutavel
 
 export function checkI3(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -174,6 +177,7 @@ export function checkI3(doc: PolicyOpsDocument): ValidationIssue[] {
 // I4 — intervalos [effectiveFrom, effectiveTo) de uma matriz não se
 // sobrepõem nem deixam buracos
 // ---------------------------------------------------------------------------
+// #region: i4-intervalos-effective-from-effective-to-de-uma-matriz-nao-se
 
 export function checkI4(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -210,6 +214,7 @@ export function checkI4(doc: PolicyOpsDocument): ValidationIssue[] {
 // ---------------------------------------------------------------------------
 // I5 — toda chave de cells decompõe em xPath::yPath presentes nas tuplas
 // ---------------------------------------------------------------------------
+// #region: i5-toda-chave-de-cells-decompoe-em-x-path-y-path-presentes-nas-tuplas
 
 export function checkI5(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -238,6 +243,7 @@ export function checkI5(doc: PolicyOpsDocument): ValidationIssue[] {
 // ---------------------------------------------------------------------------
 // I6 — publicar exige zero combinações sem decision
 // ---------------------------------------------------------------------------
+// #region: i6-publicar-exige-zero-combinacoes-sem-decision
 
 export function checkI6(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -268,6 +274,7 @@ export function checkI6(doc: PolicyOpsDocument): ValidationIssue[] {
 // ---------------------------------------------------------------------------
 // I7 — CatalogItem de kind LIMIT tem numericValue
 // ---------------------------------------------------------------------------
+// #region: i7-catalog-item-de-kind-limit-tem-numeric-value
 
 export function checkI7(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -287,6 +294,7 @@ export function checkI7(doc: PolicyOpsDocument): ValidationIssue[] {
 // ---------------------------------------------------------------------------
 // I8 — BOOLEAN tem exatamente 2 domínios; demais tipos, ao menos 2
 // ---------------------------------------------------------------------------
+// #region: i8-boolean-tem-exatamente-2-dominios-demais-tipos-ao-menos-2
 
 export function checkI8(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -321,6 +329,7 @@ export function checkI8(doc: PolicyOpsDocument): ValidationIssue[] {
 // `groupingRanges`, no lugar de `rangeMin`/`rangeMax` — e só para os caminhos
 // que o usuário definiu, nunca para o produto cartesiano das opções.
 // ---------------------------------------------------------------------------
+// #region: i9-range-faixas-contiguas-sem-sobreposicao-ordenadas-por-position
 
 function checkCatchAllIdentity(
   domains: Domain[],
@@ -458,6 +467,7 @@ export function checkI9(doc: PolicyOpsDocument): ValidationIssue[] {
 // reais são assimétricas (nem toda Regional tem MEI), e o editor apenas avisa
 // (docs/03-modelo-do-documento.md §9, nota após I19).
 // ---------------------------------------------------------------------------
+// #region: i19-grouping-dimensions-1-a-4-niveis-code-de-nivel-unico-options
 
 /** Teto de níveis de agrupamento (I19) — independente do teto de 3 de `AxisLevel` (I13). */
 const MAX_GROUPING_LEVELS = 4;
@@ -557,6 +567,7 @@ export function checkI19(doc: PolicyOpsDocument): ValidationIssue[] {
 // kind TAG, e não há repetição dentro da mesma matriz. Integridade
 // referencial, não forma de domínio — por isso ERROR, não aviso (docs/03 §9).
 // ---------------------------------------------------------------------------
+// #region: i20-toda-entrada-de-matrix-tags-aponta-para-um-catalog-item-existente-de
 
 export function checkI20(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -596,6 +607,7 @@ export function checkI20(doc: PolicyOpsDocument): ValidationIssue[] {
 // já a escreveu contra este mesmo contrato; aqui só se roda para todo
 // `ImportProfile` do documento e se traduz `ImportIssue` em `ValidationIssue`.
 // ---------------------------------------------------------------------------
+// #region: i21-i22-import-profile-code-unico-no-documento-project-id-existente
 
 function classifyProfileIssueInvariant(message: string): 'I21' | 'I22' {
   return message.includes('(I22)') ? 'I22' : 'I21';
@@ -629,6 +641,7 @@ export function checkI22(doc: PolicyOpsDocument): ValidationIssue[] {
 // I10 — VariableVersion / CompatibilityVersion publicada é imutável
 // (mesma checagem estrutural de I3, aplicada às bibliotecas)
 // ---------------------------------------------------------------------------
+// #region: i10-variable-version-compatibility-version-publicada-e-imutavel
 
 export function checkI10(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -669,6 +682,7 @@ export function checkI10(doc: PolicyOpsDocument): ValidationIssue[] {
 // I11 — no máximo uma versão DRAFT e uma PUBLISHED por variável e por
 // regra de compatibilidade
 // ---------------------------------------------------------------------------
+// #region: i11-no-maximo-uma-versao-draft-e-uma-published-por-variavel-e-por
 
 export function checkI11(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -720,6 +734,7 @@ export function checkI11(doc: PolicyOpsDocument): ValidationIssue[] {
 // ---------------------------------------------------------------------------
 // I12 — uma única regra de compatibilidade publicada por par (parent, child)
 // ---------------------------------------------------------------------------
+// #region: i12-uma-unica-regra-de-compatibilidade-publicada-por-par-parent-child
 
 export function checkI12(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -749,6 +764,7 @@ export function checkI12(doc: PolicyOpsDocument): ValidationIssue[] {
 // I13 — axes.*.levels tem de 1 a 3 elementos, sem variável repetida no
 // mesmo eixo
 // ---------------------------------------------------------------------------
+// #region: i13-axes-levels-tem-de-1-a-3-elementos-sem-variavel-repetida-no
 
 export function checkI13(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -786,6 +802,7 @@ export function checkI13(doc: PolicyOpsDocument): ValidationIssue[] {
 // ---------------------------------------------------------------------------
 // I14 — nenhuma variável aparece nos dois eixos da mesma versão
 // ---------------------------------------------------------------------------
+// #region: i14-nenhuma-variavel-aparece-nos-dois-eixos-da-mesma-versao
 
 export function checkI14(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -810,6 +827,7 @@ export function checkI14(doc: PolicyOpsDocument): ValidationIssue[] {
 // I15 — tuples não tem duplicatas, e todo código de cada caminho existe
 // nos domínios do nível correspondente
 // ---------------------------------------------------------------------------
+// #region: i15-tuples-nao-tem-duplicatas-e-todo-codigo-de-cada-caminho-existe
 
 export function checkI15(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -864,6 +882,7 @@ export function checkI15(doc: PolicyOpsDocument): ValidationIssue[] {
 // ---------------------------------------------------------------------------
 // I16 — xTuples.length * yTuples.length ≤ 6.000
 // ---------------------------------------------------------------------------
+// #region: i16-x-tuples-length-y-tuples-length-6-000
 
 export function checkI16(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -887,6 +906,7 @@ export function checkI16(doc: PolicyOpsDocument): ValidationIssue[] {
 // I17 — toda referência a catálogo em cells aponta para um code existente
 // do kind correto
 // ---------------------------------------------------------------------------
+// #region: i17-toda-referencia-a-catalogo-em-cells-aponta-para-um-code-existente
 
 export function checkI17(doc: PolicyOpsDocument): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -936,6 +956,7 @@ export function checkI17(doc: PolicyOpsDocument): ValidationIssue[] {
 // ---------------------------------------------------------------------------
 // I18 — todo code é único no seu escopo
 // ---------------------------------------------------------------------------
+// #region: i18-todo-code-e-unico-no-seu-escopo
 
 function checkUniqueCodes(
   entries: Array<{ code: string; path: string }>,
@@ -1031,6 +1052,7 @@ export function checkI18(doc: PolicyOpsDocument): ValidationIssue[] {
 // Domain, CatalogItem e Project. Usa o mesmo formato de ValidationIssue,
 // com invariant: 'POSITION' e autoFix: 'RENUMBER'.
 // ---------------------------------------------------------------------------
+// #region: checagem-adicional-fora-da-tabela-i1-i18-position-0-based-sem
 
 function checkPositionSequence(
   entries: Array<{ position: number; path: string }>,

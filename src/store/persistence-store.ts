@@ -47,6 +47,8 @@ import { useUiStore } from './ui-store';
  * 3. degradação de modo **nunca** é silenciosa (§1).
  */
 
+// #region: tipos-de-estado-derivado
+
 export type SaveStatus = 'no-document' | 'saved' | 'dirty' | 'saving' | 'error';
 
 export const SAVE_STATUS_LABEL: Record<SaveStatus, string> = {
@@ -92,6 +94,8 @@ export type DegradedState = {
   from: StorageMode;
   message: string;
 };
+
+// #region: interface-persistence-state
 
 interface PersistenceState {
   capabilities: Capabilities;
@@ -184,6 +188,8 @@ interface PersistenceState {
   _setAdapter: (adapter: StorageAdapter) => void;
 }
 
+// #region: helpers-de-modulo-fora-do-react
+
 function actorName(): string {
   return useUiStore.getState().actor ?? 'Anônimo';
 }
@@ -201,7 +207,10 @@ function buildAdapter(mode: StorageMode, onBackupUnavailable: (message: string) 
     : createDownloadAdapter({ getActor: actorName });
 }
 
+// #region: use-persistence-store
+
 export const usePersistenceStore = create<PersistenceState>((set, get) => {
+  // #region: helpers-internos-do-store
   const warnBackup = (message: string) => set({ backupWarning: message });
 
   function currentAdapter(): StorageAdapter {
@@ -504,6 +513,7 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
   }
 
   const capabilities = detectCapabilities();
+  // #region: estado-inicial-e-acoes
 
   return {
     capabilities,

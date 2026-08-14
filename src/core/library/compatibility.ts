@@ -207,6 +207,7 @@ function assertPairNotPublishedElsewhere(
 // ---------------------------------------------------------------------------
 // compat/create
 // ---------------------------------------------------------------------------
+// #region: compat-create
 
 export type CreateCompatibilityInput = {
   code: string;
@@ -349,6 +350,7 @@ function restoreRule(
 // ---------------------------------------------------------------------------
 // compat/createDraft · compat/discardDraft
 // ---------------------------------------------------------------------------
+// #region: compat-create-draft-compat-discard-draft
 
 export type CreateCompatibilityDraftInput = { ruleId: string };
 export type CreateCompatibilityDraftData = { versionId: string; number: number; basedOnNumber: number };
@@ -470,6 +472,7 @@ function restoreRuleVersion(
 // ---------------------------------------------------------------------------
 // compat/saveMap
 // ---------------------------------------------------------------------------
+// #region: compat-save-map
 
 export type SaveCompatibilityMapInput = {
   ruleId: string;
@@ -593,6 +596,7 @@ function setCompatibilityMap(
 // ---------------------------------------------------------------------------
 // compat/publish
 // ---------------------------------------------------------------------------
+// #region: compat-publish
 
 export type PublishCompatibilityInput = { ruleId: string; versionId: string; notes?: string };
 export type PublishCompatibilityData = { versionId: string; supersededVersionId: string | null };
@@ -656,6 +660,7 @@ export function publishCompatibility(
 // ---------------------------------------------------------------------------
 // compat/archive
 // ---------------------------------------------------------------------------
+// #region: compat-archive
 
 export type ArchiveCompatibilityInput = { ruleId: string };
 

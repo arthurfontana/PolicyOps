@@ -66,6 +66,7 @@ import type {
 // ---------------------------------------------------------------------------
 // Utilidades puras
 // ---------------------------------------------------------------------------
+// #region: utilidades-puras
 
 function sortDeep(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortDeep);
@@ -150,6 +151,7 @@ function derivedId(seed: string, taken: Set<string>): string {
 // ---------------------------------------------------------------------------
 // Contexto
 // ---------------------------------------------------------------------------
+// #region: contexto
 
 type EventMatcher = (event: DocEvent) => boolean;
 
@@ -212,6 +214,7 @@ function catalogMatcher(item: CatalogItem): EventMatcher {
 // ---------------------------------------------------------------------------
 // Diferença campo a campo
 // ---------------------------------------------------------------------------
+// #region: diferenca-campo-a-campo
 
 const FIELD_LABEL: Record<string, string> = {
   allow: 'Mapa de compatibilidade',
@@ -328,6 +331,7 @@ function assemble<T extends object>(
 // ---------------------------------------------------------------------------
 // Conflitos
 // ---------------------------------------------------------------------------
+// #region: conflitos
 
 const MINE_WINS_OPTION: MergeConflictOption = {
   choice: 'MINE',
@@ -349,6 +353,7 @@ function registerConflict(ctx: MergeCtx, conflict: MergeConflict): Resolved {
 // ---------------------------------------------------------------------------
 // Coleções simples: catálogo, projetos, templates
 // ---------------------------------------------------------------------------
+// #region: colecoes-simples-catalogo-projetos-templates
 
 type ItemSpec<T> = {
   entityKind: MergeEntityKind;
@@ -455,6 +460,7 @@ function mergeFlatCollection<T extends { id: string; createdAt: string }>(
 // ---------------------------------------------------------------------------
 // Bibliotecas versionadas: variáveis e regras de compatibilidade
 // ---------------------------------------------------------------------------
+// #region: bibliotecas-versionadas-variaveis-e-regras-de-compatibilidade
 
 type LibraryVersion = {
   id: string;
@@ -700,6 +706,7 @@ function mergeLibraryCollection<
 // ---------------------------------------------------------------------------
 // Matrizes
 // ---------------------------------------------------------------------------
+// #region: matrizes
 
 const MATRIX_STATE_RANK: Record<MatrixVersion['state'], number> = {
   DRAFT: 0,
@@ -1236,6 +1243,7 @@ function mergeMatrices(ctx: MergeCtx): Matrix[] {
 // ---------------------------------------------------------------------------
 // Códigos duplicados
 // ---------------------------------------------------------------------------
+// #region: codigos-duplicados
 
 type CodedEntity = { id: string; code: string };
 
@@ -1366,6 +1374,7 @@ function rewriteCatalogCode(
 // ---------------------------------------------------------------------------
 // Eventos, metadados e posições
 // ---------------------------------------------------------------------------
+// #region: eventos-metadados-e-posicoes
 
 function mergeEvents(ctx: MergeCtx): DocEvent[] {
   const merged = new Map<string, DocEvent>();
@@ -1508,6 +1517,7 @@ function latestInstant(mine: PolicyOpsDocument, theirs: PolicyOpsDocument): stri
 // ---------------------------------------------------------------------------
 // mergeDocuments
 // ---------------------------------------------------------------------------
+// #region: merge-documents
 
 const VARIABLE_SPEC: ItemSpec<Variable> = {
   entityKind: 'VARIABLE',

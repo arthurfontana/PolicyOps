@@ -70,6 +70,7 @@ export function createEmptyDocument(name: string, actor: string): PolicyOpsDocum
 // ---------------------------------------------------------------------------
 // createSampleDocument — docs/03-modelo-do-documento.md §11
 // ---------------------------------------------------------------------------
+// #region: create-sample-document-docs-03-modelo-do-documento-md-11
 
 const SAMPLE_ACTOR = 'Equipe de Políticas';
 

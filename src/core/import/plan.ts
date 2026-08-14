@@ -152,6 +152,7 @@ export type PlanImportOptions = {
 // ---------------------------------------------------------------------------
 // Eixos projetados para a matriz nova
 // ---------------------------------------------------------------------------
+// #region: eixos-projetados-para-a-matriz-nova
 
 /**
  * Os eixos que uma matriz **nova** teria: versões publicadas das variáveis do
@@ -222,6 +223,7 @@ function syntheticVersion(x: Axis, y: Axis, cells: Record<string, Cell>): Matrix
 // ---------------------------------------------------------------------------
 // Agrupamento das linhas resolvidas
 // ---------------------------------------------------------------------------
+// #region: agrupamento-das-linhas-resolvidas
 
 type Group = {
   key: ResolvedMatrixKey;
@@ -286,6 +288,7 @@ function missingCombinationsOf(
 // ---------------------------------------------------------------------------
 // planImport
 // ---------------------------------------------------------------------------
+// #region: plan-import
 
 const EMPTY_TOTALS: ImportPlanTotals = {
   new: 0,
@@ -737,6 +740,7 @@ function effectiveVersion(matrix: Matrix): MatrixVersion | undefined {
 // ---------------------------------------------------------------------------
 // Hashes
 // ---------------------------------------------------------------------------
+// #region: hashes
 
 /** Separador de campo da forma canônica: US (0x1F), que nunca aparece numa célula. */
 const FIELD_SEPARATOR = '\u001f';

@@ -47,6 +47,8 @@ const EMPTY_PREVIEW: AxisPreview = { tupleCount: 0, warnings: [], error: null };
 const ANY_VALUE = '__any__';
 const NONE_VALUE = '__none__';
 
+// #region: helpers-de-linha-e-regra
+
 function normalizeMatcher(matcher: Array<string | null> | undefined, length: number): Array<string | null> {
   const arr = matcher !== undefined ? [...matcher] : [];
   while (arr.length < length) arr.push(null);
@@ -100,6 +102,8 @@ function catalogOptions(doc: PolicyOpsDocument, kind: CatalogItemKind): Array<{ 
     .filter((item) => item.kind === kind && item.archivedAt === undefined)
     .map((item) => ({ code: item.code, label: item.label }));
 }
+
+// #region: componentes-de-selecao-reutilizaveis
 
 function MatcherSelect({
   domains,
@@ -158,6 +162,8 @@ function SetSelect({
     </Select>
   );
 }
+
+// #region: template-editor
 
 export function TemplateEditor({ template, seed, onBack, onSaved }: TemplateEditorProps) {
   const doc = useDocumentStore((s) => s.document);
@@ -265,6 +271,7 @@ export function TemplateEditor({ template, seed, onBack, onSaved }: TemplateEdit
   const axesReady = xVariableIds.length > 0 && yVariableIds.length > 0 && xPreview.error === null && yPreview.error === null;
   const canSave = name.trim() !== '' && code.trim() !== '' && codeError === null && axesReady;
 
+  // #region: handlers-de-regras-e-salvamento
   function addRule() {
     setRows((prev) => [
       ...prev,
@@ -344,6 +351,7 @@ export function TemplateEditor({ template, seed, onBack, onSaved }: TemplateEdit
     onBack();
   }
 
+  // #region: jsx-formulario-e-preview
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4 p-8">
       <div className="flex items-center gap-2">

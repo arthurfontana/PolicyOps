@@ -36,7 +36,7 @@ Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
 | 28 | [ ] | [S28-launcher-e-distribuicao.md](S28-launcher-e-distribuicao.md) | `Sonnet` | `iniciar.bat`, `instalar.bat`, pacote `dist/plataforma/` (depende de 27) |
 | 29 | [ ] | [S29-identidade-e-papeis.md](S29-identidade-e-papeis.md) | `Sonnet` | Identidade Windows, `meta.acl` e papéis — schema 4 (depende de 27) |
 | 30 | [ ] | [S30-evidencias.md](S30-evidencias.md) | `Opus` | Evidências: acervo navegável com hash (depende de 27 e 29) |
-| 31 | [ ] | [S31-guardrails-de-contexto.md](S31-guardrails-de-contexto.md) | `Sonnet` | CLAUDE.md índice, guard mecânico, âncoras de região (independente) |
+| 31 | [x] | [S31-guardrails-de-contexto.md](S31-guardrails-de-contexto.md) | `Sonnet` | CLAUDE.md índice, guard mecânico, âncoras de região (independente) |
 | 32 | [ ] | [S32-modelo-de-componentes.md](S32-modelo-de-componentes.md) | `Opus` | Schema 5: componentes, DBs, releases, invariantes I23–I26 (épico Governança, depende de 29) |
 | 33 | [ ] | [S33-arvore-da-politica.md](S33-arvore-da-politica.md) | `Sonnet` | Árvore da política e cadastro/versionamento de regras (depende de 32) |
 | 34 | [ ] | [S34-editor-rico.md](S34-editor-rico.md) | `Opus` | Editor rico de blocos, anexos de imagem, diff por bloco (depende de 32) |
@@ -59,3 +59,21 @@ Repetidas dentro de cada prompt; ficam aqui como referência.
 6. Escopo é escopo: não implementar sessões futuras "já que estou aqui".
 7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes (e `python -m pytest server/tests` quando a sessão tocar `server/`), o orçamento de 1,5 MB respeitado, e **`dist/PolicyOps.html` atualizado no commit**.
 8. Commitar na branch de trabalho e fazer push.
+
+## Higiene de prompts (ADR-006, S31)
+
+Guardrails de consumo de contexto valem também para como a sessão é conduzida, não só para a
+documentação:
+
+- **Pesquisa exploratória grande vai para um subagent.** "Onde isso é implementado?", "que
+  arquivos mexem em X?" sobre um domínio ainda não localizado pelo mapa "Onde vive o quê" do
+  `CLAUDE.md` custa menos delegado a um subagent de busca do que em Reads amplos na sessão
+  principal — a sessão principal fica só com a resposta, não com o caminho até ela.
+- **Pedido aponta arquivo/região, não "o projeto".** Já sabendo o domínio, use o ponteiro da
+  tabela "Onde vive o quê" (doc normativo + diretório) e, se o arquivo tiver âncoras
+  (`docs/claude/Mapa-de-regioes.md`), a âncora — `grep -n "// #region: <slug>" <arquivo>` — em vez
+  de pedir para ler o arquivo inteiro ou o repositório inteiro.
+- **Sessão nova por tarefa.** Uma conversa que já implementou uma sessão e vai começar outra sem
+  relação carrega contexto irrelevante (Reads, tentativas descartadas) que não ajuda a próxima
+  tarefa e só custa tokens — abra uma sessão nova, como a numeração de sessões deste diretório já
+  pressupõe.

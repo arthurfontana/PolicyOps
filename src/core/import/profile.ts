@@ -21,6 +21,7 @@ import { DELIMITERS } from './parse-table';
 // ---------------------------------------------------------------------------
 // Tipos (§5.4)
 // ---------------------------------------------------------------------------
+// #region: tipos-5-4
 
 export type ColumnRole = 'PARTITION' | 'AXIS' | 'VALUE' | 'CHECK' | 'IGNORE';
 export type ValueField = 'offer' | 'limit' | 'note' | `attr:${string}`;
@@ -93,6 +94,7 @@ export function documentProfiles(doc: DocumentWithProfiles): ImportProfile[] {
 // ---------------------------------------------------------------------------
 // Zod (§5.4)
 // ---------------------------------------------------------------------------
+// #region: zod-5-4
 
 export const DelimitedFormatSchema: z.ZodType<DelimitedFormat> = z
   .object({
@@ -180,6 +182,7 @@ export const ImportProfileSchema: z.ZodType<ImportProfile> = z
 // ---------------------------------------------------------------------------
 // Normalização de valores
 // ---------------------------------------------------------------------------
+// #region: normalizacao-de-valores
 
 /**
  * Prefixo de ordenação: uma ou duas letras/dígitos seguidas de `.` ou `)`.
@@ -236,6 +239,7 @@ export function isIgnoredValue(mapping: ColumnMapping, raw: string): boolean {
 // ---------------------------------------------------------------------------
 // Leitura do perfil
 // ---------------------------------------------------------------------------
+// #region: leitura-do-perfil
 
 export function columnsWithRole(profile: ImportProfile, role: ColumnRole): ColumnMapping[] {
   return profile.columns.filter((column) => column.role === role);
@@ -296,6 +300,7 @@ export function tagsForKey(profile: ImportProfile, values: Record<string, string
 // ---------------------------------------------------------------------------
 // RN-19 — reconhecimento pelo cabeçalho
 // ---------------------------------------------------------------------------
+// #region: rn-19-reconhecimento-pelo-cabecalho
 
 /**
  * O perfil salvo cujo `signature` é **idêntico** ao cabeçalho — mesmos nomes,
@@ -316,6 +321,7 @@ export function matchImportProfile(
 // ---------------------------------------------------------------------------
 // I21 / I22 — validação
 // ---------------------------------------------------------------------------
+// #region: i21-i22-validacao
 
 /** §5.2: de 1 a 4 colunas de partição. */
 export const MAX_PARTITION_COLUMNS = 4;
@@ -579,6 +585,7 @@ export function validateProfileAgainstHeader(
 // ---------------------------------------------------------------------------
 // RN-19 — cabeçalho parecido, mas diferente (CT-12)
 // ---------------------------------------------------------------------------
+// #region: rn-19-cabecalho-parecido-mas-diferente-ct-12
 
 export type HeaderComparison = {
   profile: ImportProfile;
