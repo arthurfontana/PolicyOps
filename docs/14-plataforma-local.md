@@ -386,6 +386,13 @@ corporativo (ADR-005), implementado na S28.
 - O repositório continua commitando `dist/PolicyOps.html`; o pacote `_app/` completo
   (`dist/plataforma/`) é gerado por `pnpm build:plataforma` (não commitado — tamanho das wheels) e
   conferido por `pnpm check:plataforma` antes de publicar.
+- **Layout fixo da Divisão de Crédito**: `iniciar.bat`/`instalar.bat` detectam, além do layout
+  padrão acima, um terceiro arranjo usado por este time — os `.bat` na raiz da pasta de rede,
+  código em `Aplicacao\PolicyOps-main\server\` e dados numa pasta separada
+  `Repositorios\Politicas\` (em vez de dados como pai direto de `_app/`). Checado primeiro por
+  ser mais específico; os outros dois layouts continuam funcionando para qualquer outro uso.
+  Os nomes dessas subpastas ficam fixos nos `.bat` (sem acento, de propósito — batch é frágil com
+  não-ASCII) — renomear qualquer uma delas quebra a detecção.
 
 ## 10. Orçamentos de desempenho
 

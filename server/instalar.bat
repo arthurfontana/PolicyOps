@@ -34,18 +34,20 @@ if "!PYTHON_CMD!"=="" (
 echo Python encontrado: usando "!PYTHON_CMD!"
 echo.
 
-rem Este script roda tanto na raiz do pacote publicado (com uma subpasta "server\")
-rem quanto direto de dentro da propria pasta "server\" (uso local/teste) - detecta
-rem onde estao os arquivos em vez de fixar o prefixo, para nao duplicar o caminho.
-if exist "server\requirements.txt" (
+rem Este script roda nos mesmos tres layouts do iniciar.bat - ver comentario la para o
+rem detalhe de cada um.
+if exist "Aplicacao\PolicyOps-main\server\requirements.txt" (
+    set "SRV=Aplicacao\PolicyOps-main\server\"
+) else if exist "server\requirements.txt" (
     set "SRV=server\"
 ) else if exist "requirements.txt" (
     set "SRV="
 ) else (
-    echo Nao encontrei requirements.txt nem em "server\requirements.txt" nem em
-    echo "requirements.txt" nesta pasta. Rode o instalar.bat a partir da pasta do
-    echo pacote publicado ^(onde ele fica ao lado de PolicyOps.html^) ou de dentro
-    echo da propria pasta server\.
+    echo Nao encontrei requirements.txt em nenhum dos layouts esperados: nem em
+    echo "Aplicacao\PolicyOps-main\server\requirements.txt", nem em
+    echo "server\requirements.txt", nem em "requirements.txt" nesta pasta. Rode o
+    echo instalar.bat a partir da pasta do pacote publicado ^(onde ele fica ao lado de
+    echo PolicyOps.html^) ou de dentro da propria pasta server\.
     echo.
     pause
     exit /b 1

@@ -2,10 +2,16 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
-rem Este script roda tanto na raiz do pacote publicado (com uma subpasta "server\")
-rem quanto direto de dentro da propria pasta "server\" (uso local/teste) - detecta
-rem onde estao os arquivos em vez de fixar o prefixo, para nao duplicar o caminho.
-if exist "server\launcher.py" (
+rem Este script roda em tres layouts diferentes - detecta onde estao os arquivos em vez de
+rem fixar o prefixo, para nao duplicar o caminho:
+rem   1) instalacao fixa deste time: iniciar.bat na raiz da pasta de rede, codigo em
+rem      "Aplicacao\PolicyOps-main\server\" e dados em pasta separada "Repositorios\Politicas\"
+rem   2) raiz do pacote publicado padrao (server\ direto ao lado de iniciar.bat)
+rem   3) direto de dentro da propria pasta "server\" (uso local/teste)
+if exist "Aplicacao\PolicyOps-main\server\launcher.py" (
+    set "SRV=Aplicacao\PolicyOps-main\server\"
+    set "DATA_DIR=Repositorios\Politicas"
+) else if exist "server\launcher.py" (
     set "SRV=server\"
     set "DATA_DIR=.."
 ) else if exist "launcher.py" (
@@ -47,8 +53,9 @@ exit /b !PY_EXIT!
 echo Policy Matrix Studio
 echo =====================================================
 echo.
-echo Nao encontrei launcher.py nem em "server\launcher.py" nem em "launcher.py"
-echo dentro desta pasta.
+echo Nao encontrei launcher.py em nenhum dos layouts esperados: nem em
+echo "Aplicacao\PolicyOps-main\server\launcher.py", nem em "server\launcher.py", nem em
+echo "launcher.py" dentro desta pasta.
 echo.
 echo Confira se nao existe uma subpasta "server" duplicada dentro da propria pasta
 echo "server\" ^(algo como "server\server\launcher.py"^) - isso costuma sobrar de uma
