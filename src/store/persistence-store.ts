@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createEmptyDocument, createSampleDocument } from '@/core/document/create';
-import type { PolicyOpsDocument } from '@/core/document/schema';
+import { attachmentRelPaths } from '@/core/document/evidence';
+import type { Attachment, PolicyOpsDocument } from '@/core/document/schema';
 import { serialize } from '@/core/document/serialize';
 import { validateDocument, type ValidationIssue } from '@/core/document/validate';
 import { DomainError } from '@/core/errors';
@@ -16,6 +17,12 @@ import {
 } from '@/storage/capabilities';
 import { conflictHeadline, summarizeConflict, type ConflictLine } from '@/storage/conflict';
 import { createDownloadAdapter } from '@/storage/download-adapter';
+import {
+  EvidenceApi,
+  EVIDENCE_UNAVAILABLE_REASON,
+  type EvidenceUploadInput,
+  type EvidenceUploadResult,
+} from '@/storage/evidences';
 import { createFsaAdapter, FsaAdapter } from '@/storage/fsa-adapter';
 import {
   conflictCopyName,
@@ -200,6 +207,12 @@ interface PersistenceState {
    * precise conhecer um adapter concreto.
    */
   _setAdapter: (adapter: StorageAdapter) => void;
+  /**
+   * Injeta o cliente de evidências e o conjunto de caminhos "vivos" — mesmo
+   * papel de `_setAdapter`: testar a reconciliação do acervo (docs/14 §7) sem
+   * subir servidor. `null` desliga, que é o estado de todo modo sem servidor.
+   */
+  _setEvidenceApi: (api: EvidenceApi | null, livePaths?: string[]) => void;
 }
 
 // #region: helpers-de-modulo-fora-do-react
@@ -220,6 +233,48 @@ let initialized = false;
 
 /** Token e nomes resolvidos por `detectServer`/`GET /api/health` — o que `buildAdapter('SERVER', …)` precisa. */
 let serverInfo: { token: string; dataFileName: string; dataDir: string } | null = null;
+
+// #region: evidencias-vinculo-x-arquivo
+
+/** Cliente das rotas de evidência (docs/14 §7). `null` fora do modo `SERVER`. */
+let evidenceApi: EvidenceApi | null = null;
+
+/**
+ * Caminhos do acervo que **existem em disco por conta desta sessão**: os do
+ * documento como ele estava no último salvamento (ou na abertura), mais os que
+ * foram subidos por `uploadEvidence` desde então.
+ *
+ * É a memória que transforma "o documento salvo não tem mais este anexo" em
+ * "mande o arquivo para a lixeira" — e só isso: comparar os dois conjuntos
+ * depois de um save bem-sucedido é o que garante a regra de docs/14 §7 de que
+ * o arquivo **nunca** se move antes da gravação. Desfazer um desanexo antes de
+ * salvar simplesmente devolve o caminho ao documento, e a comparação seguinte
+ * não acha nada para mover.
+ */
+let liveEvidencePaths = new Set<string>();
+
+export function getEvidenceApi(): EvidenceApi | null {
+  return evidenceApi;
+}
+
+/** Copia o arquivo para o acervo. O vínculo no documento é do comando `evidence/attach`. */
+export async function uploadEvidence(input: EvidenceUploadInput): Promise<EvidenceUploadResult> {
+  if (evidenceApi === null) {
+    throw new DomainError('DOCUMENT_INVALID', EVIDENCE_UNAVAILABLE_REASON);
+  }
+  const result = await evidenceApi.upload(input);
+  // O arquivo já existe em disco mesmo que o comando falhe logo depois — a
+  // próxima reconciliação o manda para a lixeira em vez de deixá-lo órfão.
+  liveEvidencePaths.add(result.relPath);
+  return result;
+}
+
+export async function downloadEvidence(attachment: Attachment): Promise<Blob> {
+  if (evidenceApi === null) {
+    throw new DomainError('DOCUMENT_INVALID', EVIDENCE_UNAVAILABLE_REASON);
+  }
+  return evidenceApi.download(attachment);
+}
 
 function buildAdapter(mode: StorageMode, onBackupUnavailable: (message: string) => void): StorageAdapter {
   if (mode === 'SERVER' && serverInfo !== null) {
@@ -276,6 +331,9 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
     }
 
     useDocumentStore.getState().openDocument(opened.document);
+    // Ponto de partida da reconciliação do acervo: tudo que o documento em
+    // disco já reivindica existe lá (docs/14 §7).
+    liveEvidencePaths = new Set(attachmentRelPaths(opened.document));
 
     set({
       fileName: opened.fileName,
@@ -384,9 +442,37 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
     }
   }
 
+  /**
+   * Depois de um salvamento bem-sucedido: o que o documento não reivindica
+   * mais vai para `_evidencias/_lixeira/` (docs/14 §7). **Nunca antes** — até
+   * o save, desanexar é só um vínculo a menos, e desfazer tem que funcionar
+   * sem depender de um arquivo que já se moveu.
+   *
+   * Melhor esforço de propósito: o save já deu certo, e uma falha ao mover o
+   * arquivo (rede caiu, permissão) não pode virar "não salvou". Vira aviso —
+   * e o arquivo continua no acervo, que é o lado seguro do erro.
+   */
+  function reconcileEvidenceTrash(doc: PolicyOpsDocument | null): void {
+    if (evidenceApi === null) return;
+    const claimed = new Set(attachmentRelPaths(doc));
+    const orphans = [...liveEvidencePaths].filter((relPath) => !claimed.has(relPath));
+    liveEvidencePaths = claimed;
+    for (const relPath of orphans) {
+      void evidenceApi.trash(relPath).catch((error: unknown) => {
+        set({
+          backupWarning:
+            error instanceof DomainError
+              ? error.message
+              : `Não foi possível mover ${relPath} para a lixeira do acervo: ${String(error)}`,
+        });
+      });
+    }
+  }
+
   function applySaveResult(result: SaveResult): void {
     if (result.ok) {
       const doc = useDocumentStore.getState().document;
+      reconcileEvidenceTrash(doc);
       if (doc !== null) {
         useDocumentStore.getState().markSaved({
           revision: result.revision,
@@ -592,6 +678,9 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
 
     serverInfo = { token, dataFileName: health.dataFile, dataDir: health.dataDir };
     serverActorName = identity?.displayName ?? identity?.username ?? null;
+    // Evidências são exclusivas do modo `SERVER` (docs/14 §8): o acervo mora na
+    // pasta de rede, e só o servidor grava lá.
+    evidenceApi = new EvidenceApi({ token, dataDir: health.dataDir });
 
     // Papéis (docs/14 §6, ADR-003): `resolveRole` roda no front, contra o
     // `meta.acl` do documento aberto — mais preciso que confiar num `roles`
@@ -754,6 +843,9 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       buffer?.cancel();
       adapter?.close();
       useDocumentStore.getState().closeDocument();
+      // Fechar não move arquivo nenhum: o que ficou anexado sem salvar
+      // continua no acervo, visível no Explorer (ADR-004).
+      liveEvidencePaths = new Set();
       set({
         fileName: null,
         filePath: null,
@@ -958,6 +1050,11 @@ export const usePersistenceStore = create<PersistenceState>((set, get) => {
       adapter = next;
       advisoryLock = null;
       set({ mode: next.mode });
+    },
+
+    _setEvidenceApi: (api, livePaths) => {
+      evidenceApi = api;
+      liveEvidencePaths = new Set(livePaths ?? []);
     },
   };
 });

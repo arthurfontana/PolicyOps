@@ -35,7 +35,7 @@
 | 27 | Modo `SERVER` no front | **Sonnet** | ✅ **Entregue** — `server-adapter` + detecção de modo (`localServer`); abrir/salvar/conflito/merge rodando ponta a ponta contra o servidor real (E2E) | 26 |
 | 28 | Launcher e distribuição | **Sonnet** | `iniciar.bat` + `instalar.bat` (venv + wheels offline) e o pacote `dist/plataforma/` gerado pelo build — dois cliques numa máquina limpa | 27 |
 | 29 | Identidade Windows e papéis | **Sonnet** | `whoami` carimba auditoria/saves; `meta.acl` (schema 4) com papéis aplicados na interface e no servidor | 27 |
-| 30 | Evidências: acervo navegável | **Opus** | Anexar/abrir/desanexar evidência com hash conferido; acervo legível no Explorer; `attachments` no schema 4 | 27, 29 |
+| 30 | Evidências: acervo navegável | **Opus** | ✅ **Entregue** — anexar/abrir/desanexar evidência com hash conferido; acervo legível no Explorer; `attachments` no schema 4 | 27, 29 |
 | 31 | Guardrails de contexto e reorganização documental | **Sonnet** | ✅ **Entregue** — `CLAUDE.md` índice ≤450 linhas com mapa "onde vive o quê", guard mecânico no CI, âncoras nos arquivos grandes | — |
 | 32a | Núcleo de componentes e schema 5 | **Opus** | `schemaVersion: 5` inteiro (uma migração aditiva), `PolicyComponent`/`ComponentVersion`, invariantes I23–I24, comandos de árvore e de versão com inverso — 100% testado, sem tela | 29 |
 | 32b | DB, release e workflow (núcleo) | **Opus** | Comandos de `ChangeRequest`/`Release`, grafo de 12 estados, aprovações, I25–I26 — sem tela. **Pré-requisito da 35**, não da 33/40 | 32a |
@@ -194,6 +194,34 @@
 > migração 3→4 com fixture real, `checkI23`/`checkI24`) mais 11 pytest (`whoami` com ACL
 > ausente/vazia/populada/sem ADMIN, `403` para `READER`, `403` antes do hash) e 1 E2E que sobe o
 > servidor real com uma ACL definindo o usuário do SO como `READER` e confirma as duas camadas.
+
+> **Sessão 30 entregue — marco M9 fechado.** `attachments?` no documento (ainda
+> `schemaVersion: 4`: campo novo e opcional é o caso "sem migração" de `03` §10) com `relPath`,
+> `sha256`, `addedBy`, `addedAt` e `target` (`PROJECT` | `MATRIX` | `VERSION` pelo **número** da
+> versão, que é o que aparece na pasta). Comandos `evidence/attach`/`evidence/detach` com inverso
+> exato — o do desanexo restaura o registro inteiro **na posição original**, não um append — e
+> eventos `EVIDENCE_ATTACHED`/`EVIDENCE_DETACHED`; invariantes I25 (alvo existe) e I26 (`relPath`
+> único, `relPath`/`sha256` não vazios). No servidor, `POST /api/evidences` (multipart, papel
+> mínimo `EDITOR`) copia em *streaming* calculando o SHA-256 nos mesmos blocos que vão para o
+> disco, grava atômico (`.tmp` + `os.replace`), resolve colisão com ` (2)` e corta em 50 MB com
+> `413` sem deixar `.tmp` para trás; `GET` confere o hash **antes** de responder (`409
+> HASH_MISMATCH`); `DELETE` move para `_evidencias/_lixeira/` preservando a árvore, idempotente.
+> O caminho legível (`{projeto-slug}/{matriz-slug}/v{n}/{AAAA-MM-DD}_{nome original}`) é
+> **construído** a partir dos códigos slugificados, não validado a partir de caminho recebido —
+> é o que fecha *path traversal* por construção; o `relPath` que volta do documento passa por
+> `resolve_under` (segmento `..`, caminho absoluto, letra de unidade, e conferência pós-`resolve`).
+> A ida para a lixeira é reconciliada pela camada de persistência **depois** de cada save
+> bem-sucedido (comparando o que o documento reivindica com o que a sessão sabe existir no
+> acervo), nunca no desanexo: é o que faz `Ctrl+Z` funcionar sem depender de um arquivo que já se
+> moveu. Seção "Evidências" no inspector de versão, de matriz e na tela de projeto, desabilitada
+> com o motivo fora do modo `SERVER`. 45 testes de unidade novos (comandos com inverso,
+> invariantes, append-only sobre versão publicada com deep equal do snapshot, cliente da API,
+> reconciliação da lixeira — suíte 1.444 → 1.489), 31 pytest (`_evidencias/` do caminho exato ao
+> papel mínimo — 74 → 105) e 2 E2E contra o servidor real: anexar em versão publicada → salvar →
+> reabrir → abrir o arquivo → adulterar no disco → a aplicação denuncia; e desanexar/desfazer sem
+> tocar no arquivo. DEC-PLAT-005 registra a decisão de o servidor **não** guardar estado do
+> acervo (`relPath`/`sha256` vêm do documento em toda chamada) — sem ela, o `DELETE`, que
+> acontece depois de o vínculo já ter saído do documento salvo, não teria como resolver o `id`.
 
 > **Sessão 31 entregue.** `CLAUDE.md` reescrito como índice em camadas (114 linhas, teto de 450
 > guardado por `pnpm check:claude-md` — `scripts/check-claude-md.mjs`, registrado no CI logo após

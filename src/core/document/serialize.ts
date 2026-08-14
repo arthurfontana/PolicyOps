@@ -1,6 +1,7 @@
 import type {
   Acl,
   AclEntry,
+  Attachment,
   Axis,
   AxisLevel,
   CatalogItem,
@@ -265,6 +266,31 @@ function canonicalAcl(acl: Acl): Acl {
   return { ...pick(acl, ACL_KEYS), users: acl.users.map(canonicalAclEntry) };
 }
 
+const ATTACHMENT_KEYS = [
+  'id',
+  'fileName',
+  'relPath',
+  'sha256',
+  'bytes',
+  'addedBy',
+  'addedAt',
+  'note',
+  'target',
+] as const;
+function canonicalAttachment(attachment: Attachment): Attachment {
+  const target = attachment.target;
+  return {
+    ...pick(attachment, ATTACHMENT_KEYS),
+    addedBy: pick(attachment.addedBy, ['username', 'displayName'] as const),
+    target:
+      target.kind === 'VERSION'
+        ? pick(target, ['kind', 'matrixId', 'versionNumber'] as const)
+        : target.kind === 'MATRIX'
+          ? pick(target, ['kind', 'matrixId'] as const)
+          : pick(target, ['kind', 'projectId'] as const),
+  };
+}
+
 const DOCUMENT_META_KEYS = [
   'id',
   'name',
@@ -292,6 +318,7 @@ const DOCUMENT_KEYS = [
   'matrices',
   'templates',
   'importProfiles',
+  'attachments',
   'events',
 ] as const;
 
@@ -309,6 +336,12 @@ export function canonicalizeDocument(doc: PolicyOpsDocument): PolicyOpsDocument 
     // os campos exatos do schema (`.strict()` no Zod garante isso); só o
     // pass-through evita perder o campo, sem reordenar as chaves internas.
     importProfiles: doc.importProfiles,
+    // Campo opcional: `pick` já o omite quando ausente, e a lista vazia também
+    // não é gravada — "campos vazios omitidos, nunca `null`" (docs/03 §1).
+    attachments:
+      doc.attachments === undefined || doc.attachments.length === 0
+        ? undefined
+        : doc.attachments.map(canonicalAttachment),
     events: doc.events.map(canonicalDocEvent),
   };
 }

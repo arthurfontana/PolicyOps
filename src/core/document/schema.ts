@@ -606,6 +606,8 @@ export const DOC_EVENT_TYPES = [
   'IMPORT_PROFILE_SAVED',
   'MATRIX_TAGGED',
   'ACL_CHANGED',
+  'EVIDENCE_ATTACHED',
+  'EVIDENCE_DETACHED',
 ] as const;
 
 export type DocEventType = (typeof DOC_EVENT_TYPES)[number];
@@ -644,6 +646,71 @@ export const DocEventSchema: z.ZodType<DocEvent> = z
       .strict(),
     summary: z.string().min(1),
     payload: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+
+// ---------------------------------------------------------------------------
+// §9 Evidências (docs/14-plataforma-local.md §7, ADR-004)
+// ---------------------------------------------------------------------------
+// #region: 9-evidencias
+
+/**
+ * A que a evidência está presa. `VERSION` guarda o **número** da versão, não o
+ * `versionId`: o número é o que aparece na pasta do acervo (`v12`) e o que uma
+ * pessoa reconhece no Explorer sem a aplicação aberta (ADR-004).
+ */
+export type AttachmentTarget =
+  | { kind: 'PROJECT'; projectId: string }
+  | { kind: 'MATRIX'; matrixId: string }
+  | { kind: 'VERSION'; matrixId: string; versionNumber: number };
+
+export const AttachmentTargetSchema: z.ZodType<AttachmentTarget> = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('PROJECT'), projectId: idSchema }).strict(),
+  z.object({ kind: z.literal('MATRIX'), matrixId: idSchema }).strict(),
+  z
+    .object({
+      kind: z.literal('VERSION'),
+      matrixId: idSchema,
+      versionNumber: z.number().int().positive(),
+    })
+    .strict(),
+]);
+
+/**
+ * Um arquivo do acervo `_evidencias/` (docs/14 §7). O documento é o **registro**
+ * do anexo — o servidor só toca arquivos (ADR-002): `relPath` e `sha256` daqui
+ * são o que a aplicação manda para `GET /api/evidences/{id}` conferir.
+ *
+ * Evidência é imutável: não existe "editar anexo" (anexa-se outro), e desanexar
+ * tira o vínculo daqui sem apagar o arquivo do mundo.
+ */
+export type Attachment = {
+  id: string;
+  /** Nome original, como a pessoa mandou — preservado no disco (ADR-004). */
+  fileName: string;
+  /** Caminho relativo dentro de `_evidencias/`, com `/`: `politica-pf/mtz-limite-pf/v12/…`. */
+  relPath: string;
+  sha256: string;
+  bytes: number;
+  addedBy: { username: string; displayName?: string };
+  addedAt: string;
+  note?: string;
+  target: AttachmentTarget;
+};
+
+export const AttachmentSchema: z.ZodType<Attachment> = z
+  .object({
+    id: idSchema,
+    fileName: z.string().min(1),
+    relPath: z.string().min(1),
+    sha256: z.string().min(1),
+    bytes: z.number().int().nonnegative(),
+    addedBy: z
+      .object({ username: z.string().min(1), displayName: z.string().min(1).optional() })
+      .strict(),
+    addedAt: isoDateSchema,
+    note: z.string().min(1).optional(),
+    target: AttachmentTargetSchema,
   })
   .strict();
 
@@ -730,6 +797,8 @@ export type PolicyOpsDocument = {
   matrices: Matrix[];
   templates: Template[];
   importProfiles: ImportProfile[];
+  /** Evidências anexadas (docs/14 §7) — ausente quando nunca se anexou nada. */
+  attachments?: Attachment[];
   events: DocEvent[];
 };
 
@@ -739,6 +808,11 @@ export type PolicyOpsDocument = {
  * modo aberto, `migrate.ts`). `ImportProfile` é importado de `../import/profile`
  * (S21) em vez de redeclarado aqui — ver o comentário em `./primitives` sobre
  * o ciclo que essa importação evita.
+ *
+ * **Continua 4 na sessão 30**: `attachments?` é campo novo e opcional, o caso
+ * que `03-modelo-do-documento.md` §10 registra como "sem necessidade de
+ * migração" — um documento 4 sem anexos já é um documento 4 válido, e a
+ * ausência do campo é o estado migrado (mesma forma de `meta.acl`).
  */
 export const CURRENT_SCHEMA_VERSION = 4 as const;
 
@@ -753,6 +827,7 @@ export const PolicyOpsDocumentSchema: z.ZodType<PolicyOpsDocument> = z
     matrices: z.array(MatrixSchema),
     templates: z.array(TemplateSchema),
     importProfiles: z.array(z.lazy(() => ImportProfileSchema)),
+    attachments: z.array(AttachmentSchema).optional(),
     events: z.array(DocEventSchema),
   })
   .strict();

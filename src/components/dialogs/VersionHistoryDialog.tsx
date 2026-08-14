@@ -16,6 +16,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Paperclip,
   ShieldCheck,
   Shuffle,
   SquarePen,
@@ -77,6 +78,10 @@ const EVENT_ICONS: Record<DocEventType, LucideIcon> = {
   IMPORT_PROFILE_SAVED: Save,
   MATRIX_TAGGED: Tag,
   ACL_CHANGED: ShieldCheck,
+  EVIDENCE_ATTACHED: Paperclip,
+  // O desanexo manda o arquivo para a lixeira do acervo — mesmo ícone do
+  // descarte, que é o que a ação parece para quem lê o histórico.
+  EVIDENCE_DETACHED: Trash2,
 };
 
 const ALL_FILTER = 'TODOS';

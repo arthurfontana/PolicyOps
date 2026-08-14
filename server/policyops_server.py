@@ -28,14 +28,16 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import socket
 import sys
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -58,6 +60,20 @@ BACKUP_DIR_NAME = "_backups"
 MAX_BACKUPS = 20
 """Lock com heartbeat parado há mais de 10 min é obsoleto e pode ser tomado (docs/06 §6)."""
 LOCK_STALE_SECONDS = 10 * 60
+
+EVIDENCE_DIR_NAME = "_evidencias"
+"""Acervo de evidências, navegável no Explorer (ADR-004, docs/14 §7)."""
+EVIDENCE_TRASH_DIR_NAME = "_lixeira"
+"""Limite por arquivo (docs/14 §7). Recusa com `413` e mensagem clara — nunca grava pela metade."""
+MAX_EVIDENCE_BYTES = 50 * 1024 * 1024
+EVIDENCE_CHUNK_BYTES = 1024 * 1024
+"""Mesmo alfabeto e comprimento de `nanoid(12)` (`NANOID_REGEX`, src/core/document/primitives.ts).
+
+O id devolvido pelo `POST` é o id que o documento grava em `attachments[].id` — precisa passar
+pelo schema do front sem tratamento especial.
+"""
+EVIDENCE_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-"
+EVIDENCE_ID_LENGTH = 12
 
 BACKUP_UNAVAILABLE_MESSAGE = (
     "Não foi possível gravar em _backups ao lado do arquivo — provavelmente falta permissão de "
@@ -115,6 +131,11 @@ class ServerConfig:
     @property
     def backup_dir(self) -> Path:
         return self.data_dir / BACKUP_DIR_NAME
+
+    @property
+    def evidence_dir(self) -> Path:
+        """Raiz do acervo. **Todo** caminho de evidência é resolvido debaixo dela (docs/14 §7)."""
+        return self.data_dir / EVIDENCE_DIR_NAME
 
     @property
     def holder(self) -> str:
@@ -396,6 +417,106 @@ def resolve_effective_role(config: "ServerConfig") -> str:
 
     default_role = acl.get("defaultRole")
     return default_role if default_role in ("READER", "EDITOR") else "READER"
+
+
+def role_allows(role: str, minimum: str) -> bool:
+    """`role` alcança `minimum` na ordem de `VALID_ROLES` — mesmo `roleAtLeast` do front."""
+    if role not in VALID_ROLES or minimum not in VALID_ROLES:
+        return False
+    return VALID_ROLES.index(role) >= VALID_ROLES.index(minimum)
+
+
+# #region: evidencias-caminhos-e-integridade
+
+
+def slug_segment(value: str) -> str:
+    """Um nível de pasta do acervo, legível e **seguro por construção** (docs/14 §7, ADR-004).
+
+    `CREDITO_VAREJO` → `credito-varejo`. O resultado só contém `[a-z0-9-]`, então não existe
+    caminho relativo (`..`), separador (`/`, `\\`) nem letra de unidade (`C:`) que consiga sair
+    de `_evidencias/` por aqui — a defesa contra *path traversal* na anexação é a própria forma
+    do slug, não uma lista de proibições.
+    """
+    normalized = unicodedata.normalize("NFKD", value)
+    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", ascii_only).strip("-").lower()
+    return slug or "sem-nome"
+
+
+def safe_file_name(name: str) -> str:
+    """Preserva o nome original (ADR-004) tirando só o que não pode virar nome de arquivo.
+
+    Componente de diretório (`pasta/arquivo.docx`, `..\\x`), caractere de controle e os
+    caracteres que o Windows recusa (`<>:"|?*`) saem; ponto e espaço nas pontas também, que é o
+    que impediria um `..` ou um nome inválido no Explorer. O que sobra é o nome que a pessoa
+    reconhece quando abre a pasta.
+    """
+    base = re.split(r"[\\/]", name)[-1]
+    cleaned = "".join(char for char in base if char >= " " and char not in '<>:"|?*')
+    cleaned = cleaned.strip(" .")
+    return cleaned or "evidencia"
+
+
+def resolve_under(root: Path, rel_path: str) -> Optional[Path]:
+    """Resolve `rel_path` **debaixo** de `root`, ou `None` se ele tentar sair de lá.
+
+    O caminho vem do documento (`attachments[].relPath`), que é texto de fora como qualquer
+    outro. Duas barreiras: rejeitar o que já é suspeito na forma (absoluto, letra de unidade,
+    segmento `..`) e, depois de `resolve()`, conferir que o resultado continua dentro da raiz —
+    a segunda pega até o caso de um *symlink* plantado dentro do acervo.
+    """
+    text = (rel_path or "").strip().replace("\\", "/")
+    if text == "" or text.startswith("/") or ":" in text:
+        return None
+    parts = [part for part in text.split("/") if part not in ("", ".")]
+    if not parts or any(part == ".." for part in parts):
+        return None
+
+    root_resolved = root.resolve()
+    candidate = root_resolved.joinpath(*parts).resolve()
+    try:
+        candidate.relative_to(root_resolved)
+    except ValueError:
+        return None
+    return candidate
+
+
+def unique_path(directory: Path, file_name: str) -> Path:
+    """`DB 513.docx` já existente vira `DB 513 (2).docx` — nunca sobrescreve (docs/14 §7)."""
+    target = directory / file_name
+    if not target.exists():
+        return target
+    stem = Path(file_name).stem
+    suffix = Path(file_name).suffix
+    counter = 2
+    while True:
+        candidate = directory / "{} ({}){}".format(stem, counter, suffix)
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def sha256_of_file(path: Path) -> str:
+    """SHA-256 do arquivo em disco, lido em blocos — 50 MB não viram 50 MB de memória."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        while True:
+            chunk = handle.read(EVIDENCE_CHUNK_BYTES)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def new_evidence_id() -> str:
+    return "".join(secrets.choice(EVIDENCE_ID_ALPHABET) for _ in range(EVIDENCE_ID_LENGTH))
+
+
+def remove_quietly(path: Path) -> None:
+    try:
+        path.unlink()
+    except OSError:
+        pass
 
 
 # #region: envelope-de-erros-e-app
@@ -722,6 +843,235 @@ def create_app(config: ServerConfig) -> FastAPI:
                 {"name": entry.name, "bytes": stat.st_size, "mtime": iso_from_timestamp(stat.st_mtime)}
             )
         return {"backups": entries}
+
+    # #region: api-evidences
+
+    def deny_below(minimum: str, action: str) -> Optional[JSONResponse]:
+        """Gate grosso de papel, igual ao `403` do `PUT` (docs/14 §6): só o que o servidor sabe."""
+        role = resolve_effective_role(config)
+        if role_allows(role, minimum):
+            return None
+        return json_error(
+            403,
+            "FORBIDDEN",
+            "Seu papel neste documento é {} — {} exige {}. Peça a um ADMIN para mudar seu papel "
+            "na lista de acesso.".format(role, action, minimum),
+        )
+
+    def evidence_full_path(rel_path: str) -> str:
+        """O caminho que a pessoa digita no Explorer — é ele que entra nas mensagens de erro."""
+        return str(config.evidence_dir / Path(rel_path.replace("\\", "/")))
+
+    @app.post("/api/evidences", status_code=201)
+    async def attach_evidence(
+        file: UploadFile = File(...),
+        project: str = Form(...),
+        matrix: Optional[str] = Form(None),
+        version: Optional[str] = Form(None),
+        date: Optional[str] = Form(None),
+    ) -> Any:
+        """Copia o arquivo para o acervo e devolve hash e caminho (docs/14 §7, ADR-004).
+
+        O destino é montado aqui, a partir dos **códigos** que o front manda (projeto, matriz,
+        número da versão): `{projeto-slug}/{matriz-slug}/v{n}/{AAAA-MM-DD}_{nome original}`, com
+        o alvo `PROJECT` parando no primeiro nível. O servidor não conhece o documento (ADR-002)
+        — ele slugifica o que recebe, e é essa slugificação que garante que o caminho não sai de
+        `_evidencias/`.
+
+        A cópia é *streaming*: o SHA-256 é calculado nos mesmos blocos que vão para o disco (o
+        arquivo nunca é carregado inteiro na memória), a gravação é atômica (`.tmp` +
+        `os.replace`) e o limite de 50 MB corta antes de terminar, sem deixar arquivo pela metade.
+        """
+        denied = deny_below("EDITOR", "anexar evidências")
+        if denied is not None:
+            return denied
+
+        segments = [slug_segment(project)]
+        matrix_code = (matrix or "").strip()
+        version_text = (version or "").strip()
+        if matrix_code:
+            segments.append(slug_segment(matrix_code))
+            if version_text:
+                try:
+                    segments.append("v{}".format(int(version_text)))
+                except ValueError:
+                    return json_error(
+                        400,
+                        "BAD_REQUEST",
+                        "O número da versão precisa ser inteiro: {!r}.".format(version_text),
+                    )
+        elif version_text:
+            return json_error(
+                400,
+                "BAD_REQUEST",
+                "Evidência de versão precisa vir com a matriz — só o número da versão não "
+                "identifica a pasta.",
+            )
+
+        stamp = date if (date and re.match(r"^\d{4}-\d{2}-\d{2}$", date)) else datetime.now().strftime("%Y-%m-%d")
+        file_name = "{}_{}".format(stamp, safe_file_name(file.filename or "evidencia"))
+
+        root = config.evidence_dir
+        directory = root.joinpath(*segments)
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            return json_error(
+                500,
+                "IO",
+                "Não foi possível criar a pasta {} do acervo: {}".format(directory, error),
+            )
+
+        target = unique_path(directory, file_name)
+        tmp = target.with_name(target.name + ".tmp")
+        digest = hashlib.sha256()
+        total = 0
+        too_large = False
+
+        try:
+            with open(tmp, "wb") as handle:
+                while True:
+                    chunk = await file.read(EVIDENCE_CHUNK_BYTES)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > MAX_EVIDENCE_BYTES:
+                        too_large = True
+                        break
+                    digest.update(chunk)
+                    handle.write(chunk)
+                if not too_large:
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            if too_large:
+                remove_quietly(tmp)
+                return json_error(
+                    413,
+                    "TOO_LARGE",
+                    "O arquivo passa do limite de {} MB por evidência e não foi copiado. Anexe "
+                    "uma versão menor (ou compactada) do documento.".format(MAX_EVIDENCE_BYTES // (1024 * 1024)),
+                    limitBytes=MAX_EVIDENCE_BYTES,
+                )
+            os.replace(tmp, target)
+        except OSError as error:
+            remove_quietly(tmp)
+            return json_error(
+                500,
+                "IO",
+                "Não foi possível gravar a evidência em {}: {}".format(target, error),
+            )
+
+        return {
+            "id": new_evidence_id(),
+            "relPath": target.relative_to(root).as_posix(),
+            "fileName": target.name,
+            "sha256": digest.hexdigest(),
+            "bytes": total,
+        }
+
+    @app.get("/api/evidences/{evidence_id}")
+    def download_evidence(evidence_id: str, relPath: str = "", sha256: str = "") -> Any:
+        """Devolve o arquivo **depois** de conferir o hash registrado no documento (docs/14 §7).
+
+        `relPath` e `sha256` vêm do próprio `attachments[]` — o documento é o registro, o
+        servidor é infraestrutura (ADR-002, DEC-PLAT-005). Conferir antes de responder é o que
+        permite devolver `409 HASH_MISMATCH` como erro de verdade, em vez de descobrir a
+        divergência no meio de um download já iniciado.
+        """
+        path = resolve_under(config.evidence_dir, relPath)
+        if path is None:
+            return json_error(
+                400,
+                "BAD_REQUEST",
+                "Caminho de evidência inválido: {!r}. Todo anexo vive dentro de {}.".format(
+                    relPath, config.evidence_dir
+                ),
+            )
+        if not sha256:
+            return json_error(
+                400,
+                "BAD_REQUEST",
+                "Sem o hash registrado não há integridade a conferir — o download exige o "
+                "sha256 do anexo.",
+            )
+        if not path.is_file():
+            return json_error(
+                404,
+                "NOT_FOUND",
+                "O arquivo da evidência não está em {}. Ele pode ter sido movido ou renomeado à "
+                "mão — procure em {}.".format(
+                    evidence_full_path(relPath), config.evidence_dir / EVIDENCE_TRASH_DIR_NAME
+                ),
+            )
+
+        try:
+            actual = sha256_of_file(path)
+        except OSError as error:
+            return json_error(500, "IO", "Não foi possível ler {}: {}".format(path, error))
+
+        if actual != sha256:
+            return json_error(
+                409,
+                "HASH_MISMATCH",
+                "O conteúdo de {} não é mais o que foi anexado — o arquivo foi alterado ou "
+                "substituído no disco depois do anexo.".format(evidence_full_path(relPath)),
+                relPath=relPath,
+                expected=sha256,
+                actual=actual,
+            )
+
+        return FileResponse(
+            path,
+            media_type="application/octet-stream",
+            filename=path.name,
+            headers={"Cache-Control": "no-store"},
+        )
+
+    @app.delete("/api/evidences/{evidence_id}")
+    def trash_evidence(evidence_id: str, relPath: str = "") -> Any:
+        """Move para `_evidencias/_lixeira/{caminho original}` — **nada jamais é apagado** (§7).
+
+        A árvore é preservada dentro da lixeira, então o arquivo continua identificável por
+        projeto/matriz/versão para quem for esvaziá-la à mão (`11-operacao.md` §1).
+
+        Idempotente de propósito: o front só chama isto **depois** de um salvamento bem-sucedido
+        que já tirou o vínculo do documento, e um arquivo que já não está lá não pode transformar
+        um save que deu certo em erro na tela.
+        """
+        denied = deny_below("EDITOR", "desanexar evidências")
+        if denied is not None:
+            return denied
+
+        root = config.evidence_dir
+        path = resolve_under(root, relPath)
+        if path is None:
+            return json_error(
+                400,
+                "BAD_REQUEST",
+                "Caminho de evidência inválido: {!r}. Todo anexo vive dentro de {}.".format(relPath, root),
+            )
+        if not path.is_file():
+            return {"trashed": False, "relPath": None}
+
+        parts = [part for part in relPath.strip().replace("\\", "/").split("/") if part not in ("", ".")]
+        trash_dir = root.joinpath(EVIDENCE_TRASH_DIR_NAME, *parts[:-1])
+        try:
+            trash_dir.mkdir(parents=True, exist_ok=True)
+            destination = unique_path(trash_dir, parts[-1])
+            try:
+                os.replace(path, destination)
+            except OSError:
+                # Pastas em volumes diferentes (raro numa pasta de rede só, mas possível):
+                # `os.replace` não atravessa; `shutil.move` copia e apaga a origem.
+                shutil.move(str(path), str(destination))
+        except OSError as error:
+            return json_error(
+                500,
+                "IO",
+                "Não foi possível mover {} para a lixeira do acervo: {}".format(path, error),
+            )
+
+        return {"trashed": True, "relPath": destination.relative_to(root).as_posix()}
 
     return app
 

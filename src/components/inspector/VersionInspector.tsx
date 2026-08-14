@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { AxisEditor } from '@/components/editor/AxisEditor';
+import { EvidenceSection } from '@/components/inspector/EvidenceSection';
 import { MatrixTagsEditor } from '@/components/inspector/MatrixTagsEditor';
 import type { AxisRole } from '@/core/document/schema';
 import { getEditorView, getImportOrigin, type EditorAxisView } from '@/core/queries';
@@ -135,6 +136,15 @@ export function VersionInspector() {
           </p>
         </div>
       )}
+
+      {/* Evidências (docs/14 §7): as da versão são o caso típico — o DB que
+          justificou aquela publicação —, e as da matriz valem para todas as
+          versões (um ofício que rege a política inteira). */}
+      <EvidenceSection
+        target={{ kind: 'VERSION', matrixId: matrix.id, versionNumber: version.number }}
+        title={`Evidências da versão ${version.number}`}
+      />
+      <EvidenceSection target={{ kind: 'MATRIX', matrixId: matrix.id }} title="Evidências da matriz" />
 
       {version.notes !== undefined && (
         <div className="rounded-md border border-neutral-200 p-2 text-xs dark:border-neutral-800">

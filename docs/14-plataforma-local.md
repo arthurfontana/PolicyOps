@@ -80,9 +80,9 @@ API maior que a sua (mesma regra do `schemaVersion`: nunca "tentar mesmo assim")
 | `POST /api/document/lock` | Adquire/renova o lock consultivo | Corpo `{ docRevision?, force? }` · `200 { lock }` · `423 { lock }`. Espelha `{nome}.lock.json` de `06` §6 |
 | `DELETE /api/document/lock` | Libera o lock | `200 { released }` · `409 LOCK_NOT_OWNED` — só o próprio dono libera |
 | `GET /api/backups` | Lista `_backups/` | `{ backups: [{ name, bytes, mtime }] }`, do mais novo para o mais antigo. Restauração é manual e documentada (`11-operacao.md`) — a API não restaura |
-| `POST /api/evidences` | Anexa arquivo (multipart) ao acervo (§7) | `201 { id, relPath, sha256, bytes }` |
-| `GET /api/evidences/{id}` | Faz o download/stream do arquivo | `404` se removido; `409 HASH_MISMATCH` se o conteúdo não bate com o hash registrado |
-| `DELETE /api/evidences/{id}` | Move o arquivo para `_evidencias/_lixeira/` | Nunca apaga de verdade (§7) |
+| `POST /api/evidences` | Anexa arquivo (multipart) ao acervo (§7). Campos: `file`, `project`, `matrix?`, `version?`, `date?` — **códigos**, não ids. Papel mínimo `EDITOR` | `201 { id, relPath, fileName, sha256, bytes }` · `413 TOO_LARGE` acima de 50 MB · `403 FORBIDDEN` |
+| `GET /api/evidences/{id}?relPath=&sha256=` | Faz o download/stream do arquivo, conferindo o hash antes de responder | `404` se removido; `409 HASH_MISMATCH` se o conteúdo não bate com o hash registrado; `400` se o caminho sai de `_evidencias/` |
+| `DELETE /api/evidences/{id}?relPath=` | Move o arquivo para `_evidencias/_lixeira/`. Papel mínimo `EDITOR` | Nunca apaga de verdade (§7). `200 { trashed }` — idempotente |
 
 Regras transversais da API:
 
@@ -255,6 +255,35 @@ Regras de negócio:
   mas a interface avisa que o conteúdo não é lido nem indexado pela aplicação.
 - Anexos aparecem no inspector do alvo e o evento `EVIDENCE_ATTACHED` / `EVIDENCE_DETACHED`
   entra na auditoria.
+
+### Detalhamento fechado na S30 (DEC-PLAT-005)
+
+- **O documento é o registro; o servidor só toca arquivos.** Não existe índice, banco nem
+  sidecar de anexos na pasta: `relPath` e `sha256` viajam do `attachments[]` para o servidor em
+  toda chamada (`GET`/`DELETE`), e o `{id}` da rota é só o identificador do vínculo. É o que
+  mantém ADR-002 de pé — e é o que faz o `DELETE` continuar funcionando **depois** do
+  salvamento que já tirou o anexo do documento, que é exatamente quando ele acontece.
+- **O caminho é construído, não validado.** O servidor recebe os **códigos** do projeto e da
+  matriz (`POLITICA_PF`, estáveis a um `rename`, diferente do nome) e os slugifica para
+  `[a-z0-9-]` — um slug não sabe dizer `..`, então a anexação não tem como escrever fora de
+  `_evidencias/`. Só o `relPath` que **volta** do documento é validado (segmento `..`, caminho
+  absoluto, letra de unidade, e conferência de que o caminho resolvido continua sob a raiz).
+- **O prefixo de data é o do usuário, não o do UTC.** O front manda `date` no fuso local; sem
+  ele, o servidor carimba a data local da própria máquina. Um anexo às 22h de 14/08 tem que
+  aparecer como `2026-08-14_…` na pasta de quem anexou.
+- **`id` é gerado pelo servidor** no formato `nanoid(12)` do documento (`NANOID_REGEX`), para
+  entrar em `attachments[].id` sem tratamento especial.
+- **A ida para a lixeira acontece depois do salvamento.** O desanexo tira só o vínculo; a
+  camada de persistência compara, a cada save bem-sucedido, o que o documento reivindica contra
+  o que a sessão sabe existir no acervo, e manda para `_lixeira/` o que sobrou. Falha nessa
+  etapa vira aviso, nunca "não salvou" — e o arquivo continua no acervo, que é o lado seguro do
+  erro. Desfazer um desanexo **antes** de salvar é, por construção, um não-evento no disco.
+- **`attachments` não muda o `schemaVersion`** (segue 4): campo novo e opcional é o caso que
+  `03-modelo-do-documento.md` §10 registra como "sem necessidade de migração". A contrapartida
+  é conhecida: um `PolicyOps.html` anterior à S30 abre um documento com anexos em modo de
+  recuperação (o schema é `.strict()`), e perde os vínculos se salvar por cima. No modo `SERVER`
+  todo mundo roda o `_app/` publicado pela TI, então o cenário é o mesmo de sempre — atualizar a
+  aplicação é substituir a pasta (§9).
 
 ## 8. Modos de operação do front
 

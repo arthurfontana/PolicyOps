@@ -35,7 +35,7 @@ Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
 | 27 | [x] | [S27-modo-server.md](S27-modo-server.md) | `Sonnet` | `server-adapter` e modo `SERVER` no front (depende de 26) |
 | 28 | [x] | [S28-launcher-e-distribuicao.md](S28-launcher-e-distribuicao.md) | `Sonnet` | `iniciar.bat`, `instalar.bat`, pacote `dist/plataforma/` (depende de 27) |
 | 29 | [x] | [S29-identidade-e-papeis.md](S29-identidade-e-papeis.md) | `Sonnet` | Identidade Windows, `meta.acl` e papéis — schema 4 (depende de 27) |
-| 30 | [ ] | [S30-evidencias.md](S30-evidencias.md) | `Opus` | Evidências: acervo navegável com hash (depende de 27 e 29) |
+| 30 | [x] | [S30-evidencias.md](S30-evidencias.md) | `Opus` | Evidências: acervo navegável com hash (depende de 27 e 29) |
 | 31 | [x] | [S31-guardrails-de-contexto.md](S31-guardrails-de-contexto.md) | `Sonnet` | CLAUDE.md índice, guard mecânico, âncoras de região (independente) |
 | 32a | [ ] | [S32a-nucleo-de-componentes.md](S32a-nucleo-de-componentes.md) | `Opus` | Schema 5 inteiro + componentes versionados, I23–I24 (épico Governança, depende de 29) — **trilha antecipada 1/3** |
 | 32b | [ ] | [S32b-solicitacao-release-workflow.md](S32b-solicitacao-release-workflow.md) | `Opus` | Núcleo de DB, release, grafo de estados, I25–I26 (depende de 32a; **antes da 35**) |

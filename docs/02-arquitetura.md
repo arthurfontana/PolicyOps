@@ -102,6 +102,7 @@ Componentes e store nunca implementam regra de negócio — apenas invocam `core
 │   │   │   ├── schema.ts          # tipos + Zod do documento
 │   │   │   ├── create.ts          # documento vazio, documento de exemplo
 │   │   │   ├── migrate.ts         # migração entre schemaVersion
+│   │   │   ├── evidence.ts        # vínculo com o acervo de evidências (14 §7)
 │   │   │   └── validate.ts
 │   │   ├── axes/
 │   │   │   ├── tuples.ts          # geração de tuplas com compatibilidade
@@ -130,6 +131,7 @@ Componentes e store nunca implementam regra de negócio — apenas invocam `core
 │   │   ├── download-adapter.ts    # fallback: input + download
 │   │   ├── local-buffer.ts        # IndexedDB: autosave e recuperação
 │   │   ├── capabilities.ts        # detecção de recursos do navegador
+│   │   ├── evidences.ts           # cliente de /api/evidences (modo SERVER)
 │   │   └── lock.ts                # bloqueio consultivo
 │   ├── store/
 │   │   ├── document-store.ts      # documento + pilha de comandos

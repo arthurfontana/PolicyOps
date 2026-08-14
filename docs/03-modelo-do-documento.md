@@ -15,6 +15,7 @@ type PolicyOpsDocument = {
   matrices: Matrix[];
   templates: Template[];
   importProfiles: ImportProfile[];  // perfis de carga (§9)
+  attachments?: Attachment[];       // evidências anexadas (§8.1) — ausente quando não há nenhuma
   events: DocEvent[];
 };
 
@@ -434,7 +435,8 @@ type DocEventType =
   | 'VARIABLE_PUBLISHED' | 'COMPATIBILITY_PUBLISHED'
   | 'CATALOG_CHANGED'
   | 'IMPORT_RUN' | 'IMPORT_PROFILE_SAVED' | 'MATRIX_TAGGED'
-  | 'ACL_CHANGED';
+  | 'ACL_CHANGED'
+  | 'EVIDENCE_ATTACHED' | 'EVIDENCE_DETACHED';
 ```
 
 `IMPORT_RUN` é o evento de nível de documento que registra uma carga inteira (arquivo, hash,
@@ -444,9 +446,43 @@ a originou (`12-carga-de-matrizes.md` US-10).
 
 `events` é append-only e ordenado por `at`. Teto de **5.000 eventos**; ao ultrapassar, os mais antigos são consolidados num único evento de resumo (sessão S16).
 
+## 8.1 Evidências anexadas (sessão 30)
+
+O **arquivo** vive no acervo `_evidencias/` da pasta de rede, navegável no Explorer; o documento
+guarda só o **vínculo** — quem, quando, onde no acervo, e com que hash (`14-plataforma-local.md`
+§7, ADR-004). Nada de conteúdo de arquivo entra no `.json`.
+
+```ts
+type Attachment = {
+  id: string;                 // nanoid(12) — gerado pelo servidor no POST /api/evidences
+  fileName: string;           // nome original, preservado no disco
+  relPath: string;            // caminho dentro de _evidencias/, com "/": projeto/matriz/v12/AAAA-MM-DD_nome
+  sha256: string;             // hash calculado na cópia; conferido a cada download
+  bytes: number;
+  addedBy: { username: string; displayName?: string };
+  addedAt: string;            // ISO 8601 UTC
+  note?: string;
+  target:                     // a que a evidência está presa (I25)
+    | { kind: 'PROJECT'; projectId: string }
+    | { kind: 'MATRIX'; matrixId: string }
+    | { kind: 'VERSION'; matrixId: string; versionNumber: number };
+};
+```
+
+- A lista é **append-only por alvo**: anexo novo entra no fim. Anexar a uma versão publicada é
+  permitido e **não** fere I3 — `attachments` vive fora do snapshot da versão, como os eventos.
+- `target` de versão guarda o **número**, não o `versionId`: é o número que aparece na pasta
+  (`v12`) e que uma pessoa reconhece no Explorer sem a aplicação aberta.
+- Desanexar remove a entrada daqui; o arquivo só vai para `_evidencias/_lixeira/` depois do
+  salvamento seguinte (`14-plataforma-local.md` §7) — nunca antes, senão desfazer dependeria de
+  um arquivo que já se moveu.
+- `attachments` é omitido quando não há nenhum anexo (convenção de §1).
+
 ## 9. Invariantes
 
 Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas **na leitura do arquivo** e **antes de todo salvamento** — exceto I8, I9, I19, I24 e a unicidade de código de domínio de I18, que são avisos não bloqueantes (nota após a tabela).
+
+I25 e I26 são `ERROR` sem correção automática: um vínculo de evidência quebrado aponta para um arquivo real na pasta, e escolher entre "remover o vínculo" e "corrigir o alvo" é decisão de quem opera, não da aplicação (o modo de recuperação lista o problema com o caminho do anexo).
 
 | # | Invariante |
 |---|---|
@@ -474,6 +510,8 @@ Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas *
 | I22 | Todo `variableId` referenciado por `ImportProfile.columns[].axis` aponta para variável existente |
 | I23 | Se `meta.acl` está presente, todo `username` de `acl.users` é único na lista |
 | I24 | Se `meta.acl` está presente com `users` não vazio, ao menos um `AclEntry` tem `role: 'ADMIN'` (aviso não bloqueante — nota após a tabela) |
+| I25 | O `target` de toda evidência aponta para entidade existente: projeto, matriz, ou número de versão existente naquela matriz |
+| I26 | `relPath` e `sha256` de toda evidência são não vazios, e `relPath` é único no documento |
 
 **I19 é deliberadamente mais fraca que a antiga regra de completude regional.** Não existe invariante exigindo que todo domínio `RANGE` tenha uma entrada em `groupingRanges` para toda combinação possível de opções — hierarquias reais são assimétricas (nem toda Regional tem MEI, por exemplo), e forçar o preenchimento de combinações que não existem no negócio seria pior do que não validar nada. O editor de domínios (`07-ux-e-editor.md` §11) ainda **avisa** (não bloqueia) quando um `path` usado por alguns domínios está ausente por completo de outros — o caso provável de "esqueci de colar uma linha" — mas isso é um aviso de UX, não uma falha de I19.
 
@@ -506,6 +544,10 @@ Documentos sem `regionalDimension` em nenhuma variável passam por `schemaVersio
 Um documento `schemaVersion: 2` migrado e reserializado difere do original apenas pelo campo `importProfiles: []` e pelo número de versão. A migração é testada com as fixtures reais das sessões anteriores, comparando o resto do documento por igualdade estrutural.
 
 **Migração 3 → 4 (sessão 29): `meta.acl?`.** A mais simples de todas: aditiva a ponto de **não escrever nenhum campo**. `meta.acl` é opcional, e sua ausência **é** o estado migrado — "modo aberto" (`14-plataforma-local.md` §6). A migração só troca o número de `schemaVersion`; todo o resto do documento fica byte a byte igual. Testada com `sample-document.json` como estava antes desta sessão (`tests/fixtures/v3-document.json`).
+
+**`attachments?` (sessão 30) não muda o `schemaVersion`: continua 4.** É o caso que o parágrafo da migração 1 → 2 já registra — "campos novos e opcionais, sem necessidade de migração": um documento `schemaVersion: 4` sem anexos já é um documento 4 válido, e a ausência do campo é o estado correto. Não há migração 4 → 4, e nenhum documento existente muda de um byte.
+
+A contrapartida é a de sempre nesse caso, e vale dita: um `PolicyOps.html` **anterior** à sessão 30 abre um documento com `attachments` em modo de recuperação (o schema é `.strict()`, então o campo desconhecido vira `ERROR` de `SCHEMA`) e perderia os vínculos se salvasse por cima. Evidências só existem no modo `SERVER`, onde todo mundo roda o mesmo `_app/` publicado pela TI (`14-plataforma-local.md` §9) — atualizar a aplicação é substituir aquela pasta, e é isso que mantém os dois lados na mesma versão.
 
 ## 11. Documento de exemplo
 

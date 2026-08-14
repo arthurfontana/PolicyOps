@@ -98,7 +98,7 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 | Servidor local (API v1, token, lock, backups) | `docs/14-plataforma-local.md` §3–5 | `server/policyops_server.py`, `server/tests/` |
 | Launcher e pacote de distribuição (`iniciar.bat`/`instalar.bat`, `dist/plataforma/`) | `docs/14-plataforma-local.md` §9 | `server/launcher.py`, `server/*.bat`, `scripts/{fetch-wheels,build-plataforma,verify-plataforma}.mjs` |
 | Identidade e papéis (ACL, resolveRole, gate de comandos) | `docs/14-plataforma-local.md` §6, `docs/08-camada-de-comandos.md` §6 | `src/core/document/roles.ts`, `meta.acl` no schema, `server/policyops_server.py` |
-| Evidências — acervo navegável (planejado, S30) | `docs/14-plataforma-local.md` §7 | `attachments` no schema (S30) |
+| Evidências — acervo `_evidencias/` (anexo, hash, lixeira) | `docs/14-plataforma-local.md` §7 | `src/core/document/evidence.ts`, `src/storage/evidences.ts`, `src/components/inspector/EvidenceSection.tsx` |
 | Grid e UX (shell, seleção, inspector, tags/filtro) | `docs/07-ux-e-editor.md` | `src/components/grid/`, `src/components/` |
 | Bibliotecas (variáveis, compatibilidade, catálogo) | `docs/03-modelo-do-documento.md` §2–4 | `src/core/library/`, `src/components/library/` |
 | Templates de matriz | `docs/05-regras-de-negocio.md` §8 | `src/core/templates/`, `src/components/templates/` |

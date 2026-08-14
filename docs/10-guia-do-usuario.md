@@ -91,6 +91,40 @@ Se uma matriz quiser adotar a evolução da variável, alguém precisa, delibera
 
 Em outras palavras: **a biblioteca evolui livremente, mas nada publicado se move sozinho.** É o que garante que uma auditoria, olhando a v12 de uma matriz publicada em março, veja exatamente o que estava em vigor em março — não uma versão "atualizada" por engano.
 
-## 9. Atalhos úteis
+## 9. Como anexar uma evidência (DB, ofício, estudo)
+
+Serve para deixar junto da política o arquivo que a justifica — o DB que originou a mudança, o
+ofício do regulador, a planilha do estudo. **Só funciona quando a aplicação foi aberta pelo
+`iniciar.bat`** (o servidor local é quem grava na pasta de rede); nos outros modos a seção
+aparece explicando isso.
+
+1. Abra o alvo: a **versão** da matriz (o caso mais comum), a **matriz** inteira, ou o **projeto**
+   — cada um tem sua própria seção **Evidências**.
+2. Escreva uma nota curta, se ajudar (opcional), e clique em **Anexar arquivo**.
+3. O arquivo é **copiado** para a pasta de rede, em `_evidencias\{projeto}\{matriz}\v{n}\`, com o
+   nome original e a data na frente: `2026-08-14_DB 513 - Ajuste.docx`. O original na sua máquina
+   não é usado nem referenciado — pode movê-lo ou apagá-lo depois.
+4. **Salve o documento** (`Ctrl+S`) para registrar o vínculo. O arquivo já está na pasta antes
+   disso; salvar é o que grava quem anexou, quando e a que ele pertence.
+
+Alguns pontos que costumam gerar dúvida:
+
+- **Anexar a uma versão já publicada é normal e permitido.** A evidência quase sempre chega
+  depois da publicação, e anexá-la **não altera** a versão publicada em nada — o histórico da
+  política continua exatamente como estava.
+- **Os arquivos são encontráveis sem a aplicação.** Abra a pasta de rede no Explorer, entre em
+  `_evidencias` e navegue: projeto, matriz, versão. Estão lá, em claro, com o nome de sempre. É
+  proposital: se a aplicação um dia sair do ar, as evidências continuam acessíveis.
+- **Não renomeie nem mova nada dentro de `_evidencias`.** A aplicação confere o conteúdo de cada
+  anexo por uma "impressão digital" gravada no momento em que ele foi anexado. Se o arquivo for
+  trocado por fora, abrir pela aplicação avisa que ele não confere mais — que é o ponto: uma
+  evidência só vale como prova enquanto ninguém a alterou.
+- **Desanexar não apaga.** O vínculo sai do documento (e `Ctrl+Z` desfaz, enquanto você não
+  salvou); no salvamento seguinte, o arquivo é movido para `_evidencias\_lixeira\`, mantendo a
+  mesma estrutura de pastas. Esvaziar a lixeira é decisão manual de quem cuida da pasta.
+- **Limite de 50 MB por arquivo.** A aplicação não lê nem indexa o conteúdo do anexo — ela o
+  guarda e garante que ele continua íntegro.
+
+## 10. Atalhos úteis
 
 Aperte `?` a qualquer momento dentro da aplicação para ver a lista completa de atalhos de teclado.

@@ -127,6 +127,28 @@ Ações rápidas sempre visíveis: `Aprovar tudo`, `Reprovar tudo`, `Análise ma
 
 Rodapé: "Aplicar a 18 células" com resumo do que muda.
 
+### 6.3 Evidências (sessão 30)
+
+Seção "Evidências" em três lugares, uma por alvo (`14-plataforma-local.md` §7): no inspector da
+versão (duas seções — "Evidências da versão N" e "Evidências da matriz") e na tela do projeto.
+
+| Elemento | Comportamento |
+|---|---|
+| Lista | Nome original, quem anexou, quando, tamanho, nota, e o caminho completo no Explorer (`\\rede\Politicas\_evidencias\…`) — é por ele que se acha o arquivo sem a aplicação |
+| Anexar | Campo de nota (opcional) + seletor de arquivo. O arquivo é copiado para o acervo **antes** de o vínculo entrar no documento; o aviso ao lado diz que o conteúdo não é lido nem indexado, e qual é o limite (50 MB) |
+| Abrir | Baixa o arquivo com o hash conferido pelo servidor. Divergência não vira download: vira aviso (§ abaixo) |
+| Desanexar | Confirmação citando a lixeira e o `Ctrl+Z`: o vínculo sai agora e o arquivo só se move no próximo salvamento |
+
+Anexar a uma **versão publicada** é permitido e não altera o snapshot — é o caso típico (a
+evidência chega depois da publicação). Fora do modo `SERVER` a seção aparece com o motivo no
+lugar dos controles ("Evidências exigem o servidor local…"), e o que já estiver anexado continua
+listado, só sem abrir nem desanexar.
+
+Os três erros da API têm texto próprio em português, sempre com o caminho esperado dentro:
+arquivo acima de 50 MB (recusado antes de subir), hash divergente ("o conteúdo … não confere com
+o hash registrado … não vale mais como prova até alguém restaurar o arquivo original") e arquivo
+movido à mão (`404`, com o caminho esperado e a lembrança de olhar em `_evidencias\_lixeira`).
+
 ## 7. Construtor de eixos
 
 Componente reutilizado na criação da matriz e no inspector.
