@@ -18,6 +18,7 @@ export type View =
   | 'drafts'
   | 'matrix'
   | 'compare'
+  | 'board'
   | 'import'
   | 'acl';
 
@@ -38,6 +39,7 @@ export const HASH_BY_VIEW: Record<View, string> = {
   drafts: '#/drafts',
   matrix: '#/matrix',
   compare: '#/compare',
+  board: '#/board',
   import: '#/import',
   acl: '#/acl',
 };
@@ -133,6 +135,13 @@ interface UiState {
   reviewedVersionIds: string[];
   sidebarCollapsed: boolean;
   inspectorCollapsed: boolean;
+  /**
+   * Modo apresentação do board de comparação (§9b): esconde todo o chrome do
+   * shell (topo, sidebar, inspector, barra de status) para uso direto numa
+   * reunião — projetada ou compartilhada por tela. Estado de UI puro, nunca
+   * salvo: sempre nasce `false` ao abrir a aplicação.
+   */
+  presentationMode: boolean;
   theme: Theme;
   actor: string | null;
   identityDialogOpen: boolean;
@@ -140,6 +149,7 @@ interface UiState {
   setView: (view: View) => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
+  setPresentationMode: (value: boolean) => void;
   toggleTheme: () => void;
   setActor: (name: string) => void;
   setImportRunFilter: (importRunId: string | null) => void;
@@ -162,6 +172,7 @@ export const useUiStore = create<UiState>((set) => ({
   reviewedVersionIds: [],
   sidebarCollapsed: false,
   inspectorCollapsed: false,
+  presentationMode: false,
   theme: readInitialTheme(),
   actor: initialActor,
   identityDialogOpen: initialActor === null && !hasServerTokenHint(),
@@ -172,6 +183,8 @@ export const useUiStore = create<UiState>((set) => ({
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
   toggleInspector: () => set((s) => ({ inspectorCollapsed: !s.inspectorCollapsed })),
+
+  setPresentationMode: (value) => set({ presentationMode: value }),
 
   toggleTheme: () =>
     set((s) => {

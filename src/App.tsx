@@ -12,6 +12,7 @@ import { CatalogScreen } from '@/components/library/CatalogScreen';
 import { ProjectsScreen } from '@/components/projects/ProjectsScreen';
 import { MatrixScreen } from '@/components/matrix/MatrixScreen';
 import { CompareScreen } from '@/components/compare/CompareScreen';
+import { ComparisonBoardScreen } from '@/components/compare/ComparisonBoardScreen';
 import { DraftsScreen } from '@/components/drafts/DraftsScreen';
 import { TimelineScreen } from '@/components/timeline/TimelineScreen';
 import { TemplatesScreen } from '@/components/templates/TemplatesScreen';
@@ -62,6 +63,7 @@ function CurrentView() {
   if (view === 'matrix') return <MatrixScreen />;
   if (view === 'drafts') return <DraftsScreen />;
   if (view === 'compare') return <CompareScreen />;
+  if (view === 'board') return <ComparisonBoardScreen />;
   if (view === 'timeline') return <TimelineScreen />;
   if (view === 'templates') return <TemplatesScreen />;
   if (view === 'import') return <ImportWizard />;
