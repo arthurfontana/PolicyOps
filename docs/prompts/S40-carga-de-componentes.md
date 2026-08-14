@@ -1,11 +1,22 @@
 # Sessão 40 — Carga inicial da política via Markdown estruturado
 
-**Modelo:** `Sonnet` · **Depende de:** S33 · **Épico/Marco:** Governança (M10)
+**Modelo:** `Sonnet` · **Depende de:** S32a e S33 · **Épico/Marco:** Governança (M10)
+· **Trilha antecipada:** 3 de 3 (32a → 33 → 40) — **executar aqui, antes da S34**
 
 > **Por que Sonnet:** parser de um formato convencionado + assistente de revisão sobre padrões que
 > o épico Carga já consolidou (Importar→Identificar→Revisar→Confirmar, aplicação por comandos com
 > undo). O contrato do formato está fechado em `docs/14` §9; a parte perigosa (schema e comandos)
-> veio da S32.
+> veio da S32a.
+
+> **Sessão antecipada (DEC-GOV-010).** Ela era a última do épico e passou a ser a terceira: o
+> resto da governança (editor rico, DB, workflow, release, pacote, fotografia) é construído em
+> cima da política real carregada, não de dados de exemplo. Só o que ela precisa foi feito antes —
+> componentes e versões (S32a) e a árvore (S33). **Nada de DB, release ou workflow existe ainda**
+> (S32b/S35): não tente vincular a carga a uma Solicitação de Alteração.
+>
+> O Markdown da política pode (e deve) chegar pronto: o prompt de conversão está em `docs/14` §9.1
+> e não depende de código nenhum — converta o documento real enquanto as S32a/S33 rodam, para esta
+> sessão nascer com conteúdo de verdade para testar.
 
 ## Prompt
 
@@ -13,12 +24,15 @@
 > estruturado vira a árvore de componentes, com revisão antes de entrar.
 >
 > **Leia antes de começar:** `docs/14-governanca-de-alteracoes.md` §9 (fluxo e convenção do
-> formato — normativo), §10 (CT-GOV-05); DEC-GOV-007; `docs/12-carga-de-matrizes.md` §5 (padrões
-> do assistente de carga que devem ser reaproveitados visualmente).
+> formato — normativo) e §9.1 (prompt de conversão), §10 (CT-GOV-05); DEC-GOV-007 e DEC-GOV-010;
+> `docs/12-carga-de-matrizes.md` §5 (padrões do assistente de carga que devem ser reaproveitados
+> visualmente).
 >
 > ### Estado atual
-> Árvore e CRUD de componentes prontos (S32/S33). O assistente de carga de matrizes
-> (`src/components/import/`) é o precedente de UX. Nada lê Markdown no produto.
+> Árvore e CRUD de componentes prontos (S32a/S33). O assistente de carga de matrizes
+> (`src/components/import/`) é o precedente de UX. Nada lê Markdown no produto. `ChangeRequest`,
+> `Release` e o editor rico não existem como funcionalidade — o campo `spec` do componente fica
+> vazio na carga (o corpo textual vai para o payload, não para `RichDoc`).
 >
 > ### Objetivo
 > O usuário transforma a documentação Word existente (convertida fora da ferramenta) na árvore da
@@ -37,9 +51,11 @@
 > 3. **Aplicação** por comandos existentes (`component/create` + primeira versão `PUBLISHED` com
 >    o `effectiveFrom` informado, `reviewStatus: PENDING_REVIEW`), em lote atômico com undo total
 >    (CT-GOV-05).
-> 4. **Prompt de conversão** documentado: seção em `docs/10-guia-do-usuario.md` com o prompt
->    pronto para converter Word/PDF no Markdown convencionado usando uma IA externa, incluindo o
->    exemplo do §9.
+> 4. **Prompt de conversão** documentado: o rascunho vive em `docs/14` §9.1 desde o replanejamento
+>    (DEC-GOV-010) e já foi usado para converter o documento real. Mova-o para
+>    `docs/10-guia-do-usuario.md` como seção do fluxo de carga, ajustado ao formato final que o
+>    parser aceitar — se o parser divergir do rascunho, o texto do §9/§9.1 é que se ajusta, e a
+>    divergência entra em `docs/13`.
 >
 > ### Testes
 > 100% no parser: fixture derivada do documento real *Filtros e Critérios B2C* (sumário de 4

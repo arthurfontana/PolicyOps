@@ -1,6 +1,6 @@
 # Sessão 34 — Editor rico de especificação
 
-**Modelo:** `Opus` · **Depende de:** S32 · **Épico/Marco:** Governança (M11)
+**Modelo:** `Opus` · **Depende de:** S32a · **Épico/Marco:** Governança (M11)
 
 > **Por que Opus:** perda de trabalho do usuário é o modo de falha central — texto longo digitado
 > num editor próprio sobre `contentEditable`, com serialização que precisa nascer estável (blocos
@@ -13,11 +13,11 @@
 >
 > **Leia antes de começar:** `docs/14-governanca-de-alteracoes.md` §7 (contrato completo do
 > RichDoc e limites de anexo); `docs/03-modelo-do-documento.md` (schema `RichDoc`/`Block`/
-> `Attachment` fechado na S32); DEC-GOV-005; `docs/08-camada-de-comandos.md` (integração com a
+> `Attachment` fechado na S32a); DEC-GOV-005; `docs/08-camada-de-comandos.md` (integração com a
 > pilha de comandos).
 >
 > ### Estado atual
-> O schema de `RichDoc`, `Block` e `Attachment` existe desde a S32 (com Zod e testes); a S33
+> O schema de `RichDoc`, `Block` e `Attachment` existe desde a S32a (com Zod e testes); a S33
 > deixou o campo `spec` do inspector como placeholder. Nenhum código de edição existe.
 > **Nenhuma dependência nova é permitida** (DEC-GOV-005) — o editor é próprio.
 >
