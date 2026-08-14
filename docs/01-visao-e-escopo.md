@@ -24,7 +24,7 @@ degradado — fallback universal.
 
 O que ela **não** é: motor de decisão, integração com PowerCurve, editor colaborativo em tempo real, sistema com autenticação real.
 
-Com o épico Governança de Alterações ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), 🔮 planejado), o escopo se amplia: além das matrizes, a ferramenta passa a versionar a **política inteira como árvore de componentes** e a estruturar o processo de alteração (Diário de Bordo como solicitação, aprovação registrada, releases e pacote para a fábrica) — sempre como **governança processual dentro do arquivo**, sem servidor central e sem login (DEC-GOV-004).
+Com o épico Governança de Alterações ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), 🔮 planejado), o escopo se amplia: além das matrizes, a ferramenta passa a versionar a **política inteira como árvore de componentes** — o sumário navegável da política, onde as matrizes já existentes ganham lugar, com facetas para as dimensões que uma hierarquia sozinha não representa (grupo, canal, risco geográfico) — e a estruturar o processo de alteração (Diário de Bordo como solicitação, aprovação registrada, releases e pacote para a fábrica) — sempre como **governança processual dentro do arquivo**, sem servidor central e sem login (DEC-GOV-004).
 
 ## 3. As duas restrições que definem a arquitetura
 

@@ -1,6 +1,6 @@
 # Sessão 35 — Solicitação de Alteração (DB) e workflow
 
-**Modelo:** `Sonnet` · **Depende de:** S32b, S33, S34 · **Épico/Marco:** Governança (M11)
+**Modelo:** `Sonnet` · **Depende de:** S32b, S33b, S34 · **Épico/Marco:** Governança (M11)
 
 > **Por que Sonnet:** a máquina de estados, as validações e os comandos vieram prontos da S32b; o
 > editor rico, da S34. Esta sessão transcreve o grafo e os formulários de `docs/14` §3.3–§5 em
@@ -21,8 +21,9 @@
 >
 > ### Estado atual
 > S32a: schema 5 e componentes versionados. S32b: `ChangeRequest`, `Release`, comandos de
-> transição/aprovação e erros E-GOV testados. S33: árvore de componentes com versão vigente
-> consultável. S40: a política real já está carregada na árvore. S34: `RichDocEditor` pronto para
+> transição/aprovação e erros E-GOV testados. S33a/S33b: árvore de componentes com versão vigente
+> consultável, **com a política real já cadastrada** (à mão na S33b e, se a S40 tiver sido
+> executada, também por recorte). S34: `RichDocEditor` pronto para
 > reuso. Nenhuma tela de DB existe.
 >
 > ### Objetivo

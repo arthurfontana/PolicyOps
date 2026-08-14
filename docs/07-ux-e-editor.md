@@ -312,3 +312,110 @@ condições, a rota mostra "Requer papel ADMIN — você é X" em vez do conteú
   editar o arquivo do documento na mão, por fora da aplicação.
 - Zerar a lista de usuários e salvar volta o documento ao modo aberto (`meta.acl` removida, não
   uma ACL com `users: []` — mesmo efeito para `resolveRole`, mas mantém o arquivo limpo).
+
+## 17. Árvore da política (épico Governança — S33a/S33b)
+
+> Normativo para as sessões S33a e S33b. O modelo por trás está em
+> [`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md) §3.1 e §3.6.
+
+A política deixa de ser "uma lista de matrizes num projeto" e passa a ser **um sumário navegável**:
+seções, regras, listas e os nós que apontam as matrizes já existentes. O `Project` é a política
+("Política de Crédito B2C"); a árvore é o corpo dela.
+
+### 17.1 Onde a árvore vive
+
+**A árvore é a tela do projeto, não um item da barra lateral.** Com ~101 nós de estrutura no
+documento real mais os nós das matrizes já importadas, uma árvore de várias centenas de itens não
+cabe nos 248px da sidebar (§2) sem virar rolagem infinita.
+
+```
+┌──────────┬────────────────────┬──────────────────────┬─────────────────┐
+│ SIDEBAR  │  ÁRVORE ~360px     │  CONTEÚDO            │   INSPECTOR     │
+│  248px   │ ┌────────────────┐ │ CMA › Fraude ›       │                 │
+│ Política │ │🔎 buscar       │ │ Regra A              │ Tipo    RULE    │
+│  B2C   ▾ │ │[tipo▾][revisão▾]│ │                      │ Código  FRD_A   │
+│  ├ CMA   │ │                │ │ v3 ● Vigente         │ Tags    G1·Dig. │
+│  ├ Grupos│ │▾ CMA        12 │ │ desde 01/07          │ Revisão ⚠ Pend. │
+│  └ Modelo│ │ ▾ Fraude     3 │ │                      │ Origem  B2C     │
+│          │ │  • Regra A  ● │ │ Descrição de negócio │                 │
+│Matrizes  │ │  • Regra B  ⚠ │ │ Definição técnica    │ [Criar rascunho]│
+│Biblioteca│ │▾ Grupos      7 │ │ Observação           │ Timeline v1 v2  │
+│Vigência  │ │▾ Modelo     84 │ │                      │                 │
+└──────────┴─┴────────────────┴─┴──────────────────────┴─────────────────┘
+```
+
+- **Sidebar**: o projeto e os **dois primeiros níveis** da árvore, como âncoras de navegação. O
+  resto das entradas (Matrizes, Biblioteca, Vigência, Rascunhos, Acesso) continua como está em §2.
+- **Painel da árvore**: busca por nome e código, filtro por tipo, por `reviewStatus` e por faceta
+  (as mesmas tags e grupos de §15, agora também em componente), contagem por seção, expandir e
+  recolher. Estado de expansão e filtros vivem no `ui-store` — são interface, não documento, como
+  o filtro de matrizes.
+- **Filtro não achata a árvore**: ao filtrar, os ancestrais dos itens que sobraram permanecem
+  visíveis, esmaecidos. Uma árvore filtrada que vira lista plana faz o usuário perder o lugar.
+- **Breadcrumb clicável** no topo do conteúdo (`CMA › Regras de Fraude › Regra A`) — obrigatório
+  com 6 níveis possíveis.
+- **A ordem é de leitura, e a tela diz isso.** Nota permanente no rodapé do painel: *"A ordem
+  reflete o documento de política. A sequência de avaliação do motor está descrita no texto de
+  cada regra."* É o que impede a árvore de ser lida como fluxo de execução
+  (`14-governanca-de-alteracoes.md` §3.6).
+
+### 17.2 Duas portas para a mesma matriz
+
+A tela de matrizes com filtro por facetas (§15) **continua existindo e não é substituída**. A regra
+de convivência, dita na interface:
+
+> **A árvore diz onde a matriz mora. A lista com facetas diz como achá-la.**
+
+- Um nó `MATRIX` aponta **uma** matriz já existente no projeto (as matrizes vêm do épico Carga —
+  a árvore nunca as cria). Um capítulo como "Canal Digital" é uma **seção** com N nós `MATRIX`
+  filhos, um por matriz.
+- O nó exibe o badge de estado e vigência da matriz espelhada (§3) e navega para o grid.
+- Criar o nó = escolher, num seletor com busca e filtro por tag, entre as matrizes do projeto
+  **ainda não referenciadas** (I23).
+- O editor de matriz mostra o caminho na árvore no breadcrumb, venha o usuário da árvore ou da
+  lista.
+
+### 17.3 Cadastrar em volume é o caso de uso, não o caso de borda
+
+A primeira versão da política é digitada à mão, incrementalmente
+(`14-governanca-de-alteracoes.md` §4, US-GOV-01). São ~50 seções e ~50 regras: a diferença entre
+um formulário modal e um fluxo de teclado é a diferença entre duas tardes e duas semanas.
+
+| Ação | Comportamento |
+|---|---|
+| `Enter` num nó | Cria um **irmão** logo abaixo, já em edição de nome |
+| `Tab` / `Shift+Tab` na criação | Desce / sobe um nível (reparenta antes de gravar) |
+| `Ctrl/Cmd+D` | Duplica o componente (payload incluído), com sufixo no `code` |
+| Arrastar, ou menu "Mover para…" | Reordena e reparenta; valida ciclo e profundidade (I24) |
+| Colar bloco de texto no inspector | Reconhece por prefixo de linha: parágrafo solto → descrição de negócio; `Definição técnica:` → definição técnica; `Observação:` → reason codes + resultado + notas. Sem parser de Markdown — é o formato do documento de origem |
+| Criar nó `MATRIX` | Seletor de matriz livre, com busca e filtro por tag |
+
+### 17.4 Vigência da fundação
+
+Publicar ~100 componentes que **já vigoram** não pode custar ~100 diálogos de publicação.
+
+- Nas propriedades do projeto: **"Vigência da fundação"** — uma data, definida uma vez
+  (`Project.foundationEffectiveFrom`, RN-GOV-09).
+- A primeira versão de cada componente novo já nasce apontando essa data; o diálogo de publicação
+  vem preenchido e continua editável.
+- Ação **"Publicar pendentes"** na árvore: lista os componentes com rascunho não publicado, permite
+  desmarcar, e publica em lote com essa vigência — tudo ou nada (RN-GOV-05), com a nota da
+  fundação em cada publicação.
+- O aviso da RN-GOV-07 (publicação direta, sem DB) aparece uma vez no lote, não uma vez por item.
+
+### 17.5 Inspector do componente
+
+- **Comum a todos os tipos**: nome, código (imutável depois de criado), tipo, tags, `origin`,
+  `reviewStatus` com ação explícita de promover a `VALIDATED`, e a timeline de versões no padrão
+  visual da timeline de matriz (§10).
+- **`RULE`**: descrição de negócio, definição técnica, entradas, condições, resultado, reason
+  codes, dependências e notas (`14-governanca-de-alteracoes.md` §3.2).
+- **`SECTION`**: por padrão só nome, código e contagem de filhos — é pasta. Uma ação secundária,
+  **"Documentar esta seção"**, cria a primeira versão e a seção passa a ter texto, vigência e
+  timeline como qualquer outra (I27). É onde vive a "Visão Geral" de um capítulo.
+- **`MATRIX`**: somente leitura, espelhando a matriz, com link para abrir o grid.
+- **`POLICY_VARIABLE`**: quando espelha a Biblioteca (`variableId`), mostra a variável e seus
+  domínios sem duplicá-los, com link para a tela de Variáveis (§11).
+- **Relacionados**: quando um componente é citado por outro (`dependencies`, reason code
+  compartilhado), o inspector lista as remissões — é como o documento real trata a mesma regra
+  avaliada em duas etapas, sem duplicar o nó (`14-governanca-de-alteracoes.md` §3.6).

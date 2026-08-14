@@ -1,14 +1,24 @@
 # Governança de Alterações de Política (épico GOV)
 
-> **Estado**: 🔮 Planejado (sessões S32a, S32b, S33–S40) · **DECs relacionadas**: DEC-GOV-001 a
-> DEC-GOV-010 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do épico; os
-> contratos de schema fecham na S32a e passam a viver em
+> **Estado**: 🔮 Planejado (sessões S32a, S32b, S33a, S33b, S34–S40) · **DECs relacionadas**:
+> DEC-GOV-001 a DEC-GOV-013 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
+> épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
 >
-> **Ordem de execução (DEC-GOV-010)**: a carga inicial da política (§9, S40) foi antecipada para
-> logo depois da árvore — **S32a → S33 → S40** —, para o épico continuar sendo construído sobre a
-> política real e não sobre dados de exemplo. O que só o Diário de Bordo consome (DB, release,
-> grafo de estados, I25/I26) saiu da antiga S32 e virou a **S32b**, pré-requisito da S35.
+> **Ordem de execução (DEC-GOV-010, revista pela DEC-GOV-012)**: o objetivo da trilha antecipada
+> continua o mesmo — ter a política real dentro da ferramenta antes de investir no resto do épico —
+> mas o caminho mudou: a primeira versão da política é construída **à mão, de forma incremental**
+> (seção a seção, regra a regra), e não por uma carga de tudo de uma vez. A antiga S33 virou
+> **S33a** (árvore e esqueleto) + **S33b** (cadastro e versionamento de regras), e a carga por
+> Markdown (§9, S40) passou a ser **opcional e por recorte**, decidida depois do primeiro uso real.
+>
+> ```
+> 32a → 33a → 33b → ⟨você constrói a política as-is e a gente ajusta a rota⟩
+>   → 40 (opcional, por recorte) → 34 → 32b → 35 → 36 → 37/38 → 39
+> ```
+>
+> O que só o Diário de Bordo consome (DB, release, grafo de estados, I25/I26) saiu da antiga S32 e
+> virou a **S32b**, pré-requisito da S35.
 
 ## 1. Contexto e problema
 
@@ -56,7 +66,7 @@ e [`02-arquitetura.md`](02-arquitetura.md)):
   o nó da árvore do tipo `MATRIX` referencia a matriz existente (DEC-GOV-002, invariante I23).
 - `src/core/` puro, comandos com inverso, documento validado por Zod, migração aditiva de schema.
 
-## 3. Conceitos e modelo (rascunho normativo — §3.1/§3.2/§3.5 fecham na S32a; §3.3/§3.4, na S32b)
+## 3. Conceitos e modelo (rascunho normativo — §3.1/§3.2/§3.5/§3.6 fecham na S32a; §3.3/§3.4, na S32b)
 
 ### 3.1 Política, componente e hierarquia
 
@@ -72,20 +82,40 @@ type PolicyComponent = {
   name: string;                         // "Dívida Acima de R$ 5.000"
   type: 'SECTION' | 'RULE' | 'MATRIX' | 'LIST' | 'REASON_CODE' | 'POLICY_VARIABLE' | 'OTHER';
   matrixId?: string;                    // obrigatório e exclusivo de type MATRIX (I23)
+  variableId?: string;                  // só type POLICY_VARIABLE: espelho da Biblioteca (I23)
+  tags?: string[];                      // codes de CatalogItem kind TAG — facetas (DEC-GOV-011)
   origin?: { source: string; locator?: string };   // "Filtros e Critérios B2C, p. 10"
   reviewStatus: 'STRUCTURED' | 'VALIDATED' | 'PENDING_REVIEW' | 'HISTORICAL_SOURCE';
   archivedAt?: string;
   createdAt: string;
-  versions: ComponentVersion[];         // vazio para SECTION e MATRIX
+  versions: ComponentVersion[];         // sempre vazio em MATRIX; opcional em SECTION
 };
 ```
 
 - A árvore reflete o **modelo de negócio** (como no sumário do *Filtros e Critérios B2C*), não a
-  implementação do motor. `SECTION` é nó estrutural sem versões próprias.
-- `MATRIX` é um **espelho**: nome, vigência e histórico vêm da `Matrix` referenciada; o nó só dá
-  lugar na árvore e participa da fotografia histórica.
+  implementação do motor — e **não é ordem de execução** (§3.6).
+- `SECTION` é nó estrutural. Seção **sem** versões é uma pasta pura; seção **com** versões é um
+  bloco de política com definição, vigência e histórico próprios — é onde vive a "Visão Geral" de
+  um capítulo (`4.2 Regras Duras`, no documento real), que muda com o tempo e precisa de lastro.
+  O usuário decide nó a nó; o caso comum é a pasta pura (DEC-GOV-011).
+- `MATRIX` é um **espelho** e é sempre **folha**: nome, vigência e histórico vêm da `Matrix`
+  referenciada; o nó só dá lugar na árvore e participa da fotografia histórica. Um nó aponta
+  **uma** matriz — um capítulo como "Canal Digital" é uma `SECTION` com N nós `MATRIX` filhos, um
+  por matriz já existente no projeto (DEC-GOV-011).
+- `POLICY_VARIABLE` é espelho da Biblioteca de Variáveis quando `variableId` estiver preenchido —
+  as faixas R01–R20, HVI3/HVI4 e BHV do Anexo A do documento real **já são** `Variable` com
+  `groupingDimensions` (`03-modelo-do-documento.md` §2), e não podem virar uma segunda cópia
+  versionada. Sem `variableId`, o tipo cobre variável de política que não é eixo de matriz.
+- **Contenção**: `SECTION` contém qualquer tipo; `RULE`, `LIST`, `REASON_CODE`, `POLICY_VARIABLE`
+  e `OTHER` **podem** ter filhos (sub-regras existem no documento real); `MATRIX` nunca tem.
+- **Facetas**: `tags` é o mesmo mecanismo de `Matrix.tags` (`03-modelo-do-documento.md` §5,
+  DEC-CARGA-003), com os mesmos grupos de faceta. A árvore diz **onde a coisa mora**; a faceta diz
+  **como ela é achada** (`Cluster: G1`, `Canal: Digital`, `Risco CEP: Alto`). Uma hierarquia só
+  não representa uma política que é escolhida por grupo × canal × risco geográfico ao mesmo tempo.
 - O teto de profundidade da árvore é **6 níveis** (suficiente para o documento real analisado, que
-  usa 4); alerta a partir de 300 componentes por projeto, teto 1.000.
+  usa 4); alerta a partir de 300 componentes por projeto, teto 1.000. O documento real tem 16
+  títulos de nível 1, 36 de nível 2 e 49 de nível 3 (~101 nós) — mais os nós das matrizes já
+  importadas.
 
 ### 3.2 Versão de componente
 
@@ -184,10 +214,31 @@ aditiva**: `components: []`, `changeRequests: []`, `releases: []`, `attachments:
 de catálogo (`MOTIVATOR`, `IMPACT_CATEGORY`). Nenhum campo existente muda de forma. Nota de
 migração em `03-modelo-do-documento.md` §10 (S32a).
 
+`Project` ganha dois campos opcionais, ambos declarados na S32a e consumidos depois:
+`foundationEffectiveFrom?: string` (a vigência da fundação, RN-GOV-09, usada pela S33b) e
+`factoryTemplate?` (§8, usado pela S38).
+
 O schema **não** acompanha a divisão S32a/S32b: as entidades de DB, release e anexo entram
 declaradas e migradas já na S32a, mesmo sem comando nenhum que as escreva, para que exista uma
 única migração 4→5 (DEC-GOV-010). A S32b só liga comandos e invariantes sobre uma forma de
 documento que já é a definitiva.
+
+### 3.6 O que **não** entra no modelo agora (adiado com registro)
+
+Quatro coisas foram consideradas na revisão de UX e hierarquia e **deliberadamente adiadas**
+(DEC-GOV-012). Nenhuma é "esquecida": todas voltam à mesa depois que a política as-is estiver
+dentro da ferramenta, quando existir uso real para decidir.
+
+| Adiado | Por quê | Quando revisitar |
+|---|---|---|
+| **Ordem de execução / fluxo do motor** | O documento real se declara sequencial e depois se contradiz em quatro pontos: na segmentação *"prevalece a última condição avaliada"*; o cineminha é escolhido por `grupo × canal × risco de CEP` (despacho, não sequência); "Grupo Controle" é avaliado em 4.1 **e** em 4.8; e a Derivação para Mesa vale *"para qualquer decisão automática"*. Modelar isso como lista ordenada mente; modelar como grafo é meio caminho para virar motor de decisão, que é fora de escopo (`01-visao-e-escopo.md` §7). O `outcome` da regra já distingue "termina aqui" de "continua" — o documento tem uma regra literalmente chamada *"Segue para o Modelo de Crédito"* com reason code `CO00 — Continue`. | Depois da S33b, com a política dentro |
+| **Vocabulário tipado de seção (`sectionKind`)** | A ideia é boa (CMA, Política de Grupo, Cineminha como tipos de seção com ícone e layout próprios), mas o Anexo E do documento real usa outra convenção inteira (`I) a) b)`), o que sugere esperar o uso antes de fixar qualquer vocabulário. Enquanto isso, faceta (`tags`) cobre o caso. | Depois da S33a |
+| **Referências não-donas** (o mesmo componente citado em dois lugares) | Caso real e frequente ("Grupo Controle" em 4.1 e 4.8; "Origem em Sistema Legado" em 4.1 e 4.2 com o mesmo `NG01`), mas o próprio documento resolve com uma frase de remissão. Na S33a isso é um link no inspector, não um nó — nó-alias duplicaria a contagem da fotografia histórica e criaria a pergunta "editei qual?". | Se o link do inspector não bastar |
+| **Numeração de origem do Word** (`4.1`, `4.6`) | É estruturação do Word, não fato da política — e o documento real pula de 4.3 para 4.6. `origin.locator` já guarda a procedência de forma opcional, sem virar identidade nem ordenação. | Não previsto |
+
+A ambiguidade que a ordem de execução deixa em aberto é resolvida na interface, não no modelo: a
+árvore declara explicitamente que sua ordem é **de leitura**, e que a sequência de avaliação do
+motor está descrita no texto de cada componente (`07-ux-e-editor.md` §17).
 
 ## 4. Histórias de usuário
 
@@ -197,8 +248,13 @@ documento que já é a definitiva.
 
 - Criar/renomear/mover/arquivar componentes de todos os tipos do §3.1; mover valida ciclo (I24).
 - Componente `MATRIX` é criado apontando uma matriz existente do mesmo projeto; o nó exibe estado
-  e vigência da matriz sem duplicá-los.
-- Árvore com expandir/recolher, busca por nome/código e contagem por seção.
+  e vigência da matriz sem duplicá-los. As matrizes **já estão no documento** (épico Carga, S21–25):
+  a árvore não as cria nem as importa — ela indica **onde na política** cada uma entra.
+- Árvore com expandir/recolher, busca por nome/código, contagem por seção, filtro por
+  `reviewStatus`/tipo e filtro por faceta (`tags`, §3.1).
+- **A construção da primeira versão da política é manual e incremental** (DEC-GOV-012): montar o
+  esqueleto de seções, pendurar as matrizes, e só então cadastrar as regras. Isso faz da ergonomia
+  de digitação em volume um requisito, não um detalhe — ver US-GOV-02 e `07-ux-e-editor.md` §17.
 
 ### US-GOV-02 — Cadastrar e versionar uma regra
 **Como** analista, **quero** registrar a regra com campos estruturados (§3.2) e documentação livre
@@ -207,6 +263,13 @@ documento que já é a definitiva.
 - Ciclo rascunho → publicar com `effectiveFrom` obrigatório; nunca sobrescrita destrutiva.
 - Timeline da regra: toda versão com intervalo de vigência, autor, DB de origem (quando houver).
 - Publicação direta (sem DB) permitida, mas marcada como tal na timeline (RN-GOV-07).
+- **Caminho curto da fundação** (RN-GOV-09): cadastrar ~100 regras que já vigoram não pode custar
+  ~100 publicações individuais. O projeto declara uma **vigência da fundação** (uma data, uma
+  vez), a primeira versão de cada componente nasce apontando para ela, e "publicar pendentes"
+  publica em lote com essa data — mesma filosofia da carga de matrizes e do §9 passo 4.
+- Entrada em volume: duplicar componente, criar irmão sem sair do teclado, e colar um bloco de
+  texto no formato do documento real (parágrafo de negócio + `Definição técnica:` + `Observação:`)
+  reconhecido por prefixo de linha, sem parser de Markdown.
 
 ### US-GOV-03 — Criar uma Solicitação de Alteração
 **Como** analista, **quero** criar um DB selecionando componentes na árvore **para** que o "hoje"
@@ -259,9 +322,10 @@ uma release **para** enxergar o que mudou.
 - Diff de payload campo a campo + diff de `spec` por bloco (§7); matrizes usam o diff existente.
 - Timeline do Diário de Bordo: DBs publicados em ordem cronológica de vigência.
 
-### US-GOV-09 — Carga inicial da política
-**Como** analista, **quero** importar a documentação existente para a árvore **para** não
-recadastrar centenas de regras à mão. Detalhe no §9.
+### US-GOV-09 — Carga da política por recorte (opcional)
+**Como** analista, **quero** subir um capítulo já convertido em Markdown dentro de uma seção que
+eu escolhi **para** acelerar a digitação quando ela for o gargalo — sem ser obrigado a importar a
+política inteira de uma vez. Detalhe no §9.
 
 ### US-GOV-10 — Pendências ao abrir
 **Como** gestor, **quero** ver ao abrir o documento o que espera minha ação **para** que o fluxo
@@ -306,19 +370,31 @@ Qualquer estado exceto PUBLISHED → CANCELLED
   `"publicação direta"` na timeline — governança incentiva, não tranca (DEC-GOV-004).
 - **RN-GOV-08** — Pacote para a Fábrica é sempre **derivado** dos dados do DB no momento da
   geração; não existe cópia editável do pacote dentro da ferramenta.
-- **I23** — Componente `MATRIX` tem `matrixId` válido, do mesmo projeto, e `versions: []`; nenhum
-  outro tipo tem `matrixId`. Uma matriz é referenciada por no máximo um componente.
+- **RN-GOV-09** — A **vigência da fundação** é um campo do projeto, opcional, usado como
+  `effectiveFrom` padrão da primeira versão de cada componente e pela publicação em lote dos
+  pendentes. Não é um estado do documento nem um modo: é um valor padrão que o usuário pode
+  sobrescrever em qualquer publicação. Publicar em lote segue a RN-GOV-05 (tudo ou nada).
+- **I23** — Componente `MATRIX` tem `matrixId` válido, do mesmo projeto, `versions: []` e nenhum
+  filho; nenhum outro tipo tem `matrixId`. Uma matriz é referenciada por no máximo um componente.
+  Componente `POLICY_VARIABLE` pode ter `variableId`, que precisa apontar `Variable` existente;
+  nenhum outro tipo tem `variableId`, e uma variável é espelhada por no máximo um componente.
 - **I24** — A árvore é acíclica; `parentId` aponta componente do mesmo projeto; `position` sem
   buracos entre irmãos; profundidade ≤ 6; `PolicyComponent.code` único no projeto e imutável após
   a criação (§3.1) — é esta parte que a carga inicial usa para bloquear duplicata (`E-GOV-06`).
+  Todo `code` em `tags` referencia `CatalogItem` de kind `TAG` existente, sem repetição no mesmo
+  componente (mesma regra de `Matrix.tags`).
+- **I27** — Versões em `SECTION` são permitidas e opcionais; quando existirem, seguem exatamente o
+  mesmo ciclo e as mesmas regras das demais (RN-GOV-06). Seção sem versões nunca aparece como
+  "sem política vigente" nas consultas por data — ela é estrutura, não conteúdo.
 - **I25** — DB com status ≥ `APPROVED` tem itens imutáveis; `draftVersionId` de um item aponta
   rascunho cujo `changeRequestId` é o próprio DB.
 - **I26** — `ChangeRequest.code` e `Release.code` são únicos no documento e imutáveis após
   criação (mesma regra dos demais `code`).
 
-> **Quem implementa o quê**: I23 e I24 entram na **S32a** (a árvore e a carga dependem delas);
-> I25 e I26, na **S32b**, junto dos comandos de DB e release que as tornam alcançáveis. O catálogo
-> `E-GOV-01..06` é escrito inteiro na S32a; os erros de workflow ficam sem emissor até a S32b.
+> **Quem implementa o quê**: I23, I24 e I27 entram na **S32a** (a árvore depende delas); RN-GOV-09
+> na **S33b** (o campo do projeto entra no schema já na S32a); I25 e I26, na **S32b**, junto dos
+> comandos de DB e release que as tornam alcançáveis. O catálogo `E-GOV-01..06` é escrito inteiro
+> na S32a; os erros de workflow ficam sem emissor até a S32b.
 
 ## 7. Editor rico de especificação (`RichDoc`)
 
@@ -362,14 +438,27 @@ type InlineText = { text: string; marks?: ('bold' | 'italic' | 'code' | 'link')[
   **Markdown** (`.md` baixado). Export `.docx` fica explicitamente fora (dependência nova e
   orçamento — DEC-GOV-006); o caminho para Word é imprimir em PDF ou colar o HTML.
 
-## 9. Carga inicial da política
+## 9. Carga da política por recorte (opcional — S40)
+
+> **A carga não é o caminho primário, e não é a primeira coisa a executar** (DEC-GOV-012). A
+> primeira versão da política é construída à mão pela árvore (S33a/S33b). Esta seção descreve um
+> **acelerador opcional**, decidido depois do primeiro uso real: quando o gargalo for digitação —
+> e não a decisão sobre o que é seção e o que é regra —, o mesmo documento convertido em Markdown
+> pode ser subido **em recortes**, um capítulo de cada vez, dentro da seção que o usuário escolher.
 
 Zero rede em runtime ⇒ a conversão de Word/PDF **não acontece dentro da ferramenta**
 (DEC-GOV-007). O fluxo é:
 
 1. Fora da ferramenta, o usuário converte o documento em **Markdown estruturado** (manualmente ou
-   com IA — um prompt de conversão pronto acompanha a documentação da funcionalidade).
-2. Na ferramenta: **Importar → Identificar → Revisar → Confirmar**. Headings viram a hierarquia
+   com IA — um prompt de conversão pronto acompanha a documentação da funcionalidade). O arquivo
+   pode ser convertido inteiro de uma vez e usado aos pedaços: **recortar e colar um capítulo por
+   vez é o uso esperado**, não uma degradação do fluxo.
+2. Na ferramenta: **Importar → Identificar → Revisar → Confirmar**, com um passo a mais no início
+   — **o destino**: a importação entra sob a seção selecionada na árvore (ou na raiz do projeto),
+   de modo que um recorte que começa em `### Dívida Acima de R$ 5.000` caiba embaixo da seção
+   `Bloqueios por Dívida` que já existe. O nível do heading mais alto do recorte vira o primeiro
+   nível abaixo do destino; a profundidade resultante respeita I24 (≤ 6) e o passo de revisão
+   avisa antes de estourar. Headings viram a hierarquia
    (`#`/`##`… → SECTION), blocos com marcadores convencionados viram componentes tipados:
 
    ```markdown
@@ -393,13 +482,29 @@ Zero rede em runtime ⇒ a conversão de Word/PDF **não acontece dentro da ferr
    `effectiveFrom` informado na carga (a política já vigia) — mesma filosofia da carga de
    matrizes.
 5. Reimportação do mesmo arquivo identifica componentes por `code` e propõe apenas diferenças —
-   escopo da fase 2 do épico; a fase 1 só bloqueia duplicata de `code` (`E-GOV-06`).
+   escopo da fase 2 do épico; a fase 1 só bloqueia duplicata de `code` (`E-GOV-06`). Com a
+   importação por recorte, esse bloqueio deixa de ser detalhe: é ele que impede o mesmo capítulo
+   de entrar duas vezes quando o usuário perde a conta de onde parou.
 
 ### 9.1 Prompt de conversão (rascunho — fecha na S40, em `10-guia-do-usuario.md`)
 
-O passo 1 não depende de nada implementado: **converter o Word já é possível hoje**, e é o que faz
-a S40 nascer com a política real em vez de um exemplo inventado (DEC-GOV-010). Cole o prompt
-abaixo numa IA externa junto com o documento de política, confira o resultado, e guarde o `.md`.
+O passo 1 não depende de nada implementado: **converter o Word já é possível hoje**. Cole o prompt
+abaixo numa IA externa junto com o documento de política, confira o resultado, e guarde o `.md` —
+ele serve tanto como fonte para digitar à mão (S33b, colando bloco a bloco) quanto para a
+importação por recorte (S40), se ela for construída.
+
+O documento real (*Filtros e Critérios de Crédito B2C*) tem uma anatomia constante que o prompt
+apenas transcreve, sem inventar estrutura:
+
+| No Word | Vira |
+|---|---|
+| Título 1 (`4.2 Regras Duras e Prevenção a Fraude`) | `SECTION` |
+| Título 2 (`Bloqueios por Dívida`, `Prevenção a Fraude`) | `SECTION` — agrupamento temático, sem semântica de processo |
+| Título 3 (`Dívida Acima de R$ 5.000`) | `RULE` |
+| parágrafo solto abaixo do título | `businessDescription` |
+| `Definição técnica: …` | `technicalDefinition` |
+| `Observação: Reason code DV01 — reprovado, Oferta = 0.` | `reasonCodes` + `outcome` + `notes` |
+| Anexos A/C/D (faixas, reason codes, listas) | **não viram componentes** — são Biblioteca de Variáveis e catálogo (§3.1) |
 
 ```text
 Converta o documento de política de crédito em anexo para Markdown estruturado, seguindo
@@ -426,7 +531,15 @@ exatamente estas regras:
    entram na ferramenta por outro caminho.
 5. Não resuma nem reescreva a política: preserve os números, os nomes e os termos do documento.
    Se algum trecho estiver ambíguo, mantenha o texto original e acrescente "> Notas: revisar".
-6. Saída: um único bloco de Markdown, sem comentários seus antes ou depois.
+6. Quando o documento trouxer um parágrafo iniciado por "Definição técnica:", use-o em
+   "> Definição técnica:". Quando trouxer "Observação:", distribua o conteúdo: os códigos citados
+   em "> Reason code:", o veredito (Aprovado/Negado/Continue/Derivar) em "> Resultado:", e o
+   restante da frase em "> Notas:".
+7. Anexos de catálogo (faixas de score por regional, catálogo de reason codes, catálogo de listas)
+   NÃO devem virar headings de componente: eles já existem na ferramenta como Biblioteca de
+   Variáveis e catálogo. Ignore-os na conversão e mencione ao final quais anexos você ignorou.
+8. Saída: um único bloco de Markdown, sem comentários seus antes ou depois. Mantenha os capítulos
+   em blocos claramente separados — o arquivo será usado em recortes, um capítulo por vez.
 ```
 
 O `.md` gerado é revisado por humano antes da carga — a tela de revisão do passo 3 é a segunda
@@ -500,6 +613,13 @@ Então  a versão da regra e a versão da matriz publicam juntas, ambas com a me
 - Simulador de decisão.
 
 ## 12. Perguntas abertas (fechar antes das sessões correspondentes)
+
+> **Fechadas na revisão de UX e hierarquia de 2026-08-14** (DEC-GOV-011/012/013), antes da S32a:
+> facetas em componente (**sim**), seção versionável (**sim, opcional**), `POLICY_VARIABLE` como
+> espelho da Biblioteca (**sim**), um nó `MATRIX` por matriz (**sim** — "Canal Digital" é seção com
+> N filhos), divisão da S33 em S33a/S33b (**sim**), construção manual incremental no lugar da
+> carga na trilha antecipada (**sim**), carga por recorte com destino (**sim, opcional, S40**).
+> O que foi **adiado com registro** está em §3.6.
 
 1. **Numeração dos DBs** — seguir a sequência atual da área (DB-520 em diante) ou reiniciar?
    Proposta: campo livre com sugestão sequencial a partir do maior número existente. (S35)
