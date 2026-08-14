@@ -1,9 +1,10 @@
 import { applyToDocument, defineCommand, isoFrom, makeEvent, type Command } from '../command';
 import { DomainError } from '../errors';
+import { isEvidenceAttachment } from './schema';
 import type {
-  Attachment,
   AttachmentTarget,
   DocEvent,
+  EvidenceAttachment,
   Matrix,
   PolicyOpsDocument,
 } from './schema';
@@ -27,6 +28,13 @@ import type {
  * 2. **Anexo em versão publicada é permitido** e não fere I3: `attachments`
  *    vive fora do snapshot da versão, como os eventos de auditoria. A evidência
  *    normalmente chega *depois* da publicação — é o caso típico, não a exceção.
+ *
+ * Desde o schema 5, `attachments` é uma coleção **discriminada**: evidência do
+ * acervo (`kind: 'EVIDENCE'`) e imagem embutida do editor rico
+ * (`kind: 'INLINE_IMAGE'`, docs/14-governanca-de-alteracoes.md §7) convivem
+ * nela. Todo este módulo é sobre evidência, e por isso filtra por `kind` antes
+ * de qualquer coisa — uma imagem de especificação não é anexo de matriz nem vai
+ * para a lixeira do acervo.
  */
 
 // ---------------------------------------------------------------------------
@@ -44,12 +52,20 @@ export function sameTarget(a: AttachmentTarget, b: AttachmentTarget): boolean {
  * **append-only por alvo** (docs/14 §7): anexo novo entra no fim, e nada
  * reordena o que já estava lá.
  */
-export function listAttachments(doc: PolicyOpsDocument, target: AttachmentTarget): Attachment[] {
-  return (doc.attachments ?? []).filter((attachment) => sameTarget(attachment.target, target));
+export function listAttachments(
+  doc: PolicyOpsDocument,
+  target: AttachmentTarget,
+): EvidenceAttachment[] {
+  return listEvidences(doc).filter((attachment) => sameTarget(attachment.target, target));
 }
 
-export function findAttachment(doc: PolicyOpsDocument, id: string): Attachment | null {
-  return (doc.attachments ?? []).find((attachment) => attachment.id === id) ?? null;
+/** Só as evidências do acervo — as imagens embutidas do `RichDoc` ficam de fora. */
+export function listEvidences(doc: PolicyOpsDocument | null): EvidenceAttachment[] {
+  return (doc?.attachments ?? []).filter(isEvidenceAttachment);
+}
+
+export function findAttachment(doc: PolicyOpsDocument, id: string): EvidenceAttachment | null {
+  return listEvidences(doc).find((attachment) => attachment.id === id) ?? null;
 }
 
 /**
@@ -58,7 +74,7 @@ export function findAttachment(doc: PolicyOpsDocument, id: string): Attachment |
  * desanexado e mandar para a lixeira.
  */
 export function attachmentRelPaths(doc: PolicyOpsDocument | null): string[] {
-  return (doc?.attachments ?? []).map((attachment) => attachment.relPath);
+  return listEvidences(doc).map((attachment) => attachment.relPath);
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +153,9 @@ export type AttachEvidenceInput = {
   atIndex?: number;
 };
 
-export function attachEvidence(input: AttachEvidenceInput): Command<AttachEvidenceInput, Attachment> {
+export function attachEvidence(
+  input: AttachEvidenceInput,
+): Command<AttachEvidenceInput, EvidenceAttachment> {
   return defineCommand({
     type: 'evidence/attach',
     input,
@@ -152,8 +170,7 @@ export function attachEvidence(input: AttachEvidenceInput): Command<AttachEviden
         );
       }
 
-      const existing = doc.attachments ?? [];
-      if (existing.some((attachment) => attachment.relPath === relPath)) {
+      if (listEvidences(doc).some((attachment) => attachment.relPath === relPath)) {
         throw new DomainError(
           'EVIDENCE_DUPLICATE_PATH',
           `O arquivo ${relPath} já está anexado neste documento.`,
@@ -163,7 +180,8 @@ export function attachEvidence(input: AttachEvidenceInput): Command<AttachEviden
 
       const scope = scopeForTarget(doc, input.target);
 
-      const attachment: Attachment = {
+      const attachment: EvidenceAttachment = {
+        kind: 'EVIDENCE',
         id: input.id ?? ctx.newId(),
         fileName: input.fileName,
         relPath,
@@ -205,20 +223,24 @@ export function attachEvidence(input: AttachEvidenceInput): Command<AttachEviden
 
 export type DetachEvidenceInput = { id: string };
 
-export function detachEvidence(input: DetachEvidenceInput): Command<DetachEvidenceInput, Attachment> {
+export function detachEvidence(
+  input: DetachEvidenceInput,
+): Command<DetachEvidenceInput, EvidenceAttachment> {
   return defineCommand({
     type: 'evidence/detach',
     input,
     label: 'Desanexar evidência',
     execute(doc, ctx) {
       const list = doc.attachments ?? [];
-      const index = list.findIndex((attachment) => attachment.id === input.id);
+      const index = list.findIndex(
+        (attachment) => attachment.id === input.id && isEvidenceAttachment(attachment),
+      );
       if (index < 0) {
         throw new DomainError('EVIDENCE_NOT_FOUND', 'Essa evidência não está anexada neste documento.', {
           id: input.id,
         });
       }
-      const attachment = list[index]!;
+      const attachment = list[index] as EvidenceAttachment;
 
       // O alvo pode ter sido apagado depois do anexo (I25 é validada na
       // gravação, não impede o documento em memória de existir) — desanexar

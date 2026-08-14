@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createEmptyDocument, createSampleDocument } from '@/core/document/create';
 import { attachmentRelPaths } from '@/core/document/evidence';
-import type { Attachment, PolicyOpsDocument } from '@/core/document/schema';
+import type { EvidenceAttachment, PolicyOpsDocument } from '@/core/document/schema';
 import { serialize } from '@/core/document/serialize';
 import { validateDocument, type ValidationIssue } from '@/core/document/validate';
 import { DomainError } from '@/core/errors';
@@ -269,7 +269,7 @@ export async function uploadEvidence(input: EvidenceUploadInput): Promise<Eviden
   return result;
 }
 
-export async function downloadEvidence(attachment: Attachment): Promise<Blob> {
+export async function downloadEvidence(attachment: EvidenceAttachment): Promise<Blob> {
   if (evidenceApi === null) {
     throw new DomainError('DOCUMENT_INVALID', EVIDENCE_UNAVAILABLE_REASON);
   }

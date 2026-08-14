@@ -1,11 +1,16 @@
 import Decimal from 'decimal.js-light';
 import { z } from 'zod';
 import {
+  CATALOG_ITEM_KINDS,
   INTEGER_REGEX,
+  isEvidenceAttachment,
+  PAYLOAD_KIND_BY_COMPONENT_TYPE,
+  POLICY_COMPONENT_MAX_DEPTH,
   PolicyOpsDocumentSchema,
   type BoundaryMode,
   type CatalogItemKind,
   type Domain,
+  type PolicyComponent,
   type PolicyOpsDocument,
 } from './schema';
 import {
@@ -1062,7 +1067,7 @@ export function checkI18(doc: PolicyOpsDocument): ValidationIssue[] {
     ),
   );
 
-  (['DECISION', 'OFFER', 'LIMIT', 'TAG'] as const).forEach((kind) => {
+  CATALOG_ITEM_KINDS.forEach((kind) => {
     const entries = doc.catalog
       .map((item, i) => ({ item, i }))
       .filter(({ item }) => item.kind === kind)
@@ -1182,6 +1187,9 @@ export function checkI25(doc: PolicyOpsDocument): ValidationIssue[] {
   );
 
   attachments.forEach((attachment, i) => {
+    // Imagem embutida do editor rico não tem alvo no documento (docs/14 §7):
+    // ela é referenciada por um bloco de `RichDoc`, não presa a projeto/matriz.
+    if (!isEvidenceAttachment(attachment)) return;
     const path = `attachments[${i}].target`;
     const target = attachment.target;
 
@@ -1233,6 +1241,7 @@ export function checkI26(doc: PolicyOpsDocument): ValidationIssue[] {
   const seen = new Set<string>();
 
   attachments.forEach((attachment, i) => {
+    if (!isEvidenceAttachment(attachment)) return;
     const path = `attachments[${i}]`;
     if (attachment.relPath.trim() === '') {
       issues.push({
@@ -1258,6 +1267,397 @@ export function checkI26(doc: PolicyOpsDocument): ValidationIssue[] {
         path: `${path}.sha256`,
         message: `A evidência "${attachment.fileName}" não tem hash registrado — a integridade dela não teria como ser conferida.`,
       });
+    }
+  });
+
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// I27 — componente `MATRIX` é espelho: `matrixId` válido do mesmo projeto,
+// `versions: []`, sem filhos, e no máximo um componente por matriz. Nenhum
+// outro tipo tem `matrixId`. `POLICY_VARIABLE` pode ter `variableId`, que
+// precisa apontar `Variable` existente e é espelhado por no máximo um
+// componente (docs/14-governanca-de-alteracoes.md §6 — lá numerada I23;
+// I23–I26 já estavam ocupadas por ACL e evidências, DEC-GOV-014).
+// ---------------------------------------------------------------------------
+// #region: i27-matrix-e-policy-variable-sao-espelhos
+
+export function checkI27(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const matrixById = new Map(doc.matrices.map((matrix) => [matrix.id, matrix]));
+  const variableIds = new Set(doc.variables.map((variable) => variable.id));
+  const hasChildren = new Set(
+    doc.components.map((component) => component.parentId).filter((id): id is string => id !== undefined),
+  );
+  const componentsByMatrix = new Map<string, string[]>();
+  const componentsByVariable = new Map<string, string[]>();
+
+  doc.components.forEach((component, ci) => {
+    const path = `components[${ci}]`;
+
+    if (component.type === 'MATRIX') {
+      if (component.matrixId === undefined) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I27',
+          path,
+          message: `O componente "${component.code}" é do tipo MATRIX mas não aponta nenhuma matriz.`,
+        });
+      } else {
+        const matrix = matrixById.get(component.matrixId);
+        if (matrix === undefined) {
+          issues.push({
+            severity: 'ERROR',
+            invariant: 'I27',
+            path,
+            message: `O componente "${component.code}" aponta uma matriz que não existe neste documento.`,
+          });
+        } else if (matrix.projectId !== component.projectId) {
+          issues.push({
+            severity: 'ERROR',
+            invariant: 'I27',
+            path,
+            message: `O componente "${component.code}" aponta a matriz "${matrix.code}", que é de outro projeto.`,
+          });
+        }
+        componentsByMatrix.set(component.matrixId, [
+          ...(componentsByMatrix.get(component.matrixId) ?? []),
+          component.code,
+        ]);
+      }
+
+      if (component.versions.length > 0) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I27',
+          path,
+          message: `O componente "${component.code}" é MATRIX e tem ${component.versions.length} versão(ões) próprias — o espelho não versiona nada: nome, vigência e histórico vêm da matriz.`,
+        });
+      }
+      if (hasChildren.has(component.id)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I27',
+          path,
+          message: `O componente "${component.code}" é MATRIX e tem filhos — componente MATRIX é sempre folha.`,
+        });
+      }
+    } else if (component.matrixId !== undefined) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I27',
+        path,
+        message: `O componente "${component.code}" é do tipo ${component.type} mas tem matrixId — só MATRIX aponta matriz.`,
+      });
+    }
+
+    if (component.variableId === undefined) return;
+    if (component.type !== 'POLICY_VARIABLE') {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I27',
+        path,
+        message: `O componente "${component.code}" é do tipo ${component.type} mas tem variableId — só POLICY_VARIABLE espelha variável da Biblioteca.`,
+      });
+      return;
+    }
+    if (!variableIds.has(component.variableId)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I27',
+        path,
+        message: `O componente "${component.code}" espelha uma variável que não existe neste documento.`,
+      });
+    }
+    componentsByVariable.set(component.variableId, [
+      ...(componentsByVariable.get(component.variableId) ?? []),
+      component.code,
+    ]);
+  });
+
+  for (const [matrixId, codes] of componentsByMatrix) {
+    if (codes.length < 2) continue;
+    issues.push({
+      severity: 'ERROR',
+      invariant: 'I27',
+      path: 'components',
+      message: `A matriz "${matrixById.get(matrixId)?.code ?? matrixId}" é apontada por ${codes.length} componentes (${codes.join(', ')}) — uma matriz entra na árvore uma vez só.`,
+    });
+  }
+  for (const [, codes] of componentsByVariable) {
+    if (codes.length < 2) continue;
+    issues.push({
+      severity: 'ERROR',
+      invariant: 'I27',
+      path: 'components',
+      message: `A mesma variável da Biblioteca é espelhada por ${codes.length} componentes (${codes.join(', ')}) — o espelho é único.`,
+    });
+  }
+
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// I28 — a árvore: acíclica, `parentId` do mesmo projeto, `position` 0-based sem
+// buracos entre irmãos, profundidade ≤ 6, `code` único no projeto, e `tags`
+// apontando `CatalogItem` de kind `TAG` sem repetição (docs/14 §6 — lá
+// numerada I24). A **imutabilidade** de `code` é de comando (`component/update`
+// não aceita `code`), não se lê de um documento parado.
+// ---------------------------------------------------------------------------
+// #region: i28-arvore-aciclica-position-profundidade-code-e-tags
+
+export function checkI28(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const byId = new Map(doc.components.map((component) => [component.id, component]));
+  const tagCodes = new Set(doc.catalog.filter((item) => item.kind === 'TAG').map((item) => item.code));
+  const projectIds = new Set(doc.projects.map((project) => project.id));
+
+  // Irmãos: a raiz de cada projeto é um grupo, e cada `parentId` é outro.
+  const siblings = new Map<string, Array<{ position: number; path: string }>>();
+  const codesByProject = new Map<string, Array<{ code: string; path: string }>>();
+
+  doc.components.forEach((component, ci) => {
+    const path = `components[${ci}]`;
+
+    if (!projectIds.has(component.projectId)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I28',
+        path,
+        message: `O componente "${component.code}" pertence a um projeto que não existe neste documento.`,
+      });
+    }
+
+    const parent = component.parentId === undefined ? undefined : byId.get(component.parentId);
+    if (component.parentId !== undefined) {
+      if (parent === undefined) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I28',
+          path,
+          message: `O componente "${component.code}" está pendurado num pai que não existe neste documento.`,
+        });
+      } else if (parent.projectId !== component.projectId) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I28',
+          path,
+          message: `O componente "${component.code}" tem como pai "${parent.code}", que é de outro projeto.`,
+        });
+      }
+    }
+
+    const group = `${component.projectId}/${component.parentId ?? ''}`;
+    siblings.set(group, [...(siblings.get(group) ?? []), { position: component.position, path }]);
+    codesByProject.set(component.projectId, [
+      ...(codesByProject.get(component.projectId) ?? []),
+      { code: component.code, path },
+    ]);
+
+    if (component.tags !== undefined) {
+      const seen = new Set<string>();
+      for (const tag of component.tags) {
+        if (!tagCodes.has(tag)) {
+          issues.push({
+            severity: 'ERROR',
+            invariant: 'I28',
+            path: `${path}.tags`,
+            message: `O componente "${component.code}" tem a tag "${tag}", que não existe no catálogo (kind TAG).`,
+          });
+        }
+        if (seen.has(tag)) {
+          issues.push({
+            severity: 'ERROR',
+            invariant: 'I28',
+            path: `${path}.tags`,
+            message: `A tag "${tag}" aparece repetida no componente "${component.code}".`,
+          });
+        }
+        seen.add(tag);
+      }
+    }
+  });
+
+  for (const [group, entries] of siblings) {
+    issues.push(
+      ...checkPositionSequence(entries, `componentes irmãos (${group})`).map((issue) => ({
+        ...issue,
+        invariant: 'I28',
+      })),
+    );
+  }
+
+  for (const [projectId, entries] of codesByProject) {
+    const project = doc.projects.find((candidate) => candidate.id === projectId);
+    issues.push(
+      ...checkUniqueCodes(entries, `componentes do projeto "${project?.code ?? projectId}"`).map(
+        (issue) => ({ ...issue, invariant: 'I28' }),
+      ),
+    );
+  }
+
+  issues.push(...checkComponentDepth(doc, byId));
+  return issues;
+}
+
+/**
+ * Ciclo e profundidade numa passada só: subir de pai em pai a partir de cada
+ * nó. `seen` corta a subida em qualquer id repetido, e só se reporta ciclo no
+ * nó que é ancestral **de si mesmo** — assim um ciclo A→B→A sai como dois
+ * problemas (um por nó do ciclo), e não como um por descendente.
+ */
+function checkComponentDepth(
+  doc: PolicyOpsDocument,
+  byId: Map<string, PolicyComponent>,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  doc.components.forEach((component, ci) => {
+    const path = `components[${ci}]`;
+    const seen = new Set<string>([component.id]);
+    let depth = 1;
+    let current = component;
+
+    while (current.parentId !== undefined) {
+      const parent = byId.get(current.parentId);
+      // Pai inexistente já foi reportado por checkI28; aqui só encerra a subida.
+      if (parent === undefined) return;
+
+      if (parent.id === component.id) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I28',
+          path,
+          message: `O componente "${component.code}" é ancestral de si mesmo — a árvore da política não pode ter ciclo.`,
+        });
+        return;
+      }
+      // Ciclo acima deste nó: quem está nele é que reporta.
+      if (seen.has(parent.id)) return;
+
+      seen.add(parent.id);
+      depth++;
+      current = parent;
+
+      if (depth > POLICY_COMPONENT_MAX_DEPTH) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I28',
+          path,
+          message: `O componente "${component.code}" está no nível ${depth} da árvore — o teto é ${POLICY_COMPONENT_MAX_DEPTH}.`,
+        });
+        return;
+      }
+    }
+  });
+
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// I29 — versões de componente seguem o mesmo ciclo das matrizes, **inclusive**
+// em `SECTION`: no máximo uma `DRAFT` e uma `PUBLISHED`, publicada carrega os
+// registros que a selam, substituída tem `effectiveTo`, a cadeia de vigência
+// não se sobrepõe nem deixa buraco, e o `payload` casa com o tipo do nó
+// (docs/14 §6 — lá numerada I27). Seção **sem** versões é estrutura pura e
+// nunca aparece como "sem política vigente".
+// ---------------------------------------------------------------------------
+// #region: i29-versoes-de-componente-seguem-o-mesmo-ciclo
+
+export function checkI29(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  doc.components.forEach((component, ci) => {
+    const path = `components[${ci}]`;
+    const drafts = component.versions.filter((version) => version.state === 'DRAFT');
+    const published = component.versions.filter((version) => version.state === 'PUBLISHED');
+
+    if (drafts.length > 1) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I29',
+        path,
+        message: `O componente "${component.code}" tem ${drafts.length} versões em rascunho — no máximo uma é permitida.`,
+      });
+    }
+    if (published.length > 1) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I29',
+        path,
+        message: `O componente "${component.code}" tem ${published.length} versões publicadas — no máximo uma é permitida.`,
+      });
+    }
+
+    const expectedKind =
+      component.type === 'MATRIX' ? undefined : PAYLOAD_KIND_BY_COMPONENT_TYPE[component.type];
+
+    component.versions.forEach((version, vi) => {
+      const versionPath = `${path}.versions[${vi}]`;
+
+      if (expectedKind !== undefined && version.payload.kind !== expectedKind) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I29',
+          path: versionPath,
+          message: `A versão ${version.number} de "${component.code}" (tipo ${component.type}) tem payload ${version.payload.kind}, mas o esperado é ${expectedKind}.`,
+        });
+      }
+
+      if (version.state === 'PUBLISHED' || version.state === 'SUPERSEDED') {
+        if (!version.publishedAt || !version.publishedBy || !version.effectiveFrom) {
+          issues.push({
+            severity: 'ERROR',
+            invariant: 'I29',
+            path: versionPath,
+            message: `A versão ${version.number} de "${component.code}" está ${version.state} mas não tem os registros de publicação (publishedAt, publishedBy, effectiveFrom).`,
+          });
+        }
+      }
+      if (version.state === 'SUPERSEDED' && !version.effectiveTo) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I29',
+          path: versionPath,
+          message: `A versão ${version.number} de "${component.code}" está SUPERSEDED mas não tem effectiveTo.`,
+        });
+      }
+      if (version.state === 'DRAFT' && version.effectiveFrom !== undefined) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I29',
+          path: versionPath,
+          message: `A versão ${version.number} de "${component.code}" é rascunho mas já tem vigência — vigência é carimbada na publicação.`,
+        });
+      }
+    });
+
+    // Cadeia de vigência, mesma regra de I4.
+    const timed = component.versions
+      .map((version, vi) => ({ version, vi }))
+      .filter(({ version }) => version.effectiveFrom !== undefined)
+      .sort((a, b) => a.version.effectiveFrom!.localeCompare(b.version.effectiveFrom!));
+
+    for (let i = 0; i < timed.length - 1; i++) {
+      const current = timed[i]!;
+      const next = timed[i + 1]!;
+      const versionPath = `${path}.versions[${current.vi}]`;
+      if (current.version.effectiveTo === undefined) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I29',
+          path: versionPath,
+          message: `A versão ${current.version.number} de "${component.code}" não tem effectiveTo mas existe uma versão posterior (${next.version.number}) — o intervalo de vigência ficaria sobreposto.`,
+        });
+      } else if (current.version.effectiveTo !== next.version.effectiveFrom) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I29',
+          path: versionPath,
+          message: `O intervalo de vigência da versão ${current.version.number} de "${component.code}" termina em ${current.version.effectiveTo}, mas a versão ${next.version.number} começa em ${next.version.effectiveFrom} — há uma sobreposição ou um buraco.`,
+        });
+      }
     }
   });
 
@@ -1290,6 +1690,9 @@ function runAllChecks(doc: PolicyOpsDocument): ValidationIssue[] {
     ...checkI24(doc),
     ...checkI25(doc),
     ...checkI26(doc),
+    ...checkI27(doc),
+    ...checkI28(doc),
+    ...checkI29(doc),
     ...checkImportProfiles(doc),
     ...checkPositions(doc),
   ];

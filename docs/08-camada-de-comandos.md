@@ -134,6 +134,37 @@ Comandos de eixo guardam no inverso **todas** as células afetadas — é o que 
 ### Templates
 `template/create` · `template/update` · `template/archive` · `template/instantiate`
 
+### Componentes de política (schema 5, sessão 32a)
+| Comando | Entrada | Inverso |
+|---|---|---|
+| `component/create` | `{ projectId, code, name, type, parentId?, matrixId?, variableId?, tags?, origin?, reviewStatus? }` — entra no fim dos irmãos; valida I27/I28 e recusa `code` repetido com `COMPONENT_CODE_DUPLICATE` (`E-GOV-06`) | remover o nó criado e reindexar os irmãos; recusa se ele já ganhou filho ou versão |
+| `component/update` | `{ componentId, name?, tags?, origin?, variableId? }` — três estados nos opcionais (ausente = não mexe, `null` = apaga). **Não aceita `code` nem `type`** | o próprio comando com os valores anteriores |
+| `component/move` | `{ componentId, parentId?, position? }` — `parentId: null` vira raiz; valida ciclo e profundidade (contando a altura da subárvore) e reindexa origem e destino | mover de volta ao pai e à posição de origem |
+| `component/archive` | `{ componentId }` | `component/_setArchived` com o carimbo anterior |
+| `component/setReviewStatus` | `{ componentId, reviewStatus }` — promover a `VALIDATED` é ação explícita, nunca efeito de editar | o próprio comando com o estado anterior |
+
+### Versões de componente (schema 5, sessão 32a)
+| Comando | Entrada | Inverso |
+|---|---|---|
+| `componentVersion/createDraft` | `{ componentId, baseVersionId?, payload?, spec?, changeRequestId? }` — clona a publicada vigente; `payload` é obrigatório na primeira versão e vence a base quando os dois vêm | apagar o rascunho criado |
+| `componentVersion/update` | `{ versionId, payload?, spec?, changeRequestId? }` — só em rascunho (`VERSION_IMMUTABLE`) | o próprio comando com os valores anteriores |
+| `componentVersion/publish` | `{ versionId, effectiveFrom }` — vigência **obrigatória** e podendo ser retroativa (RN-GOV-09) | **sem inverso** |
+| `componentVersion/discardDraft` | `{ versionId }` — remove a versão da lista | restaura o rascunho na mesma posição |
+
+Três diferenças em relação aos comandos de matriz, todas ditadas pelo contrato de
+`03-modelo-do-documento.md` §12.1 — e nenhuma por conveniência:
+
+1. `componentVersion/publish` **exige** `effectiveFrom` (em matriz ele é opcional e cai em "agora")
+   e **aceita data retroativa**, que é o caminho da fundação da política (RN-GOV-09). A ordem
+   continua valendo: a vigência nova precisa começar depois da vigente (`EFFECTIVE_DATE_INVALID`).
+2. `componentVersion/publish` **não pede nota** — quem carrega o "por quê" é o DB (`changeRequestId`)
+   ou a marca de publicação direta na timeline (RN-GOV-07).
+3. `componentVersion/discardDraft` **tem inverso**: sem estado `ARCHIVED` no contrato, a versão sai
+   inteira da lista e o número volta a ficar livre, então desfazer é devolver o mesmo registro.
+
+Nenhum comando desta sessão escreve `changeRequests` ou `releases`: `changeRequestId` é aceito e
+preservado, e quem o preenche é a S32b.
+
 ### Papéis
 | Comando | Entrada | Inverso |
 |---|---|---|
@@ -216,7 +247,7 @@ pilhas de undo ficam intocados, igual a qualquer outro erro de comando (§1 regr
 | Papel mínimo | Comandos |
 |---|---|
 | `EDITOR` (piso padrão) | Todo comando de rascunho, biblioteca (variáveis, compatibilidade, catálogo), tags, eixos, projetos, templates e perfis de carga — qualquer `command.type` fora das duas linhas abaixo |
-| `PUBLISHER` | `version/publish`, `import/apply`, `matrix/archive` |
+| `PUBLISHER` | `version/publish`, `import/apply`, `matrix/archive`, `componentVersion/publish`, `component/archive` |
 | `ADMIN` | `acl/set` |
 
 Notas:

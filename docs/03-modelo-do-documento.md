@@ -6,7 +6,7 @@
 
 ```ts
 type PolicyOpsDocument = {
-  schemaVersion: 4;                // 1 até a sessão 18; migrado na leitura (§10)
+  schemaVersion: 5;                // 1 até a sessão 18; migrado na leitura (§10)
   meta: DocumentMeta;
   variables: Variable[];
   compatibility: CompatibilityRule[];
@@ -14,8 +14,11 @@ type PolicyOpsDocument = {
   projects: Project[];
   matrices: Matrix[];
   templates: Template[];
-  importProfiles: ImportProfile[];  // perfis de carga (§9)
-  attachments?: Attachment[];       // evidências anexadas (§8.1) — ausente quando não há nenhuma
+  importProfiles: ImportProfile[];   // perfis de carga (§9)
+  components: PolicyComponent[];     // árvore de política, achatada (§12)
+  changeRequests: ChangeRequest[];   // solicitações de alteração — "DB" (§13)
+  releases: Release[];               // releases (§13)
+  attachments?: Attachment[];        // evidências e imagens embutidas (§8.1) — ausente quando não há nenhuma
   events: DocEvent[];
 };
 
@@ -48,6 +51,13 @@ Convenções gerais:
 - **Todo código** (`code`) casa `^[A-Z0-9_]+$`, é único no seu escopo e **imutável após a criação**.
 - Campos opcionais são **omitidos** quando vazios, não gravados como `null`. Isso mantém o arquivo pequeno e legível.
 - Arrays de entidades são ordenados por `position` quando a ordem importa; senão, por `createdAt`.
+
+> **Onde ficam as seções do épico Governança.** O `schemaVersion: 5` (sessão 32a) acrescentou dois
+> domínios inteiros — **§12 Componentes de política** e **§13 Entidades de governança** —, e eles
+> entraram **no fim deste documento**, depois de §11, em vez de no meio. É deliberado: inserir §9
+> ou §10 no meio renumeraria as invariantes, a migração e o documento de exemplo, que são citados
+> por número em dezenas de pontos do repositório e do código. A numeração fora de ordem custa uma
+> nota; a renumeração custaria uma varredura em tudo.
 
 ## 2. Biblioteca de Variáveis
 
@@ -213,7 +223,8 @@ Exemplo:
 ```ts
 type CatalogItem = {
   id: string;
-  kind: 'DECISION' | 'OFFER' | 'LIMIT' | 'TAG';
+  kind: 'DECISION' | 'OFFER' | 'LIMIT' | 'TAG'
+      | 'MOTIVATOR' | 'IMPACT_CATEGORY';  // dois últimos: schema 5, motivadores e impactos do DB (§13)
   code: string;                    // APROVADO / OFERTA_8 / LIM_2000
   label: string;
   description?: string;
@@ -241,8 +252,16 @@ type Project = {
   name: string;
   description?: string;
   position: number;
+  foundationEffectiveFrom?: string;  // vigência da fundação (RN-GOV-09) — schema 5
+  factoryTemplate?: FactoryTemplate; // boilerplate do Pacote para a Fábrica — schema 5
   archivedAt?: string;
   createdAt: string;
+};
+
+/** Boilerplate fixo dos DBs, editável uma vez por política (`14-governanca-de-alteracoes.md` §8). */
+type FactoryTemplate = {
+  boilerplate: RichDoc;
+  contacts?: Array<{ name: string; role?: string; email?: string }>;
 };
 
 type Matrix = {
@@ -453,7 +472,10 @@ guarda só o **vínculo** — quem, quando, onde no acervo, e com que hash (`14-
 §7, ADR-004). Nada de conteúdo de arquivo entra no `.json`.
 
 ```ts
-type Attachment = {
+type Attachment = EvidenceAttachment | InlineImageAttachment;   // discriminado por `kind` — schema 5
+
+type EvidenceAttachment = {
+  kind: 'EVIDENCE';
   id: string;                 // nanoid(12) — gerado pelo servidor no POST /api/evidences
   fileName: string;           // nome original, preservado no disco
   relPath: string;            // caminho dentro de _evidencias/, com "/": projeto/matriz/v12/AAAA-MM-DD_nome
@@ -467,7 +489,30 @@ type Attachment = {
     | { kind: 'MATRIX'; matrixId: string }
     | { kind: 'VERSION'; matrixId: string; versionNumber: number };
 };
+
+/** Imagem embutida num `RichDoc` (§12) — base64 no próprio .json, teto de 300 KB (`E-GOV-05`). */
+type InlineImageAttachment = {
+  kind: 'INLINE_IMAGE';
+  id: string;
+  fileName: string;
+  mimeType: string;           // image/png, image/jpeg, image/webp…
+  data: string;               // base64, sem o prefixo "data:"
+  bytes: number;
+  width?: number;
+  height?: number;
+  addedBy: { username: string; displayName?: string };
+  addedAt: string;
+  note?: string;
+};
 ```
+
+**Uma coleção, dois tipos de anexo (schema 5, DEC-GOV-015).** O nome `Attachment` foi criado na
+sessão 30 para o vínculo com o acervo `_evidencias/`, e `14-governanca-de-alteracoes.md` §7 previa
+o mesmo nome para as imagens do editor rico. Em vez de duas coleções com nomes parecidos, elas
+convivem em `attachments` separadas por `kind`: as duas são "arquivo pendurado no documento", e o
+que muda é onde o byte mora — `EVIDENCE` aponta o acervo na pasta de rede (o arquivo existe fora do
+`.json`, ADR-004), `INLINE_IMAGE` carrega o conteúdo em `data`. I25 e I26 só se aplicam ao primeiro:
+imagem embutida não tem alvo nem caminho no acervo.
 
 - A lista é **append-only por alvo**: anexo novo entra no fim. Anexar a uma versão publicada é
   permitido e **não** fere I3 — `attachments` vive fora do snapshot da versão, como os eventos.
@@ -481,6 +526,13 @@ type Attachment = {
 ## 9. Invariantes
 
 Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas **na leitura do arquivo** e **antes de todo salvamento** — exceto I8, I9, I19, I24 e a unicidade de código de domínio de I18, que são avisos não bloqueantes (nota após a tabela).
+
+**Numeração de I27–I29 (sessão 32a, DEC-GOV-014).** `14-governanca-de-alteracoes.md` §6 escreveu
+estas três invariantes como I23, I24 e I27, antes de I23–I26 serem ocupadas pela ACL (S29) e pelas
+evidências (S30). A correspondência é: docs/14 I23 → **I27**, docs/14 I24 → **I28**, docs/14 I27 →
+**I29**; a S32b entra com I30 (congelamento dos itens do DB) e I31 (`code` de DB e de release).
+A imutabilidade de `PolicyComponent.code`, que docs/14 junta a I24, é garantia de **comando**
+(`component/update` não aceita `code`), não de documento parado — I28 confere só a unicidade.
 
 I25 e I26 são `ERROR` sem correção automática: um vínculo de evidência quebrado aponta para um arquivo real na pasta, e escolher entre "remover o vínculo" e "corrigir o alvo" é decisão de quem opera, não da aplicação (o modo de recuperação lista o problema com o caminho do anexo).
 
@@ -512,6 +564,9 @@ I25 e I26 são `ERROR` sem correção automática: um vínculo de evidência que
 | I24 | Se `meta.acl` está presente com `users` não vazio, ao menos um `AclEntry` tem `role: 'ADMIN'` (aviso não bloqueante — nota após a tabela) |
 | I25 | O `target` de toda evidência aponta para entidade existente: projeto, matriz, ou número de versão existente naquela matriz |
 | I26 | `relPath` e `sha256` de toda evidência são não vazios, e `relPath` é único no documento |
+| I27 | Componente `MATRIX` tem `matrixId` válido, do **mesmo projeto**, `versions: []` e nenhum filho; nenhum outro tipo tem `matrixId`, e uma matriz é referenciada por no máximo um componente. Componente `POLICY_VARIABLE` pode ter `variableId`, que precisa apontar `Variable` existente; nenhum outro tipo tem `variableId`, e uma variável é espelhada por no máximo um componente |
+| I28 | A árvore de componentes é acíclica; `projectId` e `parentId` apontam entidades existentes, e o pai é do mesmo projeto; `position` é 0-based e sem buracos **entre irmãos**; profundidade ≤ 6; `PolicyComponent.code` é único no projeto; todo `code` em `tags` referencia `CatalogItem` de kind `TAG` existente, sem repetição no mesmo componente |
+| I29 | Versões de componente seguem o mesmo ciclo das matrizes, **inclusive em `SECTION`**: no máximo uma `DRAFT` e uma `PUBLISHED`; publicada/substituída carrega `publishedAt`, `publishedBy` e `effectiveFrom`; substituída tem `effectiveTo`; rascunho não tem vigência; a cadeia `[effectiveFrom, effectiveTo)` não se sobrepõe nem deixa buraco; e o `payload.kind` casa com o tipo do componente (`SECTION` usa `OTHER`) |
 
 **I19 é deliberadamente mais fraca que a antiga regra de completude regional.** Não existe invariante exigindo que todo domínio `RANGE` tenha uma entrada em `groupingRanges` para toda combinação possível de opções — hierarquias reais são assimétricas (nem toda Regional tem MEI, por exemplo), e forçar o preenchimento de combinações que não existem no negócio seria pior do que não validar nada. O editor de domínios (`07-ux-e-editor.md` §11) ainda **avisa** (não bloqueia) quando um `path` usado por alguns domínios está ausente por completo de outros — o caso provável de "esqueci de colar uma linha" — mas isso é um aviso de UX, não uma falha de I19.
 
@@ -523,7 +578,7 @@ Falha de invariante na leitura **não descarta o arquivo**: a aplicação abre e
 
 ## 10. Versionamento do schema e migração
 
-`schemaVersion` no topo. `src/core/document/migrate.ts` aplica migrações em cadeia (`1 → 2 → 3 → 4`) ao abrir um arquivo mais antigo, e recusa arquivos mais novos que a aplicação, com a mensagem: *"Este arquivo foi salvo por uma versão mais nova do PolicyOps. Atualize o PolicyOps.html."*
+`schemaVersion` no topo. `src/core/document/migrate.ts` aplica migrações em cadeia (`1 → 2 → 3 → 4 → 5`) ao abrir um arquivo mais antigo, e recusa arquivos mais novos que a aplicação, com a mensagem: *"Este arquivo foi salvo por uma versão mais nova do PolicyOps. Atualize o PolicyOps.html."*
 
 Migrações são funções puras, testadas com fixtures reais em `tests/fixtures/`.
 
@@ -546,6 +601,22 @@ Um documento `schemaVersion: 2` migrado e reserializado difere do original apena
 **Migração 3 → 4 (sessão 29): `meta.acl?`.** A mais simples de todas: aditiva a ponto de **não escrever nenhum campo**. `meta.acl` é opcional, e sua ausência **é** o estado migrado — "modo aberto" (`14-plataforma-local.md` §6). A migração só troca o número de `schemaVersion`; todo o resto do documento fica byte a byte igual. Testada com `sample-document.json` como estava antes desta sessão (`tests/fixtures/v3-document.json`).
 
 **`attachments?` (sessão 30) não muda o `schemaVersion`: continua 4.** É o caso que o parágrafo da migração 1 → 2 já registra — "campos novos e opcionais, sem necessidade de migração": um documento `schemaVersion: 4` sem anexos já é um documento 4 válido, e a ausência do campo é o estado correto. Não há migração 4 → 4, e nenhum documento existente muda de um byte.
+
+**Migração 4 → 5 (sessão 32a): componentes de política e entidades de governança.** Aditiva, com
+uma exceção deliberada em campo existente. O que ela faz:
+
+- `components = []`, `changeRequests = []` e `releases = []` no topo do documento;
+- em cada entrada de `attachments` (quando houver), acrescenta `kind: 'EVIDENCE'` — o discriminador
+  novo da coleção (§8.1). Todo anexo já gravado é evidência, então o valor é conhecido sem
+  ambiguidade, e nenhum outro campo é tocado;
+- `Project.foundationEffectiveFrom`, `Project.factoryTemplate`, `PolicyComponent.tags` e os kinds de
+  catálogo `MOTIVATOR`/`IMPACT_CATEGORY` são opcionais e ficam **ausentes** em todo registro
+  existente — nada a migrar neles (§1).
+
+O `schemaVersion: 5` fecha inteiro numa migração só, incluindo `ChangeRequest`, `Release` e
+`RichDoc`, que nenhum comando escreve até a S32b/S34 — é o que evita uma segunda migração adiante
+(DEC-GOV-010). Testada com `tests/fixtures/v4-document.json` (o `sample-document.json` de antes
+desta sessão) e com a cadeia completa 1 → 2 → 3 → 4 → 5 a partir de `regional-v1-document.json`.
 
 A contrapartida é a de sempre nesse caso, e vale dita: um `PolicyOps.html` **anterior** à sessão 30 abre um documento com `attachments` em modo de recuperação (o schema é `.strict()`, então o campo desconhecido vira `ERROR` de `SCHEMA`) e perderia os vínculos se salvasse por cima. Evidências só existem no modo `SERVER`, onde todo mundo roda o mesmo `_app/` publicado pela TI (`14-plataforma-local.md` §9) — atualizar a aplicação é substituir aquela pasta, e é isso que mantém os dois lados na mesma versão.
 
@@ -579,3 +650,178 @@ A contrapartida é a de sempre nesse caso, e vale dita: um `PolicyOps.html` **an
 **Templates**: "Matriz padrão PF" e "Limite PJ segmentado".
 
 O documento de exemplo é gerado por código, não é um JSON fixo — assim ele nunca fica desatualizado em relação ao schema.
+
+## 12. Componentes de política (schema 5)
+
+> Contrato fechado na sessão 32a. `14-governanca-de-alteracoes.md` §3.1/§3.2 explica **por quê** a
+> política vira uma árvore; esta seção é o **o quê**, e é ela que vale quando os dois divergirem.
+
+A política inteira — não só as matrizes — vive numa árvore de componentes, gravada **plana** em
+`components` e reconstruída por `parentId`. A ordem entre irmãos é `position`; a ordem da árvore é
+**de leitura**, nunca de execução (`14-governanca-de-alteracoes.md` §3.6).
+
+```ts
+type PolicyComponent = {
+  id: string;
+  projectId: string;
+  parentId?: string;                    // ausente = raiz da árvore do projeto
+  position: number;                     // ordem entre irmãos, 0-based sem buracos (I28)
+  code: string;                         // REGRA_DIVIDA_5000 — único no projeto, imutável
+  name: string;                         // "Dívida Acima de R$ 5.000"
+  type: 'SECTION' | 'RULE' | 'MATRIX' | 'LIST' | 'REASON_CODE' | 'POLICY_VARIABLE' | 'OTHER';
+  matrixId?: string;                    // obrigatório e exclusivo de type MATRIX (I27)
+  variableId?: string;                  // só type POLICY_VARIABLE: espelho da Biblioteca (I27)
+  tags?: string[];                      // codes de CatalogItem kind TAG — facetas (I28)
+  origin?: { source: string; locator?: string };   // "Filtros e Critérios B2C, p. 10"
+  reviewStatus: 'STRUCTURED' | 'VALIDATED' | 'PENDING_REVIEW' | 'HISTORICAL_SOURCE';
+  archivedAt?: string;
+  createdAt: string;
+  versions: ComponentVersion[];         // sempre vazio em MATRIX (I27); opcional em SECTION (I29)
+};
+```
+
+- **`SECTION`** é nó estrutural. Sem versões, é pasta pura; com versões, é bloco de política com
+  definição, vigência e histórico próprios — a "Visão Geral" de um capítulo. O caso comum é a pasta
+  pura, e é o usuário que decide nó a nó (I29).
+- **`MATRIX`** é espelho e sempre folha: nome, vigência e histórico vêm da `Matrix` referenciada. Um
+  nó aponta **uma** matriz, e uma matriz é apontada por **um** nó (I27).
+- **`POLICY_VARIABLE`** com `variableId` é espelho da Biblioteca de Variáveis — as faixas R01–R20,
+  HVI3/HVI4 e BHV **já são** `Variable` (§2) e não viram uma segunda cópia versionada. Sem
+  `variableId`, o tipo cobre variável de política que não é eixo de matriz.
+- **Contenção**: `SECTION` contém qualquer tipo; `RULE`, `LIST`, `REASON_CODE`, `POLICY_VARIABLE` e
+  `OTHER` podem ter filhos (sub-regras existem no documento real); `MATRIX` nunca tem.
+- Teto de **6 níveis** de profundidade; alerta a partir de 300 componentes por projeto, teto 1.000.
+
+### 12.1 Versão de componente
+
+Mesmo ciclo `DRAFT → PUBLISHED → SUPERSEDED` das matrizes (`05-regras-de-negocio.md` §1), com
+vigência. **Não há `ARCHIVED`**: descartar um rascunho o remove da lista, e por isso
+`componentVersion/discardDraft` tem inverso (`08-camada-de-comandos.md` §3) — ao contrário do
+descarte de rascunho de matriz, que queima o número.
+
+```ts
+type ComponentVersion = {
+  id: string;
+  number: number;
+  state: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';
+  effectiveFrom?: string;               // obrigatório ao publicar; pode ser retroativo (RN-GOV-09)
+  effectiveTo?: string;                 // preenchido quando substituída
+  createdAt: string; createdBy: string;
+  publishedAt?: string; publishedBy?: string;
+  changeRequestId?: string;             // DB que originou (ausente = publicação direta, RN-GOV-07)
+  payload: ComponentPayload;            // discriminado por `kind` (§12.2)
+  spec?: RichDoc;                       // documentação livre (§12.3)
+};
+```
+
+**Vigência retroativa é permitida em componente** (e proibida em matriz, `05-regras-de-negocio.md`
+§1.3). Não é inconsistência: a fundação da política (RN-GOV-09) cadastra ~100 regras que **já
+vigoram**, com a data em que a política entrou em vigor. O que continua valendo é a ordem — a
+vigência nova precisa começar depois da vigente —, e é ela que impede a linha do tempo de se
+sobrepor (I29).
+
+### 12.2 Payload por tipo
+
+`payload.kind` acompanha o `type` do componente, com uma exceção: **`SECTION` usa `OTHER`** — a
+"Visão Geral" de um capítulo é exatamente o caso mínimo que `OtherPayload` cobre, e
+`14-governanca-de-alteracoes.md` §3.2 enumera cinco payloads sem criar um de seção. `MATRIX` não tem
+payload porque não tem versão.
+
+```ts
+type ComponentPayload =
+  | RulePayload | ListPayload | ReasonCodePayload | PolicyVariablePayload | OtherPayload;
+
+type RulePayload = {
+  kind: 'RULE';
+  businessDescription: string;          // linguagem de negócio — o único campo obrigatório
+  technicalDefinition?: string;         // "Aging > 0 e Valor >= 5000"
+  inputs?: string[];                    // variáveis/dados usados
+  conditions?: string;                  // condições de ativação
+  outcome?: string;                     // Aprovar / Reprovar / Derivar p/ Mesa / Continuar…
+  reasonCodes?: string[];               // códigos citados, ex. DV01
+  dependencies?: string[];              // codes de outros componentes
+  notes?: string;
+};
+
+type ListPayload           = { kind: 'LIST';            businessDescription: string; purpose?: string; fields?: string[]; notes?: string };
+type ReasonCodePayload     = { kind: 'REASON_CODE';     businessDescription: string; code?: string; decision?: string; message?: string; notes?: string };
+type PolicyVariablePayload = { kind: 'POLICY_VARIABLE'; businessDescription: string; technicalName?: string; source?: string; domainDescription?: string; notes?: string };
+type OtherPayload          = { kind: 'OTHER';           businessDescription: string; notes?: string };
+```
+
+Fora `businessDescription`, todo campo é opcional: a carga inicial raramente terá tudo
+(`14-governanca-de-alteracoes.md` §9).
+
+### 12.3 `RichDoc` — documentação livre em blocos
+
+Editor de blocos próprios, sem dependência nova (DEC-GOV-005). Declarado inteiro na S32a; o editor
+é da S34. `id` é estável por bloco — é o que torna o diff de `RichDoc` um diff **por bloco**.
+
+```ts
+type RichDoc = { blocks: Block[] };
+type Block =
+  | { id: string; type: 'paragraph' | 'heading1' | 'heading2' | 'quote' | 'callout'; text: InlineText }
+  | { id: string; type: 'bulletList' | 'numberList'; items: InlineText[] }
+  | { id: string; type: 'table'; header: string[]; rows: string[][] }
+  | { id: string; type: 'image'; attachmentId: string; caption?: string };   // aponta InlineImageAttachment (§8.1)
+type InlineText = { text: string; marks?: ('bold' | 'italic' | 'code' | 'link')[]; href?: string }[];
+```
+
+## 13. Entidades de governança (schema 5)
+
+> **Declaradas, e nada mais.** Nenhum comando desta sessão escreve `ChangeRequest` ou `Release`; o
+> workflow, as aprovações e as invariantes I30/I31 são da S32b. Elas entram no schema já na S32a
+> para que exista uma **única** migração 4 → 5 (DEC-GOV-010): a S32b liga comandos sobre uma forma
+> de documento que já é a definitiva. O porquê de cada campo está em
+> `14-governanca-de-alteracoes.md` §3.3/§3.4 e §5.
+
+```ts
+type ChangeRequest = {
+  id: string;
+  code: string;                         // "DB-519" — único no documento e imutável (I31, S32b)
+  title: string;
+  status: CrStatus;                     // grafo de 12 estados — 14-governanca §5, RN-GOV-01
+  motivators: string[];                 // codes de CatalogItem kind MOTIVATOR
+  motivationText?: RichDoc;
+  requestedBy: string; owner?: string;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  items: ChangeRequestItem[];           // 1..N componentes afetados (RN-GOV-02)
+  spec?: RichDoc;
+  acceptanceCriteria: { given: string; when?: string; then: string }[];
+  testScenarios: { kind: string; description: string }[];
+  impacts: { category: string; description?: string }[];   // category = code de kind IMPACT_CATEGORY
+  proposedEffectiveDate?: string;       // obrigatória para submeter (RN-GOV-03)
+  releaseId?: string;
+  approvals: { by: string; at: string; decision: 'APPROVED' | 'RETURNED' | 'REJECTED'; comment?: string }[];
+  events: DocEvent[];                   // trilha própria, mesma mecânica da auditoria (§8)
+  createdAt: string;
+};
+
+type ChangeRequestItem = {
+  componentId: string;
+  changeType: 'UPDATE' | 'CREATE' | 'DEACTIVATE' | 'REACTIVATE' | 'MOVE' | 'DOC_ONLY';
+  baseVersionId?: string;               // versão vigente no momento da criação do item
+  draftVersionId?: string;              // rascunho proposto (I30, S32b); em item MATRIX, da matriz
+  currentSummary?: string;              // "Hoje": preenchido da versão vigente
+  proposedSummary: string;              // "Proposto": obrigatório
+};
+
+type CrStatus =
+  | 'DRAFT' | 'SUBMITTED' | 'IN_REVIEW' | 'CHANGES_REQUESTED' | 'APPROVED' | 'REJECTED'
+  | 'IN_DEVELOPMENT' | 'IN_VALIDATION' | 'READY_FOR_RELEASE' | 'SCHEDULED' | 'PUBLISHED' | 'CANCELLED';
+
+type Release = {
+  id: string;
+  code: string;                         // "2026.09.01" — único e imutável (I31, S32b)
+  name?: string;
+  plannedDate?: string;
+  status: 'PLANNED' | 'IN_DEVELOPMENT' | 'PUBLISHED' | 'CANCELLED';
+  publishedAt?: string; publishedBy?: string;
+  notes?: string;
+  createdAt: string;
+};
+```
+
+`Release.code` é a única exceção à regra de `code` do §1: `2026.09.01` tem ponto e **não** casa
+`^[A-Z0-9_]+$`. É um rótulo de calendário, não um identificador de referência cruzada — nada aponta
+uma release por código.

@@ -28,6 +28,8 @@ const KIND_LABELS: Record<CatalogItemKind, string> = {
   OFFER: 'Oferta',
   LIMIT: 'Limite',
   TAG: 'Tag',
+  MOTIVATOR: 'Motivador',
+  IMPACT_CATEGORY: 'Categoria de impacto',
 };
 
 export function CatalogItemDialog({ open, onOpenChange, kind, item, hasUsage }: CatalogItemDialogProps) {

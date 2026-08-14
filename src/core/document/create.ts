@@ -54,6 +54,9 @@ export function createEmptyDocument(name: string, actor: string): PolicyOpsDocum
     matrices: [],
     templates: [],
     importProfiles: [],
+    components: [],
+    changeRequests: [],
+    releases: [],
     events: [
       {
         id: genId(),
@@ -255,6 +258,8 @@ export function createSampleDocument(): PolicyOpsDocument {
     OFFER: 0,
     LIMIT: 0,
     TAG: 0,
+    MOTIVATOR: 0,
+    IMPACT_CATEGORY: 0,
   };
 
   const catalogItem = (
@@ -642,6 +647,12 @@ export function createSampleDocument(): PolicyOpsDocument {
     matrices: [matrixPF, matrixPJ],
     templates,
     importProfiles: [],
+    // A árvore de política e as entidades de governança nascem vazias no
+    // documento de exemplo: quem as preenche é o usuário (S33a+), e um
+    // exemplo com árvore inventada seria pior do que nenhum.
+    components: [],
+    changeRequests: [],
+    releases: [],
     events,
   };
 }

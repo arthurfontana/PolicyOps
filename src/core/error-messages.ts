@@ -75,6 +75,19 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
   EVIDENCE_NOT_FOUND: 'Essa evidência não está mais anexada neste documento.',
   EVIDENCE_DUPLICATE_PATH:
     'Esse arquivo do acervo já está anexado — cada arquivo de _evidencias/ pertence a um vínculo só.',
+  CR_TRANSITION_INVALID:
+    'Essa mudança não é permitida no estado atual da solicitação — confira o fluxo de aprovação.',
+  CR_BASE_VERSION_STALE:
+    'A versão vigente do componente mudou depois que esta solicitação foi escrita — refaça o comparativo antes de publicar.',
+  CR_INCOMPLETE:
+    'Falta informação para submeter: são necessários motivador, ao menos um item com o texto do proposto, e a vigência pretendida.',
+  RELEASE_PUBLISH_BLOCKED:
+    'A publicação foi abortada inteira: há solicitações da release sem rascunho pronto. Nada foi publicado.',
+  ATTACHMENT_TOO_LARGE:
+    'A imagem passa do teto de 300 KB — reduza o tamanho antes de anexá-la à especificação.',
+  COMPONENT_CODE_DUPLICATE: 'Já existe um componente com esse código nesta política.',
+  COMPONENT_TREE_INVALID:
+    'A árvore da política não aceita essa operação — confira o destino, o tipo do nó e a profundidade.',
 };
 
 export function getErrorMessage(code: DomainErrorCode): string {

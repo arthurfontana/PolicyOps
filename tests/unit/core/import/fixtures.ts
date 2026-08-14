@@ -151,7 +151,7 @@ export function cineminhaDocument(): PolicyOpsDocument {
   };
 
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     meta: {
       id: fixedId('DOC1'),
       name: 'Políticas B2C',
@@ -192,6 +192,9 @@ export function cineminhaDocument(): PolicyOpsDocument {
     matrices: [],
     templates: [],
     importProfiles: [],
+    components: [],
+    changeRequests: [],
+    releases: [],
     events: [],
   };
 }

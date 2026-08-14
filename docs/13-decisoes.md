@@ -710,6 +710,7 @@ real.
 | **Por quê** | Mesmo padrão das migrações 2→3 (S23) e 3→4 (S29), que já provaram o caminho: aditiva, testada com documento real da versão anterior e com a cadeia completa desde v1. |
 | **Custo aceito** | Documentos salvos por um `PolicyOps.html` novo não abrem em versões antigas do app — já é assim entre versões de schema anteriores; o aviso de versão existente cobre. |
 | **Páginas afetadas** | `03-modelo-do-documento.md` §1, §10 (S32a); `14-governanca-de-alteracoes.md` §3.5 |
+| **Revisada por** | **DEC-GOV-015** (2026-08-14, implementação da S32a): a migração é aditiva com **uma** exceção — ela escreve `kind: 'EVIDENCE'` nos anexos já gravados, o discriminador que passou a separar evidência de imagem embutida. `attachments` também não é coleção nova: ela já existia desde a S30, e por isso a migração não a cria vazia. O resto (`components`, `changeRequests`, `releases` com `[]`, kinds novos de catálogo) saiu como escrito aqui. |
 
 ---
 
@@ -731,7 +732,7 @@ real.
 
 | Campo | Conteúdo |
 |---|---|
-| **Decisão** | Quatro ajustes aditivos ao modelo de `PolicyComponent` da DEC-GOV-001, todos fechados na S32a: (1) `tags?: string[]` no componente, reusando `CatalogItem` de kind `TAG` e os grupos de faceta da DEC-CARGA-003; (2) `versions` **opcional** em `SECTION` — seção sem versões é pasta, seção com versões é bloco de política com vigência e histórico (I27); (3) `variableId?` em `POLICY_VARIABLE`, tornando-o espelho da Biblioteca de Variáveis como `MATRIX` é espelho de `Matrix`; (4) regra de contenção explícita — `MATRIX` é sempre folha e um nó aponta **uma** matriz; os demais tipos podem ter filhos. |
+| **Decisão** | Quatro ajustes aditivos ao modelo de `PolicyComponent` da DEC-GOV-001, todos fechados na S32a: (1) `tags?: string[]` no componente, reusando `CatalogItem` de kind `TAG` e os grupos de faceta da DEC-CARGA-003; (2) `versions` **opcional** em `SECTION` — seção sem versões é pasta, seção com versões é bloco de política com vigência e histórico (I27 — renumerada para **I29** na S32a, DEC-GOV-014); (3) `variableId?` em `POLICY_VARIABLE`, tornando-o espelho da Biblioteca de Variáveis como `MATRIX` é espelho de `Matrix`; (4) regra de contenção explícita — `MATRIX` é sempre folha e um nó aponta **uma** matriz; os demais tipos podem ter filhos. |
 | **Data / gatilho** | 2026-08-14, revisão conceitual de UX e hierarquia pedida antes de iniciar a S32a, com leitura do documento real *Filtros e Critérios de Crédito B2C* (16 títulos de nível 1, 36 de nível 2, 49 de nível 3, 5 anexos). |
 | **Alternativas** | (a) manter só a árvore, sem faceta — o documento real escolhe a tabela de elegibilidade por `grupo × canal × risco de CEP` **ao mesmo tempo**; uma hierarquia única obriga a escolher um aninhamento e erra as demais perguntas, que é exatamente o problema que a DEC-CARGA-003 já tinha resolvido para matrizes; (b) `sectionKind` tipado agora (CMA, Política de Grupo, Cineminha como tipos com ícone e layout) — boa ideia, mas o Anexo E do mesmo documento usa outra convenção inteira (`I) a) b)`), o que recomenda esperar uso real antes de fixar vocabulário: adiado em §3.6; (c) nó de referência/alias para o componente citado em dois lugares ("Grupo Controle" aparece em 4.1 e 4.8) — duplicaria a contagem da fotografia histórica e criaria a pergunta "editei qual?"; vira link no inspector, adiado como nó; (d) preservar a numeração do Word (`4.1`, `4.6`) como identidade — é estruturação do Word, não fato da política, e o próprio documento pula de 4.3 para 4.6; `origin.locator` já cobre procedência. |
 | **Por quê** | Os quatro pontos vêm do documento real, não de teoria. A faceta existe porque a política é multidimensional; a seção versionável existe porque cada capítulo tem uma "Visão Geral" que muda e precisa de lastro (e `PolicyComponent` não tinha nem `description`); o espelho de variável existe porque o Anexo A **é** a Biblioteca de Variáveis com `groupingDimensions` (S18/S20) e viraria uma segunda cópia versionada; a contenção existe porque, sem ela, quem implementa a S32a decide sozinho, no código, uma regra de negócio. |
@@ -820,3 +821,68 @@ real.
 | **Por quê** | Mantém a divisão que o épico inteiro sustenta: regra e registro no `src/core/`, I/O no Python. Um acervo sem estado próprio também é um acervo que sobrevive a qualquer coisa — reconstruir o vínculo é ler o documento, e reconstruir o arquivo é abrir a pasta (ADR-004). |
 | **Custo aceito** | Quem chama a API precisa carregar `relPath` e `sha256` consigo, e um `relPath` corrompido no documento vira `404`/`400` em vez de "o servidor sabia onde estava". Em troca, a checagem de caminho fica num lugar só (`resolve_under`, coberta por teste com `..`, caminho absoluto e letra de unidade) e o servidor continua sem nada para migrar quando o schema do documento evoluir. |
 | **Páginas afetadas** | `14-plataforma-local.md` §4, §7, `03-modelo-do-documento.md` §9–§10, `11-operacao.md` §1 |
+
+---
+
+## DEC-GOV-014: as invariantes da árvore são I27–I29, não I23/I24/I27
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `14-governanca-de-alteracoes.md` §6 numerava as invariantes do épico como I23 (espelho de matriz), I24 (árvore) e I27 (seção versionável), com I25/I26 reservadas para o DB e a release. Esses números já estavam ocupados: I23/I24 são a ACL (S29) e I25/I26 são as evidências (S30), em `03-modelo-do-documento.md` §9. As do épico foram remapeadas para os primeiros números livres — **I27** (espelho de `MATRIX`/`POLICY_VARIABLE`), **I28** (árvore acíclica, `position`, profundidade, `code`, `tags`) e **I29** (versão de componente, inclusive em `SECTION`); a S32b entra com I30 e I31. A tabela de correspondência ficou nos dois documentos. |
+| **Data / gatilho** | 2026-08-14, implementação da S32a, ao abrir `src/core/document/validate.ts` para escrever `checkI23` e encontrar uma `checkI23` de ACL já lá, verde e testada. |
+| **Alternativas** | (a) renumerar ACL e evidências para liberar I23–I26 — mexeria em `03-modelo-do-documento.md` §9, em `validate.ts`, nas mensagens e nos testes de duas sessões já entregues, para ganhar apenas a coincidência com um rascunho; (b) namespace próprio (`GOV-I23` em `ValidationIssue.invariant`) — dois espaços de numeração convivendo no mesmo campo, e o modo de recuperação passaria a exibir duas convenções lado a lado. |
+| **Por quê** | O número de uma invariante é um rótulo estável de leitura, não uma identidade semântica: o que precisa ser único é o significado, e ele está na tabela. Remapear o rascunho custa uma tabela de correspondência; remapear o que já está em produção custa uma varredura e um risco. |
+| **Custo aceito** | `14-governanca-de-alteracoes.md` §6 continua citando os números antigos no corpo do texto (o raciocínio de cada invariante está lá), com a tabela de correspondência logo abaixo — quem lê só o docs/14 precisa da tradução. Em compensação, o docs/03 §9, que é a fonte para quem implementa, ficou sequencial e sem buraco. |
+| **Páginas afetadas** | `03-modelo-do-documento.md` §9; `14-governanca-de-alteracoes.md` §6; `docs/prompts/S32a`, `S32b` |
+
+---
+
+## DEC-GOV-015: evidência e imagem embutida convivem em `attachments`, discriminadas por `kind`
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `14-governanca-de-alteracoes.md` §7 previa `Attachment`/`attachments` para as imagens do editor rico (base64, ≤ 300 KB), nome que a S30 já tinha usado para o vínculo com o acervo `_evidencias/`, e registrava o conflito como ponto a fechar antes da S34. Fechado agora, porque o `schemaVersion: 5` precisa ser uma migração só: **uma coleção, dois tipos**, `Attachment = EvidenceAttachment \| InlineImageAttachment`, discriminados por `kind`. O bloco `image` do `RichDoc` continua com `attachmentId` e aponta um `INLINE_IMAGE`; I25 e I26 só se aplicam a `EVIDENCE`. A migração 4 → 5 carimba `kind: 'EVIDENCE'` nos anexos já gravados. |
+| **Data / gatilho** | 2026-08-14, implementação da S32a: declarar `RichDoc` sem decidir isto deixaria o bloco `image` apontando para uma coleção inexistente, e criar a coleção depois seria uma migração 5 → 6 — exatamente o que a sessão existe para evitar. |
+| **Alternativas** | (a) coleção nova `images: InlineImage[]`, deixando `attachments` intocada — mais barato de implementar (nenhum campo existente muda) e o que o próprio §7 sugeria primeiro, mas cria duas coleções de "arquivo pendurado no documento" com regras de lixeira, hash e teto diferentes, e a próxima sessão que precisar listar "tudo que este DB anexa" teria de unir as duas na mão; (b) adiar para a S34 — deixaria o épico com duas migrações, contra DEC-GOV-010. |
+| **Por quê** | As duas coisas são o mesmo conceito de negócio — um arquivo preso ao documento — com dois lugares de armazenamento. Um discriminador expressa isso; duas coleções escondem. E o custo real é pequeno: o discriminador é o único campo que a migração escreve, e todo código de evidência passou a filtrar por `kind` num lugar só (`listEvidences`). |
+| **Custo aceito** | A migração 4 → 5 deixa de ser "puramente aditiva" no sentido estrito: ela **escreve** um campo em registro existente. É um valor único e conhecido (todo anexo de um documento v4 é evidência), testado com fixture. E `Attachment` passou a ser união: quem tinha `attachment.relPath` precisou estreitar o tipo antes — cinco arquivos, todos de evidência. |
+| **Páginas afetadas** | `03-modelo-do-documento.md` §8.1, §10, §12.3; `14-governanca-de-alteracoes.md` §7; `14-plataforma-local.md` §7 |
+
+---
+
+## DEC-GOV-016: publicar componente aceita vigência retroativa; publicar matriz continua não aceitando
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `componentVersion/publish` aceita `effectiveFrom` no passado; `version/publish` (matriz) continua recusando com `EFFECTIVE_DATE_INVALID` (`05-regras-de-negocio.md` §1.3). Nos dois casos vale a mesma ordem: a vigência nova precisa começar **depois** da vigente. Além disso, publicar componente **exige** `effectiveFrom` (na matriz ele é opcional e cai em "agora") e **não pede nota** de publicação. |
+| **Data / gatilho** | 2026-08-14, implementação da S32a, ao escrever o teste do caminho da fundação (RN-GOV-09) e ver que a regra da matriz o tornaria impossível. |
+| **Alternativas** | (a) proibir retroativo também no componente, e dar um caminho privilegiado à fundação (um comando `component/foundation` que escrevesse a vigência sem passar pelo `publish`) — um segundo caminho para selar versão é exatamente o tipo de coisa que I3 existe para não ter; (b) liberar retroativo nos dois, uniformizando — mudaria o comportamento de publicação de matriz, que está entregue, testado e em uso, fora do escopo desta sessão e sem demanda. |
+| **Por quê** | As duas entidades têm origens diferentes. A matriz **nasce** dentro da ferramenta: a versão anterior está lá, e publicar com data no passado reescreveria uma vigência que a ferramenta afirmou. O componente **chega** com história: a S33b cadastra ~100 regras que já vigoram desde uma data anterior a qualquer uso do PolicyOps, e negar isso obrigaria a mentir a data de vigência da política inteira. A ordem entre versões, que é o que sustenta I29, continua garantida nos dois. |
+| **Custo aceito** | Duas regras de vigência no mesmo produto, o que exige a explicação acima em `03-modelo-do-documento.md` §12.1 e em `08-camada-de-comandos.md`. Fecha, para componentes, a pergunta 4 do §12 de `14-governanca-de-alteracoes.md`; para matrizes ela continua aberta na S36. |
+| **Páginas afetadas** | `03-modelo-do-documento.md` §12.1; `08-camada-de-comandos.md` §3; `14-governanca-de-alteracoes.md` §6, §12 |
+
+---
+
+## DEC-GOV-017: versão de componente não tem `ARCHIVED` — descartar rascunho é reversível
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `ComponentVersion.state` tem exatamente os três estados de `14-governanca-de-alteracoes.md` §3.2 (`DRAFT`, `PUBLISHED`, `SUPERSEDED`). Sem `ARCHIVED`, `componentVersion/discardDraft` **remove** a versão da lista, o número volta a ficar livre, e o comando tem **inverso exato** — ao contrário de `version/discardDraft` (matriz), que marca `ARCHIVED`, queima o número e é irreversível. Publicar continua irreversível nos dois. |
+| **Data / gatilho** | 2026-08-14, implementação da S32a, ao espelhar `versioning/lifecycle.ts` e esbarrar no estado que o contrato de docs/14 não tem. |
+| **Alternativas** | (a) acrescentar `ARCHIVED` ao contrato para uniformizar com a matriz — divergiria de docs/14 §3.2, que a sessão foi instruída a transcrever, e engordaria a árvore com nós de versão descartada que nenhuma tela vai mostrar; (b) remover a versão **e** manter o comando irreversível — perderia trabalho sem necessidade: o registro inteiro está em mãos no momento do descarte, e devolvê-lo é trivial. |
+| **Por quê** | O número queimado da matriz protege uma coisa concreta: a versão descartada pode ter sido comparada, citada em evidência ou vista por alguém, e reaproveitar o número confundiria a linha do tempo. O rascunho de componente antes da primeira publicação não tem esse alcance — ele nunca foi vigente, e o evento `COMPONENT_DRAFT_DISCARDED` continua no histórico append-only registrando que existiu. |
+| **Custo aceito** | Duas semânticas de descarte no produto, documentadas lado a lado em `08-camada-de-comandos.md`. Em troca, o desfazer da árvore funciona por inteiro — que é o que a digitação em volume da S33b vai exercitar o tempo todo. |
+| **Páginas afetadas** | `03-modelo-do-documento.md` §12.1; `08-camada-de-comandos.md` §3 |
+
+---
+
+## DEC-GOV-018: a árvore de política ganha tipos de evento próprios no catálogo fechado
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `DocEventType` (`03-modelo-do-documento.md` §8) recebeu oito tipos novos — `COMPONENT_CREATED`, `COMPONENT_UPDATED`, `COMPONENT_MOVED`, `COMPONENT_ARCHIVED`, `COMPONENT_DRAFT_CREATED`, `COMPONENT_DRAFT_DISCARDED`, `COMPONENT_VERSION_PUBLISHED` e `COMPONENT_VERSION_SUPERSEDED` — e `DocEvent.scope` ganhou `componentId?` e `componentVersionId?`. Editar rascunho de componente **não** gera evento, como `version/applyCellPatch` também não gera. |
+| **Data / gatilho** | 2026-08-14, implementação da S32a: `src/core/command.ts` registra que projeto e metadados de matriz gravam `events: []` justamente por não terem tipo no catálogo fechado, e a pergunta era se componente seguiria o mesmo caminho. |
+| **Alternativas** | (a) `events: []` em tudo, como projeto e metadados de matriz — a timeline da regra (US-GOV-02) e a distinção "veio de um DB × publicação direta" (RN-GOV-07) ficariam sem lastro nenhum até a S33b, e o merge perderia a prova de auditoria que decide quem alterou o quê; (b) só os do ciclo de versão, sem os da árvore — mover um nó é a operação que mais confunde numa árvore grande, e é a que mais precisa de rastro. |
+| **Por quê** | A analogia certa não é "projeto" (que não tem história própria) e sim "matriz/versão" (que tem, e por isso já tinha eventos). Um componente publicado é uma peça de política vigente: quem mudou, quando e a partir de qual DB é o produto, não um detalhe. O `scope` novo também é o que faz o merge conseguir provar qual lado mexeu num componente — sem ele, toda divergência de árvore viraria conflito manual. |
+| **Custo aceito** | O catálogo de eventos cresceu de 23 para 31 tipos, e todo mapa total por `DocEventType` (hoje só o de ícones do histórico) precisou de oito linhas. O `payload` de `COMPONENT_VERSION_PUBLISHED` carrega `changeRequestId: null` explícito para publicação direta — `null` aqui é informação (RN-GOV-07), não ausência de dado. |
+| **Páginas afetadas** | `03-modelo-do-documento.md` §8, §12; `08-camada-de-comandos.md` §3 |

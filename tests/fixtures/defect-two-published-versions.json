@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "meta": {
     "id": "bbbbbbbbbbbb",
     "name": "Fixture — duas versões PUBLISHED na mesma matriz (I2)",
@@ -187,5 +187,8 @@
   ],
   "templates": [],
   "importProfiles": [],
+  "components": [],
+  "changeRequests": [],
+  "releases": [],
   "events": []
 }

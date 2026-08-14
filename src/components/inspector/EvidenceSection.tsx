@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { useToast } from '@/components/ui/use-toast';
 import { attachEvidence, detachEvidence, listAttachments } from '@/core/document/evidence';
-import type { Attachment, AttachmentTarget } from '@/core/document/schema';
+import type { AttachmentTarget, EvidenceAttachment } from '@/core/document/schema';
 import { DomainError } from '@/core/errors';
 import {
   explorerPath,
@@ -59,7 +59,7 @@ export function EvidenceSection({ target, title = 'Evidências' }: EvidenceSecti
   const fileInput = useRef<HTMLInputElement>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [toDetach, setToDetach] = useState<Attachment | null>(null);
+  const [toDetach, setToDetach] = useState<EvidenceAttachment | null>(null);
 
   if (document === null) return null;
 
@@ -115,7 +115,7 @@ export function EvidenceSection({ target, title = 'Evidências' }: EvidenceSecti
     }
   }
 
-  async function handleOpen(attachment: Attachment): Promise<void> {
+  async function handleOpen(attachment: EvidenceAttachment): Promise<void> {
     setBusy(true);
     try {
       const blob = await downloadEvidence(attachment);

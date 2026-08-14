@@ -4,6 +4,8 @@ import { createVariable, saveVariableDomains } from '@/core/library/variables';
 import { mergeDocuments } from '@/core/merge';
 import type { MergeResolutions } from '@/core/merge';
 import { createProject } from '@/core/document/commands';
+import { createComponent } from '@/core/document/components';
+import { createComponentDraft } from '@/core/versioning/component-lifecycle';
 import { createDraft, createMatrix } from '@/core/versioning/lifecycle';
 import { applyCellPatch } from '@/core/versioning/cells';
 import { apply, coordsOf, DAY, IDS } from '../versioning/fixtures';
@@ -668,5 +670,153 @@ describe('propriedades do merge', () => {
     expect(conflicts.every((conflict) => conflict.kind !== 'PUBLISHED_CLASH')).toBe(true);
     expectValid(merged);
     expectNoPublishedVersionLost(mine, theirs, merged);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Componentes de política (schema 5) — o merge não pode perder a árvore
+// ---------------------------------------------------------------------------
+
+/**
+ * Mesmo alcance mínimo adotado na S23 para `importProfiles`/`tags`: a garantia
+ * é **não perder o dado**. Componente tem `versions` no ciclo de três estados,
+ * então ele passa pela mesma máquina das bibliotecas (união, normalização de
+ * I29, conflito campo a campo); `changeRequests`, `releases` e `attachments`
+ * entram por união pura, até a S32b/S34 lhes dar comandos.
+ */
+describe('componentes de política e entidades de governança', () => {
+  it('componente novo só de um lado entra por união, com as versões', () => {
+    const base = ancestor();
+    const mineCtx = ana();
+    const theirsCtx = bruno();
+
+    const meu = apply(
+      base.document,
+      mineCtx,
+      createComponent({ projectId: IDS.projectA, code: 'CAP_A', name: 'Capítulo da Ana', type: 'SECTION' }),
+    );
+    const dela = apply(
+      meu.document,
+      mineCtx,
+      createComponentDraft({
+        componentId: meu.data.componentId,
+        payload: { kind: 'OTHER', businessDescription: 'Visão geral do capítulo.' },
+      }),
+    ).document;
+
+    const dele = apply(
+      base.document,
+      theirsCtx,
+      createComponent({ projectId: IDS.projectA, code: 'CAP_B', name: 'Capítulo do Bruno', type: 'SECTION' }),
+    ).document;
+
+    const { merged, applied } = mergeDocuments(dela, dele);
+
+    expect(merged.components.map((component) => component.code).sort()).toEqual(['CAP_A', 'CAP_B']);
+    expect(merged.components.find((component) => component.code === 'CAP_A')!.versions).toHaveLength(1);
+    expect(applied.some((action) => action.kind === 'UNION_COMPONENT')).toBe(true);
+    expectValid(merged);
+  });
+
+  it('position dos irmãos é reconstruída 0-based por grupo, sem buraco (I28)', () => {
+    const base = ancestor();
+    const mineCtx = ana();
+    const theirsCtx = bruno();
+
+    const raiz = apply(
+      base.document,
+      mineCtx,
+      createComponent({ projectId: IDS.projectA, code: 'CAP', name: 'Capítulo', type: 'SECTION' }),
+    );
+
+    // Cada lado cria um filho do mesmo pai — os dois nascem em position 0.
+    const dela = apply(
+      raiz.document,
+      mineCtx,
+      createComponent({
+        projectId: IDS.projectA,
+        code: 'FILHO_A',
+        name: 'Filho da Ana',
+        type: 'SECTION',
+        parentId: raiz.data.componentId,
+      }),
+    ).document;
+    const dele = apply(
+      raiz.document,
+      theirsCtx,
+      createComponent({
+        projectId: IDS.projectA,
+        code: 'FILHO_B',
+        name: 'Filho do Bruno',
+        type: 'SECTION',
+        parentId: raiz.data.componentId,
+      }),
+    ).document;
+
+    const { merged } = mergeDocuments(dela, dele);
+
+    const filhos = merged.components
+      .filter((component) => component.parentId === raiz.data.componentId)
+      .sort((a, b) => a.position - b.position);
+    expect(filhos.map((component) => component.position)).toEqual([0, 1]);
+    expectValid(merged);
+  });
+
+  it('mesmo code de componente criado dos dois lados: renomeia um deles (I28)', () => {
+    const base = ancestor();
+    const mineCtx = ana();
+    const theirsCtx = bruno();
+
+    const dela = apply(
+      base.document,
+      mineCtx,
+      createComponent({ projectId: IDS.projectA, code: 'CAP', name: 'Capítulo da Ana', type: 'SECTION' }),
+    ).document;
+    const dele = apply(
+      base.document,
+      theirsCtx,
+      createComponent({ projectId: IDS.projectA, code: 'CAP', name: 'Capítulo do Bruno', type: 'SECTION' }),
+    ).document;
+
+    const { merged, conflicts } = mergeDocuments(dela, dele);
+
+    expect(conflicts.some((conflict) => conflict.kind === 'CODE_CLASH')).toBe(true);
+    expect(merged.components.map((component) => component.code).sort()).toEqual(['CAP', 'CAP_2']);
+    expectValid(merged);
+  });
+
+  it('changeRequests, releases e attachments entram por união e não somem', () => {
+    const base = ancestor();
+
+    const dela = {
+      ...base.document,
+      releases: [
+        {
+          id: 'rel000000001',
+          code: '2026.09.01',
+          status: 'PLANNED' as const,
+          createdAt: '2026-02-01T00:00:00.000Z',
+        },
+      ],
+    };
+    const dele = {
+      ...base.document,
+      releases: [
+        {
+          id: 'rel000000002',
+          code: '2026.10.01',
+          status: 'PLANNED' as const,
+          createdAt: '2026-02-02T00:00:00.000Z',
+        },
+      ],
+    };
+
+    const { merged } = mergeDocuments(dela, dele);
+
+    expect(merged.releases.map((release) => release.code)).toEqual(['2026.09.01', '2026.10.01']);
+    expect(merged.changeRequests).toEqual([]);
+    // Lista vazia não é gravada: `attachments` some do documento (docs/03 §1).
+    expect(merged).not.toHaveProperty('attachments');
+    expectValid(merged);
   });
 });

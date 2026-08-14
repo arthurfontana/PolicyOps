@@ -1,6 +1,7 @@
 # Governança de Alterações de Política (épico GOV)
 
-> **Estado**: 🔮 Planejado (sessões S32a, S32b, S33a, S33b, S34–S40) · **DECs relacionadas**:
+> **Estado**: 🚧 Em andamento — **S32a entregue** (núcleo de componentes e `schemaVersion: 5`);
+> S32b, S33a, S33b, S34–S40 planejadas · **DECs relacionadas**:
 > DEC-GOV-001 a DEC-GOV-013 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
@@ -66,9 +67,20 @@ e [`02-arquitetura.md`](02-arquitetura.md)):
   o nó da árvore do tipo `MATRIX` referencia a matriz existente (DEC-GOV-002, invariante I23).
 - `src/core/` puro, comandos com inverso, documento validado por Zod, migração aditiva de schema.
 
-## 3. Conceitos e modelo (rascunho normativo — §3.1/§3.2/§3.5/§3.6 fecham na S32a; §3.3/§3.4, na S32b)
+## 3. Conceitos e modelo
 
-### 3.1 Política, componente e hierarquia
+> ✅ **§3.1, §3.2 e §3.5 estão FECHADOS (sessão 32a).** O contrato de `PolicyComponent`,
+> `ComponentVersion`, dos payloads e das coleções novas do documento passou a viver em
+> **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §12** (componentes) e **§13**
+> (entidades de governança), com a nota de migração 4 → 5 no §10 de lá. O que segue aqui é o
+> **porquê** de cada decisão, preservado; quando os dois divergirem, **vale o docs/03**. §3.3 e §3.4
+> também já estão declaradas no schema (é uma migração só, DEC-GOV-010), mas os comandos, o workflow
+> e I30/I31 continuam sendo da S32b. §3.6 fecha o que ficou de fora.
+
+### 3.1 Política, componente e hierarquia ✅ fechada na S32a
+
+> Contrato normativo: **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §12**. O bloco
+> abaixo é o rascunho original, mantido pelo raciocínio que o acompanha.
 
 `Project` (já existente) é a Política ("Política B2C"). O documento ganha:
 
@@ -117,7 +129,11 @@ type PolicyComponent = {
   títulos de nível 1, 36 de nível 2 e 49 de nível 3 (~101 nós) — mais os nós das matrizes já
   importadas.
 
-### 3.2 Versão de componente
+### 3.2 Versão de componente ✅ fechada na S32a
+
+> Contrato normativo: **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §12.1 e §12.2**.
+> Lá está a diferença que a implementação impôs: `ComponentVersion` não tem `ARCHIVED`, o `payload`
+> é discriminado por `kind`, e `SECTION` usa `OtherPayload`.
 
 Reutiliza o ciclo `DRAFT → PUBLISHED → SUPERSEDED` das matrizes, com vigência:
 
@@ -151,7 +167,9 @@ Os demais payloads são estruturas mínimas (lista: nome/finalidade/campos; reas
 código/decisão/mensagem; variável de política: nome técnico/origem/domínio descritivo). Todos os
 campos além de `businessDescription` são opcionais — a carga inicial raramente terá tudo (§9).
 
-### 3.3 Solicitação de Alteração (DB)
+### 3.3 Solicitação de Alteração (DB) — schema declarado na S32a, comandos na S32b
+
+> Contrato normativo: **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §13**.
 
 ```ts
 type ChangeRequest = {
@@ -188,7 +206,9 @@ type ChangeRequestItem = {
 Para itens sobre componentes `MATRIX`, `draftVersionId` aponta um rascunho da **matriz** — o
 mecanismo de rascunho existente, sem duplicação.
 
-### 3.4 Release
+### 3.4 Release — schema declarado na S32a, comandos na S32b
+
+> Contrato normativo: **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §13**.
 
 ```ts
 type Release = {
@@ -207,7 +227,10 @@ Uma release agrupa CRs (`ChangeRequest.releaseId`). Publicar a release publica, 
 atômica, os rascunhos vinculados de todos os CRs `READY_FOR_RELEASE`/`SCHEDULED` dela, com a
 vigência de cada CR (RN-GOV-05).
 
-### 3.5 Novas coleções no documento
+### 3.5 Novas coleções no documento ✅ fechada na S32a
+
+> Contrato normativo: **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §1** (estrutura de
+> topo) e **§10** (nota da migração 4 → 5, com a exceção do discriminador `kind` dos anexos).
 
 `schemaVersion: 5` (o épico Plataforma ocupa a 4 com `meta.acl`, S29), migração 4→5 **puramente
 aditiva**: `components: []`, `changeRequests: []`, `releases: []`, `attachments: []`, e novos kinds
@@ -391,10 +414,30 @@ Qualquer estado exceto PUBLISHED → CANCELLED
 - **I26** — `ChangeRequest.code` e `Release.code` são únicos no documento e imutáveis após
   criação (mesma regra dos demais `code`).
 
-> **Quem implementa o quê**: I23, I24 e I27 entram na **S32a** (a árvore depende delas); RN-GOV-09
-> na **S33b** (o campo do projeto entra no schema já na S32a); I25 e I26, na **S32b**, junto dos
-> comandos de DB e release que as tornam alcançáveis. O catálogo `E-GOV-01..06` é escrito inteiro
-> na S32a; os erros de workflow ficam sem emissor até a S32b.
+> **⚠️ Os números acima foram remapeados na S32a (DEC-GOV-014).** Quando este documento foi
+> escrito, I23–I26 estavam livres; elas já tinham sido ocupadas pela ACL (S29) e pelas evidências
+> (S30) em `03-modelo-do-documento.md` §9. A correspondência definitiva é:
+>
+> | Aqui | No schema (`03-modelo-do-documento.md` §9) | Sessão |
+> |---|---|---|
+> | I23 (MATRIX/POLICY_VARIABLE espelho) | **I27** | S32a ✅ |
+> | I24 (árvore acíclica, `position`, profundidade, `code`, `tags`) | **I28** | S32a ✅ |
+> | I27 (seção versionável, mesmo ciclo) | **I29** | S32a ✅ |
+> | I25 (itens do DB congelados) | **I30** | S32b |
+> | I26 (`code` de DB e de release) | **I31** | S32b |
+>
+> A imutabilidade de `PolicyComponent.code` é garantia de **comando** (`component/update` não aceita
+> `code`), não de documento parado: I28 confere só a unicidade.
+>
+> **Quem implementa o quê**: I27, I28 e I29 entraram na **S32a** (a árvore depende delas); RN-GOV-09
+> na **S33b** (o campo do projeto entrou no schema já na S32a); I30 e I31, na **S32b**, junto dos
+> comandos de DB e release que as tornam alcançáveis. O catálogo `E-GOV-01..06` foi escrito inteiro
+> na S32a (`05-regras-de-negocio.md` §9.1 traz a correspondência com os códigos do `DomainError`);
+> os erros de workflow ficam sem emissor até a S32b.
+>
+> **RN-GOV-06 e vigência retroativa**: publicar versão de componente **aceita** data no passado, ao
+> contrário das matrizes. É o que a RN-GOV-09 exige — a fundação cadastra regras que já vigoram — e
+> fecha a pergunta 4 do §12 para componentes (`03-modelo-do-documento.md` §12.1).
 
 ## 7. Editor rico de especificação (`RichDoc`)
 
@@ -410,13 +453,14 @@ type Block =
 type InlineText = { text: string; marks?: ('bold' | 'italic' | 'code' | 'link')[]; href?: string }[];
 ```
 
-> ⚠️ **Nome já ocupado (S30).** `attachments` no topo do documento e o tipo `Attachment` passaram
-> a existir na sessão 30 com outro significado: o vínculo com o acervo de evidências
-> `_evidencias/` (`03-modelo-do-documento.md` §8.1, `14-plataforma-local.md` §7) — arquivo na
-> pasta de rede, não base64 no `.json`. A sessão que implementar o editor rico precisa escolher
-> outro nome para a coleção de imagens (`images`? `inlineAssets`?) **ou** decidir explicitamente
-> unificar as duas ideias numa coleção só com discriminador; o que não pode é reusar o nome sem
-> decidir. Ponto a fechar antes da S34, junto das perguntas abertas do §12.
+> ✅ **Nome já ocupado (S30) — resolvido na S32a (DEC-GOV-015).** `attachments` e o tipo
+> `Attachment` passaram a existir na sessão 30 com outro significado: o vínculo com o acervo de
+> evidências `_evidencias/` (`03-modelo-do-documento.md` §8.1, `14-plataforma-local.md` §7) —
+> arquivo na pasta de rede, não base64 no `.json`. A decisão foi **unificar numa coleção só com
+> discriminador**: `Attachment = EvidenceAttachment | InlineImageAttachment`, separadas por `kind`.
+> As duas são "arquivo pendurado no documento"; o que muda é onde o byte mora. O bloco `image` do
+> `RichDoc` continua com `attachmentId`, apontando um `INLINE_IMAGE`. Contrato em
+> `03-modelo-do-documento.md` §8.1.
 
 - Imagens viram `Attachment` (coleção própria no documento): base64, redimensionadas no cliente
   para ≤ 1600px e re-encodadas; teto de **300 KB por imagem** e aviso quando os anexos passarem de
