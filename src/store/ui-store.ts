@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { resolveServerToken } from '@/storage/capabilities';
 
 /**
  * Estado de UI da aplicação: navegação (SPA de arquivo único, sem
@@ -62,6 +63,30 @@ function writeLocalStorage(key: string, value: string): void {
     localStorage.setItem(key, value);
   } catch {
     /* localStorage indisponível (ex.: modo privado); segue apenas em memória */
+  }
+}
+
+/**
+ * Só um indício rápido e síncrono — não a detecção completa do modo `SERVER`
+ * (essa é assíncrona, em `usePersistenceStore.init()`). Existe para decidir,
+ * sem esperar `/api/health`, se o diálogo "como você quer ser identificado?"
+ * deve nascer aberto: se há token (`?t=` ou já guardado na sessão), a aba
+ * quase certamente foi aberta pelo servidor local, e o diálogo não deveria
+ * nem piscar na tela antes de `enterServerMode()` fechá-lo (docs/02 §6,
+ * docs/14 §5 e §8).
+ */
+function hasServerTokenHint(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return (
+      resolveServerToken({
+        location: window.location,
+        sessionStorage: window.sessionStorage,
+        replaceUrl: (url) => window.history.replaceState(null, '', url),
+      }) !== null
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -137,7 +162,7 @@ export const useUiStore = create<UiState>((set) => ({
   inspectorCollapsed: false,
   theme: readInitialTheme(),
   actor: initialActor,
-  identityDialogOpen: initialActor === null,
+  identityDialogOpen: initialActor === null && !hasServerTokenHint(),
   matrixFilter: { projectId: null, tags: [], search: '' },
 
   setView: (view) => set({ view }),

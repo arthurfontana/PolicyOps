@@ -8,7 +8,7 @@ Nada aqui pode ser presumido. A aplicação testa o ambiente na inicialização:
 
 ```ts
 type Capabilities = {
-  localServer: boolean;        // fetch('/api/health') respondeu e há token na sessão
+  localServer: boolean;        // token na sessão E fetch('/api/health') respondeu com API compatível (S27)
   fileSystemAccess: boolean;   // window.showOpenFilePicker existe E é utilizável
   origin: 'https' | 'http' | 'file' | 'other';
   indexedDB: boolean;
@@ -98,8 +98,10 @@ No modo `DOWNLOAD_ONLY` não há como reler: a aplicação avisa que a detecçã
 ## 6. Bloqueio consultivo — `src/storage/lock.ts`
 
 Nos modos `SERVER` (quem grava o lock é o servidor local, pela API) e `FULL` (quem grava é o
-navegador). O formato no disco é o mesmo, então usuários em modos diferentes se enxergam. Ao
-abrir um documento, grava-se `{nome}.lock.json` ao lado:
+navegador). O formato no disco é o mesmo, então usuários em modos diferentes se enxergam. Os dois
+modos implementam a mesma porta `AdvisoryLockPort` (`src/storage/lock.ts`) — `AdvisoryLock` sobre
+`DirectoryPort` e `ApiAdvisoryLock` sobre `POST`/`DELETE /api/document/lock` (S27) — e a interface
+não sabe qual dos dois está por trás. Ao abrir um documento, grava-se `{nome}.lock.json` ao lado:
 
 ```json
 { "holder": "Arthur", "since": "2026-08-05T12:00:00.000Z",

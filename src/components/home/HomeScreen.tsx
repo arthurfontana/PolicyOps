@@ -11,6 +11,7 @@ import {
   MODE_DETAIL,
   MODE_HEADLINE,
   MODE_RECOMMENDATION,
+  serverConnectionMessage,
   type StorageMode,
 } from '@/storage/capabilities';
 import { forgetRecent, type RecentEntry } from '@/storage/recents';
@@ -35,6 +36,7 @@ function formatWhen(iso: string): string {
 function ModeBanner({ mode }: { mode: StorageMode }) {
   const degraded = usePersistenceStore((s) => s.degraded);
   const capabilities = usePersistenceStore((s) => s.capabilities);
+  const serverConnection = usePersistenceStore((s) => s.serverConnection);
 
   return (
     <Card className="w-full max-w-2xl border-neutral-300 dark:border-neutral-700">
@@ -42,12 +44,20 @@ function ModeBanner({ mode }: { mode: StorageMode }) {
         <CardTitle className="flex items-center gap-2 text-sm">
           <Info className="h-4 w-4" aria-hidden />
           <span data-testid="mode-headline">{MODE_HEADLINE[mode]}</span>
-          <Badge variant={mode === 'FULL' ? 'default' : 'secondary'}>{mode}</Badge>
+          <Badge variant={mode === 'DOWNLOAD_ONLY' ? 'secondary' : 'default'}>{mode}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2 p-4 pt-0 text-xs text-neutral-600 dark:text-neutral-400">
         <p>{MODE_DETAIL[mode]}</p>
         {mode === 'DOWNLOAD_ONLY' && <p>{MODE_RECOMMENDATION}</p>}
+        {mode === 'SERVER' && serverConnection !== null && (
+          <p className="font-medium text-neutral-700 dark:text-neutral-300">
+            {serverConnectionMessage(
+              serverConnection.dataDir,
+              serverConnection.displayName ?? serverConnection.username ?? '…',
+            )}
+          </p>
+        )}
         {degraded !== null && (
           <p className="flex items-start gap-2 rounded-md bg-amber-50 p-2 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -169,25 +179,27 @@ export function HomeScreen() {
       )}
 
       <div className="grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
-        <Card>
-          <CardHeader className="gap-1 p-4 pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FolderOpen className="h-4 w-4" /> Abrir arquivo
-            </CardTitle>
-            <CardDescription>Escolha um politicas.json existente.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 pt-2">
-            <Button className="w-full" onClick={() => void handleOpenWithPicker()} disabled={isOpeningFile}>
-              {isOpeningFile ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> Abrindo…
-                </>
-              ) : (
-                'Abrir'
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+        {mode !== 'SERVER' && (
+          <Card>
+            <CardHeader className="gap-1 p-4 pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FolderOpen className="h-4 w-4" /> Abrir arquivo
+              </CardTitle>
+              <CardDescription>Escolha um politicas.json existente.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 pt-2">
+              <Button className="w-full" onClick={() => void handleOpenWithPicker()} disabled={isOpeningFile}>
+                {isOpeningFile ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> Abrindo…
+                  </>
+                ) : (
+                  'Abrir'
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="gap-1 p-4 pb-2">
@@ -220,21 +232,23 @@ export function HomeScreen() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="gap-1 p-4 pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <History className="h-4 w-4" /> Recentes
-            </CardTitle>
-            <CardDescription>
-              {mode === 'FULL'
-                ? 'Reabre pelo handle guardado, sem novo seletor.'
-                : 'Neste modo o navegador pede o arquivo de novo — o handle não pode ser guardado.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 pt-2">
-            <RecentsList />
-          </CardContent>
-        </Card>
+        {mode !== 'SERVER' && (
+          <Card>
+            <CardHeader className="gap-1 p-4 pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <History className="h-4 w-4" /> Recentes
+              </CardTitle>
+              <CardDescription>
+                {mode === 'FULL'
+                  ? 'Reabre pelo handle guardado, sem novo seletor.'
+                  : 'Neste modo o navegador pede o arquivo de novo — o handle não pode ser guardado.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4 pt-2">
+              <RecentsList />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="gap-1 p-4 pb-2">

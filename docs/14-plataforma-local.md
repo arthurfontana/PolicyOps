@@ -250,9 +250,43 @@ Regras de negócio:
 
 O modo `SERVER` entra pela interface existente: `server-adapter.ts` implementa `StorageAdapter`
 sobre `fetch` — `save()` traduz `409` em `{ ok: false, reason: 'CONFLICT', remote }` e o fluxo de
-conflito/merge da aplicação **não muda uma linha**. Funcionalidades exclusivas do servidor
-(evidências, whoami, papéis) ficam atrás de um `ServerFeatures` opcional que os componentes
-consultam; nos outros modos os pontos de entrada aparecem desabilitados com o motivo.
+conflito/merge da aplicação **não muda uma linha**. Funcionalidades exclusivas do servidor futuras
+(evidências, papéis na interface — S29/S30) ficam atrás de um recurso opcional que os componentes
+consultam; nos outros modos os pontos de entrada aparecem desabilitados com o motivo. `whoami` já é
+usado desde a S27, mas só para resolver o nome que carimba `savedBy` — ver "Detalhamento fechado na
+S27" abaixo.
+
+### Detalhamento fechado na S27 (DEC-PLAT-002)
+
+- **Token**: `capabilities.ts` lê `?t=` da URL uma vez, guarda em `sessionStorage` e limpa a URL
+  via `history.replaceState` — ele não deve sobreviver num histórico de navegação nem ser colado
+  por engano. Recarregar a aba ou navegar por hash lê o token de volta do `sessionStorage`, sem
+  precisar do `?t=` de novo. `Capabilities.localServer` só é `true` com token presente **e**
+  `GET /api/health` respondendo com `X-PolicyOps-Api` compatível — API mais nova que a do front
+  vira aviso (`degraded`) na tela inicial, nunca "tentar mesmo assim" (mesma regra do
+  `schemaVersion`).
+- **`force` só destrava o lock, nunca o `baseHash`** (DEC-PLAT-002): "sobrescrever mesmo
+  assim"/"mesclar" no modo `SERVER` funcionam guardando o `remoteHash` do último `409` e mandando-o
+  como `baseHash` do `PUT` seguinte — não existe "ignorar o disco" como no modo `FULL`. Se alguém
+  salvar de novo nesse intervalo, o próximo `PUT` ainda recebe `409`.
+- **`423` fora do fluxo de lock** (defesa em profundidade do `PUT /api/document`, pouco comum na
+  prática porque a interface já bloqueia `save()` enquanto o lock é de outra pessoa): como
+  `SaveResult` não tem variante de bloqueio, `server-adapter.ts` traduz em
+  `{ reason: 'PERMISSION' }`, citando quem detém o bloqueio.
+- **Lock via API**: `lock.ts` ganhou a porta `AdvisoryLockPort`, implementada por `AdvisoryLock`
+  (modo `FULL`, sobre `DirectoryPort`) e `ApiAdvisoryLock` (modo `SERVER`, sobre
+  `POST`/`DELETE /api/document/lock`) — mesmo `{nome}.lock.json` em disco, mesmo `LockAcquisition`;
+  a interface (banner, "editar assim mesmo") não sabe qual dos dois está por trás. O heartbeat de
+  `ApiAdvisoryLock` nunca manda `force: true`: o servidor libera a renovação sozinho quando o lock
+  já é meu, e mandar `force` reivindicaria de volta um lock que outra pessoa legitimamente tomou
+  depois de obsoleto.
+- **Identidade** (ADR-003, adiantado da S27): `GET /api/whoami` resolve `savedBy` e o nome exibido
+  na barra de status; o diálogo "como você quer ser identificado?" não abre no modo `SERVER`. A ACL
+  de papéis (`meta.acl`, enforcement na interface e no servidor) continua sendo a S29 — até lá,
+  `whoami` sempre devolve `roles: ['PUBLISHER']` (modo aberto).
+- **Sem seletor, sem "salvar como", sem recentes**: o arquivo é fixo pela pasta que o servidor
+  serve. `saveAs()` e `openFromDrop()` devolvem falha clara em vez de abrir qualquer coisa;
+  `openRecent()` devolve `null` sempre — a tela inicial esconde os cartões correspondentes.
 
 ## 9. Distribuição e instalação
 
