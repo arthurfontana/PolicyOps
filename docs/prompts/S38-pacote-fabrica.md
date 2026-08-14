@@ -18,7 +18,7 @@
 > ### Estado atual
 > DBs publicáveis com itens, rascunhos, critérios, testes e vigência (S36). `RichDoc` renderiza no
 > editor (S34). Export existente cobre CSV/JSON/PNG/impressão de matriz. `Project` ainda não tem
-> `factoryTemplate` na prática (schema da S32 prevê).
+> `factoryTemplate` na prática (schema da S32a prevê).
 >
 > ### Objetivo
 > Um clique gera, de um DB aprovado, o documento no padrão dos DBs atuais — boilerplate incluído —

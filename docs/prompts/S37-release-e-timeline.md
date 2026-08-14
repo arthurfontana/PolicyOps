@@ -15,7 +15,7 @@
 >
 > ### Estado atual
 > S36 entregou `changeRequest/publish` atômico e o vínculo item↔rascunho. `Release` existe no
-> schema (S32) sem tela. A timeline de matriz (S15) é o padrão visual de referência.
+> schema desde a S32a, com comandos desde a S32b, sem tela. A timeline de matriz (S15) é o padrão visual de referência.
 >
 > ### Objetivo
 > DBs aprovados agrupam-se numa release datada, publicam juntos, e a evolução da política vira uma

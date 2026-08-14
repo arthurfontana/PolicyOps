@@ -1,24 +1,33 @@
 # Sessão 33 — Árvore da política e cadastro de regras
 
-**Modelo:** `Sonnet` · **Depende de:** S32 · **Épico/Marco:** Governança (M10)
+**Modelo:** `Sonnet` · **Depende de:** S32a · **Épico/Marco:** Governança (M10)
+· **Trilha antecipada:** 2 de 3 (32a → 33 → 40)
 
-> **Por que Sonnet:** composição de telas sobre contratos que a S32 já fechou (comandos de árvore
+> **Por que Sonnet:** composição de telas sobre contratos que a S32a já fechou (comandos de árvore
 > e de versão prontos e testados). Não há invariante nova nem combinatória — é transcrição fiel de
 > `docs/14` §4 (US-GOV-01/02) para React.
+
+> **A próxima sessão é a carga (S40).** A carga inicial da política foi antecipada (DEC-GOV-010):
+> logo depois desta sessão a árvore recebe a política real de uma vez — centenas de componentes
+> todos com `reviewStatus: PENDING_REVIEW`. Duas consequências para o que você constrói aqui:
+> a árvore precisa continuar utilizável nessa ordem de grandeza (alerta em 300, teto de 1.000 por
+> projeto, `docs/14` §3.1), e `reviewStatus`/`origin` não são detalhe de canto — são o que o
+> usuário vai usar para varrer o resultado da carga.
 
 ## Prompt
 
 > Você está implementando a Sessão 33 do PolicyOps — a árvore da política e o cadastro estruturado
-> de componentes, sobre o modelo entregue na S32.
+> de componentes, sobre o modelo entregue na S32a.
 >
 > **Leia antes de começar:** `docs/14-governanca-de-alteracoes.md` §3.1–3.2, §4 (US-GOV-01/02),
 > §6 (RN-GOV-06/07); `docs/03-modelo-do-documento.md` (schema 5); `docs/07-ux-e-editor.md`
 > (padrões de shell, inspector e diálogos); DEC-GOV-001/002.
 >
 > ### Estado atual
-> A S32 entregou schema 5, comandos de árvore (`component/*`) e ciclo de versão
+> A S32a entregou schema 5, comandos de árvore (`component/*`) e ciclo de versão
 > (`componentVersion/*`), tudo em `src/core/` com testes. Não existe nenhuma tela de componentes.
-> O shell, a barra lateral por projeto e os padrões de inspector vêm das S09/S11/S13.
+> O shell, a barra lateral por projeto e os padrões de inspector vêm das S09/S11/S13. As entidades
+> de DB e release existem no schema mas não têm comandos nem tela (S32b/S35) — não as exiba.
 >
 > ### Objetivo
 > O usuário monta a hierarquia da política, cadastra regras com campos estruturados e as versiona
@@ -26,7 +35,9 @@
 >
 > ### Escopo
 > 1. **Árvore por projeto** na navegação: expandir/recolher, busca por nome/código, contagem por
->    seção, criar/renomear/mover (drag ou menu)/arquivar componente. Nó MATRIX mostra estado e
+>    seção, filtro por `reviewStatus` (a carga da S40 chega inteira em `PENDING_REVIEW` e é assim
+>    que o usuário varre o que ainda precisa validar), criar/renomear/mover (drag ou
+>    menu)/arquivar componente. Nó MATRIX mostra estado e
 >    vigência da matriz referenciada e navega para ela; criar nó MATRIX = escolher matriz do
 >    projeto ainda não referenciada (I23).
 > 2. **Inspector de componente** por tipo: formulário do `RulePayload` (e payloads de LIST,
@@ -46,6 +57,8 @@
 > ### Critérios de aceite
 > - Cadastro da amostra real do épico (Decisões Soberanas → Goodlist, Regras Duras → Dívida > 5k)
 >   navegável e versionável de ponta a ponta.
+> - A árvore continua utilizável com ~300 componentes em 4 níveis (fixture sintética): expandir,
+>   buscar e filtrar sem travar — é o volume que a S40 vai despejar de uma vez.
 > - Grid e telas existentes intactos (nenhuma regressão nos E2E atuais).
 > - `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes; 1,5 MB ok;
 >   `dist/PolicyOps.html` no commit.
