@@ -1,10 +1,14 @@
 # Sessão 35 — Solicitação de Alteração (DB) e workflow
 
-**Modelo:** `Sonnet` · **Depende de:** S33, S34 · **Épico/Marco:** Governança (M11)
+**Modelo:** `Sonnet` · **Depende de:** S32b, S33, S34 · **Épico/Marco:** Governança (M11)
 
-> **Por que Sonnet:** a máquina de estados, as validações e os comandos vieram prontos da S32; o
+> **Por que Sonnet:** a máquina de estados, as validações e os comandos vieram prontos da S32b; o
 > editor rico, da S34. Esta sessão transcreve o grafo e os formulários de `docs/14` §3.3–§5 em
 > telas — CRUD e composição, sem invariante nova.
+
+> **Atenção à ordem:** a S32b (núcleo de DB, release e workflow) foi separada da S32a quando a
+> carga da política foi antecipada (DEC-GOV-010). Ela **não** é opcional e **não** foi executada
+> na trilha antecipada — confirme que está entregue antes de começar esta sessão.
 
 ## Prompt
 
@@ -16,9 +20,10 @@
 > abertas, **pare e pergunte antes de implementar numeração e papéis**); DEC-GOV-003/004.
 >
 > ### Estado atual
-> S32: `ChangeRequest`, comandos de transição/aprovação e erros E-GOV testados. S33: árvore de
-> componentes com versão vigente consultável. S34: `RichDocEditor` pronto para reuso. Nenhuma
-> tela de DB existe.
+> S32a: schema 5 e componentes versionados. S32b: `ChangeRequest`, `Release`, comandos de
+> transição/aprovação e erros E-GOV testados. S33: árvore de componentes com versão vigente
+> consultável. S40: a política real já está carregada na árvore. S34: `RichDocEditor` pronto para
+> reuso. Nenhuma tela de DB existe.
 >
 > ### Objetivo
 > O analista cria, documenta e submete um DB multi-componente; o gestor revisa numa fila e

@@ -604,8 +604,8 @@ real.
 | **Data / gatilho** | 2026-08-13, análise da Especificação Funcional da Jornada de Gestão de Alterações + documento real *Filtros e Critérios de Crédito B2C*. |
 | **Alternativas** | (a) uma entidade "Regra" plana, sem árvore — não representa o sumário hierárquico real do documento de política (4 níveis) nem permite a fotografia histórica da política inteira; (b) forçar tudo (regras, listas, reason codes) a virar matriz — regra textual não é grid, produziria matrizes 1×1 artificiais e mataria a legibilidade; (c) documento rico único versionado por seção — perde o vínculo componente↔DB↔versão que é o coração da rastreabilidade pedida. |
 | **Por quê** | O princípio da spec funcional (§33) é explícito: plataforma comum de governança com representações próprias por tipo. Compartilhar identificação, versão, vigência, histórico e relacionamento com alterações — e nada além — é exatamente o que o `versioning/` existente já sabe fazer; payloads tipados dão a cada componente sua forma sem inventar um segundo mecanismo de versão. |
-| **Custo aceito** | Um schema novo grande (S32) e telas de árvore/CRUD (S33). Tetos definidos para não degradar: profundidade 6, alerta em 300 e teto de 1.000 componentes por projeto. |
-| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3; `03-modelo-do-documento.md` (S32) |
+| **Custo aceito** | Um schema novo grande (S32a) e telas de árvore/CRUD (S33). Tetos definidos para não degradar: profundidade 6, alerta em 300 e teto de 1.000 componentes por projeto. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3; `03-modelo-do-documento.md` (S32a) |
 
 ---
 
@@ -709,7 +709,20 @@ real.
 | **Alternativas** | Espalhar os campos por dentro de `Project`/`Matrix` sem subir o schema — esconderia uma mudança estrutural grande atrás de campos opcionais e quebraria a regra de que forma nova de documento = versão nova de schema. |
 | **Por quê** | Mesmo padrão das migrações 2→3 (S23) e 3→4 (S29), que já provaram o caminho: aditiva, testada com documento real da versão anterior e com a cadeia completa desde v1. |
 | **Custo aceito** | Documentos salvos por um `PolicyOps.html` novo não abrem em versões antigas do app — já é assim entre versões de schema anteriores; o aviso de versão existente cobre. |
-| **Páginas afetadas** | `03-modelo-do-documento.md` §1, §10 (S32); `14-governanca-de-alteracoes.md` §3.5 |
+| **Páginas afetadas** | `03-modelo-do-documento.md` §1, §10 (S32a); `14-governanca-de-alteracoes.md` §3.5 |
+
+---
+
+## DEC-GOV-010: a carga da política é antecipada; a S32 vira S32a (componentes) + S32b (DB e workflow)
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A carga inicial da política (S40) sai do fim do épico e passa a ser a terceira sessão: a ordem de execução da Governança vira **S32a → S33 → S40 → S34 → S32b → S35 → S36 → 37/38 → 39**. Para isso, a antiga S32 é dividida: a **S32a** entrega `schemaVersion: 5` **inteiro** (uma única migração 4→5, com `ChangeRequest`/`Release`/`Attachment`/`RichDoc` já declarados), as invariantes de árvore (I23, I24 — incluindo unicidade de `PolicyComponent.code`), os comandos `component/*` e `componentVersion/*`; a **S32b** entrega o que só o Diário de Bordo consome (comandos de `ChangeRequest`/`Release`, grafo de 12 estados, aprovações, I25 e I26) e passa a ser pré-requisito da S35, não da S33/S40. O prompt de conversão Word → Markdown, que era entregável da S40, entra como rascunho em `14-governanca-de-alteracoes.md` §9.1 já neste replanejamento, porque não depende de código e é o que permite preparar o conteúdo em paralelo. |
+| **Data / gatilho** | 2026-08-14, replanejamento pedido antes de iniciar a S32: avaliar o produto com a política vigente dentro, e não com dados de exemplo, antes de investir no resto do épico. |
+| **Alternativas** | (a) Executar 32 → 33 → 40 sem dividir nada, como `09-roadmap-de-entregas.md` já recomendava — mantém tudo mais simples, mas coloca o grafo de 12 estados, aprovações e I25/I26 (a metade mais cara e arriscada da S32) no caminho crítico de uma carga que não usa nada disso; (b) juntar árvore e carga numa sessão só, chegando ao conteúdo em duas sessões — sessão grande demais (UI de árvore + parser + assistente de 3 passos), com risco alto de ser cortada no meio; (c) dividir também o `schemaVersion`, deixando DB/release para uma migração 5→6 — churn de schema por conveniência de sequenciamento, contra DEC-GOV-009. |
+| **Por quê** | O valor de olhar para a política real cedo é de avaliação, não de código: a árvore com 4 níveis, centenas de componentes e o texto de verdade responde perguntas de modelagem (profundidade, tipos, granularidade, origem) que nenhuma fixture inventada responde — e responde **antes** do editor rico (S34), do DB (S35) e da fotografia histórica (S39), que são construídos em cima dessas respostas. A divisão respeita o critério de corte que o épico já usa: o que a carga precisa é a árvore; o resto é do Diário de Bordo. |
+| **Custo aceito** | Duas sessões numeradas com sufixo (precedente do 17a/17b/17c em `09`) e uma S32b que fica declarada no schema mas sem comandos por três sessões — código morto benigno, coberto pelo teste de migração. A S33 é construída sabendo que a carga vem logo atrás (volume de ~300 componentes, filtro por `reviewStatus`), o que é requisito antecipado, não retrabalho. Se a carga revelar que o modelo de componente precisa mudar, a mudança cai numa base pequena (S32a + S33) em vez de no épico inteiro — parte do motivo de antecipar. |
+| **Páginas afetadas** | `09-roadmap-de-entregas.md`; `14-governanca-de-alteracoes.md` (cabeçalho, §3, §6, §9); `docs/prompts/S32a`, `S32b`, `S33`, `S35`, `S40` e o índice de `docs/prompts/README.md` |
 
 ---
 

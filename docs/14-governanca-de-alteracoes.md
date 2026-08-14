@@ -1,8 +1,14 @@
 # Governança de Alterações de Política (épico GOV)
 
-> **Estado**: 🔮 Planejado (sessões S32–S40) · **DECs relacionadas**: DEC-GOV-001 a DEC-GOV-009
-> em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do épico; os contratos de
-> schema fecham na S32 e passam a viver em [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
+> **Estado**: 🔮 Planejado (sessões S32a, S32b, S33–S40) · **DECs relacionadas**: DEC-GOV-001 a
+> DEC-GOV-010 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do épico; os
+> contratos de schema fecham na S32a e passam a viver em
+> [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
+>
+> **Ordem de execução (DEC-GOV-010)**: a carga inicial da política (§9, S40) foi antecipada para
+> logo depois da árvore — **S32a → S33 → S40** —, para o épico continuar sendo construído sobre a
+> política real e não sobre dados de exemplo. O que só o Diário de Bordo consome (DB, release,
+> grafo de estados, I25/I26) saiu da antiga S32 e virou a **S32b**, pré-requisito da S35.
 
 ## 1. Contexto e problema
 
@@ -50,7 +56,7 @@ e [`02-arquitetura.md`](02-arquitetura.md)):
   o nó da árvore do tipo `MATRIX` referencia a matriz existente (DEC-GOV-002, invariante I23).
 - `src/core/` puro, comandos com inverso, documento validado por Zod, migração aditiva de schema.
 
-## 3. Conceitos e modelo (rascunho normativo — fecha na S32)
+## 3. Conceitos e modelo (rascunho normativo — §3.1/§3.2/§3.5 fecham na S32a; §3.3/§3.4, na S32b)
 
 ### 3.1 Política, componente e hierarquia
 
@@ -174,9 +180,14 @@ vigência de cada CR (RN-GOV-05).
 ### 3.5 Novas coleções no documento
 
 `schemaVersion: 5` (o épico Plataforma ocupa a 4 com `meta.acl`, S29), migração 4→5 **puramente
-aditiva**: `components: []`, `changeRequests: []`, `releases: []`, e novos kinds de catálogo
-(`MOTIVATOR`, `IMPACT_CATEGORY`). Nenhum campo existente muda de forma. Nota de migração em
-`03-modelo-do-documento.md` §10 (S32).
+aditiva**: `components: []`, `changeRequests: []`, `releases: []`, `attachments: []`, e novos kinds
+de catálogo (`MOTIVATOR`, `IMPACT_CATEGORY`). Nenhum campo existente muda de forma. Nota de
+migração em `03-modelo-do-documento.md` §10 (S32a).
+
+O schema **não** acompanha a divisão S32a/S32b: as entidades de DB, release e anexo entram
+declaradas e migradas já na S32a, mesmo sem comando nenhum que as escreva, para que exista uma
+única migração 4→5 (DEC-GOV-010). A S32b só liga comandos e invariantes sobre uma forma de
+documento que já é a definitiva.
 
 ## 4. Histórias de usuário
 
@@ -298,11 +309,16 @@ Qualquer estado exceto PUBLISHED → CANCELLED
 - **I23** — Componente `MATRIX` tem `matrixId` válido, do mesmo projeto, e `versions: []`; nenhum
   outro tipo tem `matrixId`. Uma matriz é referenciada por no máximo um componente.
 - **I24** — A árvore é acíclica; `parentId` aponta componente do mesmo projeto; `position` sem
-  buracos entre irmãos; profundidade ≤ 6.
+  buracos entre irmãos; profundidade ≤ 6; `PolicyComponent.code` único no projeto e imutável após
+  a criação (§3.1) — é esta parte que a carga inicial usa para bloquear duplicata (`E-GOV-06`).
 - **I25** — DB com status ≥ `APPROVED` tem itens imutáveis; `draftVersionId` de um item aponta
   rascunho cujo `changeRequestId` é o próprio DB.
 - **I26** — `ChangeRequest.code` e `Release.code` são únicos no documento e imutáveis após
   criação (mesma regra dos demais `code`).
+
+> **Quem implementa o quê**: I23 e I24 entram na **S32a** (a árvore e a carga dependem delas);
+> I25 e I26, na **S32b**, junto dos comandos de DB e release que as tornam alcançáveis. O catálogo
+> `E-GOV-01..06` é escrito inteiro na S32a; os erros de workflow ficam sem emissor até a S32b.
 
 ## 7. Editor rico de especificação (`RichDoc`)
 
@@ -359,10 +375,18 @@ Zero rede em runtime ⇒ a conversão de Word/PDF **não acontece dentro da ferr
    ```markdown
    ### Dívida Acima de R$ 5.000            <!-- vira RULE -->
    Bloqueia o cliente com dívida ≥ R$ 5.000…
+   > Tipo: RULE
+   > Código: REGRA_DIVIDA_5000
    > Definição técnica: Aging > 0 e Valor >= 5000
    > Reason code: DV01
    > Fonte: Filtros e Critérios B2C, p. 10
    ```
+
+   Marcadores reconhecidos, todos opcionais: `> Tipo:` (vence a heurística), `> Código:` (na
+   ausência, o `code` é derivado do nome — maiúsculas, sem acento, `_` no lugar de espaço, com
+   sufixo numérico em caso de colisão), `> Definição técnica:`, `> Entradas:`, `> Condições:`,
+   `> Resultado:`, `> Reason code:`, `> Dependências:`, `> Fonte:` (vira `origin`), `> Notas:`.
+   O texto solto abaixo do heading vira `businessDescription`; nada vira `spec`/`RichDoc` na carga.
 3. Tela de revisão mostra a árvore proposta com tipo inferido editável; nada entra sem confirmar.
 4. Todo componente importado nasce com `origin` preenchido e `reviewStatus: 'PENDING_REVIEW'`;
    promover a `VALIDATED` é ação explícita. A primeira versão nasce `PUBLISHED` com
@@ -370,6 +394,43 @@ Zero rede em runtime ⇒ a conversão de Word/PDF **não acontece dentro da ferr
    matrizes.
 5. Reimportação do mesmo arquivo identifica componentes por `code` e propõe apenas diferenças —
    escopo da fase 2 do épico; a fase 1 só bloqueia duplicata de `code` (`E-GOV-06`).
+
+### 9.1 Prompt de conversão (rascunho — fecha na S40, em `10-guia-do-usuario.md`)
+
+O passo 1 não depende de nada implementado: **converter o Word já é possível hoje**, e é o que faz
+a S40 nascer com a política real em vez de um exemplo inventado (DEC-GOV-010). Cole o prompt
+abaixo numa IA externa junto com o documento de política, confira o resultado, e guarde o `.md`.
+
+```text
+Converta o documento de política de crédito em anexo para Markdown estruturado, seguindo
+exatamente estas regras:
+
+1. A hierarquia do documento vira hierarquia de headings (#, ##, ###, ####), no máximo 6 níveis.
+   Um heading que só agrupa outros é uma seção; não invente seções que não existem no documento.
+2. Cada regra, lista, reason code ou variável de política vira um heading próprio, seguido de um
+   parágrafo em linguagem de negócio descrevendo o que ela faz hoje (o comportamento vigente).
+3. Logo abaixo desse parágrafo, acrescente as linhas de marcador que o documento sustentar —
+   nunca invente conteúdo, omita o marcador se a informação não estiver no documento:
+   > Tipo: SECTION | RULE | LIST | REASON_CODE | POLICY_VARIABLE | OTHER
+   > Código: IDENTIFICADOR_EM_MAIUSCULAS_COM_UNDERLINE
+   > Definição técnica: a condição como aparece no documento
+   > Entradas: variáveis ou campos usados, separados por vírgula
+   > Condições: quando a regra é avaliada
+   > Resultado: Aprovar | Reprovar | Derivar para Mesa | Continuar | ...
+   > Reason code: códigos citados, separados por vírgula
+   > Dependências: códigos de outros itens deste mesmo documento
+   > Fonte: nome do documento e página/seção de origem
+   > Notas: qualquer ressalva relevante
+4. Matrizes e tabelas de corte NÃO devem virar tabelas Markdown: crie o heading com
+   "> Tipo: OTHER" e descreva em uma frase o que a tabela decide, citando a fonte. As matrizes
+   entram na ferramenta por outro caminho.
+5. Não resuma nem reescreva a política: preserve os números, os nomes e os termos do documento.
+   Se algum trecho estiver ambíguo, mantenha o texto original e acrescente "> Notas: revisar".
+6. Saída: um único bloco de Markdown, sem comentários seus antes ou depois.
+```
+
+O `.md` gerado é revisado por humano antes da carga — a tela de revisão do passo 3 é a segunda
+barreira, não a primeira.
 
 ## 10. Cenários de teste (seleção — as sessões detalham os demais)
 

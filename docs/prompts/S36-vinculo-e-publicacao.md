@@ -18,7 +18,7 @@
 >
 > ### Estado atual
 > S35 entregou o DB completo até `APPROVED`, sem vínculo com versões. Rascunhos de componente
-> (S32/S33) e de matriz (mecanismo original) existem e publicam individualmente. `import/apply`
+> (S32a/S33) e de matriz (mecanismo original) existem e publicam individualmente. `import/apply`
 > (S24) é o precedente de aplicação atômica em lote.
 >
 > ### Objetivo

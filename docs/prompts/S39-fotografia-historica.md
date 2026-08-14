@@ -17,7 +17,7 @@
 > DEC-GOV-002 (as duas fontes da fotografia).
 >
 > ### Estado atual
-> Componentes versionados com vigência (S32/S33/S36), matrizes com `getPortfolioAt` (S15), diff de
+> Componentes versionados com vigência (S32a/S33/S36), matrizes com `getPortfolioAt` (S15), diff de
 > matriz (S14), diff de payload/RichDoc (S34/S36), releases publicadas (S37 — se ainda não
 > executada, a comparação release × release fica condicionada e o restante não bloqueia).
 >
