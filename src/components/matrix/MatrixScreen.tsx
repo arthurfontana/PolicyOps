@@ -8,6 +8,8 @@ import {
   History,
   LayoutTemplate,
   Minus,
+  Pin,
+  PinOff,
   Plus,
   Redo2,
   RotateCcw,
@@ -51,7 +53,7 @@ import { pngFileName } from '@/lib/export-png';
 import { formatDateBR } from '@/lib/format';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
-import { useEditorStore } from '@/store/editor-store';
+import { useEditorStore, MAX_BOARD_ITEMS } from '@/store/editor-store';
 import { useUiStore } from '@/store/ui-store';
 
 /** Acima disso, limpar pelas teclas Delete/Backspace pede confirmação (docs/07 §5/§8). */
@@ -86,6 +88,9 @@ export function MatrixScreen() {
   const selectCoords = useEditorStore((s) => s.selectCoords);
   const setCompareVersions = useEditorStore((s) => s.setCompareVersions);
   const requestTemplateFromMatrix = useEditorStore((s) => s.requestTemplateFromMatrix);
+  const boardItems = useEditorStore((s) => s.boardItems);
+  const pinToBoard = useEditorStore((s) => s.pinToBoard);
+  const unpinFromBoard = useEditorStore((s) => s.unpinFromBoard);
 
   const dispatch = useDocumentStore((s) => s.dispatch);
   const undo = useDocumentStore((s) => s.undo);
@@ -293,6 +298,23 @@ export function MatrixScreen() {
     setView('compare');
   }
 
+  const isPinnedToBoard = boardItems.some((item) => item.matrixId === matrix!.id);
+
+  function toggleBoardPin() {
+    if (isPinnedToBoard) {
+      unpinFromBoard(matrix!.id);
+      return;
+    }
+    if (boardItems.length >= MAX_BOARD_ITEMS) {
+      toast({
+        title: 'Comparação cheia',
+        description: `Só é possível comparar até ${MAX_BOARD_ITEMS} matrizes de uma vez. Remova uma antes de adicionar outra.`,
+      });
+      return;
+    }
+    pinToBoard(matrix!.id, version.id);
+  }
+
   function triggerPendingPulse() {
     setPulsePending(true);
     if (pulseTimeoutRef.current !== null) window.clearTimeout(pulseTimeoutRef.current);
@@ -441,6 +463,20 @@ export function MatrixScreen() {
           )}
 
           <span aria-hidden className="mx-0.5 h-4 w-px bg-neutral-200 dark:bg-neutral-800" />
+          <Button
+            type="button"
+            variant={isPinnedToBoard ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={toggleBoardPin}
+            aria-pressed={isPinnedToBoard}
+          >
+            {isPinnedToBoard ? (
+              <PinOff className="mr-1.5 h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
+            ) : (
+              <Pin className="mr-1.5 h-3.5 w-3.5" />
+            )}
+            {isPinnedToBoard ? 'Na comparação' : 'Adicionar à comparação'}
+          </Button>
           <Button type="button" variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
             <History className="mr-1.5 h-3.5 w-3.5" /> Histórico
           </Button>

@@ -1,8 +1,8 @@
 import { forwardRef } from 'react';
 import type { Matrix, MatrixVersion } from '@/core/document/schema';
 import type { EditorView } from '@/core/queries';
-import { formatDateBR, formatDateTimeBR } from '@/lib/format';
-import { versionBadge } from '@/lib/matrix-badges';
+import { formatDateTimeBR } from '@/lib/format';
+import { versionBadge, vigenciaText } from '@/lib/matrix-badges';
 import { Grid } from './Grid';
 
 /**
@@ -15,13 +15,6 @@ export interface GridExportSnapshotProps {
   matrix: Matrix;
   version: MatrixVersion;
   view: EditorView;
-}
-
-function vigenciaText(version: MatrixVersion): string {
-  if (version.state === 'DRAFT') return 'Rascunho — ainda não publicado';
-  if (version.effectiveFrom === undefined) return 'Sem data de vigência';
-  if (version.effectiveTo === undefined) return `Vigente desde ${formatDateBR(version.effectiveFrom)}`;
-  return `Vigente de ${formatDateBR(version.effectiveFrom)} a ${formatDateBR(version.effectiveTo)}`;
 }
 
 export const GridExportSnapshot = forwardRef<HTMLDivElement, GridExportSnapshotProps>(function GridExportSnapshot(

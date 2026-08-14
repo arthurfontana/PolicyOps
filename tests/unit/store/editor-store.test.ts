@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SelectionView } from '@/core/axes/selection';
-import { useEditorStore } from '@/store/editor-store';
+import { MAX_BOARD_ITEMS, useEditorStore } from '@/store/editor-store';
 
 /**
  * O que o store da seleção faz *além* de delegar para
@@ -204,5 +204,45 @@ describe('zoom', () => {
     expect(store().zoom).toBe(1.1);
     store().zoomOut();
     expect(store().zoom).toBe(1);
+  });
+});
+
+describe('board de comparação (docs/07 §9b)', () => {
+  it('fixa e remove matrizes', () => {
+    store().pinToBoard('mtz-1', 'v1');
+    store().pinToBoard('mtz-2', 'v1');
+    expect(store().boardItems).toEqual([
+      { matrixId: 'mtz-1', versionId: 'v1' },
+      { matrixId: 'mtz-2', versionId: 'v1' },
+    ]);
+
+    store().unpinFromBoard('mtz-1');
+    expect(store().boardItems).toEqual([{ matrixId: 'mtz-2', versionId: 'v1' }]);
+  });
+
+  it('fixar a mesma matriz de novo atualiza a versão em vez de duplicar', () => {
+    store().pinToBoard('mtz-1', 'v1');
+    store().pinToBoard('mtz-1', 'v2');
+    expect(store().boardItems).toEqual([{ matrixId: 'mtz-1', versionId: 'v2' }]);
+  });
+
+  it('não fixa além de `MAX_BOARD_ITEMS`', () => {
+    for (let i = 0; i < MAX_BOARD_ITEMS + 2; i += 1) {
+      store().pinToBoard(`mtz-${i}`, 'v1');
+    }
+    expect(store().boardItems).toHaveLength(MAX_BOARD_ITEMS);
+  });
+
+  it('`clearBoard` esvazia tudo', () => {
+    store().pinToBoard('mtz-1', 'v1');
+    store().pinToBoard('mtz-2', 'v1');
+    store().clearBoard();
+    expect(store().boardItems).toEqual([]);
+  });
+
+  it('`reset` também esvazia o board', () => {
+    store().pinToBoard('mtz-1', 'v1');
+    store().reset();
+    expect(store().boardItems).toEqual([]);
   });
 });

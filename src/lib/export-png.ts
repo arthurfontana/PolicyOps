@@ -1,5 +1,5 @@
 import { toPng } from 'html-to-image';
-import { exportFileName } from '@/core/export/filename';
+import { dateStamp, exportFileName } from '@/core/export/filename';
 
 /**
  * Export PNG do grid — docs/02-arquitetura.md §2 (`html-to-image`, roda no
@@ -21,4 +21,15 @@ export async function exportNodeAsPng(node: HTMLElement, fileName: string): Prom
 /** `{matrixCode}_v{n}_{aaaammdd}.png` — mesmo esquema de nome do CSV (docs/08 §5). */
 export function pngFileName(matrixCode: string, versionNumber: number, at: Date = new Date()): string {
   return exportFileName(matrixCode, versionNumber, 'png', at);
+}
+
+/**
+ * `Comparacao_{codigos}_{aaaammdd}.png` — nome do PNG do board de
+ * comparação (§9b). Até 3 códigos no nome; além disso, `+N` no lugar do
+ * resto, para o nome do arquivo não virar uma linha inteira.
+ */
+export function boardPngFileName(matrixCodes: string[], at: Date = new Date()): string {
+  const shown = matrixCodes.slice(0, 3).join('-');
+  const rest = matrixCodes.length > 3 ? `+${matrixCodes.length - 3}` : '';
+  return `Comparacao_${shown}${rest}_${dateStamp(at)}.png`;
 }

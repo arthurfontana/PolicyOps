@@ -176,6 +176,31 @@ Rota interna `compare?a=&b=`.
 - Banner quando incomparável (pilhas de variáveis diferentes), forçando lado a lado.
 - O mesmo componente é reutilizado no conflito de salvamento (`06-persistencia-e-concorrencia.md` §5).
 
+## 9b. Board de comparação (matrizes lado a lado)
+
+Rota interna `board` (`#/board`). Diferente da tela de comparação do §9 — que compara **duas
+versões da mesma matriz** —, o board compara **qualquer conjunto de matrizes inteiras**: o caso de
+uso é levar 2 a 6 "cineminhas" (ex.: os riscos de um cluster em canais diferentes) para uma reunião
+executiva, lado a lado, sem montagem manual em PowerPoint.
+
+- **Fixar**: botão "Adicionar à comparação" (ícone alfinete) na tela de matriz e em cada linha da
+  lista de matrizes do projeto. Fixa a matriz com a versão aberta/vigente no momento; alfinete vira
+  "Na comparação" enquanto fixada. Item da sidebar **Comparação** mostra a contagem, visível de
+  qualquer tela do documento.
+- **Teto de 6** matrizes fixadas por vez (`MAX_BOARD_ITEMS`) — acima disso a leitura lado a lado
+  deixa de caber sem rolagem horizontal excessiva; tentar fixar a sétima mostra um toast e não faz
+  nada.
+- **O board**: uma coluna por matriz fixada, cada uma com cabeçalho (nome, código, versão, badge de
+  estado, vigência — mesma frase do export PNG do §12) e o grid inteiro, somente leitura, com zoom
+  compartilhado entre as colunas. Remoção individual pelo X do cabeçalho da coluna; "Limpar tudo"
+  esvazia o board sem afetar nenhuma matriz ou versão (é só estado de interface, como
+  `compareVersionIds`).
+- **Modo apresentação**: esconde todo o chrome do shell (topo, sidebar, inspector, barra de status)
+  — só o board em tela cheia. `Esc` ou o botão "Sair da apresentação" volta ao normal.
+- **Exportar imagem**: captura o board inteiro (todas as colunas visíveis) como PNG via
+  `html-to-image`, mesmo mecanismo do export de matriz única (§12) — pronto para colar num slide já
+  pronto.
+
 ## 10. Tela de vigência
 
 - Seletor de data (padrão: hoje) e de projeto. Atalhos: Hoje · Início do mês · 30/90 dias atrás · Início do ano.

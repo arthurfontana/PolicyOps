@@ -38,6 +38,19 @@ export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 2;
 const ZOOM_STEP = 0.1;
 
+/**
+ * Teto do board de comparação (§9b): acima disso a leitura lado a lado deixa
+ * de caber numa tela/projetor sem rolagem horizontal, que é exatamente o que
+ * a tela existe para evitar numa reunião.
+ */
+export const MAX_BOARD_ITEMS = 6;
+
+/** Um item fixado no board de comparação — matriz + a versão que estava aberta ao fixar. */
+export interface BoardItem {
+  matrixId: string;
+  versionId: string;
+}
+
 function clampZoom(zoom: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.round(zoom * 100) / 100));
 }
@@ -109,6 +122,16 @@ interface EditorState {
   compareSelectedKey: string | null;
 
   /**
+   * Matrizes fixadas para a comparação lado a lado (§9b, board de
+   * comparação) — diferente de `compareVersionIds`: aqui não é um par de
+   * versões da mesma matriz, é qualquer conjunto de matrizes (ex.: 3 riscos
+   * de canais diferentes) que o usuário quer ver juntos numa apresentação.
+   * Sobrevive à troca de tela porque o board é construído aos poucos,
+   * navegando entre matrizes — só é limpo em `reset()` (fecho do documento).
+   */
+  boardItems: BoardItem[];
+
+  /**
    * `false` em versão publicada, superada ou descartada. A **seleção continua
    * funcionando** — é útil para inspecionar uma versão histórica; o que a
    * flag governa é a edição (S11), não a seleção.
@@ -142,6 +165,10 @@ interface EditorState {
   closeMatrix: () => void;
   setCompareVersions: (aId: string, bId: string) => void;
   setCompareSelectedKey: (key: string | null) => void;
+  /** Fixa (ou atualiza a versão de) uma matriz no board. Sem efeito acima de `MAX_BOARD_ITEMS`. */
+  pinToBoard: (matrixId: string, versionId: string) => void;
+  unpinFromBoard: (matrixId: string) => void;
+  clearBoard: () => void;
   setEditable: (isEditable: boolean) => void;
   requestResnapshot: (request: { versionId: string; role: AxisRole } | null) => void;
   requestTemplateFromMatrix: (seed: ExtractedTemplateSeed | null) => void;
@@ -175,6 +202,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   zoom: 1,
   compareVersionIds: null,
   compareSelectedKey: null,
+  boardItems: [],
   isEditable: false,
   pendingResnapshot: null,
   pendingTemplateSeed: null,
@@ -201,6 +229,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setCompareSelectedKey: (key) => set({ compareSelectedKey: key }),
 
+  pinToBoard: (matrixId, versionId) =>
+    set((s) => {
+      if (s.boardItems.some((item) => item.matrixId === matrixId)) {
+        return { boardItems: s.boardItems.map((item) => (item.matrixId === matrixId ? { matrixId, versionId } : item)) };
+      }
+      if (s.boardItems.length >= MAX_BOARD_ITEMS) return s;
+      return { boardItems: [...s.boardItems, { matrixId, versionId }] };
+    }),
+
+  unpinFromBoard: (matrixId) =>
+    set((s) => ({ boardItems: s.boardItems.filter((item) => item.matrixId !== matrixId) })),
+
+  clearBoard: () => set({ boardItems: [] }),
+
   setEditable: (isEditable) => set({ isEditable }),
 
   requestResnapshot: (request) => set({ pendingResnapshot: request }),
@@ -223,6 +265,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       zoom: 1,
       compareVersionIds: null,
       compareSelectedKey: null,
+      boardItems: [],
       isEditable: false,
       pendingResnapshot: null,
       pendingTemplateSeed: null,

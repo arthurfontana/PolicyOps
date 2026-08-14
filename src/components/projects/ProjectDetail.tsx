@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Grid3x3, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Grid3x3, Pencil, Pin, PinOff, Plus, Trash2, Upload } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -14,7 +14,7 @@ import { listMatrices, listProjectMatrices, resolveOpenVersion } from '@/core/qu
 import { formatDateBR } from '@/lib/format';
 import { versionBadge } from '@/lib/matrix-badges';
 import { useDocumentStore } from '@/store/document-store';
-import { useEditorStore } from '@/store/editor-store';
+import { useEditorStore, MAX_BOARD_ITEMS } from '@/store/editor-store';
 import { useUiStore } from '@/store/ui-store';
 import { useImportStore } from '@/store/import-store';
 import { useToast } from '@/components/ui/use-toast';
@@ -31,6 +31,9 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const dispatch = useDocumentStore((s) => s.dispatch);
   const setSelectedProject = useEditorStore((s) => s.setSelectedProject);
   const openMatrix = useEditorStore((s) => s.openMatrix);
+  const boardItems = useEditorStore((s) => s.boardItems);
+  const pinToBoard = useEditorStore((s) => s.pinToBoard);
+  const unpinFromBoard = useEditorStore((s) => s.unpinFromBoard);
   const setView = useUiStore((s) => s.setView);
   const matrixFilter = useUiStore((s) => s.matrixFilter);
   const setMatrixFilterProject = useUiStore((s) => s.setMatrixFilterProject);
@@ -72,6 +75,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     () => (filteredIds === null ? allMatrices : allMatrices.filter((entry) => filteredIds.has(entry.matrix.id))),
     [allMatrices, filteredIds],
   );
+  const pinnedMatrixIds = useMemo(() => new Set(boardItems.map((item) => item.matrixId)), [boardItems]);
 
   if (document === null || project === null) {
     return (
@@ -88,6 +92,27 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
     const version = resolveOpenVersion(matrix);
     openMatrix(matrixId, version?.id ?? null);
     setView('matrix');
+  }
+
+  function toggleBoardPin(matrixId: string) {
+    if (pinnedMatrixIds.has(matrixId)) {
+      unpinFromBoard(matrixId);
+      return;
+    }
+    const target = document?.matrices.find((candidate) => candidate.id === matrixId);
+    const version = target === undefined ? null : resolveOpenVersion(target);
+    if (version === null) {
+      toast({ title: 'Sem versão para comparar', description: 'Esta matriz ainda não tem rascunho nem versão publicada.' });
+      return;
+    }
+    if (boardItems.length >= MAX_BOARD_ITEMS) {
+      toast({
+        title: 'Comparação cheia',
+        description: `Só é possível comparar até ${MAX_BOARD_ITEMS} matrizes de uma vez. Remova uma antes de adicionar outra.`,
+      });
+      return;
+    }
+    pinToBoard(matrixId, version.id);
   }
 
   function handleArchiveMatrix() {
@@ -241,6 +266,21 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
                   {draftVersion !== null && <Badge variant="amber">Rascunho aberto</Badge>}
                 </div>
               </button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={pinnedMatrixIds.has(matrix.id) ? 'Remover da comparação' : 'Adicionar à comparação'}
+                aria-pressed={pinnedMatrixIds.has(matrix.id)}
+                title={pinnedMatrixIds.has(matrix.id) ? 'Remover da comparação' : 'Adicionar à comparação'}
+                onClick={() => toggleBoardPin(matrix.id)}
+              >
+                {pinnedMatrixIds.has(matrix.id) ? (
+                  <PinOff className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                ) : (
+                  <Pin className="h-4 w-4" />
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="ghost"

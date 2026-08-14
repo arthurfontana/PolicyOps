@@ -26,3 +26,11 @@ export function versionBadge(version: VersionBadgeInput, now: Date = new Date())
   }
   return { label: `Vigente · v${version.number}`, variant: 'green' };
 }
+
+/** Frase de vigência por extenso — export PNG (docs/07 §12) e board de comparação (§9b). */
+export function vigenciaText(version: Pick<MatrixVersion, 'state' | 'effectiveFrom' | 'effectiveTo'>): string {
+  if (version.state === 'DRAFT') return 'Rascunho — ainda não publicado';
+  if (version.effectiveFrom === undefined) return 'Sem data de vigência';
+  if (version.effectiveTo === undefined) return `Vigente desde ${formatDateBR(version.effectiveFrom)}`;
+  return `Vigente de ${formatDateBR(version.effectiveFrom)} a ${formatDateBR(version.effectiveTo)}`;
+}

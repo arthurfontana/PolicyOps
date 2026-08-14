@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import {
   CalendarClock,
+  Columns3,
   FolderKanban,
   LayoutTemplate,
   Library,
@@ -36,6 +37,7 @@ const BOTTOM_ITEMS: NavItem[] = [
   { view: 'templates', label: 'Templates', icon: LayoutTemplate, implemented: true },
   { view: 'timeline', label: 'Vigência', icon: CalendarClock, implemented: true },
   { view: 'drafts', label: 'Rascunhos', icon: PencilLine, implemented: true },
+  { view: 'board', label: 'Comparação', icon: Columns3, implemented: true },
 ];
 
 function NavButton({
@@ -158,6 +160,7 @@ export function Sidebar() {
   const document = useDocumentStore((s) => s.document);
   const role = useEffectiveRole();
   const openDraftCount = document === null ? 0 : listOpenDrafts(document).length;
+  const boardCount = useEditorStore((s) => s.boardItems.length);
 
   return (
     <nav aria-label="Navegação principal" className="flex h-full flex-col gap-4 overflow-y-auto p-3">
@@ -179,7 +182,7 @@ export function Sidebar() {
             item={item}
             isActive={view === item.view}
             onClick={() => setView(item.view)}
-            count={item.view === 'drafts' ? openDraftCount : undefined}
+            count={item.view === 'drafts' ? openDraftCount : item.view === 'board' ? boardCount : undefined}
           />
         ))}
         {/*
