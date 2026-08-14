@@ -11,8 +11,11 @@ if exist "server\launcher.py" (
 ) else if exist "launcher.py" (
     set "SRV="
     set "DATA_DIR=."
+) else (
+    goto SEMLAUNCHER
 )
 
+if not exist "!SRV!launcher.py" goto SEMLAUNCHER
 if not exist "!SRV!.venv\Scripts\python.exe" goto SEMINSTALACAO
 
 echo Policy Matrix Studio
@@ -22,12 +25,37 @@ echo Subindo o servidor local...
 echo.
 
 "!SRV!.venv\Scripts\python.exe" "!SRV!launcher.py" --data-dir "!DATA_DIR!"
+set "PY_EXIT=%errorlevel%"
 
 echo.
-echo O servidor foi encerrado.
+if not "!PY_EXIT!"=="0" (
+    echo O servidor encerrou com erro ^(codigo !PY_EXIT!^).
+    echo.
+    echo Se a mensagem acima citar um caminho com "server\server\" duplicado, confira
+    echo se nao existe uma subpasta chamada "server" dentro da propria pasta "server\"
+    echo desta instalacao - pode ter sobrado de uma copia ou extracao anterior. Apague
+    echo essa duplicata ^(mantendo launcher.py direto em "server\"^) e tente de novo.
+    echo.
+) else (
+    echo O servidor foi encerrado.
+    echo.
+)
+pause
+exit /b !PY_EXIT!
+
+:SEMLAUNCHER
+echo Policy Matrix Studio
+echo =====================================================
+echo.
+echo Nao encontrei launcher.py nem em "server\launcher.py" nem em "launcher.py"
+echo dentro desta pasta.
+echo.
+echo Confira se nao existe uma subpasta "server" duplicada dentro da propria pasta
+echo "server\" ^(algo como "server\server\launcher.py"^) - isso costuma sobrar de uma
+echo copia ou extracao feita duas vezes. Apague a duplicata e rode iniciar.bat de novo.
 echo.
 pause
-exit /b 0
+exit /b 1
 
 :SEMINSTALACAO
 echo Policy Matrix Studio
