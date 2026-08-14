@@ -1163,6 +1163,107 @@ export function checkPositions(doc: PolicyOpsDocument): ValidationIssue[] {
   return issues;
 }
 
+// ---------------------------------------------------------------------------
+// I25 — o `target` de toda evidência aponta para entidade existente. Um anexo
+// pendurado num projeto/matriz/versão que não existe mais é um vínculo morto:
+// a interface não teria onde exibi-lo, e o arquivo no acervo ficaria órfão
+// sem ninguém perceber (docs/14-plataforma-local.md §7).
+// ---------------------------------------------------------------------------
+// #region: i25-target-de-evidencia-aponta-para-entidade-existente
+
+export function checkI25(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const attachments = doc.attachments ?? [];
+  if (attachments.length === 0) return issues;
+
+  const projectIds = new Set(doc.projects.map((project) => project.id));
+  const matrixVersionNumbers = new Map(
+    doc.matrices.map((matrix) => [matrix.id, new Set(matrix.versions.map((version) => version.number))]),
+  );
+
+  attachments.forEach((attachment, i) => {
+    const path = `attachments[${i}].target`;
+    const target = attachment.target;
+
+    if (target.kind === 'PROJECT') {
+      if (!projectIds.has(target.projectId)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I25',
+          path,
+          message: `A evidência "${attachment.fileName}" está presa a um projeto que não existe neste documento.`,
+        });
+      }
+      return;
+    }
+
+    const versions = matrixVersionNumbers.get(target.matrixId);
+    if (versions === undefined) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I25',
+        path,
+        message: `A evidência "${attachment.fileName}" está presa a uma matriz que não existe neste documento.`,
+      });
+      return;
+    }
+    if (target.kind === 'VERSION' && !versions.has(target.versionNumber)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I25',
+        path,
+        message: `A evidência "${attachment.fileName}" está presa à versão ${target.versionNumber}, que não existe nessa matriz.`,
+      });
+    }
+  });
+
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// I26 — `relPath` e `sha256` não vazios, e `relPath` único no documento.
+// Dois vínculos para o mesmo arquivo do acervo significariam que desanexar um
+// mandaria para a lixeira o arquivo que o outro ainda usa (docs/14 §7).
+// ---------------------------------------------------------------------------
+// #region: i26-rel-path-unico-e-sha256-preenchido
+
+export function checkI26(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const attachments = doc.attachments ?? [];
+  const seen = new Set<string>();
+
+  attachments.forEach((attachment, i) => {
+    const path = `attachments[${i}]`;
+    if (attachment.relPath.trim() === '') {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I26',
+        path: `${path}.relPath`,
+        message: `A evidência "${attachment.fileName}" não tem caminho no acervo — sem ele o arquivo não pode ser encontrado.`,
+      });
+    } else if (seen.has(attachment.relPath)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I26',
+        path: `${path}.relPath`,
+        message: `Mais de uma evidência aponta para o mesmo arquivo do acervo (${attachment.relPath}).`,
+      });
+    }
+    seen.add(attachment.relPath);
+
+    if (attachment.sha256.trim() === '') {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I26',
+        path: `${path}.sha256`,
+        message: `A evidência "${attachment.fileName}" não tem hash registrado — a integridade dela não teria como ser conferida.`,
+      });
+    }
+  });
+
+  return issues;
+}
+
 function runAllChecks(doc: PolicyOpsDocument): ValidationIssue[] {
   return [
     ...checkI1(doc),
@@ -1187,6 +1288,8 @@ function runAllChecks(doc: PolicyOpsDocument): ValidationIssue[] {
     ...checkI20(doc),
     ...checkI23(doc),
     ...checkI24(doc),
+    ...checkI25(doc),
+    ...checkI26(doc),
     ...checkImportProfiles(doc),
     ...checkPositions(doc),
   ];

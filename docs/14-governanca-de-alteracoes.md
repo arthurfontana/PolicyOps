@@ -318,6 +318,14 @@ type Block =
 type InlineText = { text: string; marks?: ('bold' | 'italic' | 'code' | 'link')[]; href?: string }[];
 ```
 
+> ⚠️ **Nome já ocupado (S30).** `attachments` no topo do documento e o tipo `Attachment` passaram
+> a existir na sessão 30 com outro significado: o vínculo com o acervo de evidências
+> `_evidencias/` (`03-modelo-do-documento.md` §8.1, `14-plataforma-local.md` §7) — arquivo na
+> pasta de rede, não base64 no `.json`. A sessão que implementar o editor rico precisa escolher
+> outro nome para a coleção de imagens (`images`? `inlineAssets`?) **ou** decidir explicitamente
+> unificar as duas ideias numa coleção só com discriminador; o que não pode é reusar o nome sem
+> decidir. Ponto a fechar antes da S34, junto das perguntas abertas do §12.
+
 - Imagens viram `Attachment` (coleção própria no documento): base64, redimensionadas no cliente
   para ≤ 1600px e re-encodadas; teto de **300 KB por imagem** e aviso quando os anexos passarem de
   **3 MB** no documento (o alvo de 10 MB do `.json` continua valendo). `E-GOV-05` acima do teto.

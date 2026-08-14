@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { CreateProjectDialog } from '@/components/dialogs/CreateProjectDialog';
 import { CreateMatrixDialog } from '@/components/dialogs/CreateMatrixDialog';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
+import { EvidenceSection } from '@/components/inspector/EvidenceSection';
 import { TagFilterBar } from '@/components/projects/TagFilterBar';
 import { archiveMatrix, archiveProject } from '@/core/document/commands';
 import { listMatrices, listProjectMatrices, resolveOpenVersion } from '@/core/queries';
@@ -254,6 +255,10 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
           ))}
         </div>
       )}
+
+      {/* Evidências do projeto inteiro (docs/14 §7): normativos e ofícios que
+          valem para todas as matrizes, não para uma versão específica. */}
+      <EvidenceSection target={{ kind: 'PROJECT', projectId: project.id }} />
 
       <CreateProjectDialog open={editOpen} onOpenChange={setEditOpen} project={project} />
       <ConfirmDialog

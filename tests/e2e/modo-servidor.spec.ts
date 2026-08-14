@@ -1,8 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { requireBuild, startServer, type RunningServer } from './helpers/local-server';
 
 /**
  * Modo `SERVER` (Sessão 27) — docs/14-plataforma-local.md §4, §5 e §8,
@@ -20,97 +18,7 @@ import path from 'node:path';
  * sem precisar de um segundo processo.
  */
 
-const DIST_PATH = path.resolve(import.meta.dirname, '..', '..', 'dist', 'PolicyOps.html');
-const SERVER_SCRIPT = path.resolve(import.meta.dirname, '..', '..', 'server', 'policyops_server.py');
-const SAMPLE_FIXTURE = path.resolve(import.meta.dirname, '..', 'fixtures', 'sample-document.json');
-const PYTHON = process.env.POLICYOPS_PYTHON ?? 'python';
-
-test.beforeAll(() => {
-  if (!existsSync(DIST_PATH)) {
-    throw new Error(`dist/PolicyOps.html não existe em ${DIST_PATH}. Rode "pnpm build" antes do E2E.`);
-  }
-});
-
-type RunningServer = {
-  dataDir: string;
-  documentPath: string;
-  url: string;
-  stop: () => Promise<void>;
-};
-
-/** Sobe `server/policyops_server.py` de verdade e espera a linha com o endereço + token (docs/14 §5). */
-function startServer(options?: { seed?: boolean }): Promise<RunningServer> {
-  const dataDir = mkdtempSync(path.join(tmpdir(), 'policyops-e2e-server-'));
-  const documentPath = path.join(dataDir, 'politicas.json');
-  if (options?.seed !== false) {
-    writeFileSync(documentPath, readFileSync(SAMPLE_FIXTURE));
-  }
-
-  return new Promise((resolve, reject) => {
-    const child: ChildProcessWithoutNullStreams = spawn(
-      PYTHON,
-      [SERVER_SCRIPT, '--data-dir', dataDir, '--html', DIST_PATH],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-
-    let settled = false;
-    let buffer = '';
-    let exited = false;
-    child.once('exit', () => {
-      exited = true;
-    });
-
-    // `stop()` precisa ser seguro para chamar mais de uma vez: um teste que já
-    // derrubou o servidor de propósito (simulando "o processo caiu") e depois
-    // o `afterEach` chamando `stop()` de novo não pode travar esperando um
-    // `exit` que já aconteceu e nunca mais vai disparar.
-    const stop = (): Promise<void> => {
-      if (exited) return Promise.resolve();
-      return new Promise<void>((res) => {
-        child.once('exit', () => res());
-        child.kill('SIGTERM');
-        // Em CI, `SIGTERM` pode não bastar a tempo — reforça com `SIGKILL`.
-        setTimeout(() => {
-          if (!exited) child.kill('SIGKILL');
-        }, 3000);
-      });
-    };
-
-    const timer = setTimeout(() => {
-      if (!settled) {
-        settled = true;
-        void stop();
-        reject(new Error(`Timeout esperando o servidor local subir. Saída até agora:\n${buffer}`));
-      }
-    }, 15_000);
-
-    const onData = (chunk: Buffer) => {
-      buffer += chunk.toString('utf-8');
-      const match = /PolicyOps: (http:\/\/127\.0\.0\.1:\d+\/\?t=\S+)/.exec(buffer);
-      if (match && !settled) {
-        settled = true;
-        clearTimeout(timer);
-        resolve({ dataDir, documentPath, url: match[1]!, stop });
-      }
-    };
-    child.stdout.on('data', onData);
-    child.stderr.on('data', onData);
-    child.once('error', (error) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        reject(error);
-      }
-    });
-    child.once('exit', (code) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        reject(new Error(`servidor local encerrou antes de subir (código ${code}). Saída:\n${buffer}`));
-      }
-    });
-  });
-}
+test.beforeAll(requireBuild);
 
 function readDocument(server: RunningServer): { meta: { name: string; revision: number; savedBy: string } } & Record<string, unknown> {
   return JSON.parse(readFileSync(server.documentPath, 'utf-8'));

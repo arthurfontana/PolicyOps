@@ -508,7 +508,9 @@ IMPORT_TARGET_ARCHIVED,
 TAG_NOT_FOUND
 ```
 
-Os dez últimos pertencem à carga de matrizes; quando cada um acontece e o que o usuário faz a respeito está em `12-carga-de-matrizes.md` §5.8.
+Mais os do épico Plataforma (`14-plataforma-local.md`): `ROLE_REQUIRED` e `ACL_REQUIRES_ADMIN` (papéis, §6, sessão 29), `EVIDENCE_NOT_FOUND` e `EVIDENCE_DUPLICATE_PATH` (evidências, §7, sessão 30).
+
+Os dez últimos do bloco acima pertencem à carga de matrizes; quando cada um acontece e o que o usuário faz a respeito está em `12-carga-de-matrizes.md` §5.8.
 
 `RANGE_REGIONAL_INCOMPLETE`, `RANGE_REGIONAL_NOT_CONTIGUOUS`, `REGIONAL_CODE_DUPLICATE` e `REGIONAL_IMPORT_PARSE_ERROR` (sessão 18) são removidos na sessão 20 — substituídos pelos códigos genéricos acima. `RANGE_REGIONAL_INCOMPLETE` não tem substituto direto: a completude por combinação deixou de ser invariante (`03-modelo-do-documento.md` §9, nota após I19) e virou aviso não bloqueante na interface, não um `DomainError`.
 

@@ -54,6 +54,9 @@ export const DOMAIN_ERROR_CODES = [
   // Identidade e papéis — docs/14-plataforma-local.md §6, S29.
   'ROLE_REQUIRED',
   'ACL_REQUIRES_ADMIN',
+  // Evidências — docs/14-plataforma-local.md §7, S30.
+  'EVIDENCE_NOT_FOUND',
+  'EVIDENCE_DUPLICATE_PATH',
 ] as const;
 
 export type DomainErrorCode = (typeof DOMAIN_ERROR_CODES)[number];

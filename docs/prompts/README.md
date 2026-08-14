@@ -35,7 +35,7 @@ Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
 | 27 | [x] | [S27-modo-server.md](S27-modo-server.md) | `Sonnet` | `server-adapter` e modo `SERVER` no front (depende de 26) |
 | 28 | [x] | [S28-launcher-e-distribuicao.md](S28-launcher-e-distribuicao.md) | `Sonnet` | `iniciar.bat`, `instalar.bat`, pacote `dist/plataforma/` (depende de 27) |
 | 29 | [ ] | [S29-identidade-e-papeis.md](S29-identidade-e-papeis.md) | `Sonnet` | Identidade Windows, `meta.acl` e papéis — schema 4 (depende de 27) |
-| 30 | [ ] | [S30-evidencias.md](S30-evidencias.md) | `Opus` | Evidências: acervo navegável com hash (depende de 27 e 29) |
+| 30 | [x] | [S30-evidencias.md](S30-evidencias.md) | `Opus` | Evidências: acervo navegável com hash (depende de 27 e 29) |
 | 31 | [x] | [S31-guardrails-de-contexto.md](S31-guardrails-de-contexto.md) | `Sonnet` | CLAUDE.md índice, guard mecânico, âncoras de região (independente) |
 | 32 | [ ] | [S32-modelo-de-componentes.md](S32-modelo-de-componentes.md) | `Opus` | Schema 5: componentes, DBs, releases, invariantes I23–I26 (épico Governança, depende de 29) |
 | 33 | [ ] | [S33-arvore-da-politica.md](S33-arvore-da-politica.md) | `Sonnet` | Árvore da política e cadastro/versionamento de regras (depende de 32) |

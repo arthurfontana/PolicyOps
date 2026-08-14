@@ -72,6 +72,9 @@ export const ERROR_MESSAGES: Record<DomainErrorCode, string> = {
     'A resolução de estrutura desta matriz não pôde ser calculada com segurança — recarregue o plano e tente de novo.',
   ROLE_REQUIRED: 'Você não tem o papel necessário para esta ação.',
   ACL_REQUIRES_ADMIN: 'A lista de acesso precisa de pelo menos um ADMIN — sem isso, ninguém poderia editá-la de volta.',
+  EVIDENCE_NOT_FOUND: 'Essa evidência não está mais anexada neste documento.',
+  EVIDENCE_DUPLICATE_PATH:
+    'Esse arquivo do acervo já está anexado — cada arquivo de _evidencias/ pertence a um vínculo só.',
 };
 
 export function getErrorMessage(code: DomainErrorCode): string {

@@ -41,10 +41,11 @@ Arquivos de `src/` acima de ~600 linhas ganham comentários-âncora grep-áveis 
 | 366 | `6-versao-de-matriz` |
 | 509 | `7-templates` |
 | 585 | `8-auditoria` |
-| 652 | `1-estrutura-de-topo` |
+| 655 | `9-evidencias` |
+| 720 | `1-estrutura-de-topo` |
 
 ### `src/core/document/validate.ts`
-Uma âncora por invariante (`i1-...` a `i22-...`, mais uma checagem adicional fora da tabela
+Uma âncora por invariante (`i1-...` a `i26-...`, mais uma checagem adicional fora da tabela
 I1–I18) — `grep -n "// #region: i" src/core/document/validate.ts` isola qualquer `checkIN`
 individualmente.
 
