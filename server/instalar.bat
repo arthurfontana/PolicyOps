@@ -34,14 +34,31 @@ if "!PYTHON_CMD!"=="" (
 echo Python encontrado: usando "!PYTHON_CMD!"
 echo.
 
-if exist "server\.venv\Scripts\python.exe" (
-    echo Ambiente isolado ja existe em server\.venv, reaproveitando.
+rem Este script roda tanto na raiz do pacote publicado (com uma subpasta "server\")
+rem quanto direto de dentro da propria pasta "server\" (uso local/teste) - detecta
+rem onde estao os arquivos em vez de fixar o prefixo, para nao duplicar o caminho.
+if exist "server\requirements.txt" (
+    set "SRV=server\"
+) else if exist "requirements.txt" (
+    set "SRV="
 ) else (
-    echo Criando ambiente isolado em server\.venv ...
-    !PYTHON_CMD! -m venv "server\.venv"
-    if not exist "server\.venv\Scripts\python.exe" (
+    echo Nao encontrei requirements.txt nem em "server\requirements.txt" nem em
+    echo "requirements.txt" nesta pasta. Rode o instalar.bat a partir da pasta do
+    echo pacote publicado ^(onde ele fica ao lado de PolicyOps.html^) ou de dentro
+    echo da propria pasta server\.
+    echo.
+    pause
+    exit /b 1
+)
+
+if exist "!SRV!.venv\Scripts\python.exe" (
+    echo Ambiente isolado ja existe em !SRV!.venv, reaproveitando.
+) else (
+    echo Criando ambiente isolado em !SRV!.venv ...
+    !PYTHON_CMD! -m venv "!SRV!.venv"
+    if not exist "!SRV!.venv\Scripts\python.exe" (
         echo.
-        echo Nao consegui criar o ambiente isolado em server\.venv.
+        echo Nao consegui criar o ambiente isolado em !SRV!.venv.
         echo Verifique se ha espaco em disco e permissao de escrita nesta pasta,
         echo e tente de novo. Nada no Python instalado na maquina foi alterado.
         echo.
@@ -51,7 +68,7 @@ if exist "server\.venv\Scripts\python.exe" (
 )
 echo.
 
-set "VENV_PY=server\.venv\Scripts\python.exe"
+set "VENV_PY=!SRV!.venv\Scripts\python.exe"
 
 echo Instalando dependencias...
 echo.
@@ -60,7 +77,7 @@ set /a OK_INDICE=0
 set /a OK_WHEELS=0
 set /a FALHAS=0
 
-for /f "usebackq eol=# tokens=* delims=" %%L in ("server\requirements.txt") do (
+for /f "usebackq eol=# tokens=* delims=" %%L in ("!SRV!requirements.txt") do (
     call :instala_linha "%%L"
 )
 
@@ -75,7 +92,7 @@ echo -----------------------------------------------------
 if !FALHAS! GTR 0 (
     echo.
     echo Uma ou mais dependencias nao puderam ser instaladas, nem pelo indice pip
-    echo nem pelas copias locais em server\wheels. Confira sua conexao com a internet
+    echo nem pelas copias locais em !SRV!wheels. Confira sua conexao com a internet
     echo ou peca para a TI checar o pacote publicado na pasta de rede.
     echo O iniciar.bat pode nao funcionar ate isso ser corrigido.
     echo.
@@ -101,10 +118,10 @@ if not errorlevel 1 (
     exit /b 0
 )
 
-echo       indice pip indisponivel, tentando as copias locais em server\wheels ...
-"!VENV_PY!" -m pip install --disable-pip-version-check --quiet --no-index --find-links "server\wheels" "!REQ!" >nul 2>&1
+echo       indice pip indisponivel, tentando as copias locais em !SRV!wheels ...
+"!VENV_PY!" -m pip install --disable-pip-version-check --quiet --no-index --find-links "!SRV!wheels" "!REQ!" >nul 2>&1
 if not errorlevel 1 (
-    echo       instalado pelas copias locais ^(server\wheels^).
+    echo       instalado pelas copias locais ^(!SRV!wheels^).
     set /a OK_WHEELS+=1
     exit /b 0
 )
