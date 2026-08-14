@@ -142,6 +142,34 @@
 > `force` e a mensagem nova de `423` na defesa em profundidade do `PUT` (mapeada para `PERMISSION`,
 > não uma variante nova de `SaveResult`).
 
+> **Sessão 28 entregue — marco M7 fechado.** `server/instalar.bat` localiza `py -3`/`python`, cria
+> `server/.venv/` e instala `requirements.txt` linha a linha tentando o índice pip primeiro e as
+> wheels offline de `server/wheels/` na falha, com resumo final em português (quantas foram pelo
+> índice, quantas pelas wheels, quantas falharam) — nunca toca o Python do sistema.
+> `server/iniciar.bat` usa o Python do venv se existir (senão orienta a rodar `instalar.bat`, lembra
+> o plano B do duplo clique no `.html`, e sai sem travar nem instalar nada), sobe
+> `server/launcher.py` com `--data-dir ".."` (o pai de `_app/`, docs/14 §9). `launcher.py` é código
+> novo, não um `.bat` mais esperto: reaproveita `policyops_server.prepare()` (extraído de `main()`
+> nesta sessão, mesmo comportamento) e sobe o `uvicorn` numa thread do próprio processo — fechar a
+> janela ou `Ctrl+C` derruba servidor e thread juntos, sem processo órfão — em vez de um
+> subprocesso, para não precisar reconstruir por *parsing* de stdout o que já dá para chamar direto
+> em Python. `wait_for_health()` faz o polling do `/api/health` antes de abrir o navegador
+> (`webbrowser.open`), com timeout generoso sobre a meta de 8 s de `14` §10. No caminho, ficou claro
+> um gap real da S26: `resolve_html_path()` só procurava o `PolicyOps.html` ao lado do script ou em
+> `dist/` — nunca no layout publicado de verdade (`_app/PolicyOps.html`, um nível acima de
+> `_app/server/`) — corrigido com um terceiro caminho de busca (DEC-PLAT-003).
+> `scripts/fetch-wheels.mjs` baixa as wheels Windows x64 pinadas em `requirements.txt` (agora com
+> versão fixa — a mais recente de cada uma que ainda roda em Python 3.9) para 5 versões de Python
+> (3.9–3.13, cobrindo o parque), via `pip download --platform win_amd64 --only-binary=:all:`; não é
+> commitado (`.gitignore`), documentado no `LEIAME.txt` do pacote. `pnpm build:plataforma` monta
+> `dist/plataforma/` (`iniciar.bat`, `instalar.bat`, `PolicyOps.html`, `server/` com código +
+> `requirements.txt` + `wheels/` + `LEIAME.txt`); `pnpm check:plataforma` confere que nada falta e
+> que nenhum arquivo do pacote cita caminho absoluto da máquina de build. 8 testes pytest novos
+> (porta ocupada, `config.json` sobrescrevendo `--data-dir`, `wait_for_health` com servidor real de
+> teste, o layout `_app/` de verdade) — suíte do servidor 55 → 63. Roteiro manual completo (venv
+> real, `pip install` do índice e via `--no-index --find-links`, `launcher.py` de ponta a ponta:
+> health → navegador → salvar → reabrir → `Ctrl+C` limpo) documentado no PR.
+
 > **Sessão 31 entregue.** `CLAUDE.md` reescrito como índice em camadas (114 linhas, teto de 450
 > guardado por `pnpm check:claude-md` — `scripts/check-claude-md.mjs`, registrado no CI logo após
 > `pnpm install`), com a tabela "Onde vive o quê" cobrindo os 12 domínios pedidos mais 5 extras

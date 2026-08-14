@@ -148,15 +148,21 @@ def read_config_file(path: Path) -> Dict[str, Any]:
 def resolve_html_path(static_dir: Path, explicit: Optional[Path] = None) -> Optional[Path]:
     """O `PolicyOps.html` servido em `GET /`.
 
-    Em produção ele fica ao lado do servidor (`_app/PolicyOps.html`, docs/14 §2). No repositório
-    de desenvolvimento o build mora em `dist/PolicyOps.html`, e é isso que o fallback procura —
-    conveniência de dev, nunca busca fora do próprio checkout.
+    `static_dir` é a pasta de `policyops_server.py` — em produção, `_app/server/` (docs/14 §2).
+    O pacote publicado pela TI (S28) põe o `PolicyOps.html` **um nível acima**, em `_app/`,
+    irmão de `server/`; checar `static_dir` primeiro só cobre quem achatar as duas pastas numa
+    só. No repositório de desenvolvimento o build mora em `dist/PolicyOps.html`, ao lado de
+    `server/` — é isso que o último fallback procura, conveniência de dev que nunca busca fora
+    do próprio checkout.
     """
     if explicit is not None:
         return explicit if explicit.is_file() else None
     packaged = static_dir / HTML_FILE_NAME
     if packaged.is_file():
         return packaged
+    ao_lado_do_pacote = static_dir.parent / HTML_FILE_NAME
+    if ao_lado_do_pacote.is_file():
+        return ao_lado_do_pacote
     dev_build = static_dir.parent / "dist" / HTML_FILE_NAME
     if dev_build.is_file():
         return dev_build
@@ -677,9 +683,14 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def build_config(args: argparse.Namespace) -> ServerConfig:
-    """Precedência: linha de comando > `config.json` ao lado do servidor > padrão (docs/14 §9)."""
-    script_dir = Path(__file__).resolve().parent
+def build_config(args: argparse.Namespace, script_dir: Optional[Path] = None) -> ServerConfig:
+    """Precedência: linha de comando > `config.json` ao lado do servidor > padrão (docs/14 §9).
+
+    `script_dir` é injetável para o teste conseguir simular um `config.json` isolado em
+    `tmp_path` em vez do `server/` real do checkout; o CLI e o launcher (S28) sempre usam o
+    padrão (a pasta deste arquivo).
+    """
+    script_dir = script_dir or Path(__file__).resolve().parent
     config_file = read_config_file(script_dir / CONFIG_FILE_NAME)
 
     data_dir = args.data_dir or config_file.get("dataDir") or str(script_dir.parent)
@@ -696,23 +707,38 @@ def build_config(args: argparse.Namespace) -> ServerConfig:
     )
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+def prepare(argv: Optional[List[str]] = None) -> "tuple[int, Optional[ServerConfig], Optional[int], Optional[FastAPI]]":
+    """Resolve config, porta e app a partir dos argumentos — o que o CLI e o launcher (S28)
+    precisam antes de subir o servidor de verdade.
+
+    Devolve `(codigo, config, port, app)`; `codigo != 0` significa que a validação falhou (a
+    mensagem já foi impressa em `stderr`) e quem chamou deve sair com esse código sem tentar
+    usar os demais valores, que vêm `None`.
+    """
     args = parse_args(argv)
     config = build_config(args)
     if not config.data_dir.is_dir():
         print("Pasta de dados inexistente: {}".format(config.data_dir), file=sys.stderr)
-        return 2
+        return 2, None, None, None
     if not config.data_file or set("/\\").intersection(config.data_file):
         # Tudo que o servidor toca fica na pasta de dados; nome com caminho sairia dela.
         print(
             "--data-file deve ser um nome de arquivo, sem caminho: {}".format(config.data_file),
             file=sys.stderr,
         )
-        return 2
+        return 2, None, None, None
 
     port = args.port or choose_port()
     app = create_app(config)
+    return 0, config, port, app
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    code, config, port, app = prepare(argv)
+    if code != 0:
+        return code
+    assert config is not None and port is not None and app is not None
 
     # O launcher (S28) lê esta linha para abrir o navegador já com o token.
     print("PolicyOps: http://{}:{}/?t={}".format(HOST, port, config.token), flush=True)

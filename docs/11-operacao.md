@@ -16,12 +16,12 @@
         └── server\
 ```
 
-- **`_app\`** é a aplicação inteira (HTML + servidor local). Não muda sozinha — só quando o time de desenvolvimento publica uma versão nova (§4).
+- **`_app\`** é a aplicação inteira (HTML + servidor local). Não muda sozinha — só quando o time de desenvolvimento publica uma versão nova (§4). É exatamente o `dist/plataforma/` gerado por `pnpm build:plataforma` no repositório do projeto.
 - **`politicas.json`** é onde vive tudo: bibliotecas, matrizes, versões, histórico. É o arquivo que muda no dia a dia, e é ele que precisa de backup de verdade.
 - **`_evidencias\`** guarda os arquivos anexados às políticas, em estrutura legível (`projeto\matriz\versão\`). **Nunca renomeie nem mova arquivos aí dentro** — o documento aponta para esses caminhos e confere o conteúdo por hash. Excluir anexo pela aplicação apenas move o arquivo para `_evidencias\_lixeira\`; esvaziar a lixeira é decisão manual de quem opera a pasta.
 - **`_backups\`** é gerada automaticamente pelo servidor a cada salvamento.
 
-Uso normal: cada pessoa executa `_app\iniciar.bat` (na primeira vez em cada máquina, antes, o `instalar.bat`). O duplo clique direto no `PolicyOps.html` continua funcionando como plano B, num modo mais limitado (o Guia do Usuário explica a diferença).
+Uso normal em cada máquina: na primeira vez, dois cliques em `_app\instalar.bat` — ele localiza o Python já instalado, monta um ambiente isolado dentro da própria pasta (`_app\server\.venv\`, nunca mexe no Python da máquina) e mostra no final um resumo do que instalou. Depois disso, o dia a dia é sempre `_app\iniciar.bat`: uma janela abre, mostra o progresso, e o navegador abre sozinho já na aplicação conectada a esta pasta de rede — para encerrar, basta fechar essa janela. Sem Python nenhum na máquina, `instalar.bat` explica isso e para sem travar nada; o duplo clique direto no `PolicyOps.html` continua funcionando como plano B em qualquer situação, num modo mais limitado (o Guia do Usuário explica a diferença).
 
 ## 2. Como fazer backup
 

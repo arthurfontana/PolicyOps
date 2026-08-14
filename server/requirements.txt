@@ -1,6 +1,11 @@
 # Dependências do servidor local — lista FECHADA (ADR-005, docs/14-plataforma-local.md §3).
 # Cada dependência nova exige uma wheel Windows x64 embarcada em server/wheels/ (S28) e
 # aprovação explícita: não acrescente nada aqui sem passar por isso.
-fastapi
-uvicorn
-python-multipart
+#
+# Pinadas por versão para que `scripts/fetch-wheels.mjs` baixe sempre os mesmos bytes que
+# `instalar.bat` vai instalar — e para não quebrar o parque com Python 3.9: cada versão aqui é
+# a mais recente que ainda declara `requires-python >= 3.9` (a próxima de cada uma já exige
+# 3.10). Subir a versão exige reconferir esse limite.
+fastapi==0.128.8
+uvicorn==0.39.0
+python-multipart==0.0.20

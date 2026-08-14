@@ -32,8 +32,8 @@ Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
 | 24 | [x] | [S24-aplicacao-da-carga.md](S24-aplicacao-da-carga.md) | `Opus` | Aplicação da carga, versionamento seletivo e fila de revisão (depende de 22 e 23) |
 | 25 | [x] | [S25-evolucao-estrutural-na-carga.md](S25-evolucao-estrutural-na-carga.md) | `Opus` | Faixa nova no arquivo vira versão de variável adotada no rascunho (depende de 24) |
 | 26 | [x] | [S26-servidor-local.md](S26-servidor-local.md) | `Opus` | Servidor local: persistência atômica, conflito, lock, backups, token (épico Plataforma) |
-| 27 | [ ] | [S27-modo-server.md](S27-modo-server.md) | `Sonnet` | `server-adapter` e modo `SERVER` no front (depende de 26) |
-| 28 | [ ] | [S28-launcher-e-distribuicao.md](S28-launcher-e-distribuicao.md) | `Sonnet` | `iniciar.bat`, `instalar.bat`, pacote `dist/plataforma/` (depende de 27) |
+| 27 | [x] | [S27-modo-server.md](S27-modo-server.md) | `Sonnet` | `server-adapter` e modo `SERVER` no front (depende de 26) |
+| 28 | [x] | [S28-launcher-e-distribuicao.md](S28-launcher-e-distribuicao.md) | `Sonnet` | `iniciar.bat`, `instalar.bat`, pacote `dist/plataforma/` (depende de 27) |
 | 29 | [ ] | [S29-identidade-e-papeis.md](S29-identidade-e-papeis.md) | `Sonnet` | Identidade Windows, `meta.acl` e papéis — schema 4 (depende de 27) |
 | 30 | [ ] | [S30-evidencias.md](S30-evidencias.md) | `Opus` | Evidências: acervo navegável com hash (depende de 27 e 29) |
 | 31 | [x] | [S31-guardrails-de-contexto.md](S31-guardrails-de-contexto.md) | `Sonnet` | CLAUDE.md índice, guard mecânico, âncoras de região (independente) |

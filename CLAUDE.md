@@ -96,6 +96,7 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 | Import/carga de matrizes externas | `docs/12-carga-de-matrizes.md` | `src/core/import/`, `src/components/import/` |
 | Storage e adapters (FSA, download, lock, backups) | `docs/06-persistencia-e-concorrencia.md` | `src/storage/`, `src/store/persistence-store.ts` |
 | Servidor local (API v1, token, lock, backups) | `docs/14-plataforma-local.md` §3–5 | `server/policyops_server.py`, `server/tests/` |
+| Launcher e pacote de distribuição (`iniciar.bat`/`instalar.bat`, `dist/plataforma/`) | `docs/14-plataforma-local.md` §9 | `server/launcher.py`, `server/*.bat`, `scripts/{fetch-wheels,build-plataforma,verify-plataforma}.mjs` |
 | Identidade e papéis (planejado, S29) | `docs/14-plataforma-local.md` §6 | `meta.acl` no schema (S29), servidor |
 | Evidências — acervo navegável (planejado, S30) | `docs/14-plataforma-local.md` §7 | `attachments` no schema (S30) |
 | Grid e UX (shell, seleção, inspector, tags/filtro) | `docs/07-ux-e-editor.md` | `src/components/grid/`, `src/components/` |

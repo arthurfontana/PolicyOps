@@ -20,3 +20,7 @@ __pycache__/
 .pytest_cache/
 server/.venv/
 server/config.json
+
+# Wheels offline (S28) — baixadas por scripts/fetch-wheels.mjs, não commitadas (tamanho)
+server/wheels/*
+!server/wheels/.gitkeep
