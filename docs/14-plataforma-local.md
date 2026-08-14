@@ -291,22 +291,36 @@ S27" abaixo.
 ## 9. Distribuição e instalação
 
 Padrão de instalação em camadas do AppCreditoSimulador, que já opera no mesmo ambiente
-corporativo (ADR-005):
+corporativo (ADR-005), implementado na S28.
 
 - **`instalar.bat`** (uma vez por máquina): localiza o Python (`py -3` ou `python`), cria venv
-  descartável em `_app/server/.venv/`, e instala `requirements.txt` tentando **primeiro o índice
-  pip corporativo e, para o que falhar, as wheels offline** embarcadas em `_app/server/wheels/`
-  (`pip install --no-index --find-links wheels`). As wheels Windows x64 das dependências **são
-  parte do artefato publicado** — a instalação funciona mesmo com pip totalmente bloqueado.
-- **`iniciar.bat`** (o dia a dia): usa o Python do venv se existir, sobe o servidor apontando
-  para a pasta de dados (o pai de `_app/`, sobrescrevível por `config.json`), espera o
-  `/api/health` e abre o navegador com o token. Se o venv não existe, instrui a rodar
-  `instalar.bat` — e lembra que o duplo clique no `PolicyOps.html` continua funcionando como
-  plano B.
+  descartável em `_app/server/.venv/`, e instala `requirements.txt` linha a linha tentando
+  **primeiro o índice pip corporativo e, para o que falhar, as wheels offline** embarcadas em
+  `_app/server/wheels/` (`pip install --no-index --find-links wheels`). Termina com um resumo em
+  português (quantas dependências foram pelo índice, quantas pelas wheels, quantas falharam) e
+  nunca toca o Python do sistema — só cria e escreve dentro do próprio venv. As wheels Windows
+  x64 das dependências **são parte do artefato publicado** — a instalação funciona mesmo com pip
+  totalmente bloqueado. `requirements.txt` fixa versão em cada dependência (a mais recente que
+  ainda roda em Python 3.9 — a próxima já exige 3.10); `scripts/fetch-wheels.mjs`, rodado numa
+  máquina com internet antes de publicar o pacote, baixa essas wheels via `pip download
+  --platform win_amd64 --only-binary=:all:` para um conjunto de versões de Python (3.9 a 3.13,
+  cobrindo o parque — `pydantic-core`, transitiva de `fastapi`, publica uma wheel binária por
+  versão menor de Python).
+- **`iniciar.bat`** (o dia a dia): usa o Python do venv se existir, senão instrui a rodar
+  `instalar.bat` e lembra que o duplo clique no `PolicyOps.html` continua funcionando como plano
+  B — nunca instala nada nem trava. Quando o venv existe, chama `server/launcher.py --data-dir
+  ".."` (o pai de `_app/`, sobrescrevível por `config.json`). O launcher reaproveita
+  `policyops_server.prepare()` (config, porta, app — o mesmo que o CLI direto usa) e sobe o
+  `uvicorn` numa thread do próprio processo, não um subprocesso separado: fechar a janela do
+  `.bat` ou `Ctrl+C` derruba servidor e thread juntos, sem processo órfão escutando em
+  `127.0.0.1`. `wait_for_health()` consulta `/api/health` até responder ou estourar o timeout
+  antes de abrir o navegador no endereço com token — só então a janela mostra a instrução de
+  encerramento.
 - **Atualizar a aplicação** = TI substituir o conteúdo de `_app/` (o `.html` e o `server/`),
   como hoje se substituía um arquivo. Dados, backups e evidências nunca são tocados.
 - O repositório continua commitando `dist/PolicyOps.html`; o pacote `_app/` completo
-  (`dist/plataforma/`) passa a ser gerado pelo build a partir da sessão S28.
+  (`dist/plataforma/`) é gerado por `pnpm build:plataforma` (não commitado — tamanho das wheels) e
+  conferido por `pnpm check:plataforma` antes de publicar.
 
 ## 10. Orçamentos de desempenho
 
