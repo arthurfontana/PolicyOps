@@ -37,27 +37,41 @@ Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
 | 29 | [x] | [S29-identidade-e-papeis.md](S29-identidade-e-papeis.md) | `Sonnet` | Identidade Windows, `meta.acl` e papéis — schema 4 (depende de 27) |
 | 30 | [x] | [S30-evidencias.md](S30-evidencias.md) | `Opus` | Evidências: acervo navegável com hash (depende de 27 e 29) |
 | 31 | [x] | [S31-guardrails-de-contexto.md](S31-guardrails-de-contexto.md) | `Sonnet` | CLAUDE.md índice, guard mecânico, âncoras de região (independente) |
-| 32a | [ ] | [S32a-nucleo-de-componentes.md](S32a-nucleo-de-componentes.md) | `Opus` | Schema 5 inteiro + componentes versionados, I23–I24 (épico Governança, depende de 29) — **trilha antecipada 1/3** |
+| 32a | [ ] | [S32a-nucleo-de-componentes.md](S32a-nucleo-de-componentes.md) | `Opus` | Schema 5 inteiro + componentes versionados, I23–I24, I27 (épico Governança, depende de 29) — **lote 1: fundação** |
 | 32b | [ ] | [S32b-solicitacao-release-workflow.md](S32b-solicitacao-release-workflow.md) | `Opus` | Núcleo de DB, release, grafo de estados, I25–I26 (depende de 32a; **antes da 35**) |
-| 33 | [ ] | [S33-arvore-da-politica.md](S33-arvore-da-politica.md) | `Sonnet` | Árvore da política e cadastro/versionamento de regras (depende de 32a) — **trilha antecipada 2/3** |
+| 33a | [ ] | [S33a-arvore-da-politica.md](S33a-arvore-da-politica.md) | `Sonnet` | Árvore da política: esqueleto navegável, nós MATRIX, facetas (depende de 32a) — **lote 2: esqueleto** |
+| 33b | [ ] | [S33b-cadastro-de-regras.md](S33b-cadastro-de-regras.md) | `Sonnet` | Cadastro por tipo, versionamento com vigência, entrada em volume (depende de 33a) — **lote 3: conteúdo** |
 | 34 | [ ] | [S34-editor-rico.md](S34-editor-rico.md) | `Opus` | Editor rico de blocos, anexos de imagem, diff por bloco (depende de 32a) |
-| 35 | [ ] | [S35-solicitacao-e-workflow.md](S35-solicitacao-e-workflow.md) | `Sonnet` | Solicitação de Alteração (DB), workflow, fila e pendências (depende de 32b, 33 e 34) |
+| 35 | [ ] | [S35-solicitacao-e-workflow.md](S35-solicitacao-e-workflow.md) | `Sonnet` | Solicitação de Alteração (DB), workflow, fila e pendências (depende de 32b, 33b e 34) |
 | 36 | [ ] | [S36-vinculo-e-publicacao.md](S36-vinculo-e-publicacao.md) | `Opus` | Vínculo DB↔rascunhos, congelamento, publicação atômica (depende de 35) |
 | 37 | [ ] | [S37-release-e-timeline.md](S37-release-e-timeline.md) | `Sonnet` | Release de política e timeline do Diário de Bordo (depende de 36) |
 | 38 | [ ] | [S38-pacote-fabrica.md](S38-pacote-fabrica.md) | `Sonnet` | Pacote para a Fábrica: HTML imprimível + Markdown (depende de 36) |
 | 39 | [ ] | [S39-fotografia-historica.md](S39-fotografia-historica.md) | `Opus` | Política inteira em qualquer data e comparações A×B (depende de 36) |
-| 40 | [ ] | [S40-carga-de-componentes.md](S40-carga-de-componentes.md) | `Sonnet` | Carga inicial da política via Markdown estruturado (depende de 32a e 33) — **trilha antecipada 3/3, executar antes da 34** |
+| 40 | [ ] | [S40-carga-de-componentes.md](S40-carga-de-componentes.md) | `Sonnet` | 🟡 Carga da política **por recorte**, dentro da seção escolhida (depende de 32a, 33a, 33b) — **lote 4: opcional, decidir após uso real** |
 
-## Ordem do épico Governança (DEC-GOV-010)
+## Ordem do épico Governança (DEC-GOV-010, revista pela DEC-GOV-012)
 
-A numeração da tabela **não** é a ordem de execução deste épico. A carga da política foi
-antecipada para a terceira posição, e a antiga S32 foi dividida em 32a/32b para o workflow do
-Diário de Bordo não entrar no caminho crítico de uma carga que não usa nada dele:
+A numeração da tabela **não** é a ordem de execução deste épico. O objetivo da trilha antecipada
+continua sendo ter a política real dentro da ferramenta antes de investir no resto — mas ela entra
+**à mão, incrementalmente**, e não por uma carga de tudo de uma vez. A antiga S32 foi dividida em
+32a/32b (para o workflow do Diário de Bordo sair do caminho crítico) e a S33, em 33a/33b (para
+existir um ponto de checagem antes de o formulário de regra ser construído):
 
 ```
-32a → 33 → 40   (trilha antecipada: a política real dentro da ferramenta)
- → 34 → 32b → 35 → 36 → 37/38 → 39
+32a → 33a → 33b → ⟨uso real: a política as-is entra à mão; a rota se ajusta aqui⟩
+  → 40 (opcional) → 34 → 32b → 35 → 36 → 37/38 → 39
 ```
+
+**Lotes para colocar a política as-is** (detalhe em `docs/09-roadmap-de-entregas.md`):
+
+| Lote | Sessões | Ao fim dele você consegue |
+|---|---|---|
+| 1 — Fundação | 32a | nada visível: schema, comandos e testes |
+| 2 — Esqueleto | 33a | montar a hierarquia da política e pendurar as matrizes que já existem |
+| 3 — Conteúdo | 33b | digitar e publicar as regras com a vigência da fundação |
+| ⏸ Parada | — | usar, e decidir `sectionKind`, nó de referência e se a 40 vale |
+| 4 — Aceleração | 40 | subir capítulos convertidos, por recorte (opcional) |
+| 5 — Governança | 34 → 32b → 35 → 36 → 37/38 → 39 | o épico completo |
 
 Antes da S40, converta o documento de política para o Markdown convencionado com o prompt de
 `docs/14-governanca-de-alteracoes.md` §9.1 — não depende de código e pode ser feito enquanto as

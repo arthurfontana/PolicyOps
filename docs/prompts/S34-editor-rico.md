@@ -17,7 +17,7 @@
 > pilha de comandos).
 >
 > ### Estado atual
-> O schema de `RichDoc`, `Block` e `Attachment` existe desde a S32a (com Zod e testes); a S33
+> O schema de `RichDoc`, `Block` e `Attachment` existe desde a S32a (com Zod e testes); a S33b
 > deixou o campo `spec` do inspector como placeholder. Nenhum código de edição existe.
 > **Nenhuma dependência nova é permitida** (DEC-GOV-005) — o editor é próprio.
 >
@@ -39,7 +39,7 @@
 >    3 MB. Sem colar de imagem nesta sessão.
 > 4. **Diff por bloco** (`src/core/richdoc/diff.ts`): adicionado/removido/alterado por id de
 >    bloco, com render lado a lado no padrão visual do diff de matriz — será usado pela S36/S39.
-> 5. **Plugar** no inspector de componente (substitui o placeholder da S33).
+> 5. **Plugar** no inspector de componente (substitui o placeholder da S33a/S33b).
 >
 > ### Testes
 > 100% no core de richdoc: cada operação e seu inverso, coalescência, sanitização do colar
