@@ -512,3 +512,70 @@ diálogo, não uma rota própria, porque o destino já é o contexto de onde o u
 Nada entra sem passar pelo passo 2, e desfazer (`Ctrl+Z`) logo em seguida remove a carga inteira —
 o undo é dedicado, não a composição genérica de inversos que a carga de matrizes usa, porque
 publicar é irreversível por natureza (DEC-GOV-026).
+
+## 18. Editor rico de especificação (épico Governança — S34 ✅)
+
+Contrato do modelo em `14-governanca-de-alteracoes.md` §7 e `03-modelo-do-documento.md` §12.3;
+núcleo em `src/core/richdoc/`, componentes em `src/components/richdoc/`. O editor aparece no campo
+**Especificação** do inspector do componente (§17.5) — o placeholder da S33 morreu aqui — e a S35
+o pluga nos campos de texto do Diário de Bordo.
+
+### 18.1 Um `contentEditable` por linha, nunca um global
+
+Cada bloco de texto é uma linha editável própria; cada item de lista é a sua. Célula de tabela é um
+campo comum (`<input>`), porque no modelo ela é texto puro. Nada de um `contentEditable` único
+envolvendo o documento inteiro: com um só, o browser decide sozinho o que é parágrafo, e o que
+volta do DOM deixa de casar com o modelo.
+
+**Cada tecla vira comando** (`richdoc/apply`, `08-camada-de-comandos.md` §3). Não existe "salvar o
+texto" no editor: o documento em memória já está atualizado quando a tecla sobe, e é por isso que
+nada digitado se perde ao trocar de tela, salvar por `Ctrl+S` ou fechar a aba. O que impede a pilha
+de undo de virar uma entrada por caractere é a coalescência (`coalesceKey`, DEC-GOV-028): digitação
+contígua no mesmo bloco é **uma** entrada.
+
+### 18.2 Atalhos e gestos
+
+| Gesto | O que acontece |
+|---|---|
+| Digitar | Vira comando na hora; a sequência no mesmo bloco coalesce numa entrada de undo |
+| `Ctrl+Z` / `Ctrl+Shift+Z` (ou `Ctrl+Y`) | Desfaz/refaz **dentro do editor** — interceptado ali para não disparar o desfazer nativo do `contentEditable`, que mexeria no DOM sem passar pelo documento |
+| `Ctrl+B` / `Ctrl+I` | Negrito/itálico no trecho **selecionado** (com o cursor sem seleção, o editor avisa em vez de marcar) |
+| `Enter` | Divide o bloco no cursor. Em título, a segunda metade nasce parágrafo; em lista, divide o item; em tabela/imagem, cria um parágrafo depois do bloco |
+| `Backspace` no início | Item de lista funde com o item anterior; primeiro item vira parágrafo antes do resto da lista; título/citação/destaque viram parágrafo (tira o formato antes de fundir); parágrafo funde com o bloco de texto anterior. Sem nada atrás, não faz nada |
+| `↑` / `↓` nas bordas | Move o cursor para a linha anterior/seguinte (fim/começo dela) |
+| `/` numa linha vazia | Abre o menu de inserção da linha — mesma lista do botão "+" |
+| Colar | Sanitiza (§18.3): texto vira parágrafo, tabela HTML vira bloco `table`, o resto vira texto puro |
+
+A barra do editor tem negrito, itálico, código, link e o menu **Inserir**; cada bloco mostra, ao
+passar o mouse ou receber foco, os controles de inserir abaixo, mover para cima/baixo e remover.
+Bloco de tabela ganha ainda os botões de linha/coluna. Link abre um campo de endereço na própria
+barra e aplica a marca `link` ao trecho selecionado — intranet, arquivo ou pasta de rede, já que a
+aplicação não fala com a internet (regra 5).
+
+### 18.3 Colar do Word e do Excel
+
+O que sobrevive é **estrutura**; o que morre é **formatação** (DEC-GOV-030). Tabela do Excel vira
+bloco `table` com a primeira linha como cabeçalho e o corpo retangular (linha curta ganha célula
+vazia, sobra é cortada). Lista do Word — que chega como parágrafos começando com `·` — vira
+`bulletList`; `1.`/`a)` viram `numberList`. Um parágrafo colado dentro de uma linha entra **no
+cursor**, sem criar bloco; um colar com vários blocos entra depois do bloco corrente, ou no lugar
+dele quando ele está vazio. Colar imagem não é suportado nesta fase: anexar é explícito.
+
+### 18.4 Imagens
+
+Menu **Inserir → Imagem** abre o seletor de arquivo; o cliente reduz a imagem para no máximo
+1600 px no maior lado e reencoda (PNG primeiro quando a origem é PNG; JPEG com qualidade em degraus
+quando precisa caber). Teto de **300 KB por imagem** — acima disso o erro é `E-GOV-05`, com o
+tamanho e o teto na mensagem. Passando de **3 MB** de anexos no documento, um aviso aparece; é
+aviso, não bloqueio. A imagem vira um `INLINE_IMAGE` em `attachments` (`03-modelo-do-documento.md`
+§8.1) e um bloco `image` com legenda opcional; remover o bloco leva o anexo junto quando ele fica
+órfão (DEC-GOV-031).
+
+### 18.5 Diff por bloco
+
+`RichDocDiffView` mostra base à esquerda e comparada à direita, uma linha por mudança, com o
+`Badge` dizendo o que aconteceu — mesmo vocabulário visual do diff de matriz (§9). Blocos idênticos
+ficam fora por padrão. O diff é **por bloco**, sem realce dentro do parágrafo, e enxerga movimento
+(DEC-GOV-029). No inspector do componente, o botão **Comparar com a publicada** troca o editor pelo
+diff entre o rascunho e a versão vigente; a S36/S39 reusam a mesma peça para "hoje × proposto" e
+para a fotografia histórica.

@@ -105,7 +105,8 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 | Export (JSON/CSV canônico) | `docs/07-ux-e-editor.md` §9 | `src/core/export/` |
 | Componentes de política (árvore, versões, schema 5) | `docs/03-modelo-do-documento.md` §12–13 | `src/core/document/components.ts`, `src/core/versioning/component-lifecycle.ts` |
 | Árvore da política e cadastro/versionamento de regras (S33a/S33b ✅) | `docs/07-ux-e-editor.md` §17 | `src/components/tree/`, `src/components/inspector/{ComponentInspector,ComponentPayloadFields}.tsx`, `src/core/versioning/component-lifecycle.ts` |
-| Governança de alterações (DB, workflow, release, carga por recorte — épico GOV, S32b ✅, S40 ✅, S34–39 🚧) | `docs/14-governanca-de-alteracoes.md` | `src/core/document/{change-requests,cr-workflow,releases}.ts`, `src/core/import/markdown-*.ts` |
+| Governança de alterações (DB, workflow, release, carga por recorte — épico GOV, S32b ✅, S40 ✅, S35–39 🚧) | `docs/14-governanca-de-alteracoes.md` | `src/core/document/{change-requests,cr-workflow,releases}.ts`, `src/core/import/markdown-*.ts` |
+| Editor rico de especificação (`RichDoc`: blocos, colar, imagem embutida, diff por bloco — S34 ✅) | `docs/07-ux-e-editor.md` §18, `docs/14-governanca-de-alteracoes.md` §7 | `src/core/richdoc/`, `src/components/richdoc/` |
 
 Mapa das âncoras de região dos arquivos grandes (`// #region: <slug>`, `docs/claude/Mapa-de-regioes.md`) — grep rápido: `grep -rn "// #region:" src/`.
 

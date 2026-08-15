@@ -248,6 +248,21 @@ isola qualquer `checkIN` individualmente.
 | 213 | `helpers-internos-do-store` |
 | 516 | `estado-inicial-e-acoes` |
 
+### `src/components/richdoc/RichDocEditor.tsx`
+
+Editor rico de especificação (S34, docs/07 §18). O núcleo das decisões de conteúdo está em
+`src/core/richdoc/` (que também tem âncoras em `operations.ts`, `paste.ts` e `commands.ts`); aqui
+ficam gesto, foco e cursor.
+
+| Linha | Slug |
+|---|---|
+| 152 | `navegacao-entre-linhas` |
+| 181 | `teclado` |
+| 292 | `marcas-e-link` |
+| 316 | `colar` |
+| 379 | `insercao-de-blocos` |
+| 474 | `render` |
+
 ## Quando um arquivo novo cruzar ~600 linhas
 
 Adicione as âncoras seguindo a mesma convenção (título de seção → slug kebab-case) e uma entrada

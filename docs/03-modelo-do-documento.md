@@ -778,7 +778,10 @@ Fora `businessDescription`, todo campo é opcional: a carga inicial raramente te
 ### 12.3 `RichDoc` — documentação livre em blocos
 
 Editor de blocos próprios, sem dependência nova (DEC-GOV-005). Declarado inteiro na S32a; o editor
-é da S34. `id` é estável por bloco — é o que torna o diff de `RichDoc` um diff **por bloco**.
+chegou na S34 (`src/core/richdoc/`, interações em `07-ux-e-editor.md` §18). `id` é estável por
+bloco — é o que torna o diff de `RichDoc` um diff **por bloco**, com movimento detectado pelo id
+(DEC-GOV-029). Bloco de texto vazio é representado por `text: []`, e uma `spec` sem bloco nenhum é
+**omitida** do documento, como todo campo opcional vazio (§1).
 
 ```ts
 type RichDoc = { blocks: Block[] };

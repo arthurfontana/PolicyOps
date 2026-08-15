@@ -97,12 +97,27 @@ export interface DocumentStoreState {
   dispatch: <O>(command: Command<unknown, O>) => CommandResult<O>;
   undo: () => CommandResult<unknown> | null;
   redo: () => CommandResult<unknown> | null;
+  /**
+   * Encerra a sequência de digitação corrente (docs/08 §2, S34): o próximo
+   * comando entra como entrada nova na pilha mesmo que traga a mesma
+   * `coalesceKey`. A interface chama isto quando o gesto acaba — sair do
+   * bloco, colar, salvar — para que o Ctrl+Z seguinte não engula duas
+   * digitações separadas de uma vez.
+   */
+  breakCoalescing: () => void;
 }
 
 const NO_DOCUMENT = (): DomainError =>
   new DomainError('NOT_FOUND', 'Nenhum documento aberto — abra ou crie um antes de editar.');
 
 export const useDocumentStore = create<DocumentStoreState>((set, get) => {
+  /**
+   * Chave da sequência de digitação em curso (docs/08 §2, S34). Fica fora do
+   * estado do Zustand de propósito: é detalhe da pilha, nada na interface
+   * renderiza a partir dela, e mudá-la não deve custar um render.
+   */
+  let coalescingKey: string | null = null;
+
   /**
    * Executa um comando contra o documento aberto e devolve o resultado.
    * Não mexe em nenhuma pilha: quem chama decide o que empilhar.
@@ -141,10 +156,13 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
       return document === null ? 'PUBLISHER' : resolveRole(document, identity.username);
     },
 
-    openDocument: (document) =>
-      set({ document, dirty: false, undoStack: [], redoStack: [], canUndo: false, canRedo: false }),
+    openDocument: (document) => {
+      coalescingKey = null;
+      set({ document, dirty: false, undoStack: [], redoStack: [], canUndo: false, canRedo: false });
+    },
 
-    closeDocument: () =>
+    closeDocument: () => {
+      coalescingKey = null;
       set({
         document: null,
         dirty: false,
@@ -152,7 +170,8 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
         redoStack: [],
         canUndo: false,
         canRedo: false,
-      }),
+      });
+    },
 
     markSaved: (stamp) =>
       set((state) => {
@@ -190,11 +209,34 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
       const result = execute(command);
       if (!result.ok) return result;
 
+      // Coalescência de digitação (docs/08 §2, S34): comando novo com a mesma
+      // chave do anterior **substitui** a entrada do topo e mantém o `inverse`
+      // do primeiro da sequência — é o que faz um Ctrl+Z desfazer o parágrafo
+      // inteiro. Qualquer outro comando (chave diferente ou ausente) fecha a
+      // sequência.
+      const previousKey = coalescingKey;
+      coalescingKey = command.coalesceKey ?? null;
+
+      const currentStack = get().undoStack;
+      const top = currentStack[currentStack.length - 1];
+      const coalesces =
+        command.coalesceKey !== undefined &&
+        command.coalesceKey === previousKey &&
+        top !== undefined &&
+        !isIrreversible(result.inverse);
+
+      if (coalesces) {
+        const merged: UndoEntry = { command: command as Command, inverse: top!.inverse, label: top!.label };
+        const undoStack = [...currentStack.slice(0, -1), merged];
+        set({ undoStack, redoStack: [], canUndo: true, canRedo: false });
+        return result;
+      }
+
       // Comando sem inverso natural (publicar, descartar rascunho) não entra
       // na pilha: oferecer um "Desfazer" que só sabe falhar seria mentira.
       let undoStack = isIrreversible(result.inverse)
-        ? get().undoStack
-        : [...get().undoStack, entryFor(command, result)].slice(-UNDO_STACK_DEPTH);
+        ? currentStack
+        : [...currentStack, entryFor(command, result)].slice(-UNDO_STACK_DEPTH);
 
       // Publicar limpa a pilha de undo daquela versão: o que foi publicado é
       // imutável, e desfazer por cima dele falharia com VERSION_IMMUTABLE.
@@ -213,10 +255,17 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
       return result;
     },
 
+    breakCoalescing: () => {
+      coalescingKey = null;
+    },
+
     undo: () => {
       const { undoStack, redoStack } = get();
       const entry = undoStack[undoStack.length - 1];
       if (entry === undefined) return null;
+      // Desfazer fecha a sequência: o comando seguinte, mesmo que seja
+      // digitação no mesmo bloco, começa uma entrada nova.
+      coalescingKey = null;
 
       const result = execute(entry.inverse);
       if (!result.ok) return result;
@@ -239,6 +288,7 @@ export const useDocumentStore = create<DocumentStoreState>((set, get) => {
       const { undoStack, redoStack } = get();
       const entry = redoStack[redoStack.length - 1];
       if (entry === undefined) return null;
+      coalescingKey = null;
 
       const result = execute(entry.inverse);
       if (!result.ok) return result;

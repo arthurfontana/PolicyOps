@@ -18,6 +18,9 @@ type CommandResult<O> =
   | { ok: false; error: DomainError };
 ```
 
+`Command` tem ainda dois campos opcionais que o store lê: `scope` (docs/03 §8) e **`coalesceKey`**
+(S34) — a chave de coalescência da digitação, descrita no §2.
+
 Regras invioláveis:
 
 1. **Puro.** Sem `Date.now()`, sem `Math.random()`, sem `window` — tudo vem de `ctx`. É o que torna os testes determinísticos.
@@ -48,6 +51,13 @@ type DocumentStore = {
 - A pilha é limpa ao trocar de documento e **ao salvar? Não** — o undo continua disponível após salvar; o que muda é que desfazer volta a marcar `dirty`.
 - Erro de comando **não** altera o documento e não empilha nada.
 - Publicar limpa a pilha de undo daquela versão, e a interface avisa antes.
+- **Coalescência de digitação (S34, DEC-GOV-028)**: comando com `coalesceKey` igual à do comando
+  imediatamente anterior **substitui** a entrada do topo da pilha, mantendo o `inverse` do primeiro
+  da sequência — um `Ctrl+Z` desfaz o parágrafo inteiro, não letra por letra, e o refazer devolve
+  tudo. Fecham a sequência: qualquer comando sem chave ou com chave diferente, `undo`, `redo`,
+  trocar de documento e a ação explícita `breakCoalescing()` (que a interface chama ao sair do
+  bloco, colar ou mexer na estrutura). A chave é montada por quem cria o comando —
+  `typingCoalesceKey(target, blockId, célula)` no editor rico.
 
 ## 3. Catálogo de comandos
 
@@ -212,6 +222,19 @@ atômica da S36 (RN-GOV-05). Os eventos de release (`RELEASE_CREATED`, `RELEASE_
 `RELEASE_CANCELLED`) vão para `doc.events` — ao contrário do DB, `Release` não tem trilha própria no
 schema.
 
+### Editor rico de especificação (`RichDoc`, sessão 34)
+| Comando | Entrada | Inverso |
+|---|---|---|
+| `richdoc/apply` | `{ target, op, label?, coalesceKey? }` — `op` é uma `RichDocOp` de `src/core/richdoc/operations.ts` (inserir, remover, mover, substituir, emendar); `target` diz onde o `RichDoc` mora (`COMPONENT_VERSION_SPEC` na S34; os campos do DB entram na S35). Só escreve em rascunho (`VERSION_IMMUTABLE`) e **não** gera evento, como `componentVersion/update` | o próprio comando com a operação inversa, sem `coalesceKey` |
+| `richdoc/insertImage` | `{ target, image, caption?, afterBlockId? }` — cria o `INLINE_IMAGE` em `attachments` **e** o bloco `image` numa transação; recusa acima de 300 KB (`ATTACHMENT_TOO_LARGE`, `E-GOV-05`) | `richdoc/removeBlock` do bloco criado, que leva o anexo junto |
+| `richdoc/removeBlock` | `{ target, blockId }` — remove o bloco; se ele era a última referência a uma imagem embutida, remove o anexo também (DEC-GOV-031) | `richdoc/_restoreBlock`, que devolve bloco e anexo nos índices exatos |
+
+Especificação vazia é **ausência** de especificação: quando o último bloco sai, o campo `spec` é
+removido do documento (convenção de `03-modelo-do-documento.md` §1), e não fica um `{"blocks":[]}`
+por versão no arquivo. As decisões de conteúdo (dividir no Enter, fundir no Backspace, transformar
+tipo, colar) são funções puras de `operations.ts`/`paste.ts` que devolvem a `RichDocOp` — a
+interface descreve o gesto, o núcleo decide o conteúdo.
+
 ### Papéis
 | Comando | Entrada | Inverso |
 |---|---|---|
@@ -297,7 +320,7 @@ pilhas de undo ficam intocados, igual a qualquer outro erro de comando (§1 regr
 
 | Papel mínimo | Comandos |
 |---|---|
-| `EDITOR` (piso padrão) | Todo comando de rascunho, biblioteca (variáveis, compatibilidade, catálogo), tags, eixos, projetos, templates, perfis de carga **e todo o épico Governança — DB e release, aprovação incluída** — qualquer `command.type` fora das duas linhas abaixo |
+| `EDITOR` (piso padrão) | Todo comando de rascunho, biblioteca (variáveis, compatibilidade, catálogo), tags, eixos, projetos, templates, perfis de carga, **o editor rico (`richdoc/*`)** **e todo o épico Governança — DB e release, aprovação incluída** — qualquer `command.type` fora das duas linhas abaixo |
 | `PUBLISHER` | `version/publish`, `import/apply`, `matrix/archive`, `componentVersion/publish`, `component/archive` |
 | `ADMIN` | `acl/set` |
 

@@ -41,7 +41,7 @@
 | 32b ✅ | DB, release e workflow (núcleo) | **Opus** | ✅ **Entregue** — comandos de `ChangeRequest`/`Release` com inverso, grafo de 12 estados (`PUBLISHED` inalcançável por transição), aprovações que não publicam, vínculo com release e composição estática, **I30–I31** — 100% testado, sem tela. **Pré-requisito da 35**, não da 33/40 | 32a |
 | 33a ✅ | Árvore da política (esqueleto) | **Sonnet** | ✅ **Entregue** — árvore como tela do projeto (painel + `ComponentContentPanel` + `ComponentInspector`): criar/renomear/mover/arquivar/duplicar componente de qualquer tipo, nó MATRIX apontando matriz existente (seletor com busca/tag), busca, filtro por tipo/revisão/faceta com ancestrais preservados, contagens, breadcrumb, âncoras de 2 níveis na sidebar, ergonomia de teclado (Enter/Tab/Ctrl+D). Sem payload de regra e sem ciclo de vida | 32a |
 | 33b ✅ | Cadastro e versionamento de regras | **Sonnet** | ✅ **Entregue** — formulário por tipo (`ComponentPayloadFields`: `RULE`/`LIST`/`REASON_CODE`/`POLICY_VARIABLE`/`OTHER`, `POLICY_VARIABLE` com link para a Biblioteca sem duplicar domínios), ciclo rascunho/editar/publicar/descartar na tela (mesmo padrão visual da matriz), timeline (`MatrixTimelineBar` reaproveitado), "Documentar esta seção" (I27), vigência da fundação no projeto, "Publicar pendentes" em lote tudo-ou-nada (`componentVersion/publishPending`), entrada em volume por colagem reconhecida por prefixo (`recognizeRulePaste`) | 33a |
-| 34 | Editor rico de especificação | **Opus** | `RichDoc` de blocos próprios: editar, colar do Word/Excel, imagem-anexo com teto, diff por bloco | 32a |
+| 34 ✅ | Editor rico de especificação | **Opus** | ✅ **Entregue** — `RichDoc` de blocos próprios com um `contentEditable` por linha: operações puras com inverso (`src/core/richdoc/`), uma tecla um comando com coalescência na pilha de undo (DEC-GOV-028), colar sanitizado do Word/Excel (DEC-GOV-030), imagem embutida com downscale ≤ 1600 px e teto de 300 KB (`E-GOV-05`), diff por bloco com detecção de movimento (DEC-GOV-029) e o campo **Especificação** ligado no inspector do componente (docs/07 §18) | 32a |
 | 35 | Solicitação de Alteração e workflow | **Sonnet** | Criar DB multi-componente (motivadores, atual×proposto, impactos, critérios, testes), grafo de 12 estados na tela, fila de aprovação, painel de pendências | 32b, 33, 34 |
 | 36 | Vínculo DB ↔ rascunhos e publicação | **Opus** | Item do DB vincula rascunho (componente ou matriz), congelamento pós-aprovação, publicação atômica com vigência, rebase quando a base mudou | 35 |
 | 37 | Release e timeline do Diário de Bordo | **Sonnet** | Release agrupa DBs, publica em lote (reutiliza S36), timeline cronológica dos DBs publicados | 36 |
@@ -242,7 +242,7 @@
 >
 > ```
 > 32a → 33a → 33b → ⟨uso real: a política as-is entra à mão; rota se ajusta aqui⟩
->   → 40 ✅ (opcional) → 34 → 32b → 35 → 36 → 37/38 (paralelizáveis) → 39
+>   → 40 ✅ (opcional) → 34 ✅ → 32b → 35 → 36 → 37/38 (paralelizáveis) → 39
 > ```
 >
 > O ponto de parada depois da 33b é o que torna a correção de rota barata: são três sessões, e tudo o que o usuário cadastrar ali sobrevive a qualquer decisão posterior, porque o resto do épico **lê** essas entidades em vez de redefini-las. A **32b não é opcional**: sem ela a 35 não tem comandos para chamar. Converter o Word em Markdown (`10-guia-do-usuario.md` §10.1) não depende de código e valeu desde antes da 40 rodar — serve para digitar bloco a bloco na 33b tanto quanto para a carga por recorte.
@@ -259,7 +259,7 @@ ferramenta". Cada lote termina com algo que o usuário **usa** no mesmo dia:
 | **3 — Conteúdo** ✅ | 33b | Digitar as regras com definição técnica, reason code e resultado, e publicar tudo com a vigência da fundação. A política vigente passa a existir na ferramenta |
 | **⏸ Parada** | — | Uso real. Decidido: a 40 valia a pena — `sectionKind` e referências como nó continuam adiados (docs/14 §3.6) |
 | **4 — Aceleração** ✅ | 40 | Subir capítulos convertidos em Markdown dentro da seção escolhida, em recortes, revisados antes de entrar |
-| **5 — Governança** 🔮 | 34 → 32b → 35 → 36 → 37/38 → 39 | Editor rico, Diário de Bordo, publicação com vigência, release, pacote e fotografia histórica (32b já entregue — ver linha própria acima) |
+| **5 — Governança** 🔮 | 34 ✅ → 32b → 35 → 36 → 37/38 → 39 | Editor rico, Diário de Bordo, publicação com vigência, release, pacote e fotografia histórica (32b já entregue — ver linha própria acima) |
 
 Enquanto o lote 1 rodava, o trabalho paralelo que valia a pena era converter o Word em Markdown com
 o prompt de `10-guia-do-usuario.md` §10.1 — ele é a fonte de onde o texto é colado na etapa 3 e,

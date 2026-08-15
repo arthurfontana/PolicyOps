@@ -67,6 +67,17 @@ export default mergeConfig(
             functions: 100,
             statements: 100,
           },
+          // Editor rico (S34): perda de trabalho do usuário é o modo de falha
+          // da sessão — uma operação sem inverso exercitado é um Ctrl+Z que
+          // ninguém testou (docs/14 §7). Linhas, funções e statements a 100%;
+          // ramos a 95% porque o que sobra são fallbacks defensivos (`?? []`,
+          // `?? ''`) de campos que o schema já garante.
+          'src/core/richdoc/**/*.ts': {
+            lines: 100,
+            branches: 95,
+            functions: 100,
+            statements: 100,
+          },
         },
       },
     },
