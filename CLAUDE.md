@@ -105,7 +105,8 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 | Consultas de leitura (vigência, timeline, auditoria) | `docs/05-regras-de-negocio.md` §6 | `src/core/queries.ts` |
 | Export (JSON/CSV canônico) | `docs/07-ux-e-editor.md` §9 | `src/core/export/` |
 | Componentes de política (árvore, versões, schema 5) | `docs/03-modelo-do-documento.md` §12–13 | `src/core/document/components.ts`, `src/core/versioning/component-lifecycle.ts` |
-| Governança de alterações (DB, workflow, release — épico GOV, 🚧 em andamento) | `docs/14-governanca-de-alteracoes.md` | `src/core/document/{change-requests,cr-workflow,releases}.ts` |
+| Árvore da política — tela do projeto (S33a ✅) | `docs/07-ux-e-editor.md` §17 | `src/components/tree/`, `src/components/inspector/ComponentInspector.tsx` |
+| Governança de alterações (DB, workflow, release — épico GOV, S32b ✅, S33b–40 🚧) | `docs/14-governanca-de-alteracoes.md` | `src/core/document/{change-requests,cr-workflow,releases}.ts` |
 
 Mapa das âncoras de região dos arquivos grandes (`// #region: <slug>`, `docs/claude/Mapa-de-regioes.md`) — grep rápido: `grep -rn "// #region:" src/`.
 

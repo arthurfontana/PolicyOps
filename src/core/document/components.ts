@@ -5,6 +5,7 @@ import {
   POLICY_COMPONENT_MAX_DEPTH,
   type ComponentOrigin,
   type ComponentReviewStatus,
+  type ComponentVersion,
   type DocEvent,
   type PolicyComponent,
   type PolicyComponentType,
@@ -791,6 +792,211 @@ export function setComponentReviewStatus(
         data: undefined,
         events,
         inverse,
+      };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// component/duplicate
+// ---------------------------------------------------------------------------
+// #region: component-duplicate
+
+export type DuplicateComponentInput = { componentId: string };
+export type DuplicateComponentData = { componentId: string; code: string };
+
+function uniqueDuplicateCode(doc: PolicyOpsDocument, sourceCode: string): string {
+  const existing = new Set(doc.components.map((candidate) => candidate.code));
+  let candidate = `${sourceCode}_COPIA`;
+  let suffix = 2;
+  while (existing.has(candidate)) {
+    candidate = `${sourceCode}_COPIA${suffix}`;
+    suffix += 1;
+  }
+  return candidate;
+}
+
+/**
+ * `Ctrl/Cmd+D` (docs/07 §17.3): duplica o nó como irmão logo abaixo, com
+ * sufixo no `code`, preservando `tags` e `origin`. O payload da versão mais
+ * recente (se houver) entra como rascunho 1 da duplicata — ela nunca herda
+ * estado de publicação, só conteúdo, e nasce `STRUCTURED` mesmo que a
+ * origem já esteja `VALIDATED`.
+ *
+ * `MATRIX` não duplica: uma matriz é referenciada por no máximo um
+ * componente (I27), e "duplicar o espelho" não tem significado — o caminho
+ * para outra matriz é criar outro nó `MATRIX`. `variableId` também não é
+ * copiado, pela mesma exclusividade.
+ */
+export function duplicateComponent(
+  input: DuplicateComponentInput,
+): Command<DuplicateComponentInput, DuplicateComponentData> {
+  return defineCommand({
+    type: 'component/duplicate',
+    input,
+    label: 'Duplicar o componente',
+    scope: { componentId: input.componentId },
+    execute(doc, ctx) {
+      const { component: source } = locateComponent(doc, input.componentId);
+      if (source.type === 'MATRIX') {
+        throw new DomainError(
+          'COMPONENT_TREE_INVALID',
+          'Um nó MATRIX é um espelho único e não pode ser duplicado — crie outro nó apontando outra matriz.',
+          { componentId: source.id },
+        );
+      }
+
+      const code = uniqueDuplicateCode(doc, source.code);
+      const componentId = ctx.newId();
+      const createdAt = isoFrom(ctx.now());
+      const component: PolicyComponent = {
+        id: componentId,
+        projectId: source.projectId,
+        position: source.position + 1,
+        code,
+        name: `${source.name} (cópia)`,
+        type: source.type,
+        reviewStatus: 'STRUCTURED',
+        createdAt,
+        versions: [],
+      };
+      if (source.parentId !== undefined) component.parentId = source.parentId;
+      if (source.tags !== undefined) component.tags = [...source.tags];
+      if (source.origin !== undefined) component.origin = { ...source.origin };
+
+      const latest = source.versions.reduce<ComponentVersion | undefined>(
+        (best, version) => (best === undefined || version.number > best.number ? version : best),
+        undefined,
+      );
+      if (latest !== undefined) {
+        const clonedVersion: ComponentVersion = {
+          id: ctx.newId(),
+          number: 1,
+          state: 'DRAFT',
+          createdAt,
+          createdBy: ctx.actor,
+          payload: structuredClone(latest.payload),
+        };
+        if (latest.spec !== undefined) clonedVersion.spec = structuredClone(latest.spec);
+        component.versions = [clonedVersion];
+      }
+
+      const events = [
+        makeEvent(ctx, {
+          type: 'COMPONENT_CREATED',
+          scope: componentScope(component),
+          summary: `${ctx.actor} duplicou o componente "${source.code}" como "${code}".`,
+          payload: {
+            code,
+            name: component.name,
+            componentType: component.type,
+            sourceComponentId: source.id,
+            parentId: component.parentId ?? null,
+          },
+        }),
+      ];
+
+      return {
+        document: applyToDocument(doc, events, (draft) => {
+          draft.components.push(component);
+          const pushed = draft.components[draft.components.length - 1]!;
+          // A cópia entra logo depois da origem entre os irmãos, não no fim
+          // da lista: mesma técnica de `component/move` — monta o grupo já
+          // ordenado, insere no índice certo, só então renumera 0..n-1.
+          const group = draft.components
+            .filter(
+              (candidate) =>
+                candidate.projectId === component.projectId &&
+                (candidate.parentId ?? undefined) === component.parentId &&
+                candidate.id !== component.id,
+            )
+            .sort((a, b) => a.position - b.position);
+          const sourceIndex = group.findIndex((candidate) => candidate.id === source.id);
+          group.splice(sourceIndex === -1 ? group.length : sourceIndex + 1, 0, pushed);
+          group.forEach((candidate, position) => {
+            candidate.position = position;
+          });
+        }),
+        data: { componentId, code },
+        events,
+        inverse: removeDuplicatedComponent({ componentId, code }),
+      };
+    },
+  });
+}
+
+/** Inverso de `component/duplicate`: remove a duplicata (e a versão única que ela tenha) e reindexa. */
+function removeDuplicatedComponent(input: { componentId: string; code: string }): Command<
+  { componentId: string; code: string },
+  void
+> {
+  return defineCommand({
+    type: 'component/_removeDuplicated',
+    input,
+    label: `Desfazer a duplicação de "${input.code}"`,
+    scope: { componentId: input.componentId },
+    execute(doc) {
+      const { component, index } = locateComponent(doc, input.componentId);
+      if (doc.components.some((candidate) => candidate.parentId === component.id)) {
+        throw new DomainError(
+          'COMPONENT_TREE_INVALID',
+          `O componente "${component.code}" já tem filhos e não pode ser removido por um desfazer.`,
+          { componentId: component.id },
+        );
+      }
+      const removed = structuredClone(component);
+      return {
+        document: applyToDocument(doc, [], (draft) => {
+          draft.components.splice(index, 1);
+          reindexSiblings(draft.components, component.projectId, component.parentId);
+        }),
+        data: undefined,
+        events: [],
+        inverse: restoreDuplicatedComponent({ component: removed, index }),
+      };
+    },
+  });
+}
+
+function restoreDuplicatedComponent(input: { component: PolicyComponent; index: number }): Command<
+  { component: PolicyComponent; index: number },
+  void
+> {
+  return defineCommand({
+    type: 'component/_restoreDuplicated',
+    input,
+    label: `Refazer a duplicação de "${input.component.code}"`,
+    scope: { componentId: input.component.id },
+    execute(doc) {
+      return {
+        document: applyToDocument(doc, [], (draft) => {
+          draft.components.splice(input.index, 0, structuredClone(input.component));
+          const pushed = draft.components[input.index]!;
+          // `reindexSiblings` sozinho não basta: ele ordena por `.position`
+          // atual e desempata pela ordem crua do array, que não é
+          // necessariamente a posição em que a duplicata estava — a mesma
+          // técnica de índice explícito de `component/move` garante o byte a
+          // byte do refazer.
+          const group = draft.components
+            .filter(
+              (candidate) =>
+                candidate.projectId === input.component.projectId &&
+                (candidate.parentId ?? undefined) === input.component.parentId &&
+                candidate.id !== input.component.id,
+            )
+            .sort((a, b) => a.position - b.position);
+          const insertAt = Math.min(input.component.position, group.length);
+          group.splice(insertAt, 0, pushed);
+          group.forEach((candidate, position) => {
+            candidate.position = position;
+          });
+        }),
+        data: undefined,
+        events: [],
+        inverse: removeDuplicatedComponent({
+          componentId: input.component.id,
+          code: input.component.code,
+        }),
       };
     },
   });

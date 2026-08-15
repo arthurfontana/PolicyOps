@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react';
+import { Fragment, type ComponentType } from 'react';
 import {
   CalendarClock,
   Columns3,
@@ -16,7 +16,9 @@ import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
 import { useEffectiveRole } from '@/hooks/useRole';
 import { isOpenMode } from '@/core/document/roles';
-import { listMatrices, listOpenDrafts, listProjects } from '@/core/queries';
+import { listMatrices, listOpenDrafts, listProjects, resolveOpenVersion, sidebarTreeAnchors } from '@/core/queries';
+import type { PolicyComponent } from '@/core/document/schema';
+import { COMPONENT_TYPE_ICONS } from '@/lib/component-labels';
 import { Badge } from '@/components/ui/badge';
 
 interface NavItem {
@@ -124,8 +126,8 @@ function ProjectNav() {
       {summaries.map(({ project, matrixCount }) => {
         const showFilteredCount = filteredCount !== null && matrixFilter.projectId === project.id;
         return (
+          <Fragment key={project.id}>
           <button
-            key={project.id}
             type="button"
             onClick={() => {
               setSelectedProject(project.id);
@@ -146,6 +148,89 @@ function ProjectNav() {
               </span>
             )}
           </button>
+          {view === 'projects' && selectedProjectId === project.id && <TreeAnchors projectId={project.id} />}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Âncoras dos dois primeiros níveis da árvore, sob o projeto aberto
+ * (docs/07-ux-e-editor.md §17.1) — não substitui a lista de projetos, só
+ * acrescenta atalhos para o topo da árvore sem abrir o painel de 360px.
+ */
+function TreeAnchors({ projectId }: { projectId: string }) {
+  const document = useDocumentStore((s) => s.document);
+  const setView = useUiStore((s) => s.setView);
+  const expandComponents = useUiStore((s) => s.expandComponents);
+  const selectedComponentId = useEditorStore((s) => s.selectedComponentId);
+  const setSelectedComponent = useEditorStore((s) => s.setSelectedComponent);
+  const openMatrix = useEditorStore((s) => s.openMatrix);
+
+  const anchors = document === null ? null : sidebarTreeAnchors(document, projectId);
+  if (document === null || anchors === null || anchors.level1.length === 0) return null;
+
+  function goTo(component: PolicyComponent) {
+    if (component.type === 'MATRIX' && component.matrixId !== undefined) {
+      const matrix = document!.matrices.find((candidate) => candidate.id === component.matrixId);
+      const version = matrix === undefined ? null : resolveOpenVersion(matrix);
+      openMatrix(component.matrixId, version?.id ?? null);
+      setView('matrix');
+      return;
+    }
+    if (component.parentId !== undefined) expandComponents([component.parentId]);
+    setSelectedComponent(component.id);
+    setView('projects');
+  }
+
+  return (
+    <div className="ml-4 flex flex-col gap-0.5 border-l border-neutral-200 pl-2 dark:border-neutral-800">
+      {anchors.level1.map((level1) => {
+        const Icon = COMPONENT_TYPE_ICONS[level1.type];
+        const level2 = anchors.level2ByParent.get(level1.id) ?? [];
+        return (
+          <div key={level1.id} className="flex flex-col gap-0.5">
+            <button
+              type="button"
+              onClick={() => goTo(level1)}
+              aria-current={selectedComponentId === level1.id ? 'page' : undefined}
+              className={cn(
+                'flex w-full items-center gap-1.5 truncate rounded-md px-2 py-1 text-left text-xs transition-colors',
+                selectedComponentId === level1.id
+                  ? 'bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100'
+                  : 'text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-500 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100',
+              )}
+            >
+              <Icon className="h-3 w-3 shrink-0" />
+              <span className="truncate">{level1.name}</span>
+            </button>
+            {level2.length > 0 && (
+              <div className="ml-3 flex flex-col gap-0.5">
+                {level2.map((level2Item) => {
+                  const Level2Icon = COMPONENT_TYPE_ICONS[level2Item.type];
+                  return (
+                    <button
+                      key={level2Item.id}
+                      type="button"
+                      onClick={() => goTo(level2Item)}
+                      aria-current={selectedComponentId === level2Item.id ? 'page' : undefined}
+                      className={cn(
+                        'flex w-full items-center gap-1.5 truncate rounded-md px-2 py-1 text-left text-[11px] transition-colors',
+                        selectedComponentId === level2Item.id
+                          ? 'bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100'
+                          : 'text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-600 dark:hover:bg-neutral-800/60 dark:hover:text-neutral-100',
+                      )}
+                    >
+                      <Level2Icon className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{level2Item.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         );
       })}
     </div>

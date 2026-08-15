@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { PolicyOpsDocument } from '@/core/document/schema';
 import {
   axisStructureLabel,
+  componentPath,
   countPending,
+  filterComponentTree,
   getAxisStaleness,
   getEditorView,
   getEditorViewComputations,
@@ -21,10 +23,13 @@ import {
   listOpenDrafts,
   listProjectMatrices,
   listProjects,
+  listUnmirroredMatrices,
   listVariables,
   resetEditorViewComputations,
   resolveOpenVersion,
+  sidebarTreeAnchors,
 } from '@/core/queries';
+import { archiveComponent, createComponent } from '@/core/document/components';
 import { setMatrixTags } from '@/core/document/commands';
 import { archiveCatalogItem, createCatalogItem } from '@/core/library/catalog';
 import { addLevelCommand } from '@/core/versioning/axis-commands';
@@ -844,5 +849,209 @@ describe('listMatrices', () => {
     const { document, m1, m2, m3, m4 } = taggedMatricesDoc();
     const result = listMatrices(document, { projectId: IDS.projectA });
     expect(new Set(result.matrices.map((m) => m.id))).toEqual(new Set([m1, m2, m3, m4]));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Árvore de política — docs/07-ux-e-editor.md §17, S33a
+// ---------------------------------------------------------------------------
+
+/**
+ * CMA
+ *  └ Fraude
+ *      ├ RegraA (RULE, tag CANAL_DIGITAL, PENDING_REVIEW)
+ *      └ RegraB (RULE, tag CANAL_URA)
+ * Grupos (SECTION, sem filhos)
+ */
+function policyTreeDoc() {
+  const ctx = testCtx();
+  let document = baseDocument();
+
+  document = apply(
+    document,
+    ctx,
+    createCatalogItem({ kind: 'TAG', code: 'CANAL_DIGITAL', label: 'Digital', group: 'Canal' }),
+  ).document;
+  document = apply(
+    document,
+    ctx,
+    createCatalogItem({ kind: 'TAG', code: 'CANAL_URA', label: 'URA', group: 'Canal' }),
+  ).document;
+
+  const cma = apply(
+    document,
+    ctx,
+    createComponent({ projectId: IDS.projectA, code: 'CMA', name: 'CMA', type: 'SECTION' }),
+  );
+  document = cma.document;
+  const fraude = apply(
+    document,
+    ctx,
+    createComponent({
+      projectId: IDS.projectA,
+      code: 'FRAUDE',
+      name: 'Fraude',
+      type: 'SECTION',
+      parentId: cma.data.componentId,
+    }),
+  );
+  document = fraude.document;
+  const regraA = apply(
+    document,
+    ctx,
+    createComponent({
+      projectId: IDS.projectA,
+      code: 'REGRA_A',
+      name: 'Regra A',
+      type: 'RULE',
+      parentId: fraude.data.componentId,
+      tags: ['CANAL_DIGITAL'],
+      reviewStatus: 'PENDING_REVIEW',
+    }),
+  );
+  document = regraA.document;
+  const regraB = apply(
+    document,
+    ctx,
+    createComponent({
+      projectId: IDS.projectA,
+      code: 'REGRA_B',
+      name: 'Regra B',
+      type: 'RULE',
+      parentId: fraude.data.componentId,
+      tags: ['CANAL_URA'],
+    }),
+  );
+  document = regraB.document;
+  const grupos = apply(
+    document,
+    ctx,
+    createComponent({ projectId: IDS.projectA, code: 'GRUPOS', name: 'Grupos', type: 'SECTION' }),
+  );
+  document = grupos.document;
+
+  return {
+    ctx,
+    document,
+    cma: cma.data.componentId,
+    fraude: fraude.data.componentId,
+    regraA: regraA.data.componentId,
+    regraB: regraB.data.componentId,
+    grupos: grupos.data.componentId,
+  };
+}
+
+describe('componentPath', () => {
+  it('devolve o caminho da raiz até o nó, inclusive', () => {
+    const { document, cma, fraude, regraA } = policyTreeDoc();
+    const path = componentPath(document, regraA);
+    expect(path.map((c) => c.id)).toEqual([cma, fraude, regraA]);
+  });
+
+  it('componente raiz devolve caminho de um elemento', () => {
+    const { document, cma } = policyTreeDoc();
+    expect(componentPath(document, cma).map((c) => c.id)).toEqual([cma]);
+  });
+});
+
+describe('listUnmirroredMatrices', () => {
+  it('exclui matrizes já referenciadas por um nó MATRIX e as arquivadas', () => {
+    const { ctx, document, cma } = policyTreeDoc();
+    const livre = createTestMatrix(document, ctx, 'MTZ_LIVRE');
+    const pendurada = createTestMatrix(livre.document, ctx, 'MTZ_PENDURADA');
+    const comNo = apply(
+      pendurada.document,
+      ctx,
+      createComponent({
+        projectId: IDS.projectA,
+        code: 'NODE_MATRIZ',
+        name: 'Matriz pendurada',
+        type: 'MATRIX',
+        matrixId: pendurada.data.matrixId,
+        parentId: cma,
+      }),
+    );
+
+    const result = listUnmirroredMatrices(comNo.document, IDS.projectA);
+    expect(result.map((m) => m.id)).toEqual([livre.data.matrixId]);
+  });
+
+  it('só considera matrizes do projeto informado', () => {
+    const { document } = policyTreeDoc();
+    const outroProjeto = apply(
+      document,
+      testCtx(),
+      createMatrix({
+        projectId: IDS.projectB,
+        code: 'MTZ_B',
+        name: 'Matriz B',
+        x: { levels: [{ variableId: IDS.score }] },
+        y: { levels: [{ variableId: IDS.restritivo }] },
+      }),
+    );
+    const result = listUnmirroredMatrices(outroProjeto.document, IDS.projectA);
+    expect(result.map((m) => m.code)).not.toContain('MTZ_B');
+  });
+});
+
+describe('filterComponentTree', () => {
+  it('sem filtro: matchedIds e visibleIds cobrem todos os componentes ativos do projeto', () => {
+    const { document, cma, fraude, regraA, regraB, grupos } = policyTreeDoc();
+    const result = filterComponentTree(document, IDS.projectA, {});
+    const expected = new Set([cma, fraude, regraA, regraB, grupos]);
+    expect(result.matchedIds).toEqual(expected);
+    expect(result.visibleIds).toEqual(expected);
+  });
+
+  it('busca por nome preserva os ancestrais em visibleIds, sem marcá-los como match', () => {
+    const { document, cma, fraude, regraA, regraB, grupos } = policyTreeDoc();
+    const result = filterComponentTree(document, IDS.projectA, { search: 'Regra A' });
+
+    expect(result.matchedIds).toEqual(new Set([regraA]));
+    // Ancestrais (CMA, Fraude) continuam visíveis — a árvore não achata.
+    expect(result.visibleIds).toEqual(new Set([cma, fraude, regraA]));
+    expect(result.visibleIds.has(regraB)).toBe(false);
+    expect(result.visibleIds.has(grupos)).toBe(false);
+  });
+
+  it('filtro por tipo: só RULE, com os ancestrais SECTION preservados em visibleIds', () => {
+    const { document, cma, fraude, regraA, regraB } = policyTreeDoc();
+    const result = filterComponentTree(document, IDS.projectA, { types: ['RULE'] });
+    expect(result.matchedIds).toEqual(new Set([regraA, regraB]));
+    expect(result.visibleIds).toEqual(new Set([cma, fraude, regraA, regraB]));
+  });
+
+  it('filtro por reviewStatus', () => {
+    const { document, regraA } = policyTreeDoc();
+    const result = filterComponentTree(document, IDS.projectA, { reviewStatuses: ['PENDING_REVIEW'] });
+    expect(result.matchedIds).toEqual(new Set([regraA]));
+  });
+
+  it('filtro por tag: OU dentro do grupo devolve as duas regras do canal', () => {
+    const { document, regraA, regraB } = policyTreeDoc();
+    const result = filterComponentTree(document, IDS.projectA, { tags: ['CANAL_DIGITAL', 'CANAL_URA'] });
+    expect(result.matchedIds).toEqual(new Set([regraA, regraB]));
+    const canal = result.facets.find((g) => g.group === 'Canal')!;
+    expect(canal.options.find((o) => o.code === 'CANAL_DIGITAL')!.count).toBe(1);
+  });
+
+  it('componente arquivado nunca aparece em matchedIds nem visibleIds', () => {
+    const { ctx, document, regraB } = policyTreeDoc();
+    const arquivado = apply(document, ctx, archiveComponent({ componentId: regraB })).document;
+    const result = filterComponentTree(arquivado, IDS.projectA, {});
+    expect(result.matchedIds.has(regraB)).toBe(false);
+    expect(result.visibleIds.has(regraB)).toBe(false);
+  });
+});
+
+describe('sidebarTreeAnchors', () => {
+  it('nível 1 são as raízes; nível 2, os filhos diretos de cada raiz', () => {
+    const { document, cma, fraude, grupos } = policyTreeDoc();
+    const anchors = sidebarTreeAnchors(document, IDS.projectA);
+    expect(anchors.level1.map((c) => c.id)).toEqual([cma, grupos]);
+    expect(anchors.level2ByParent.get(cma)!.map((c) => c.id)).toEqual([fraude]);
+    // RULE dentro de Fraude é nível 3 — não entra na âncora da sidebar.
+    expect(anchors.level2ByParent.get(fraude)).toBeUndefined();
+    expect(anchors.level2ByParent.get(grupos)).toEqual([]);
   });
 });

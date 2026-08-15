@@ -8,12 +8,15 @@ import type {
   Cell,
   CompatibilityRule,
   CompatibilityVersion,
+  ComponentReviewStatus,
   DefaultForUnlisted,
   Domain,
   DocEvent,
   Matrix,
   MatrixVersion,
   MatrixVersionState,
+  PolicyComponent,
+  PolicyComponentType,
   PolicyOpsDocument,
   Project,
   Template,
@@ -21,6 +24,7 @@ import type {
   VariableType,
   VariableVersion,
 } from './document/schema';
+import { listChildren } from './document/components';
 import { getAxisStaleness, type AxisStaleness } from './reconcile/stale';
 import { previewTemplate } from './templates/preview';
 import { locateMatrix, locateVersion } from './versioning/lifecycle';
@@ -1000,4 +1004,168 @@ export function getImportOrigin(doc: PolicyOpsDocument, versionId: string): Impo
   }
   if (importRunId === undefined) return null;
   return listImportRuns(doc).find((run) => run.importRunId === importRunId) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Árvore de política — docs/07-ux-e-editor.md §17, docs/14-governanca-de-alteracoes.md §3.1
+// ---------------------------------------------------------------------------
+// #region: arvore-de-politica-docs-07-17
+
+/** Caminho da raiz até o nó, inclusive — o breadcrumb clicável do topo do conteúdo (docs/07 §17.1). */
+export function componentPath(doc: PolicyOpsDocument, componentId: string): PolicyComponent[] {
+  const byId = new Map(doc.components.map((component) => [component.id, component]));
+  const path: PolicyComponent[] = [];
+  const seen = new Set<string>();
+  let current = byId.get(componentId);
+  while (current !== undefined && !seen.has(current.id)) {
+    path.unshift(current);
+    seen.add(current.id);
+    current = current.parentId === undefined ? undefined : byId.get(current.parentId);
+  }
+  return path;
+}
+
+/** Matrizes do projeto ainda sem nó `MATRIX` na árvore (I27) — o universo do seletor do §17.2. */
+export function listUnmirroredMatrices(doc: PolicyOpsDocument, projectId: string): Matrix[] {
+  const mirrored = new Set(
+    doc.components
+      .filter((component) => component.matrixId !== undefined)
+      .map((component) => component.matrixId!),
+  );
+  return doc.matrices.filter(
+    (matrix) =>
+      matrix.projectId === projectId && matrix.archivedAt === undefined && !mirrored.has(matrix.id),
+  );
+}
+
+export type ComponentTreeFilter = {
+  search?: string;
+  types?: PolicyComponentType[];
+  reviewStatuses?: ComponentReviewStatus[];
+  /** Codes de `CatalogItem` kind TAG — mesma semântica OU-no-grupo/E-entre-grupos de `listMatrices` (docs/07 §15). */
+  tags?: string[];
+};
+
+export type ComponentTreeFilterResult = {
+  /** Nós que passam em todos os filtros. */
+  matchedIds: Set<string>;
+  /** `matchedIds` mais todos os ancestrais — o painel mostra esses a mais esmaecidos (docs/07 §17.1). */
+  visibleIds: Set<string>;
+  facets: TagFacetGroup[];
+};
+
+const NO_COMPONENT_FILTER: ComponentTreeFilter = {};
+
+/**
+ * Filtra a árvore de um projeto por busca, tipo, `reviewStatus` e faceta de
+ * tag, devolvendo também os ancestrais dos nós que sobraram — ao contrário
+ * de `listMatrices`, que devolve uma lista plana, aqui o filtro **não**
+ * achata a árvore (docs/07 §17.1): quem renderiza decide mostrar
+ * `visibleIds \ matchedIds` esmaecido.
+ */
+export function filterComponentTree(
+  doc: PolicyOpsDocument,
+  projectId: string,
+  filter: ComponentTreeFilter = NO_COMPONENT_FILTER,
+): ComponentTreeFilterResult {
+  const { search, types, reviewStatuses, tags = [] } = filter;
+  const inProject = doc.components.filter(
+    (component) => component.projectId === projectId && component.archivedAt === undefined,
+  );
+
+  const activeTagItems = doc.catalog.filter((item) => item.kind === 'TAG' && item.archivedAt === undefined);
+  const groupOfCode = new Map(activeTagItems.map((item) => [item.code, item.group ?? UNGROUPED_TAG_LABEL]));
+  const selectedByGroup = new Map<string, Set<string>>();
+  for (const code of tags) {
+    const group = groupOfCode.get(code) ?? UNGROUPED_TAG_LABEL;
+    const set = selectedByGroup.get(group) ?? new Set<string>();
+    set.add(code);
+    selectedByGroup.set(group, set);
+  }
+
+  const searchLower = search?.trim().toLowerCase();
+  const typeSet = types === undefined || types.length === 0 ? null : new Set(types);
+  const statusSet =
+    reviewStatuses === undefined || reviewStatuses.length === 0 ? null : new Set(reviewStatuses);
+
+  function passesTagGroups(component: PolicyComponent, exceptGroup: string | null): boolean {
+    const componentTags = component.tags ?? [];
+    for (const [group, codes] of selectedByGroup) {
+      if (group === exceptGroup) continue;
+      if (!componentTags.some((code) => codes.has(code))) return false;
+    }
+    return true;
+  }
+
+  function passesScope(component: PolicyComponent): boolean {
+    if (typeSet !== null && !typeSet.has(component.type)) return false;
+    if (statusSet !== null && !statusSet.has(component.reviewStatus)) return false;
+    if (searchLower !== undefined && searchLower.length > 0) {
+      const haystack = `${component.code} ${component.name}`.toLowerCase();
+      if (!haystack.includes(searchLower)) return false;
+    }
+    return true;
+  }
+
+  const inScope = inProject.filter(passesScope);
+  const matched = inScope.filter((component) => passesTagGroups(component, null));
+  const matchedIds = new Set(matched.map((component) => component.id));
+
+  const byId = new Map(inProject.map((component) => [component.id, component]));
+  const visibleIds = new Set<string>();
+  for (const component of matched) {
+    let current: PolicyComponent | undefined = component;
+    while (current !== undefined && !visibleIds.has(current.id)) {
+      visibleIds.add(current.id);
+      current = current.parentId === undefined ? undefined : byId.get(current.parentId);
+    }
+  }
+
+  const itemsByGroup = new Map<string, CatalogItem[]>();
+  for (const item of activeTagItems) {
+    const group = item.group ?? UNGROUPED_TAG_LABEL;
+    const list = itemsByGroup.get(group) ?? [];
+    list.push(item);
+    itemsByGroup.set(group, list);
+  }
+  const facets: TagFacetGroup[] = [...itemsByGroup.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([group, items]) => {
+      const scoped = inScope.filter((component) => passesTagGroups(component, group));
+      const options = items
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((item) => {
+          const option: TagFacetOption = {
+            code: item.code,
+            label: item.label,
+            count: scoped.filter((component) => (component.tags ?? []).includes(item.code)).length,
+          };
+          if (item.color !== undefined) option.color = item.color;
+          return option;
+        });
+      return { group, options };
+    });
+
+  return { matchedIds, visibleIds, facets };
+}
+
+/** Anchors dos dois primeiros níveis da árvore (docs/07 §17.1) — o que a sidebar mostra sob o projeto. */
+export type SidebarTreeAnchors = {
+  level1: PolicyComponent[];
+  level2ByParent: Map<string, PolicyComponent[]>;
+};
+
+export function sidebarTreeAnchors(doc: PolicyOpsDocument, projectId: string): SidebarTreeAnchors {
+  const level1 = listChildren(doc, projectId, undefined).filter(
+    (component) => component.archivedAt === undefined,
+  );
+  const level2ByParent = new Map<string, PolicyComponent[]>();
+  for (const parent of level1) {
+    level2ByParent.set(
+      parent.id,
+      listChildren(doc, projectId, parent.id).filter((component) => component.archivedAt === undefined),
+    );
+  }
+  return { level1, level2ByParent };
 }
