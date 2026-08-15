@@ -489,3 +489,26 @@ Publicar ~100 componentes que **já vigoram** não custa ~100 diálogos de publi
   campo `RulePayload.dependencies` já existe e é editável (lista de codes), mas o inspector ainda
   não resolve o code para um link clicável; fica para quando o épico tiver DB citando os dois
   lados (S35+).
+
+### 17.6 Carga por recorte — S40 ✅
+
+`MarkdownImportDialog` (`src/components/import/markdown/`), aberto pela barra da árvore
+("Carregar Markdown") ou pelo menu de um nó ("Carregar Markdown aqui…", pré-seleciona o destino) —
+diálogo, não uma rota própria, porque o destino já é o contexto de onde o usuário estava
+(DEC-GOV-027). Três passos, no padrão visual do assistente de carga de matrizes (§14):
+
+1. **Destino e texto**: seletor de destino igual ao de "Mover para…" (busca + "Raiz da política"),
+   e uma área de texto para colar o Markdown (ou **Selecionar arquivo…** para um `.md`/`.txt`).
+2. **Revisão**: a árvore proposta, achatada em linhas indentadas por profundidade — checkbox para
+   incluir/excluir (excluir leva a subárvore junto), `Select` de tipo por linha (os seis tipos que
+   o Markdown pode produzir, `MATRIX` fora), badge "heurística" quando o tipo não veio de
+   `> Tipo:` explícito, e a mensagem de cada problema da linha (aviso ou bloqueio, este último em
+   vermelho — duplicata de `code`, profundidade além de I28). "Avançar" só libera sem bloqueio.
+3. **Confirmação**: vigência da carga (sugerida pela vigência da fundação do projeto, RN-GOV-09,
+   sempre editável) e o resumo do que vai acontecer; "Confirmar carga" aplica
+   `component/importMarkdown` em lote e mostra o total criado. Fechar depois do sucesso expande o
+   destino na árvore.
+
+Nada entra sem passar pelo passo 2, e desfazer (`Ctrl+Z`) logo em seguida remove a carga inteira —
+o undo é dedicado, não a composição genérica de inversos que a carga de matrizes usa, porque
+publicar é irreversível por natureza (DEC-GOV-026).

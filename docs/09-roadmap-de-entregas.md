@@ -1,6 +1,6 @@
 # Roadmap de Entregas
 
-40 sessões incrementais — as 17 do MVP, 18–20 pós-MVP (biblioteca de variáveis), 21–25 do épico Carga, 26–31 do épico **Plataforma** (`14-plataforma-local.md`) e 32–40 do épico **Governança de Alterações** (`14-governanca-de-alteracoes.md`, 🚧 em andamento — 32a/32b/33a/33b ✅ entregues, 34–40 🔮 planejadas; a 32 foi dividida em **32a**/**32b** e a 33, em **33a**/**33b** — DEC-GOV-010 e DEC-GOV-012). Cada uma termina com algo que roda, testado, commitado, e com `dist/PolicyOps.html` atualizado.
+40 sessões incrementais — as 17 do MVP, 18–20 pós-MVP (biblioteca de variáveis), 21–25 do épico Carga, 26–31 do épico **Plataforma** (`14-plataforma-local.md`) e 32–40 do épico **Governança de Alterações** (`14-governanca-de-alteracoes.md`, 🚧 em andamento — 32a/32b/33a/33b/40 ✅ entregues, 34–39 🔮 planejadas; a 32 foi dividida em **32a**/**32b** e a 33, em **33a**/**33b** — DEC-GOV-010 e DEC-GOV-012). Cada uma termina com algo que roda, testado, commitado, e com `dist/PolicyOps.html` atualizado.
 
 ## Quadro geral
 
@@ -47,7 +47,7 @@
 | 37 | Release e timeline do Diário de Bordo | **Sonnet** | Release agrupa DBs, publica em lote (reutiliza S36), timeline cronológica dos DBs publicados | 36 |
 | 38 | Pacote para a Fábrica | **Sonnet** | HTML imprimível + Markdown gerados do DB, template de boilerplate por projeto | 36 |
 | 39 | Fotografia histórica da política | **Opus** | Política inteira (componentes + matrizes) em qualquer data, comparação data A × data B e release × release | 36 |
-| 40 | Carga da política por recorte 🟡 | **Sonnet** | Importar um capítulo em Markdown **dentro da seção escolhida** → Revisar → Confirmar, com origem preservada e undo total. **Opcional**: só se a digitação virar o gargalo depois da 33b (DEC-GOV-012) | 32a, 33a, 33b |
+| 40 ✅ | Carga da política por recorte | **Sonnet** | ✅ **Entregue** — parser puro (`markdown-policy.ts`) + assistente de 3 passos (`MarkdownImportDialog`, diálogo lançado da árvore, DEC-GOV-027): destino + colar/arquivo → revisão (tipo editável, excluir item, duplicata bloqueia com E-GOV-06) → confirmação com vigência da fundação; `component/importMarkdown` aplica em lote atômico com undo total dedicado (CT-GOV-05, DEC-GOV-026) — 100% testado em `src/core/import/` | 32a, 33a, 33b |
 
 > **Sessão 21 entregue.** O motor vive em `src/core/import/` (`issues`, `parse-table`, `profile`,
 > `resolve`, `plan`, `library-gaps`, `hash`), com 100% de cobertura e os cenários CT-01 a CT-10 e
@@ -236,16 +236,16 @@
 > 1.353 testes e `lint`/`typecheck` verdes sem tocar. Padrão da âncora documentado em ADR-007.
 > `docs/prompts/README.md` ganhou a nota de higiene de prompts (G6).
 
-> **Sessões 32–40 são o épico Governança de Alterações** ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), decisões `DEC-GOV-*` em [`13-decisoes.md`](13-decisoes.md), 🚧 em andamento — lotes 1–3 entregues, ver tabela abaixo): a política inteira como árvore de componentes versionados, o Diário de Bordo como Solicitação de Alteração estruturada com workflow, releases e Pacote para a Fábrica gerado. Nasceu com numeração própria (26–34) numa sessão de especificação separada da do épico Plataforma e foi renumerado para 32–40 ao consolidar as duas — inclusive o schema, que sai de `schemaVersion: 4` para `schemaVersion: 5` porque a 4 já é do épico Plataforma (`meta.acl`, S29; ver DEC-GOV-009). As perguntas abertas do §12 de `14-governanca-de-alteracoes.md` devem ser fechadas antes das sessões que as citam.
+> **Sessões 32–40 são o épico Governança de Alterações** ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), decisões `DEC-GOV-*` em [`13-decisoes.md`](13-decisoes.md), 🚧 em andamento — lotes 1–4 entregues, ver tabela abaixo): a política inteira como árvore de componentes versionados, o Diário de Bordo como Solicitação de Alteração estruturada com workflow, releases e Pacote para a Fábrica gerado. Nasceu com numeração própria (26–34) numa sessão de especificação separada da do épico Plataforma e foi renumerado para 32–40 ao consolidar as duas — inclusive o schema, que sai de `schemaVersion: 4` para `schemaVersion: 5` porque a 4 já é do épico Plataforma (`meta.acl`, S29; ver DEC-GOV-009). As perguntas abertas do §12 de `14-governanca-de-alteracoes.md` devem ser fechadas antes das sessões que as citam.
 >
-> **Ordem de execução do épico (DEC-GOV-010, revista pela DEC-GOV-012)** — o objetivo continua sendo ter a política real dentro da ferramenta antes de investir no resto do épico, mas o caminho mudou: a primeira versão é **construída à mão, incrementalmente**, e não importada de uma vez. A antiga 33 virou **33a** (esqueleto) + **33b** (regras), e a carga (40) virou opcional e por recorte:
+> **Ordem de execução do épico (DEC-GOV-010, revista pela DEC-GOV-012)** — o objetivo continua sendo ter a política real dentro da ferramenta antes de investir no resto do épico, mas o caminho mudou: a primeira versão é **construída à mão, incrementalmente**, e não importada de uma vez. A antiga 33 virou **33a** (esqueleto) + **33b** (regras), e a carga (40) virou opcional e por recorte — decidida e entregue depois do uso real:
 >
 > ```
 > 32a → 33a → 33b → ⟨uso real: a política as-is entra à mão; rota se ajusta aqui⟩
->   → 40 (opcional) → 34 → 32b → 35 → 36 → 37/38 (paralelizáveis) → 39
+>   → 40 ✅ (opcional) → 34 → 32b → 35 → 36 → 37/38 (paralelizáveis) → 39
 > ```
 >
-> O ponto de parada depois da 33b é o que torna a correção de rota barata: são três sessões, e tudo o que o usuário cadastrar ali sobrevive a qualquer decisão posterior, porque o resto do épico **lê** essas entidades em vez de redefini-las. A **32b não é opcional**: sem ela a 35 não tem comandos para chamar. Converter o Word em Markdown (`14-governanca-de-alteracoes.md` §9.1) não depende de código e vale desde já — serve para digitar bloco a bloco na 33b, mesmo que a 40 nunca seja executada.
+> O ponto de parada depois da 33b é o que torna a correção de rota barata: são três sessões, e tudo o que o usuário cadastrar ali sobrevive a qualquer decisão posterior, porque o resto do épico **lê** essas entidades em vez de redefini-las. A **32b não é opcional**: sem ela a 35 não tem comandos para chamar. Converter o Word em Markdown (`10-guia-do-usuario.md` §10.1) não depende de código e valeu desde antes da 40 rodar — serve para digitar bloco a bloco na 33b tanto quanto para a carga por recorte.
 
 ### Lotes para colocar a política as-is
 
@@ -257,13 +257,13 @@ ferramenta". Cada lote termina com algo que o usuário **usa** no mesmo dia:
 | **1 — Fundação** ✅ | 32a | Nada visível: schema 5, componentes, versões e comandos testados. É a base que não dá para pular |
 | **2 — Esqueleto** ✅ | 33a | Montar a hierarquia inteira da política (capítulos, temas) e pendurar as matrizes já importadas. **Aqui você já julga se o modelo de hierarquia está certo** — antes de existir formulário de regra |
 | **3 — Conteúdo** ✅ | 33b | Digitar as regras com definição técnica, reason code e resultado, e publicar tudo com a vigência da fundação. A política vigente passa a existir na ferramenta |
-| **⏸ Parada** | — | Uso real. Decidir: `sectionKind`, referências como nó, acelerador de matriz, e se a 40 vale |
-| **4 — Aceleração** (opcional) 🔮 | 40 | Subir capítulos convertidos em Markdown dentro da seção escolhida, em recortes |
+| **⏸ Parada** | — | Uso real. Decidido: a 40 valia a pena — `sectionKind` e referências como nó continuam adiados (docs/14 §3.6) |
+| **4 — Aceleração** ✅ | 40 | Subir capítulos convertidos em Markdown dentro da seção escolhida, em recortes, revisados antes de entrar |
 | **5 — Governança** 🔮 | 34 → 32b → 35 → 36 → 37/38 → 39 | Editor rico, Diário de Bordo, publicação com vigência, release, pacote e fotografia histórica (32b já entregue — ver linha própria acima) |
 
-Enquanto o lote 1 roda, o único trabalho paralelo que vale é converter o Word em Markdown com o
-prompt de `14-governanca-de-alteracoes.md` §9.1 — ele é a fonte de onde o texto será colado na
-etapa 3, com ou sem a sessão 40.
+Enquanto o lote 1 rodava, o trabalho paralelo que valia a pena era converter o Word em Markdown com
+o prompt de `10-guia-do-usuario.md` §10.1 — ele é a fonte de onde o texto é colado na etapa 3 e,
+desde a 40, também da carga por recorte.
 
 > **Sessões 18–20 são pós-MVP**, adicionadas depois do fechamento das 17 originais, a pedido de um caso real de score B2B com corte por regional e, na sequência, por Regional × Porte × Tipo de Empresa (ver `docs/prompts/S18-faixa-regional.md`, `S19-import-generico-e-paletas.md`, `S20-agrupamentos-hierarquicos.md`). Não bloqueiam nem dependem de nenhum marco M1–M5; só precisam da Biblioteca de Variáveis (06) pronta. **19 e 20 evoluem o que a 18 entregou** — a colagem específica de "regional" e o schema `regionalDimension` da sessão 18 são substituídos (não mantidos em paralelo) pela colagem genérica e por `groupingDimensions` ao final da 20; ver a nota de migração em `docs/03-modelo-do-documento.md` §10.
 

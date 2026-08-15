@@ -70,6 +70,9 @@ const PUBLISHER_COMMANDS: ReadonlySet<string> = new Set([
   'componentVersion/publish',
   'componentVersion/publishPending',
   'component/archive',
+  // Carga por recorte (S40, docs/14 §9): a primeira versão de cada linha
+  // nasce PUBLISHED direto — mesmo critério de `import/apply`.
+  'component/importMarkdown',
 ]);
 
 const ADMIN_COMMANDS: ReadonlySet<string> = new Set(['acl/set']);

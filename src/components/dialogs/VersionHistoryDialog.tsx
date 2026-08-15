@@ -92,6 +92,9 @@ const EVENT_ICONS: Record<DocEventType, LucideIcon> = {
   COMPONENT_DRAFT_DISCARDED: Trash2,
   COMPONENT_VERSION_PUBLISHED: CheckCircle2,
   COMPONENT_VERSION_SUPERSEDED: HistoryIcon,
+  // Carga por recorte (schema 5, S40): sem tela própria de histórico ainda —
+  // aqui só o ícone, para o mapa continuar total.
+  COMPONENT_MARKDOWN_IMPORTED: Upload,
   // Governança (schema 5, S32b): a trilha do DB vive dentro do próprio DB e
   // ganha tela na S35 — aqui só o ícone, para o mapa continuar total.
   CR_CREATED: FilePlus,

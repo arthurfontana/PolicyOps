@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, ChevronDown, ChevronRight, Copy, FolderInput, Grid3x3, Plus, Search } from 'lucide-react';
+import { CheckCheck, ChevronDown, ChevronRight, Copy, FileUp, FolderInput, Grid3x3, Plus, Search } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,7 @@ import { TagFilterBar } from '@/components/projects/TagFilterBar';
 import { MoveComponentDialog } from '@/components/tree/MoveComponentDialog';
 import { AddMatrixNodeDialog } from '@/components/tree/AddMatrixNodeDialog';
 import { PublishPendingComponentsDialog } from '@/components/dialogs/PublishPendingComponentsDialog';
+import { MarkdownImportDialog } from '@/components/import/markdown/MarkdownImportDialog';
 import {
   componentDepth,
   createComponent,
@@ -143,6 +144,10 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
     parentId: undefined,
   });
   const [publishPendingOpen, setPublishPendingOpen] = useState(false);
+  const [markdownImportDialog, setMarkdownImportDialog] = useState<{ open: boolean; parentId: string | undefined }>({
+    open: false,
+    parentId: undefined,
+  });
   const suppressBlurRef = useRef(false);
 
   const pendingCount = useMemo(
@@ -639,6 +644,11 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
                   <Copy className="mr-2 h-3.5 w-3.5" /> Duplicar
                 </DropdownMenuItem>
               )}
+              {component.type !== 'MATRIX' && (
+                <DropdownMenuItem onSelect={() => setMarkdownImportDialog({ open: true, parentId: component.id })}>
+                  <FileUp className="mr-2 h-3.5 w-3.5" /> Carregar Markdown aqui…
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -663,6 +673,14 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
               onClick={() => setMatrixDialog({ open: true, parentId: undefined })}
             >
               <Grid3x3 className="mr-1 h-3.5 w-3.5" /> Pendurar matriz
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setMarkdownImportDialog({ open: true, parentId: undefined })}
+            >
+              <FileUp className="mr-1 h-3.5 w-3.5" /> Carregar Markdown
             </Button>
             <Button
               type="button"
@@ -767,6 +785,17 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         foundationEffectiveFrom={document.projects.find((p) => p.id === projectId)?.foundationEffectiveFrom}
         onPublished={(count) => {
           toast({ title: `${count} componente(s) publicado(s)` });
+        }}
+      />
+      <MarkdownImportDialog
+        open={markdownImportDialog.open}
+        onOpenChange={(open) => setMarkdownImportDialog((s) => ({ ...s, open }))}
+        projectId={projectId}
+        initialParentId={markdownImportDialog.parentId}
+        foundationEffectiveFrom={document.projects.find((p) => p.id === projectId)?.foundationEffectiveFrom}
+        onImported={(count) => {
+          if (markdownImportDialog.parentId !== undefined) expandComponents([markdownImportDialog.parentId]);
+          toast({ title: `${count} componente(s) carregado(s)` });
         }}
       />
     </div>

@@ -26,6 +26,11 @@ export const IMPORT_ERROR_CODES = [
   'IMPORT_PLAN_STALE',
   'IMPORT_NOTHING_TO_APPLY',
   'IMPORT_TARGET_HAS_DRAFT',
+  // Carga da política por recorte (S40, docs/14 §9) — bloqueiam uma linha do
+  // plano de Markdown, nunca o plano inteiro (mesmo espírito de DEC-CARGA-009):
+  // código já usado no projeto (E-GOV-06) ou profundidade além de I28.
+  'COMPONENT_CODE_DUPLICATE',
+  'COMPONENT_TREE_INVALID',
 ] as const satisfies readonly DomainErrorCode[];
 
 /**
@@ -43,6 +48,11 @@ export const IMPORT_WARNING_CODES = [
   'IMPORT_GRID_TOO_LARGE',
   'IMPORT_NO_BASE_VERSION',
   'IMPORT_DELIMITER_NOT_DETECTED',
+  // Carga por recorte (S40) — avisos do parser de Markdown
+  // (`markdown-policy.ts`): nunca bloqueiam, só pedem revisão da linha.
+  'MARKDOWN_TYPE_HEURISTIC',
+  'MARKDOWN_MARKER_IGNORED',
+  'MARKDOWN_NO_HEADINGS',
 ] as const;
 
 export type ImportErrorCode = (typeof IMPORT_ERROR_CODES)[number];

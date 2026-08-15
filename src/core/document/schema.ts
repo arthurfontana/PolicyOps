@@ -756,6 +756,11 @@ export const DOC_EVENT_TYPES = [
   'COMPONENT_DRAFT_DISCARDED',
   'COMPONENT_VERSION_PUBLISHED',
   'COMPONENT_VERSION_SUPERSEDED',
+  // Carga da política por recorte (schema 5, sessão 40) — docs/14 §9. Um
+  // evento por lote (não um por componente: esses já são cobertos pelos tipos
+  // acima), com os `componentId` criados no payload — o fio que liga a árvore
+  // ao recorte de Markdown que a originou.
+  'COMPONENT_MARKDOWN_IMPORTED',
   // Governança de alterações (schema 5, sessão 32b) — docs/14 §3.3/§3.4 e §5.
   // Os cinco de `CR_*` são gravados na **trilha do próprio DB**
   // (`ChangeRequest.events`), não em `doc.events` (DEC-GOV-019); os de release

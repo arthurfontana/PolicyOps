@@ -2,11 +2,12 @@
 
 > **Estado**: 🚧 Em andamento — **S32a entregue** (núcleo de componentes e `schemaVersion: 5`),
 > **S32b entregue** (DB, release e workflow, sem tela), **S33a entregue** (árvore como tela do
-> projeto, US-GOV-01 ✅ parcial — CRUD estrutural, busca, filtros e ergonomia de volume) e
+> projeto, US-GOV-01 ✅ parcial — CRUD estrutural, busca, filtros e ergonomia de volume),
 > **S33b entregue** (US-GOV-01 ✅ completa e US-GOV-02 ✅ — payload por tipo, ciclo de vida na
-> tela, vigência da fundação e "Publicar pendentes", entrada em volume por colagem);
-> S34–S40 planejadas · **DECs relacionadas**:
-> DEC-GOV-001 a DEC-GOV-024 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
+> tela, vigência da fundação e "Publicar pendentes", entrada em volume por colagem) e
+> **S40 entregue** (US-GOV-09 ✅ — carga por recorte: Markdown → árvore, com revisão e undo total);
+> S34–S39 planejadas · **DECs relacionadas**:
+> DEC-GOV-001 a DEC-GOV-027 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
 >
@@ -15,11 +16,12 @@
 > mas o caminho mudou: a primeira versão da política é construída **à mão, de forma incremental**
 > (seção a seção, regra a regra), e não por uma carga de tudo de uma vez. A antiga S33 virou
 > **S33a** (árvore e esqueleto) + **S33b** (cadastro e versionamento de regras), e a carga por
-> Markdown (§9, S40) passou a ser **opcional e por recorte**, decidida depois do primeiro uso real.
+> Markdown (§9, S40) passou a ser **opcional e por recorte**, decidida depois do primeiro uso real —
+> e, uma vez decidida, entregue.
 >
 > ```
 > 32a → 33a → 33b ✅ → ⟨ponto de parada: você constrói a política as-is e a gente ajusta a rota⟩
->   → 40 (opcional, por recorte) → 34 → 32b → 35 → 36 → 37/38 → 39
+>   → 40 ✅ (opcional, por recorte) → 34 → 32b → 35 → 36 → 37/38 → 39
 > ```
 >
 > O que só o Diário de Bordo consome (DB, release, grafo de estados, I25/I26) saiu da antiga S32 e
@@ -374,10 +376,25 @@ uma release **para** enxergar o que mudou.
 - Diff de payload campo a campo + diff de `spec` por bloco (§7); matrizes usam o diff existente.
 - Timeline do Diário de Bordo: DBs publicados em ordem cronológica de vigência.
 
-### US-GOV-09 — Carga da política por recorte (opcional)
+### US-GOV-09 — Carga da política por recorte (opcional) ✅ (S40)
 **Como** analista, **quero** subir um capítulo já convertido em Markdown dentro de uma seção que
 eu escolhi **para** acelerar a digitação quando ela for o gargalo — sem ser obrigado a importar a
 política inteira de uma vez. Detalhe no §9.
+
+- ✅ Parser dedicado, puro e sem lib de Markdown (`parseMarkdownPolicy`,
+  `src/core/import/markdown-policy.ts`): headings viram hierarquia de `SECTION`, blocos com os dez
+  marcadores (`> Tipo:`…`> Notas:`) viram componente tipado com payload e `origin`; nunca lança —
+  Markdown malformado vira `ImportIssue` de aviso (DEC-GOV-025).
+- ✅ Assistente de três passos (`MarkdownImportDialog`, diálogo lançado da árvore — DEC-GOV-027):
+  destino (seção escolhida ou raiz do projeto) + colar texto/selecionar arquivo → revisão da árvore
+  proposta (tipo editável por linha, excluir item leva a subárvore junto, duplicata de `code`
+  bloqueia com `E-GOV-06` apontando o componente existente) → confirmação com `effectiveFrom`
+  sugerido pela fundação do projeto (RN-GOV-09) e resumo.
+- ✅ Aplicação atômica por comandos existentes (`component/importMarkdown`,
+  `src/core/import/markdown-apply.ts`): `component/create` + primeira versão `PUBLISHED` direto com
+  `reviewStatus: PENDING_REVIEW`, em lote, com desfazer total dedicado (CT-GOV-05, DEC-GOV-026 —
+  publicar é irreversível por natureza, então o undo do lote não compõe os inversos genéricos como
+  `import/apply` faz).
 
 ### US-GOV-10 — Pendências ao abrir
 **Como** gestor, **quero** ver ao abrir o documento o que espera minha ação **para** que o fluxo
@@ -550,26 +567,30 @@ type InlineText = { text: string; marks?: ('bold' | 'italic' | 'code' | 'link')[
   **Markdown** (`.md` baixado). Export `.docx` fica explicitamente fora (dependência nova e
   orçamento — DEC-GOV-006); o caminho para Word é imprimir em PDF ou colar o HTML.
 
-## 9. Carga da política por recorte (opcional — S40)
+## 9. Carga da política por recorte (opcional — S40) ✅ entregue
 
 > **A carga não é o caminho primário, e não é a primeira coisa a executar** (DEC-GOV-012). A
 > primeira versão da política é construída à mão pela árvore (S33a/S33b). Esta seção descreve um
 > **acelerador opcional**, decidido depois do primeiro uso real: quando o gargalo for digitação —
 > e não a decisão sobre o que é seção e o que é regra —, o mesmo documento convertido em Markdown
 > pode ser subido **em recortes**, um capítulo de cada vez, dentro da seção que o usuário escolher.
+> Entregue na S40 como `MarkdownImportDialog` (diálogo lançado da árvore, DEC-GOV-027), sobre o
+> parser puro `src/core/import/markdown-policy.ts` e o comando atômico
+> `component/importMarkdown` (`src/core/import/markdown-apply.ts`).
 
 Zero rede em runtime ⇒ a conversão de Word/PDF **não acontece dentro da ferramenta**
 (DEC-GOV-007). O fluxo é:
 
 1. Fora da ferramenta, o usuário converte o documento em **Markdown estruturado** (manualmente ou
-   com IA — um prompt de conversão pronto acompanha a documentação da funcionalidade). O arquivo
-   pode ser convertido inteiro de uma vez e usado aos pedaços: **recortar e colar um capítulo por
-   vez é o uso esperado**, não uma degradação do fluxo.
-2. Na ferramenta: **Importar → Identificar → Revisar → Confirmar**, com um passo a mais no início
-   — **o destino**: a importação entra sob a seção selecionada na árvore (ou na raiz do projeto),
-   de modo que um recorte que começa em `### Dívida Acima de R$ 5.000` caiba embaixo da seção
+   com IA — o prompt de conversão pronto vive em [`10-guia-do-usuario.md`](10-guia-do-usuario.md)
+   §11). O arquivo pode ser convertido inteiro de uma vez e usado aos pedaços: **recortar e colar
+   um capítulo por vez é o uso esperado**, não uma degradação do fluxo.
+2. Na ferramenta: **destino + colar/selecionar arquivo → revisão → confirmação** (três passos,
+   `MarkdownImportDialog`) — **o destino** é o que esta sessão acrescenta ao desenho original: a
+   importação entra sob a seção selecionada na árvore (ou na raiz do projeto), de modo que um
+   recorte que começa em `### Dívida Acima de R$ 5.000` caiba embaixo da seção
    `Bloqueios por Dívida` que já existe. O nível do heading mais alto do recorte vira o primeiro
-   nível abaixo do destino; a profundidade resultante respeita I24 (≤ 6) e o passo de revisão
+   nível abaixo do destino; a profundidade resultante respeita I28 (≤ 6) e o passo de revisão
    avisa antes de estourar. Headings viram a hierarquia
    (`#`/`##`… → SECTION), blocos com marcadores convencionados viram componentes tipados:
 
@@ -588,7 +609,8 @@ Zero rede em runtime ⇒ a conversão de Word/PDF **não acontece dentro da ferr
    sufixo numérico em caso de colisão), `> Definição técnica:`, `> Entradas:`, `> Condições:`,
    `> Resultado:`, `> Reason code:`, `> Dependências:`, `> Fonte:` (vira `origin`), `> Notas:`.
    O texto solto abaixo do heading vira `businessDescription`; nada vira `spec`/`RichDoc` na carga.
-3. Tela de revisão mostra a árvore proposta com tipo inferido editável; nada entra sem confirmar.
+3. Tela de revisão mostra a árvore proposta com tipo inferido editável por linha e a opção de
+   excluir um item (leva a subárvore dele junto); nada entra sem confirmar.
 4. Todo componente importado nasce com `origin` preenchido e `reviewStatus: 'PENDING_REVIEW'`;
    promover a `VALIDATED` é ação explícita. A primeira versão nasce `PUBLISHED` com
    `effectiveFrom` informado na carga (a política já vigia) — mesma filosofia da carga de
@@ -598,64 +620,14 @@ Zero rede em runtime ⇒ a conversão de Word/PDF **não acontece dentro da ferr
    importação por recorte, esse bloqueio deixa de ser detalhe: é ele que impede o mesmo capítulo
    de entrar duas vezes quando o usuário perde a conta de onde parou.
 
-### 9.1 Prompt de conversão (rascunho — fecha na S40, em `10-guia-do-usuario.md`)
+### 9.1 Prompt de conversão ✅ movido para `10-guia-do-usuario.md`
 
-O passo 1 não depende de nada implementado: **converter o Word já é possível hoje**. Cole o prompt
-abaixo numa IA externa junto com o documento de política, confira o resultado, e guarde o `.md` —
-ele serve tanto como fonte para digitar à mão (S33b, colando bloco a bloco) quanto para a
-importação por recorte (S40), se ela for construída.
-
-O documento real (*Filtros e Critérios de Crédito B2C*) tem uma anatomia constante que o prompt
-apenas transcreve, sem inventar estrutura:
-
-| No Word | Vira |
-|---|---|
-| Título 1 (`4.2 Regras Duras e Prevenção a Fraude`) | `SECTION` |
-| Título 2 (`Bloqueios por Dívida`, `Prevenção a Fraude`) | `SECTION` — agrupamento temático, sem semântica de processo |
-| Título 3 (`Dívida Acima de R$ 5.000`) | `RULE` |
-| parágrafo solto abaixo do título | `businessDescription` |
-| `Definição técnica: …` | `technicalDefinition` |
-| `Observação: Reason code DV01 — reprovado, Oferta = 0.` | `reasonCodes` + `outcome` + `notes` |
-| Anexos A/C/D (faixas, reason codes, listas) | **não viram componentes** — são Biblioteca de Variáveis e catálogo (§3.1) |
-
-```text
-Converta o documento de política de crédito em anexo para Markdown estruturado, seguindo
-exatamente estas regras:
-
-1. A hierarquia do documento vira hierarquia de headings (#, ##, ###, ####), no máximo 6 níveis.
-   Um heading que só agrupa outros é uma seção; não invente seções que não existem no documento.
-2. Cada regra, lista, reason code ou variável de política vira um heading próprio, seguido de um
-   parágrafo em linguagem de negócio descrevendo o que ela faz hoje (o comportamento vigente).
-3. Logo abaixo desse parágrafo, acrescente as linhas de marcador que o documento sustentar —
-   nunca invente conteúdo, omita o marcador se a informação não estiver no documento:
-   > Tipo: SECTION | RULE | LIST | REASON_CODE | POLICY_VARIABLE | OTHER
-   > Código: IDENTIFICADOR_EM_MAIUSCULAS_COM_UNDERLINE
-   > Definição técnica: a condição como aparece no documento
-   > Entradas: variáveis ou campos usados, separados por vírgula
-   > Condições: quando a regra é avaliada
-   > Resultado: Aprovar | Reprovar | Derivar para Mesa | Continuar | ...
-   > Reason code: códigos citados, separados por vírgula
-   > Dependências: códigos de outros itens deste mesmo documento
-   > Fonte: nome do documento e página/seção de origem
-   > Notas: qualquer ressalva relevante
-4. Matrizes e tabelas de corte NÃO devem virar tabelas Markdown: crie o heading com
-   "> Tipo: OTHER" e descreva em uma frase o que a tabela decide, citando a fonte. As matrizes
-   entram na ferramenta por outro caminho.
-5. Não resuma nem reescreva a política: preserve os números, os nomes e os termos do documento.
-   Se algum trecho estiver ambíguo, mantenha o texto original e acrescente "> Notas: revisar".
-6. Quando o documento trouxer um parágrafo iniciado por "Definição técnica:", use-o em
-   "> Definição técnica:". Quando trouxer "Observação:", distribua o conteúdo: os códigos citados
-   em "> Reason code:", o veredito (Aprovado/Negado/Continue/Derivar) em "> Resultado:", e o
-   restante da frase em "> Notas:".
-7. Anexos de catálogo (faixas de score por regional, catálogo de reason codes, catálogo de listas)
-   NÃO devem virar headings de componente: eles já existem na ferramenta como Biblioteca de
-   Variáveis e catálogo. Ignore-os na conversão e mencione ao final quais anexos você ignorou.
-8. Saída: um único bloco de Markdown, sem comentários seus antes ou depois. Mantenha os capítulos
-   em blocos claramente separados — o arquivo será usado em recortes, um capítulo por vez.
-```
-
-O `.md` gerado é revisado por humano antes da carga — a tela de revisão do passo 3 é a segunda
-barreira, não a primeira.
+O passo 1 não depende de nada implementado dentro da ferramenta: **converter o Word acontece fora
+dela** (DEC-GOV-007). O prompt de conversão pronto — que gera exatamente o formato que
+`parseMarkdownPolicy` aceita, sem divergência — e a anatomia do documento real que ele transcreve
+vivem em [`10-guia-do-usuario.md`](10-guia-do-usuario.md) §10, junto do resto do fluxo de carga
+(onde colar, como revisar, o que a confirmação faz). Ele serve tanto como fonte para digitar à mão
+(S33b, colando bloco a bloco) quanto para a importação por recorte (S40).
 
 ## 10. Cenários de teste (seleção — as sessões detalham os demais)
 

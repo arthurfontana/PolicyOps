@@ -125,6 +125,95 @@ Alguns pontos que costumam gerar dúvida:
 - **Limite de 50 MB por arquivo.** A aplicação não lê nem indexa o conteúdo do anexo — ela o
   guarda e garante que ele continua íntegro.
 
-## 10. Atalhos úteis
+## 10. Como carregar um capítulo da política em Markdown
+
+Serve para quem já tem a política inteira num Word (*Filtros e Critérios de Crédito B2C*, por
+exemplo) e quer trazê-la para dentro da ferramenta mais rápido do que digitando componente por
+componente. **É opcional** — a forma normal de montar a árvore é digitando à mão (seção 4.2 acima)
+— e vale a pena quando o gargalo virar digitação, não a decisão sobre o que é seção e o que é
+regra. Funciona **por capítulo**: você sobe um pedaço de cada vez, na seção que escolher, no seu
+ritmo — nunca precisa importar a política inteira de uma só vez.
+
+### 10.1 Converter o Word em Markdown
+
+Isto acontece **fora** da ferramenta — ela nunca faz requisição de rede nem chama IA sozinha.
+Cole o prompt abaixo, junto com o trecho do documento de política, numa IA de sua confiança, confira
+o resultado, e guarde o `.md` gerado.
+
+O documento real tem uma anatomia constante que o prompt apenas transcreve, sem inventar estrutura:
+
+| No Word | Vira |
+|---|---|
+| Título 1 (`4.2 Regras Duras e Prevenção a Fraude`) | Seção |
+| Título 2 (`Bloqueios por Dívida`, `Prevenção a Fraude`) | Seção — agrupamento temático, sem semântica de processo |
+| Título 3 (`Dívida Acima de R$ 5.000`) | Regra |
+| parágrafo solto abaixo do título | Descrição de negócio |
+| `Definição técnica: …` | Definição técnica |
+| `Observação: Reason code DV01 — reprovado, Oferta = 0.` | Reason codes + Resultado + Notas |
+| Anexos A/C/D (faixas, reason codes, listas) | **não viram componentes** — já existem na ferramenta como Biblioteca de Variáveis e catálogo |
+
+```text
+Converta o documento de política de crédito em anexo para Markdown estruturado, seguindo
+exatamente estas regras:
+
+1. A hierarquia do documento vira hierarquia de headings (#, ##, ###, ####), no máximo 6 níveis.
+   Um heading que só agrupa outros é uma seção; não invente seções que não existem no documento.
+2. Cada regra, lista, reason code ou variável de política vira um heading próprio, seguido de um
+   parágrafo em linguagem de negócio descrevendo o que ela faz hoje (o comportamento vigente).
+3. Logo abaixo desse parágrafo, acrescente as linhas de marcador que o documento sustentar —
+   nunca invente conteúdo, omita o marcador se a informação não estiver no documento:
+   > Tipo: SECTION | RULE | LIST | REASON_CODE | POLICY_VARIABLE | OTHER
+   > Código: IDENTIFICADOR_EM_MAIUSCULAS_COM_UNDERLINE
+   > Definição técnica: a condição como aparece no documento
+   > Entradas: variáveis ou campos usados, separados por vírgula
+   > Condições: quando a regra é avaliada
+   > Resultado: Aprovar | Reprovar | Derivar para Mesa | Continuar | ...
+   > Reason code: códigos citados, separados por vírgula
+   > Dependências: códigos de outros itens deste mesmo documento
+   > Fonte: nome do documento e página/seção de origem
+   > Notas: qualquer ressalva relevante
+4. Matrizes e tabelas de corte NÃO devem virar tabelas Markdown: crie o heading com
+   "> Tipo: OTHER" e descreva em uma frase o que a tabela decide, citando a fonte. As matrizes
+   entram na ferramenta por outro caminho.
+5. Não resuma nem reescreva a política: preserve os números, os nomes e os termos do documento.
+   Se algum trecho estiver ambíguo, mantenha o texto original e acrescente "> Notas: revisar".
+6. Quando o documento trouxer um parágrafo iniciado por "Definição técnica:", use-o em
+   "> Definição técnica:". Quando trouxer "Observação:", distribua o conteúdo: os códigos citados
+   em "> Reason code:", o veredito (Aprovado/Negado/Continue/Derivar) em "> Resultado:", e o
+   restante da frase em "> Notas:".
+7. Anexos de catálogo (faixas de score por regional, catálogo de reason codes, catálogo de listas)
+   NÃO devem virar headings de componente: eles já existem na ferramenta como Biblioteca de
+   Variáveis e catálogo. Ignore-os na conversão e mencione ao final quais anexos você ignorou.
+8. Saída: um único bloco de Markdown, sem comentários seus antes ou depois. Mantenha os capítulos
+   em blocos claramente separados — o arquivo será usado em recortes, um capítulo por vez.
+```
+
+O arquivo gerado serve tanto para colar bloco a bloco na digitação manual (seção 4.2, "Colar bloco
+de texto") quanto para a carga por recorte abaixo — e nos dois casos, **você revisa antes de
+qualquer coisa entrar na política**.
+
+### 10.2 Subir o capítulo na ferramenta
+
+1. Abra o projeto (a política) e, na árvore, clique em **Carregar Markdown** (barra de cima) para
+   entrar na raiz, ou, com o botão direito numa seção específica, **Carregar Markdown aqui…** para
+   entrar dentro dela — é assim que um recorte que começa em `### Dívida Acima de R$ 5.000` cai
+   dentro da seção `Bloqueios por Dívida` que você já tinha criado à mão, sem precisar reconstruir
+   os títulos por cima dela.
+2. **Destino e texto**: confira (ou troque) o destino, e cole o Markdown do capítulo — ou clique em
+   **Selecionar arquivo…** e escolha o `.md`.
+3. **Revisão**: cada heading do recorte vira uma linha, com o tipo que a ferramenta reconheceu
+   (editável, se ela chutou errado) e o código derivado do nome. Uma linha com uma bolinha
+   "heurística" é uma regra que não trouxe `> Tipo:` explícito — confira se faz sentido. Desmarque
+   a caixinha de uma linha para deixá-la de fora (e os itens abaixo dela também ficam de fora). Uma
+   linha em vermelho tem um problema que bloqueia — o mais comum é código repetido, quando o mesmo
+   capítulo já foi carregado antes; desmarque-a ou volte e ajuste a origem.
+4. **Confirmação**: confira a vigência (já vem sugerida pela vigência da fundação do projeto, se
+   você a preencheu nas propriedades do projeto) e clique em **Confirmar carga**. Cada componente
+   nasce já publicado nessa vigência, marcado como "Aguardando revisão" — promover para "Validado"
+   é um passo seu, depois, quando conferir cada um.
+5. Nada entra sem passar pela revisão do passo 3, e **desfazer** (`Ctrl+Z`, logo em seguida)
+   remove a carga inteira de uma vez — os componentes, as versões, tudo.
+
+## 11. Atalhos úteis
 
 Aperte `?` a qualquer momento dentro da aplicação para ver a lista completa de atalhos de teclado.
