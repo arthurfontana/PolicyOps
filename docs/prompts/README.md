@@ -87,7 +87,7 @@ Repetidas dentro de cada prompt; ficam aqui como referência.
 4. **`src/core/` é TypeScript puro**: sem React, sem Zustand, sem DOM, sem `window`.
 5. **Zero requisições de rede externas** em tempo de execução. Sem CDN, sem fontes web, sem `eval`. A única comunicação permitida é com o servidor local same-origin (`/api/*`, `docs/14-plataforma-local.md` §5).
 6. Escopo é escopo: não implementar sessões futuras "já que estou aqui".
-7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes (e `python -m pytest server/tests` quando a sessão tocar `server/`), o orçamento de 1,5 MB respeitado, e **`dist/PolicyOps.html` atualizado no commit**.
+7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes (e `python -m pytest server/tests` quando a sessão tocar `server/`), e **`dist/PolicyOps.html` atualizado no commit**.
 8. Commitar na branch de trabalho e fazer push.
 
 ## Higiene de prompts (ADR-006, S31)

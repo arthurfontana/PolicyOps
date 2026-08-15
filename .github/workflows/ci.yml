@@ -43,7 +43,7 @@ jobs:
       - name: Testes do servidor local
         run: python -m pytest server/tests
 
-      - name: Build (inclui check-size)
+      - name: Build
         run: pnpm build
 
       - name: Verificar auto-contenção

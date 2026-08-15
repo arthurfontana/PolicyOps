@@ -53,7 +53,6 @@ sem Python, no modo degradado `DOWNLOAD_ONLY` — fallback universal.
 - Fontes: pilha do sistema (`ui-sans-serif, system-ui, "Segoe UI", …`).
 - Nada de `eval` nem de `new Function` — CSPs corporativas frequentemente bloqueiam.
 - Tudo em um arquivo: sem code splitting, sem lazy chunks, sem service worker.
-- Orçamento de tamanho: **1,5 MB** para o HTML final. O build falha acima disso. (Elevado do 1 MB original em 2026-08 para acomodar as Sessões 19-20, que já haviam estourado o teto anterior.)
 
 **Proibido sem aprovação explícita:** banco de dados, serviço central sempre ligado, IndexedDB como armazenamento primário, biblioteca de grid de terceiros (AG Grid, Handsontable), canvas/WebGL para o grid, framework de estado adicional, dependência Python fora da lista acima (cada uma exige wheel Windows embarcada — `14-plataforma-local.md` §9).
 
