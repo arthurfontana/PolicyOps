@@ -1,7 +1,8 @@
 # Governança de Alterações de Política (épico GOV)
 
-> **Estado**: 🚧 Em andamento — **S32a entregue** (núcleo de componentes e `schemaVersion: 5`);
-> S32b, S33a, S33b, S34–S40 planejadas · **DECs relacionadas**:
+> **Estado**: 🚧 Em andamento — **S32a entregue** (núcleo de componentes e `schemaVersion: 5`) e
+> **S32b entregue** (DB, release e workflow, sem tela);
+> S33a, S33b, S34–S40 planejadas · **DECs relacionadas**:
 > DEC-GOV-001 a DEC-GOV-013 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
@@ -73,9 +74,13 @@ e [`02-arquitetura.md`](02-arquitetura.md)):
 > `ComponentVersion`, dos payloads e das coleções novas do documento passou a viver em
 > **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §12** (componentes) e **§13**
 > (entidades de governança), com a nota de migração 4 → 5 no §10 de lá. O que segue aqui é o
-> **porquê** de cada decisão, preservado; quando os dois divergirem, **vale o docs/03**. §3.3 e §3.4
-> também já estão declaradas no schema (é uma migração só, DEC-GOV-010), mas os comandos, o workflow
-> e I30/I31 continuam sendo da S32b. §3.6 fecha o que ficou de fora.
+> **porquê** de cada decisão, preservado; quando os dois divergirem, **vale o docs/03**.
+>
+> ✅ **§3.3, §3.4 e §5 estão FECHADOS (sessão 32b).** O schema das duas entidades já tinha entrado na
+> S32a (uma migração só, DEC-GOV-010); a S32b ligou os **comandos** de DB e de release
+> ([`08-camada-de-comandos.md`](08-camada-de-comandos.md) §3), o **workflow** do §5 e as invariantes
+> **I30/I31** ([`03-modelo-do-documento.md`](03-modelo-do-documento.md) §9). Publicar continua fora:
+> é a S36. §3.6 fecha o que ficou de fora do modelo.
 
 ### 3.1 Política, componente e hierarquia ✅ fechada na S32a
 
@@ -167,7 +172,7 @@ Os demais payloads são estruturas mínimas (lista: nome/finalidade/campos; reas
 código/decisão/mensagem; variável de política: nome técnico/origem/domínio descritivo). Todos os
 campos além de `businessDescription` são opcionais — a carga inicial raramente terá tudo (§9).
 
-### 3.3 Solicitação de Alteração (DB) — schema declarado na S32a, comandos na S32b
+### 3.3 Solicitação de Alteração (DB) ✅ fechada na S32b (schema na S32a)
 
 > Contrato normativo: **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §13**.
 
@@ -206,7 +211,7 @@ type ChangeRequestItem = {
 Para itens sobre componentes `MATRIX`, `draftVersionId` aponta um rascunho da **matriz** — o
 mecanismo de rascunho existente, sem duplicação.
 
-### 3.4 Release — schema declarado na S32a, comandos na S32b
+### 3.4 Release ✅ fechada na S32b (schema na S32a)
 
 > Contrato normativo: **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §13**.
 
@@ -357,7 +362,7 @@ ande sem notificações externas (que não existem sem servidor).
 - Painel "Pendências": submetidos aguardando revisão, devolvidos ao autor, aprovados sem release,
   releases com data próxima/vencida. Filtrável por "meu nome".
 
-## 5. Workflow da Solicitação (RN-GOV-01)
+## 5. Workflow da Solicitação (RN-GOV-01) ✅ fechado na S32b
 
 Estados e transições permitidas — qualquer outra transição é erro `E-GOV-01`:
 
@@ -373,6 +378,36 @@ Qualquer estado exceto PUBLISHED → CANCELLED
   via `CHANGES_REQUESTED` ou criar novo DB.
 - `PUBLISHED` é terminal e só é atingido pela publicação (individual ou por release), nunca por
   mudança manual de status.
+
+### 5.1 Como o grafo virou código (S32b)
+
+`src/core/document/cr-workflow.ts` transcreve o grafo acima **literalmente**, e
+`changeRequest/transition` não valida mais nada além dele — com a única exigência que o próprio §5
+impõe, a RN-GOV-03 ao entrar em `SUBMITTED`. Quatro leituras que o texto deixava implícitas:
+
+1. **`PUBLISHED` é inalcançável por `transition`.** A aresta `SCHEDULED → PUBLISHED` existe no
+  grafo, e é a publicação da S36 que a percorre; pedir a transição manualmente é `E-GOV-01`.
+2. **`CANCELLED` é terminal.** "Qualquer estado exceto `PUBLISHED` → `CANCELLED`" descreve as
+  arestas *de entrada*; cancelar de novo o que já está cancelado é `E-GOV-01`, não um no-op.
+3. **"status ≥ `APPROVED`" (I25/I30) é a ordem de `CrStatus`** como declarada em
+  `03-modelo-do-documento.md` §13 — que é a ordem em que este §5 lista os estados. Ela inclui
+  `REJECTED` e `CANCELLED` no congelamento, o que é o comportamento desejado: DB fechado não tem
+  escopo reaberto, vira DB novo.
+4. **Aprovar, devolver e rejeitar são as arestas de `IN_REVIEW`** — `changeRequest/approve`,
+  `/return` e `/reject` fazem a transição **e** gravam `{by, at, decision, comment}` em `approvals`
+  (US-GOV-04). `transition` também alcança esses três estados, e nesse caminho não há decisão
+  registrada; a interface (S35) usa sempre os comandos de decisão.
+
+> ⚠️ **Uma ambiguidade do texto acima, resolvida em favor do grafo (DEC-GOV-020).** O terceiro
+> bullet do §5 diz que mudar escopo depois de `APPROVED` "exige voltar a `DRAFT` via
+> `CHANGES_REQUESTED`", e o CT-GOV-04 repete a ideia — mas o grafo **não tem** a aresta
+> `APPROVED → CHANGES_REQUESTED`: de `APPROVED` só se vai para `IN_DEVELOPMENT` ou `CANCELLED`. A
+> S32b implementou o **grafo**, que é o normativo, e a devolução por `CHANGES_REQUESTED` continua
+> valendo a partir de `IN_REVIEW` — reabrindo a edição e preservando o histórico de aprovação, que
+> é o que o CT-GOV-04 verifica. Depois de aprovado, o caminho para mudar escopo é a segunda metade
+> do próprio bullet: **criar um DB novo** (ou cancelar). Se o uso real mostrar que reabrir um DB
+> aprovado é necessário, o que muda é o grafo deste §5 — uma linha aqui e uma no
+> `CR_TRANSITIONS` —, não a arquitetura.
 
 ## 6. Regras de negócio e invariantes
 
@@ -423,17 +458,23 @@ Qualquer estado exceto PUBLISHED → CANCELLED
 > | I23 (MATRIX/POLICY_VARIABLE espelho) | **I27** | S32a ✅ |
 > | I24 (árvore acíclica, `position`, profundidade, `code`, `tags`) | **I28** | S32a ✅ |
 > | I27 (seção versionável, mesmo ciclo) | **I29** | S32a ✅ |
-> | I25 (itens do DB congelados) | **I30** | S32b |
-> | I26 (`code` de DB e de release) | **I31** | S32b |
+> | I25 (itens do DB congelados) | **I30** | S32b ✅ |
+> | I26 (`code` de DB e de release) | **I31** | S32b ✅ |
 >
 > A imutabilidade de `PolicyComponent.code` é garantia de **comando** (`component/update` não aceita
-> `code`), não de documento parado: I28 confere só a unicidade.
+> `code`), não de documento parado: I28 confere só a unicidade. O mesmo vale para o `code` de DB e de
+> release (I31) e para o **congelamento** de I30: um documento em repouso não sabe se o item mudou
+> depois da aprovação, então quem garante isso é `assertItemsEditable`, e I30 confere a parte
+> estrutural (um componente por DB, referências válidas, rascunho apontando de volta).
 >
 > **Quem implementa o quê**: I27, I28 e I29 entraram na **S32a** (a árvore depende delas); RN-GOV-09
 > na **S33b** (o campo do projeto entrou no schema já na S32a); I30 e I31, na **S32b**, junto dos
 > comandos de DB e release que as tornam alcançáveis. O catálogo `E-GOV-01..06` foi escrito inteiro
 > na S32a (`05-regras-de-negocio.md` §9.1 traz a correspondência com os códigos do `DomainError`);
-> os erros de workflow ficam sem emissor até a S32b.
+> a S32b ligou `E-GOV-01` e `E-GOV-03`, e deixou `E-GOV-02`/`E-GOV-04` para a S36 — os dois só
+> acontecem no ato de publicar. O que a S32b entrega no lugar deles é a avaliação **estática** de
+> composição da release (`assessReleaseComposition`), que já lista a base defasada e o item sem
+> rascunho como pendência tipada.
 >
 > **RN-GOV-06 e vigência retroativa**: publicar versão de componente **aceita** data no passado, ao
 > contrário das matrizes. É o que a RN-GOV-09 exige — a fundação cadastra regras que já vigoram — e

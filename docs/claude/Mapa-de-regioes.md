@@ -28,7 +28,7 @@ Arquivos de `src/` acima de ~600 linhas ganham comentários-âncora grep-áveis 
   sincronizado linha a linha; ele existe para orientar por nome de arquivo + slug, não por
   número exato.
 
-## Arquivos anotados (19)
+## Arquivos anotados (21)
 
 ### `src/core/document/schema.ts`
 | Linha | Âncora |
@@ -48,9 +48,9 @@ Arquivos de `src/` acima de ~600 linhas ganham comentários-âncora grep-áveis 
 | 1498 | `1-estrutura-de-topo` |
 
 ### `src/core/document/validate.ts`
-Uma âncora por invariante (`i1-...` a `i29-...`, mais uma checagem adicional fora da tabela
-I1–I18) — `grep -n "// #region: i" src/core/document/validate.ts` isola qualquer `checkIN`
-individualmente.
+Uma âncora por invariante (`i1-...` a `i31-...`, mais as checagens adicionais fora da tabela:
+`position` e `gov-ref-vinculos-do-db`) — `grep -n "// #region: " src/core/document/validate.ts`
+isola qualquer `checkIN` individualmente.
 
 ### `src/core/document/create.ts`
 | Linha | Âncora |
@@ -96,6 +96,28 @@ individualmente.
 | 550 | `component-move` |
 | 658 | `component-archive` |
 | 744 | `component-set-review-status` |
+
+### `src/core/document/change-requests.ts`
+| Linha | Âncora |
+|---|---|
+| 56 | `localizacao-e-utilitarios` |
+| 167 | `itens-referencias` |
+| 302 | `change-request-create` |
+| 464 | `change-request-update` |
+| 574 | `change-request-itens` |
+| 767 | `change-request-set-release` |
+| 848 | `change-request-workflow` |
+| 967 | `change-request-decisoes` |
+| 1116 | `change-request-consultas` |
+
+### `src/core/document/releases.ts`
+| Linha | Âncora |
+|---|---|
+| 30 | `release-localizacao` |
+| 75 | `release-create` |
+| 193 | `release-update` |
+| 276 | `release-cancel` |
+| 347 | `release-composicao` |
 
 ### `src/core/versioning/axis-commands.ts`
 | Linha | Âncora |

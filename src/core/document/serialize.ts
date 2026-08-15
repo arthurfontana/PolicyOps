@@ -311,6 +311,8 @@ function canonicalDocEvent(e: DocEvent): DocEvent {
       'compatibilityId',
       'componentId',
       'componentVersionId',
+      'changeRequestId',
+      'releaseId',
     ] as const),
     payload: e.payload ? (deepSortKeys(e.payload) as Record<string, unknown>) : undefined,
   };

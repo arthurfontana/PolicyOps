@@ -1664,6 +1664,204 @@ export function checkI29(doc: PolicyOpsDocument): ValidationIssue[] {
   return issues;
 }
 
+// ---------------------------------------------------------------------------
+// I30 — itens do DB. A metade **temporal** ("DB com status ≥ APPROVED tem
+// itens imutáveis") é garantia de comando, não de documento parado: quem a
+// aplica é `assertItemsEditable` em `./cr-workflow.ts`, do mesmo jeito que a
+// imutabilidade de `PolicyComponent.code` é garantia de `component/update` e
+// I28 confere só a unicidade. O que dá para conferir num documento em repouso
+// é a **metade estrutural**: um componente aparece uma vez só por DB
+// (RN-GOV-02), o componente existe, e o `draftVersionId` aponta um rascunho
+// cujo `changeRequestId` é este DB (docs/14 §6).
+// ---------------------------------------------------------------------------
+// #region: i30-itens-do-db
+
+export function checkI30(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const componentById = new Map(doc.components.map((component) => [component.id, component]));
+  const matrixById = new Map(doc.matrices.map((matrix) => [matrix.id, matrix]));
+
+  doc.changeRequests.forEach((cr, ci) => {
+    const seen = new Set<string>();
+
+    cr.items.forEach((item, ii) => {
+      const path = `changeRequests[${ci}].items[${ii}]`;
+
+      if (seen.has(item.componentId)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I30',
+          path,
+          message: `A solicitação "${cr.code}" tem o mesmo componente em dois itens — um componente entra uma vez só por DB (RN-GOV-02).`,
+        });
+      }
+      seen.add(item.componentId);
+
+      const component = componentById.get(item.componentId);
+      if (component === undefined) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I30',
+          path,
+          message: `O item da solicitação "${cr.code}" aponta um componente que não existe neste documento.`,
+        });
+        return;
+      }
+
+      // Item sobre espelho de matriz vincula rascunho **da matriz** (docs/14
+      // §3.3): `MatrixVersion` não tem `changeRequestId`, então ali a conferência
+      // possível é a de pertencimento e estado.
+      const versions =
+        component.type === 'MATRIX'
+          ? (matrixById.get(component.matrixId ?? '')?.versions ?? [])
+          : component.versions;
+
+      if (item.baseVersionId !== undefined && !versions.some((v) => v.id === item.baseVersionId)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I30',
+          path: `${path}.baseVersionId`,
+          message: `O item "${component.code}" da solicitação "${cr.code}" aponta uma versão base que não existe.`,
+        });
+      }
+
+      if (item.draftVersionId === undefined) return;
+      const draft = versions.find((v) => v.id === item.draftVersionId);
+      if (draft === undefined) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I30',
+          path: `${path}.draftVersionId`,
+          message: `O item "${component.code}" da solicitação "${cr.code}" aponta um rascunho que não existe.`,
+        });
+        return;
+      }
+      if (draft.state !== 'DRAFT') {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I30',
+          path: `${path}.draftVersionId`,
+          message: `O item "${component.code}" da solicitação "${cr.code}" aponta a versão ${draft.number}, que está em ${draft.state} e não é mais rascunho.`,
+        });
+      }
+      // O vínculo de volta só existe em versão de componente: `MatrixVersion`
+      // não tem `changeRequestId` (docs/14 §3.3), e ali a conferência para no
+      // pertencimento e no estado.
+      const componentDraft =
+        component.type === 'MATRIX'
+          ? undefined
+          : component.versions.find((v) => v.id === item.draftVersionId);
+      if (componentDraft !== undefined && componentDraft.changeRequestId !== cr.id) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'I30',
+          path: `${path}.draftVersionId`,
+          message: `O rascunho vinculado ao item "${component.code}" não aponta de volta para a solicitação "${cr.code}".`,
+        });
+      }
+    });
+  });
+
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// I31 — `ChangeRequest.code` e `Release.code` são únicos no documento. A
+// imutabilidade é garantia de comando (nem `changeRequest/update` nem
+// `release/update` aceitam `code`), como em I28.
+// ---------------------------------------------------------------------------
+// #region: i31-codigo-de-db-e-de-release
+
+export function checkI31(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  const seenCr = new Set<string>();
+  doc.changeRequests.forEach((cr, ci) => {
+    if (seenCr.has(cr.code)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I31',
+        path: `changeRequests[${ci}].code`,
+        message: `Mais de uma solicitação de alteração usa o código "${cr.code}".`,
+      });
+    }
+    seenCr.add(cr.code);
+  });
+
+  const seenRelease = new Set<string>();
+  doc.releases.forEach((release, ri) => {
+    if (seenRelease.has(release.code)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'I31',
+        path: `releases[${ri}].code`,
+        message: `Mais de uma release usa o código "${release.code}".`,
+      });
+    }
+    seenRelease.add(release.code);
+  });
+
+  return issues;
+}
+
+// ---------------------------------------------------------------------------
+// Referências das entidades de governança (fora da tabela I1–I31, mesmo
+// espírito de I20 para `Matrix.tags`): `releaseId` aponta release existente,
+// e motivadores/categorias de impacto apontam `CatalogItem` do kind certo.
+// ---------------------------------------------------------------------------
+// #region: gov-ref-vinculos-do-db
+
+export function checkGovernanceRefs(doc: PolicyOpsDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const releaseIds = new Set(doc.releases.map((release) => release.id));
+  const motivators = new Set(
+    doc.catalog.filter((item) => item.kind === 'MOTIVATOR').map((item) => item.code),
+  );
+  const impactCategories = new Set(
+    doc.catalog.filter((item) => item.kind === 'IMPACT_CATEGORY').map((item) => item.code),
+  );
+
+  doc.changeRequests.forEach((cr, ci) => {
+    const path = `changeRequests[${ci}]`;
+
+    if (cr.releaseId !== undefined && !releaseIds.has(cr.releaseId)) {
+      issues.push({
+        severity: 'ERROR',
+        invariant: 'GOV-REF',
+        path: `${path}.releaseId`,
+        message: `A solicitação "${cr.code}" aponta uma release que não existe neste documento.`,
+        autoFix: 'CLEAR_REF',
+      });
+    }
+
+    cr.motivators.forEach((code, mi) => {
+      if (!motivators.has(code)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'GOV-REF',
+          path: `${path}.motivators[${mi}]`,
+          message: `O motivador "${code}" da solicitação "${cr.code}" não existe no catálogo.`,
+          autoFix: 'CLEAR_REF',
+        });
+      }
+    });
+
+    cr.impacts.forEach((impact, ii) => {
+      if (!impactCategories.has(impact.category)) {
+        issues.push({
+          severity: 'ERROR',
+          invariant: 'GOV-REF',
+          path: `${path}.impacts[${ii}].category`,
+          message: `A categoria de impacto "${impact.category}" da solicitação "${cr.code}" não existe no catálogo.`,
+          autoFix: 'CLEAR_REF',
+        });
+      }
+    });
+  });
+
+  return issues;
+}
+
 function runAllChecks(doc: PolicyOpsDocument): ValidationIssue[] {
   return [
     ...checkI1(doc),
@@ -1693,6 +1891,9 @@ function runAllChecks(doc: PolicyOpsDocument): ValidationIssue[] {
     ...checkI27(doc),
     ...checkI28(doc),
     ...checkI29(doc),
+    ...checkI30(doc),
+    ...checkI31(doc),
+    ...checkGovernanceRefs(doc),
     ...checkImportProfiles(doc),
     ...checkPositions(doc),
   ];

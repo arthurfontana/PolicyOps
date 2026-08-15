@@ -756,6 +756,18 @@ export const DOC_EVENT_TYPES = [
   'COMPONENT_DRAFT_DISCARDED',
   'COMPONENT_VERSION_PUBLISHED',
   'COMPONENT_VERSION_SUPERSEDED',
+  // Governança de alterações (schema 5, sessão 32b) — docs/14 §3.3/§3.4 e §5.
+  // Os cinco de `CR_*` são gravados na **trilha do próprio DB**
+  // (`ChangeRequest.events`), não em `doc.events` (DEC-GOV-019); os de release
+  // vão para `doc.events`, porque `Release` não tem trilha própria no schema.
+  'CR_CREATED',
+  'CR_UPDATED',
+  'CR_ITEM_CHANGED',
+  'CR_TRANSITIONED',
+  'CR_DECIDED',
+  'RELEASE_CREATED',
+  'RELEASE_UPDATED',
+  'RELEASE_CANCELLED',
 ] as const;
 
 export type DocEventType = (typeof DOC_EVENT_TYPES)[number];
@@ -776,6 +788,10 @@ export type DocEvent = {
     componentId?: string;
     /** Versão de componente (schema 5) — o análogo de `versionId` para a árvore. */
     componentVersionId?: string;
+    /** Solicitação de alteração — o "DB" (schema 5, sessão 32b). */
+    changeRequestId?: string;
+    /** Release (schema 5, sessão 32b). */
+    releaseId?: string;
   };
   summary: string;
   payload?: Record<string, unknown>;
@@ -796,6 +812,8 @@ export const DocEventSchema: z.ZodType<DocEvent> = z
         compatibilityId: idSchema.optional(),
         componentId: idSchema.optional(),
         componentVersionId: idSchema.optional(),
+        changeRequestId: idSchema.optional(),
+        releaseId: idSchema.optional(),
       })
       .strict(),
     summary: z.string().min(1),

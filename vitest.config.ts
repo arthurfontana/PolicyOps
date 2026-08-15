@@ -45,6 +45,28 @@ export default mergeConfig(
             functions: 100,
             statements: 100,
           },
+          // Governança de alterações (S32b): o grafo de estados, o
+          // congelamento dos itens e a composição de release decidem o que
+          // pode ser publicado — um ramo não exercitado aqui é uma transição
+          // que ninguém testou (docs/14 §5, RN-GOV-01).
+          'src/core/document/cr-workflow.ts': {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
+          'src/core/document/change-requests.ts': {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
+          'src/core/document/releases.ts': {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
         },
       },
     },
