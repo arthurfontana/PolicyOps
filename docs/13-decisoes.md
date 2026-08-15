@@ -964,3 +964,42 @@ real.
 | **Por quê** | "Cadastrar em volume é o caso de uso, não o caso de borda" (docs/prompts/S33b): o texto separado por vírgula e o reconhecimento de dois prefixos cobrem exatamente o padrão observado no documento real (`14-governanca-de-alteracoes.md` §9.1, coluna "No Word") sem esperar a conversão para Markdown, que é um passo manual fora da ferramenta. |
 | **Custo aceito** | Um `code` de reason code ou de dependência com vírgula literal no texto não é representável (caso não observado no documento real). O reconhecimento de colagem não cobre `Entradas:`/`Condições:`/`Resultado:` isolados — quem colar esses marcadores vê o texto cair em `businessDescription` sem separação, e edita à mão. Se o uso real mostrar que vale a pena, o parser de `rule-paste.ts` cresce por prefixo novo, sem mudar o contrato do payload. |
 | **Páginas afetadas** | `07-ux-e-editor.md` §17.3, §17.5; `src/components/inspector/ComponentPayloadFields.tsx`, `src/core/versioning/rule-paste.ts` |
+
+---
+
+## DEC-GOV-025: o parser de Markdown nunca descarta conteúdo — o que não tem campo dobra em `notas`, rotulado
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `parseMarkdownPolicy` (`src/core/import/markdown-policy.ts`, S40) nunca joga texto fora em silêncio. Duas situações concretas: (1) um bloco de citação (`>`) que não casa nenhum dos dez marcadores do §9.1 entra em `notas`, concatenado ao que já havia, com um aviso `MARKDOWN_MARKER_IGNORED` no nó; (2) um componente cujo tipo final não é `RULE` (`> Tipo: LIST`/`REASON_CODE`/`POLICY_VARIABLE`/`OTHER`, ou trocado na revisão) não tem campo para `> Definição técnica:`/`Entradas:`/`Condições:`/`Resultado:`/`Reason code:`/`Dependências:` (só `RulePayload` os tem, docs/03-modelo-do-documento.md §12) — esses marcadores capturados dobram em `notas`, rotulados (`"Reason code: GD01"`), em vez de somem. |
+| **Data / gatilho** | 2026-08-15, implementação da S40. |
+| **Alternativas** | (a) descartar o que não casa um campo do payload — mais simples, mas contradiz o "nunca invente conteúdo" do prompt de conversão (§9.1) pelo lado oposto: perder conteúdo real é tão ruim quanto inventar; (b) bloquear a linha com erro até o usuário resolver — pune justamente o caso comum (marcador de RULE sob um nó que a heurística ou a revisão reclassificou), quando "guardar em notas e avisar" já basta para o revisor decidir. |
+| **Por quê** | O parser não sabe, sozinho, se um `> Reason code:` embaixo de um nó agora `LIST` é erro de digitação ou uso legítimo (uma lista pode ter reason codes associados). Preservar em `notas` com aviso mantém a decisão em quem revisa (passo 2 do assistente), sem bloquear o fluxo nem inventar estrutura que o documento não pediu. |
+| **Custo aceito** | O texto em `notas` de um componente não-`RULE` pode ficar longo e menos estruturado do que os campos originais — aceitável porque `notas` já é texto livre em todo payload (docs/03 §12), e o comportamento é o mesmo "sem edição manual pós-carga" que os critérios de aceite pedem: nada se perde, só migra de campo. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §9.1; `src/core/import/markdown-policy.ts`, `tests/unit/core/import/markdown-policy.test.ts` |
+
+---
+
+## DEC-GOV-026: desfazer a carga por recorte é um comando dedicado, não a composição dos inversos dos subcomandos
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `component/importMarkdown` (`src/core/import/markdown-apply.ts`, S40) publica cada componente direto (`component/create` + `componentVersion/createDraft` + `componentVersion/publish`, docs/14 §9 passo 4). Ao contrário de `import/apply` (que nunca publica, RN-10, e por isso compõe os inversos reais dos subcomandos numa pilha — `src/core/import/apply.ts`), o desfazer aqui **não pode** reusar essa composição: `componentVersion/publish` devolve `irreversible(...)` (I3 — publicar é definitivo), e compor um inverso irreversível quebraria o desfazer do lote inteiro. O desfazer é, em vez disso, um comando próprio (`component/_removeMarkdownImport`) que guarda uma cópia integral de cada componente criado (já publicado) e sua posição original, e devolve exatamente isso — "esvaziar de novo o que só esta carga criou", não desfazer a publicação em si. Duas guardas o protegem: recusa se algum componente da carga ganhou filho ou versão nova por fora dela (mesmo espírito de `removeCreatedComponent`, docs/03 §12), e recusa se o próprio componente já não existe. |
+| **Data / gatilho** | 2026-08-15, implementação da S40, CT-GOV-05 ("desfazer remove a carga inteira"). |
+| **Alternativas** | (a) a carga não publicar, como a de matrizes (RN-10), deixando tudo em rascunho para revisão — rejeitada porque o §9 passo 4 é explícito: a primeira versão nasce `PUBLISHED`, porque a política **já vigia** antes da carga (mesma lógica da RN-GOV-09); manter 100 rascunhos abertos não reflete esse fato; (b) não oferecer desfazer nenhum para este comando (como `componentVersion/publish` sozinho) — rejeitada porque o critério de aceite exige undo total, e um lote de dezenas de componentes sem desfazer é caro demais de corrigir manualmente se o destino ou o texto colado estiverem errados. |
+| **Por quê** | A carga sabe, no momento em que termina, exatamente quais componentes ela criou e o estado final de cada um — não precisa da cadeia genérica de inversos para reconstruir isso, só precisa lembrar. Um comando dedicado é mais simples de raciocinar sobre corretude do que ensinar `componentVersion/publish` a ter um inverso condicional. |
+| **Custo aceito** | O desfazer desta carga não é "o inverso de publicar" no sentido geral — é específico a este comando. Se algo externo tocar um componente da carga entre a aplicação e o desfazer, a operação recusa (em vez de silenciosamente arrastar ou perder esse trabalho), e a pessoa precisa remover manualmente. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §9, §10 (CT-GOV-05); `src/core/import/markdown-apply.ts`, `tests/unit/core/import/markdown-apply.test.ts` |
+
+---
+
+## DEC-GOV-027: o assistente de carga por recorte é um diálogo lançado da árvore, não uma tela própria
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `MarkdownImportDialog` (`src/components/import/markdown/`, S40) é um `Dialog` aberto a partir da barra da árvore ("Carregar Markdown") ou do menu de um nó ("Carregar Markdown aqui…"), não uma rota/`View` própria como o assistente de carga de matrizes (`ImportWizard`, `view: 'import'`, docs/12 §6). |
+| **Data / gatilho** | 2026-08-15, implementação da S40. |
+| **Alternativas** | Uma `View` própria, no padrão do assistente de matrizes — rejeitada porque o destino desta carga (docs/14 §9 passo 2, o que a S40 acrescenta ao desenho original) **é** um nó da árvore que já está aberta na tela do projeto (docs/07 §17.1); navegar para uma rota separada obrigaria escolher o destino de novo por busca, em vez de aproveitar o contexto de onde o usuário já estava (clicar "aqui" no menu de um nó pré-seleciona o destino). O assistente de matrizes precisa de tela própria porque os passos 2–4 dele (colunas, biblioteca, conteúdo) não têm equivalente aqui — a carga por recorte é sempre três passos pequenos. |
+| **Por quê** | Menos navegação para o caso de uso central (`docs/14` §9: "repetindo isso capítulo a capítulo, no ritmo dele") — abrir o diálogo, colar, revisar, confirmar, fechar, sem sair da árvore entre uma carga e a próxima. |
+| **Custo aceito** | Nenhuma URL/hash própria para o assistente (diferente de `#/import`) — não é possível linkar diretamente para "no meio de uma carga"; aceitável porque o estado da carga é efêmero e não faz sentido persistir entre sessões. |
+| **Páginas afetadas** | `07-ux-e-editor.md` §14, §17; `src/components/import/markdown/MarkdownImportDialog.tsx`, `src/components/tree/PolicyTree.tsx` |
