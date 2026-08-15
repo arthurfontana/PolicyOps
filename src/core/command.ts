@@ -63,6 +63,20 @@ export type Command<I = unknown, O = unknown> = {
    * da versão publicada (docs/08 §2).
    */
   scope?: DocEvent['scope'];
+  /**
+   * Coalescência de digitação (S34, docs/08 §2). Dois comandos **seguidos**
+   * com a mesma chave viram uma entrada só na pilha de undo: o comando novo
+   * substitui o do topo, mas o `inverse` guardado continua sendo o do
+   * primeiro da sequência. É o que faz um Ctrl+Z desfazer o parágrafo
+   * inteiro, e não letra por letra.
+   *
+   * A chave é responsabilidade de quem cria o comando e precisa identificar
+   * **o que** está sendo digitado (documento, versão, bloco, célula): chaves
+   * diferentes nunca coalescem. Qualquer comando sem chave — ou com chave
+   * diferente — quebra a sequência, assim como desfazer, refazer e trocar de
+   * documento.
+   */
+  coalesceKey?: string;
   run(doc: PolicyOpsDocument, ctx: Ctx): CommandResult<O>;
 };
 
@@ -79,6 +93,7 @@ export type CommandSpec<I, O> = {
   input: I;
   label: string;
   scope?: DocEvent['scope'];
+  coalesceKey?: string;
   execute(doc: PolicyOpsDocument, ctx: Ctx): CommandOutcome<O>;
 };
 
@@ -107,6 +122,7 @@ export function defineCommand<I, O = void>(spec: CommandSpec<I, O>): Command<I, 
     },
   };
   if (spec.scope !== undefined) command.scope = spec.scope;
+  if (spec.coalesceKey !== undefined) command.coalesceKey = spec.coalesceKey;
   return command;
 }
 

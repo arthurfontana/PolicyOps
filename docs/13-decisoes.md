@@ -1003,3 +1003,55 @@ real.
 | **Por quê** | Menos navegação para o caso de uso central (`docs/14` §9: "repetindo isso capítulo a capítulo, no ritmo dele") — abrir o diálogo, colar, revisar, confirmar, fechar, sem sair da árvore entre uma carga e a próxima. |
 | **Custo aceito** | Nenhuma URL/hash própria para o assistente (diferente de `#/import`) — não é possível linkar diretamente para "no meio de uma carga"; aceitável porque o estado da carga é efêmero e não faz sentido persistir entre sessões. |
 | **Páginas afetadas** | `07-ux-e-editor.md` §14, §17; `src/components/import/markdown/MarkdownImportDialog.tsx`, `src/components/tree/PolicyTree.tsx` |
+
+---
+
+## DEC-GOV-028: coalescência de digitação é da pilha de comandos (`coalesceKey`), não do editor
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O editor rico (S34) despacha **um comando por tecla** (`richdoc/apply`), e quem funde a sequência é o store: `Command` ganhou o campo opcional `coalesceKey` (`src/core/command.ts`) e `dispatch` (`src/store/document-store.ts`) substitui a entrada do topo da pilha quando a chave do comando novo é igual à do anterior, **preservando o `inverse` do primeiro da sequência**. Chave da digitação: `richdoc:<alvo>:<bloco>:<célula>` (`typingCoalesceKey`). Qualquer comando sem chave — ou com chave diferente —, desfazer, refazer, trocar de documento e a ação explícita `breakCoalescing()` fecham a sequência. |
+| **Data / gatilho** | 2026-08-15, implementação da S34, critério de aceite "um Ctrl+Z desfaz a digitação inteira, não letra a letra". |
+| **Alternativas** | (a) o editor segurar o texto em `useState` e despachar um comando só no `blur`/debounce — é o desenho clássico, e é justamente o que perde trabalho: o que está no `useState` não está no documento, então fechar a aba, salvar por Ctrl+S ou uma exceção de render levam o parágrafo junto (o modo de falha central desta sessão); (b) coalescer dentro do comando, comparando `type` e `input` no `dispatch` — daria fusão acidental entre comandos diferentes que por acaso tocam o mesmo alvo (uma troca de tipo de bloco seguida de digitação viraria uma entrada só); a chave explícita diz **o que** está sendo digitado e nunca funde gestos distintos. |
+| **Por quê** | O documento continua sendo a única fonte de verdade a cada tecla (nada pendente em estado local), e a pilha de undo continua legível para quem edita: uma entrada por gesto, não uma por caractere. O mecanismo é genérico — a S35 reusa a mesma chave para os campos de texto do DB, sem inventar outro. |
+| **Custo aceito** | A fusão é por **sequência**, não por tempo: sair do bloco e voltar cria duas entradas, e uma pausa longa digitando no mesmo bloco continua sendo uma entrada só. Um limite temporal (estilo "5 s sem tecla fecha o grupo") exigiria relógio dentro do store — impureza nova para um ganho que ninguém pediu. |
+| **Páginas afetadas** | `08-camada-de-comandos.md` §1, §2; `07-ux-e-editor.md` §18; `src/core/command.ts`, `src/store/document-store.ts`, `src/core/richdoc/commands.ts` |
+
+---
+
+## DEC-GOV-029: o diff de `RichDoc` detecta movimento — mover não é remover + adicionar
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `diffRichDoc` (`src/core/richdoc/diff.ts`) classifica cada bloco em `ADDED`, `REMOVED`, `CHANGED`, `MOVED` ou `UNCHANGED`, casando pelos **ids** dos dois lados: mesmo id e mesmo conteúdo em ordem relativa diferente é `MOVED`; conteúdo **e** ordem mudando é `CHANGED` com `moved: true`. "Ordem" é a posição **entre os blocos que existem dos dois lados** — apagar o primeiro parágrafo não faz os seguintes contarem como movidos. Bloco cujo id não existe do outro lado é `ADDED`/`REMOVED`, mesmo que o texto seja idêntico ao de outro bloco. |
+| **Data / gatilho** | 2026-08-15, implementação da S34 (o prompt deixa a escolha explícita: "incluindo mover ≠ remover+adicionar, se você optar por detectar movimento — decida e documente"). |
+| **Alternativas** | (a) não detectar movimento (só added/removed/changed) — mais simples, e o resultado prático é um diff que obriga a reler texto que não mudou: reordenar dois parágrafos apareceria como dois blocos apagados e dois criados; (b) casar blocos por semelhança de texto quando o id não bate — resolveria o caso de "recriei o parágrafo do zero", ao custo de adivinhação: num diff de política, uma linha a mais é melhor do que um pareamento inventado. |
+| **Por quê** | O `id` do bloco é estável por contrato (`03-modelo-do-documento.md` §12.3) — a informação de identidade já está lá, de graça. Jogá-la fora produziria exatamente o diff ruidoso que a S36/S39 precisam evitar quando mostrarem "hoje × proposto" de uma especificação inteira. |
+| **Custo aceito** | Reescrever um bloco do zero (apagar e digitar de novo) aparece como remoção + adição, porque o id novo é outro. É o preço de não adivinhar, e o texto continua visível dos dois lados. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §7; `src/core/richdoc/diff.ts`, `src/components/richdoc/RichDocDiffView.tsx` |
+
+---
+
+## DEC-GOV-030: colar preserva estrutura e descarta formatação, com parser de HTML próprio
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A sanitização do colar (`src/core/richdoc/paste.ts`) preserva **estrutura** — parágrafo, item de lista, célula de tabela — e descarta **toda** formatação: negrito, cor, fonte e `class=Mso*` do Word não sobrevivem. O parser é próprio e regex-based, sem `DOMParser`: `src/core/` é TypeScript puro (regra 4) e DEC-GOV-005 proíbe dependência nova. Duas heurísticas complementam o contrato do §7: parágrafo do Word que **começa** com marcador (`·`, `•`, `-`, `1.`) vira item de lista, e TSV com mais de uma coluna em todas as linhas vira tabela (é o Excel quando só há `text/plain`). |
+| **Data / gatilho** | 2026-08-15, implementação da S34, critério de aceite "colar texto do Word não traz lixo de formatação". |
+| **Alternativas** | (a) preservar negrito/itálico do HTML colado, mapeando `<b>`/`<i>` para as marcas do modelo — tentador, e é o caminho mais rápido para trazer o entulho junto: o Word emite formatação em `<span style>` com fonte, tamanho e cor por trecho, e o que se preserva de fato é a bagunça, não a intenção; (b) rodar a sanitização no componente, com `DOMParser` — quebraria a regra 4 e deixaria a parte mais delicada do colar sem teste puro. |
+| **Por quê** | Quem cola do Word quer o texto, não o tema visual do Word; e a estrutura (lista, tabela) é o que custaria caro redigitar. O parser próprio não precisa ser completo — precisa achar tabela, lista e fronteira de parágrafo, e jogar o resto fora. |
+| **Custo aceito** | Negrito legítimo do documento de origem se perde e precisa ser reaplicado com Ctrl+B. Um parágrafo que comece com hífen legítimo (`- veja a nota`) vira item de lista. Colar imagem continua fora (docs/14 §7): anexar é explícito. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §7; `07-ux-e-editor.md` §18; `src/core/richdoc/paste.ts`, `tests/fixtures/paste-word.html`, `tests/fixtures/paste-excel.html` |
+
+---
+
+## DEC-GOV-031: remover o bloco de imagem apaga o anexo órfão na mesma transação
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `richdoc/removeBlock` (`src/core/richdoc/commands.ts`) verifica, ao remover um bloco `image`, se ele era a **última** referência àquele `INLINE_IMAGE` em todo o documento (`countInlineImageReferences`, varrendo especificações de componente, `motivationText`/`spec` de DB e o boilerplate do projeto). Se era, o anexo sai de `attachments` junto, na mesma transação; o inverso devolve bloco e anexo, este último no índice exato em que estava. |
+| **Data / gatilho** | 2026-08-15, implementação da S34. |
+| **Alternativas** | (a) nunca apagar o anexo, deixando a limpeza para uma varredura futura — cada imagem errada anexada e removida deixaria até 300 KB mortos no `.json`, invisíveis para quem edita (não há tela de anexos embutidos) e contando para o aviso de 3 MB; (b) apagar sempre, sem contar referências — perderia a imagem de outro bloco/DB que aponta o mesmo anexo. |
+| **Por quê** | O byte da imagem embutida mora no próprio `.json` (`03-modelo-do-documento.md` §8.1) e o alvo do arquivo é 10 MB: anexo sem bloco é peso morto que ninguém consegue ver para apagar. Contagem de referências é barata e mantém o inverso exato, que é o que o undo exige. |
+| **Custo aceito** | A regra vale para a remoção **explícita** de bloco (botão do bloco). Fundir/colar por cima nunca remove bloco de imagem, então não há caminho silencioso de perda; e evidências do acervo (`EVIDENCE`, ADR-004) seguem intocadas — a lixeira delas é outra história (`14-plataforma-local.md` §7). |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §7; `03-modelo-do-documento.md` §8.1; `src/core/richdoc/commands.ts`, `src/core/richdoc/attachments.ts` |

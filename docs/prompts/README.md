@@ -41,7 +41,7 @@ Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
 | 32b | [x] | [S32b-solicitacao-release-workflow.md](S32b-solicitacao-release-workflow.md) | `Opus` | Núcleo de DB, release, grafo de estados, I25–I26 (depende de 32a; **antes da 35**) |
 | 33a | [x] | [S33a-arvore-da-politica.md](S33a-arvore-da-politica.md) | `Sonnet` | Árvore da política: esqueleto navegável, nós MATRIX, facetas (depende de 32a) — **lote 2: esqueleto** |
 | 33b | [x] | [S33b-cadastro-de-regras.md](S33b-cadastro-de-regras.md) | `Sonnet` | Cadastro por tipo, versionamento com vigência, entrada em volume (depende de 33a) — **lote 3: conteúdo** |
-| 34 | [ ] | [S34-editor-rico.md](S34-editor-rico.md) | `Opus` | Editor rico de blocos, anexos de imagem, diff por bloco (depende de 32a) |
+| 34 | [x] | [S34-editor-rico.md](S34-editor-rico.md) | `Opus` | Editor rico de blocos, anexos de imagem, diff por bloco (depende de 32a) |
 | 35 | [ ] | [S35-solicitacao-e-workflow.md](S35-solicitacao-e-workflow.md) | `Sonnet` | Solicitação de Alteração (DB), workflow, fila e pendências (depende de 32b, 33b e 34) |
 | 36 | [ ] | [S36-vinculo-e-publicacao.md](S36-vinculo-e-publicacao.md) | `Opus` | Vínculo DB↔rascunhos, congelamento, publicação atômica (depende de 35) |
 | 37 | [ ] | [S37-release-e-timeline.md](S37-release-e-timeline.md) | `Sonnet` | Release de política e timeline do Diário de Bordo (depende de 36) |
@@ -59,7 +59,7 @@ existir um ponto de checagem antes de o formulário de regra ser construído):
 
 ```
 32a → 33a → 33b → ⟨uso real: a política as-is entra à mão; a rota se ajusta aqui⟩
-  → 40 (opcional) → 34 → 32b → 35 → 36 → 37/38 → 39
+  → 40 (opcional) → 34 ✅ → 32b → 35 → 36 → 37/38 → 39
 ```
 
 **Lotes para colocar a política as-is** (detalhe em `docs/09-roadmap-de-entregas.md`):
@@ -71,7 +71,7 @@ existir um ponto de checagem antes de o formulário de regra ser construído):
 | 3 — Conteúdo | 33b | digitar e publicar as regras com a vigência da fundação |
 | ⏸ Parada | — | usar, e decidir `sectionKind`, nó de referência e se a 40 vale |
 | 4 — Aceleração | 40 | subir capítulos convertidos, por recorte (opcional) |
-| 5 — Governança | 34 → 32b → 35 → 36 → 37/38 → 39 | o épico completo |
+| 5 — Governança | 34 ✅ → 32b → 35 → 36 → 37/38 → 39 | o épico completo |
 
 Antes da S40, converta o documento de política para o Markdown convencionado com o prompt de
 `docs/14-governanca-de-alteracoes.md` §9.1 — não depende de código e pode ser feito enquanto as

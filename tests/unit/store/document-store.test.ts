@@ -420,3 +420,95 @@ describe('ctx do store', () => {
     expect(store().undoStack).toHaveLength(0);
   });
 });
+
+describe('coalescência de digitação (S34)', () => {
+  /**
+   * docs/08 §2: comandos seguidos com a mesma `coalesceKey` viram uma entrada
+   * só de undo, guardando o inverso do **primeiro** da sequência. É o que faz
+   * um Ctrl+Z desfazer o parágrafo inteiro, e não letra por letra — o critério
+   * de aceite central da S34.
+   */
+  function digitar(letra: string, coalesceKey?: string): Command<unknown, void> {
+    return defineCommand({
+      type: 'teste/digitar',
+      input: letra,
+      label: `Digitar "${letra}"`,
+      ...(coalesceKey !== undefined ? { coalesceKey } : {}),
+      execute: (document) => {
+        const antes = document.meta.description ?? '';
+        return {
+          document: { ...document, meta: { ...document.meta, description: `${antes}${letra}` } },
+          data: undefined,
+          events: [],
+          inverse: restaurar(antes),
+        };
+      },
+    });
+  }
+
+  function restaurar(valor: string): Command<unknown, void> {
+    return defineCommand({
+      type: 'teste/restaurar',
+      input: valor,
+      label: 'Restaurar',
+      execute: (document) => {
+        const antes = document.meta.description ?? '';
+        return {
+          document: { ...document, meta: { ...document.meta, description: valor } },
+          data: undefined,
+          events: [],
+          inverse: restaurar(antes),
+        };
+      },
+    });
+  }
+
+  const descricao = () => store().document!.meta.description ?? '';
+
+  it('digitação contígua no mesmo bloco vira uma entrada só, e um undo desfaz tudo', () => {
+    for (const letra of 'parágrafo longo') store().dispatch(digitar(letra, 'richdoc:v1:b1:'));
+
+    expect(descricao()).toBe('parágrafo longo');
+    expect(store().undoStack).toHaveLength(1);
+
+    store().undo();
+    expect(descricao()).toBe('');
+
+    // Refazer devolve tudo — o inverso do inverso carrega o texto inteiro.
+    store().redo();
+    expect(descricao()).toBe('parágrafo longo');
+  });
+
+  it('trocar de bloco quebra a sequência: cada bloco tem seu undo', () => {
+    store().dispatch(digitar('a', 'richdoc:v1:b1:'));
+    store().dispatch(digitar('b', 'richdoc:v1:b2:'));
+    store().dispatch(digitar('c', 'richdoc:v1:b2:'));
+
+    expect(store().undoStack).toHaveLength(2);
+    store().undo();
+    expect(descricao()).toBe('a');
+  });
+
+  it('comando sem chave, undo e `breakCoalescing` fecham a sequência', () => {
+    store().dispatch(digitar('a', 'richdoc:v1:b1:'));
+    store().dispatch(digitar('!'));
+    store().dispatch(digitar('b', 'richdoc:v1:b1:'));
+    expect(store().undoStack).toHaveLength(3);
+
+    store().breakCoalescing();
+    store().dispatch(digitar('c', 'richdoc:v1:b1:'));
+    expect(store().undoStack).toHaveLength(4);
+
+    store().undo();
+    store().dispatch(digitar('d', 'richdoc:v1:b1:'));
+    expect(store().undoStack).toHaveLength(4);
+  });
+
+  it('a fusão limpa o redo, como qualquer comando novo', () => {
+    store().dispatch(digitar('a', 'richdoc:v1:b1:'));
+    store().undo();
+    expect(store().canRedo).toBe(true);
+    store().dispatch(digitar('b', 'richdoc:v1:b1:'));
+    expect(store().redoStack).toHaveLength(0);
+  });
+});

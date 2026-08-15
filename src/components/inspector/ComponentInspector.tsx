@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ComponentPayloadFields } from '@/components/inspector/ComponentPayloadFields';
 import { ComponentTagsEditor } from '@/components/inspector/ComponentTagsEditor';
+import { RichDocDiffView } from '@/components/richdoc/RichDocDiffView';
+import { RichDocEditor } from '@/components/richdoc/RichDocEditor';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { MoveComponentDialog } from '@/components/tree/MoveComponentDialog';
 import { PublishComponentDialog } from '@/components/dialogs/PublishComponentDialog';
@@ -44,21 +44,6 @@ import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
 import { useUiStore } from '@/store/ui-store';
 import { useToast } from '@/components/ui/use-toast';
-
-/** Campo desabilitado com o motivo em tooltip — só o que ainda não existe (editor rico, S34). */
-function StubField({ label, placeholder }: { label: string; placeholder: string }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="flex flex-col gap-1 opacity-50">
-          <Label className="text-xs">{label}</Label>
-          <Textarea disabled rows={2} placeholder={placeholder} />
-        </div>
-      </TooltipTrigger>
-      <TooltipContent>Editor rico chega na Sessão 34.</TooltipContent>
-    </Tooltip>
-  );
-}
 
 /** Payload inicial de um componente novo — sempre com `businessDescription` preenchido (nunca vazio). */
 function seedPayload(type: PolicyComponentType, name: string): ComponentPayload {
@@ -117,6 +102,7 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [specDiffOpen, setSpecDiffOpen] = useState(false);
 
   const foundComponent = document?.components.find((candidate) => candidate.id === componentId) ?? null;
 
@@ -393,7 +379,32 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
               <MirroredVariableCard variableId={component.variableId} />
             )}
 
-            <StubField label="Especificação (spec)" placeholder="Editor de especificação livre — Sessão 34." />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Especificação</Label>
+                {draft !== null && publishedVersion !== null && publishedVersion.id !== draft.id && (
+                  <Button type="button" variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSpecDiffOpen((open) => !open)}>
+                    {specDiffOpen ? 'Ocultar mudanças' : 'Comparar com a publicada'}
+                  </Button>
+                )}
+              </div>
+              {specDiffOpen && draft !== null && publishedVersion !== null ? (
+                <RichDocDiffView
+                  before={publishedVersion.spec}
+                  after={draft.spec}
+                  beforeLabel={`Versão ${publishedVersion.number} (publicada)`}
+                  afterLabel={`Versão ${draft.number} (rascunho)`}
+                />
+              ) : (
+                <RichDocEditor
+                  key={displayedVersion.id}
+                  target={{ kind: 'COMPONENT_VERSION_SPEC', versionId: displayedVersion.id }}
+                  value={displayedVersion.spec}
+                  editable={draft !== null}
+                  emptyLabel="Esta versão não tem especificação livre."
+                />
+              )}
+            </div>
 
             {draft !== null && (
               <div className="flex gap-2">

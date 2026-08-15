@@ -524,9 +524,12 @@ impõe, a RN-GOV-03 ao entrar em `SUBMITTED`. Quatro leituras que o texto deixav
 > contrário das matrizes. É o que a RN-GOV-09 exige — a fundação cadastra regras que já vigoram — e
 > fecha a pergunta 4 do §12 para componentes (`03-modelo-do-documento.md` §12.1).
 
-## 7. Editor rico de especificação (`RichDoc`)
+## 7. Editor rico de especificação (`RichDoc`) ✅ entregue (S34)
 
-Editor de **blocos próprios**, sem dependência nova (DEC-GOV-005):
+Editor de **blocos próprios**, sem dependência nova (DEC-GOV-005). Entregue na S34: núcleo puro em
+`src/core/richdoc/` (operações com inverso, sanitização do colar, diff por bloco), componentes em
+`src/components/richdoc/` e um `contentEditable` **por linha**. Interações e atalhos:
+[`07-ux-e-editor.md`](07-ux-e-editor.md) §18.
 
 ```ts
 type RichDoc = { blocks: Block[] };
@@ -550,10 +553,20 @@ type InlineText = { text: string; marks?: ('bold' | 'italic' | 'code' | 'link')[
 - Imagens viram `Attachment` (coleção própria no documento): base64, redimensionadas no cliente
   para ≤ 1600px e re-encodadas; teto de **300 KB por imagem** e aviso quando os anexos passarem de
   **3 MB** no documento (o alvo de 10 MB do `.json` continua valendo). `E-GOV-05` acima do teto.
+  Remover o bloco de imagem apaga o anexo **quando ele fica órfão**, na mesma transação, com
+  inverso exato (DEC-GOV-031).
 - Diff de `RichDoc` é **por bloco** (id estável): adicionado/removido/alterado — sem diff
-  intra-texto na fase 1.
-- Colar do Word/Excel: texto vira parágrafos; tabela HTML vira bloco `table`. Sem imagens no
-  colar (limitação aceita; anexar é explícito).
+  intra-texto na fase 1. A S34 acrescentou **movimento** ao vocabulário: bloco com o mesmo id e o
+  mesmo conteúdo em ordem relativa diferente é `MOVED`, não remoção + adição (DEC-GOV-029).
+- Colar do Word/Excel: texto vira parágrafos; tabela HTML vira bloco `table`. **Estrutura sobrevive,
+  formatação não** — negrito, cor, fonte e `class=Mso*` são descartados, e o parser é próprio (sem
+  `DOMParser`, porque `src/core/` é TypeScript puro) — DEC-GOV-030. Lista do Word (parágrafo que
+  começa com `·`) é reconhecida como `bulletList`, e TSV de várias colunas vira tabela. Sem imagens
+  no colar (limitação aceita; anexar é explícito).
+- Edição é comando: **uma tecla, um comando** (`richdoc/apply`), com coalescência na pilha de undo
+  para que um `Ctrl+Z` desfaça o parágrafo inteiro (DEC-GOV-028, `08-camada-de-comandos.md` §2).
+  Nada de texto pendurado em estado de componente esperando um "salvar" — é o que sustenta o
+  "nada do que digitar se perde".
 
 ## 8. Pacote para a Fábrica
 
