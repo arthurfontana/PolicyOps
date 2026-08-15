@@ -1,11 +1,12 @@
 # Governança de Alterações de Política (épico GOV)
 
 > **Estado**: 🚧 Em andamento — **S32a entregue** (núcleo de componentes e `schemaVersion: 5`),
-> **S32b entregue** (DB, release e workflow, sem tela) e
-> **S33a entregue** (árvore como tela do projeto, US-GOV-01 ✅ parcial — CRUD estrutural, busca,
-> filtros e ergonomia de volume; payload/ciclo de versão continuam S33b);
-> S33b, S34–S40 planejadas · **DECs relacionadas**:
-> DEC-GOV-001 a DEC-GOV-013 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
+> **S32b entregue** (DB, release e workflow, sem tela), **S33a entregue** (árvore como tela do
+> projeto, US-GOV-01 ✅ parcial — CRUD estrutural, busca, filtros e ergonomia de volume) e
+> **S33b entregue** (US-GOV-01 ✅ completa e US-GOV-02 ✅ — payload por tipo, ciclo de vida na
+> tela, vigência da fundação e "Publicar pendentes", entrada em volume por colagem);
+> S34–S40 planejadas · **DECs relacionadas**:
+> DEC-GOV-001 a DEC-GOV-024 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
 >
@@ -17,7 +18,7 @@
 > Markdown (§9, S40) passou a ser **opcional e por recorte**, decidida depois do primeiro uso real.
 >
 > ```
-> 32a → 33a → 33b → ⟨você constrói a política as-is e a gente ajusta a rota⟩
+> 32a → 33a → 33b ✅ → ⟨ponto de parada: você constrói a política as-is e a gente ajusta a rota⟩
 >   → 40 (opcional, por recorte) → 34 → 32b → 35 → 36 → 37/38 → 39
 > ```
 >
@@ -272,7 +273,7 @@ motor está descrita no texto de cada componente (`07-ux-e-editor.md` §17).
 
 ## 4. Histórias de usuário
 
-### US-GOV-01 — Estruturar a política como árvore ✅ parcial (S33a)
+### US-GOV-01 — Estruturar a política como árvore ✅ (S33a + S33b)
 **Como** analista, **quero** cadastrar os componentes da política numa hierarquia navegável
 **para** que o estado vigente de cada regra viva na ferramenta, não num Word.
 
@@ -288,24 +289,39 @@ motor está descrita no texto de cada componente (`07-ux-e-editor.md` §17).
   esqueleto de seções, pendurar as matrizes, e só então cadastrar as regras. A ergonomia de
   digitação em volume (`Enter`/`Tab`/`Ctrl+D`) está na árvore desde a S33a —
   `07-ux-e-editor.md` §17.3.
-- 🔮 **S33b**: cadastrar e versionar o *conteúdo* de cada nó (payload por tipo, RichDoc, ciclo
-  rascunho/publicar, timeline, vigência da fundação) — ver US-GOV-02. A árvore da S33a já suporta
-  todos os tipos estruturalmente; o que falta é o formulário de conteúdo.
+- ✅ **S33b**: cadastrar e versionar o *conteúdo* de cada nó (payload por tipo, ciclo
+  rascunho/publicar, timeline, vigência da fundação) — ver US-GOV-02. `RichDoc`/`spec` continua
+  placeholder somente leitura até a S34.
 
-### US-GOV-02 — Cadastrar e versionar uma regra
+### US-GOV-02 — Cadastrar e versionar uma regra ✅ (S33b)
 **Como** analista, **quero** registrar a regra com campos estruturados (§3.2) e documentação livre
 **para** que "comportamento atual" seja consulta, não redação.
 
-- Ciclo rascunho → publicar com `effectiveFrom` obrigatório; nunca sobrescrita destrutiva.
-- Timeline da regra: toda versão com intervalo de vigência, autor, DB de origem (quando houver).
-- Publicação direta (sem DB) permitida, mas marcada como tal na timeline (RN-GOV-07).
-- **Caminho curto da fundação** (RN-GOV-09): cadastrar ~100 regras que já vigoram não pode custar
-  ~100 publicações individuais. O projeto declara uma **vigência da fundação** (uma data, uma
-  vez), a primeira versão de cada componente nasce apontando para ela, e "publicar pendentes"
-  publica em lote com essa data — mesma filosofia da carga de matrizes e do §9 passo 4.
-- Entrada em volume: duplicar componente, criar irmão sem sair do teclado, e colar um bloco de
-  texto no formato do documento real (parágrafo de negócio + `Definição técnica:` + `Observação:`)
-  reconhecido por prefixo de linha, sem parser de Markdown.
+- ✅ Ciclo rascunho → publicar com `effectiveFrom` obrigatório; nunca sobrescrita destrutiva
+  (`ComponentInspector`, `componentVersion/createDraft`/`update`/`publish`/`discardDraft`).
+  Formulário por tipo (`ComponentPayloadFields`) cobre os cinco payloads do §3.2;
+  `POLICY_VARIABLE` com `variableId` mostra a variável espelhada (nome, domínios da versão
+  publicada) sem duplicá-la, com link direto para a Biblioteca. Seção sem versões continua pasta
+  pura (I29); a ação secundária "Documentar esta seção" cria a v1 e ela passa a ter texto,
+  vigência e timeline como qualquer outra.
+- ✅ Timeline da regra: toda versão com intervalo de vigência e autor, no padrão visual da timeline
+  de matriz (`MatrixTimelineBar` reaproveitado, `getComponentTimeline`); DB de origem aparece
+  quando existir (`changeRequestId`) — nenhum DB é criado antes da S35, então esse campo ainda não
+  tem exemplo real.
+- ✅ Publicação direta (sem DB) permitida, marcada como tal na timeline (RN-GOV-07) — o aviso
+  aparece no diálogo de publicação individual e, uma vez só por lote (não por item), no diálogo de
+  "Publicar pendentes".
+- ✅ **Caminho curto da fundação** (RN-GOV-09): `Project.foundationEffectiveFrom`, editável nas
+  propriedades do projeto (`CreateProjectDialog`), sugere a vigência da primeira publicação de
+  cada componente e a vigência padrão do lote; "Publicar pendentes" (`PublishPendingComponentsDialog`,
+  comando `componentVersion/publishPending`) lista os rascunhos abertos do projeto, permite
+  desmarcar item a item, e publica o restante **tudo ou nada** (RN-GOV-05) — mesma filosofia da
+  carga de matrizes e do §9 passo 4.
+- ✅ Entrada em volume: criar irmão sem sair do teclado (S33a) e colar um bloco de texto no formato
+  do documento real (parágrafo de negócio + `Definição técnica:` + `Observação:`) reconhecido por
+  prefixo de linha, com preview antes de aplicar (`recognizeRulePaste`,
+  `src/core/versioning/rule-paste.ts`) — sem parser de Markdown. Duplicar componente (`Ctrl/Cmd+D`,
+  S33a) já copia o payload da versão mais recente como rascunho 1 da cópia.
 
 ### US-GOV-03 — Criar uma Solicitação de Alteração
 **Como** analista, **quero** criar um DB selecionando componentes na árvore **para** que o "hoje"
@@ -436,10 +452,13 @@ impõe, a RN-GOV-03 ao entrar em `SUBMITTED`. Quatro leituras que o texto deixav
   `"publicação direta"` na timeline — governança incentiva, não tranca (DEC-GOV-004).
 - **RN-GOV-08** — Pacote para a Fábrica é sempre **derivado** dos dados do DB no momento da
   geração; não existe cópia editável do pacote dentro da ferramenta.
-- **RN-GOV-09** — A **vigência da fundação** é um campo do projeto, opcional, usado como
-  `effectiveFrom` padrão da primeira versão de cada componente e pela publicação em lote dos
-  pendentes. Não é um estado do documento nem um modo: é um valor padrão que o usuário pode
-  sobrescrever em qualquer publicação. Publicar em lote segue a RN-GOV-05 (tudo ou nada).
+- **RN-GOV-09** ✅ **implementada na S33b** — A **vigência da fundação** é um campo do projeto,
+  opcional (`Project.foundationEffectiveFrom`, editável em "Editar projeto"), usado como sugestão
+  de `effectiveFrom` no diálogo de publicação da primeira versão de um componente e como vigência
+  padrão do lote em "Publicar pendentes" (`PublishPendingComponentsDialog`) — sempre editável, nos
+  dois casos, antes de confirmar. Não é um estado do documento nem um modo. Publicar em lote é o
+  comando `componentVersion/publishPending`, que segue a RN-GOV-05 (tudo ou nada) validando o lote
+  inteiro antes de escrever qualquer versão (DEC-GOV-023).
 - **I23** — Componente `MATRIX` tem `matrixId` válido, do mesmo projeto, `versions: []` e nenhum
   filho; nenhum outro tipo tem `matrixId`. Uma matriz é referenciada por no máximo um componente.
   Componente `POLICY_VARIABLE` pode ter `variableId`, que precisa apontar `Variable` existente;
@@ -476,7 +495,7 @@ impõe, a RN-GOV-03 ao entrar em `SUBMITTED`. Quatro leituras que o texto deixav
 > estrutural (um componente por DB, referências válidas, rascunho apontando de volta).
 >
 > **Quem implementa o quê**: I27, I28 e I29 entraram na **S32a** (a árvore depende delas); RN-GOV-09
-> na **S33b** (o campo do projeto entrou no schema já na S32a); I30 e I31, na **S32b**, junto dos
+> ✅ **S33b** (o campo do projeto entrou no schema já na S32a); I30 e I31, na **S32b**, junto dos
 > comandos de DB e release que as tornam alcançáveis. O catálogo `E-GOV-01..06` foi escrito inteiro
 > na S32a (`05-regras-de-negocio.md` §9.1 traz a correspondência com os códigos do `DomainError`);
 > a S32b ligou `E-GOV-01` e `E-GOV-03`, e deixou `E-GOV-02`/`E-GOV-04` para a S36 — os dois só

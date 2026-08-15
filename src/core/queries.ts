@@ -9,6 +9,7 @@ import type {
   CompatibilityRule,
   CompatibilityVersion,
   ComponentReviewStatus,
+  ComponentVersion,
   DefaultForUnlisted,
   Domain,
   DocEvent,
@@ -1168,4 +1169,117 @@ export function sidebarTreeAnchors(doc: PolicyOpsDocument, projectId: string): S
     );
   }
   return { level1, level2ByParent };
+}
+
+// ---------------------------------------------------------------------------
+// Vigência e linha do tempo de componente — docs/07 §10/§17.5,
+// docs/14-governanca-de-alteracoes.md §3.2, RN-GOV-06, I29
+// ---------------------------------------------------------------------------
+// #region: vigencia-e-linha-do-tempo-de-componente
+
+/**
+ * Os segmentos de vigência do componente, no mesmo formato de
+ * `getMatrixTimeline` — é o que alimenta `MatrixTimelineBar` (docs/07 §10)
+ * também para a timeline do inspector de componente (§17.5). `MATRIX` nunca
+ * tem versão própria (I27) e devolve sempre `[]`.
+ */
+export function getComponentTimeline(component: PolicyComponent): TimelineSegment[] {
+  const segments: TimelineSegment[] = [];
+  for (const version of component.versions) {
+    if (version.state !== 'PUBLISHED' && version.state !== 'SUPERSEDED') continue;
+    if (version.effectiveFrom === undefined) continue;
+    const segment: TimelineSegment = {
+      versionId: version.id,
+      number: version.number,
+      state: version.state,
+      effectiveFrom: version.effectiveFrom,
+      effectiveTo: version.effectiveTo ?? null,
+    };
+    if (version.publishedBy !== undefined) segment.publishedBy = version.publishedBy;
+    segments.push(segment);
+  }
+  return segments.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+}
+
+/**
+ * A versão vigente do componente em `at` (intervalo semiaberto
+ * `[effectiveFrom, effectiveTo)`, mesma semântica de `getEffectiveVersion`
+ * para matriz). Componente sem nenhuma versão (seção pura, I29) devolve
+ * sempre `null` — é estrutura, não conteúdo, e nunca é "sem política
+ * vigente".
+ */
+export function getComponentEffectiveVersion(component: PolicyComponent, at: Date): ComponentVersion | null {
+  if (component.versions.length === 0) return null;
+  const atIso = at.toISOString();
+  return (
+    component.versions.find(
+      (version) =>
+        (version.state === 'PUBLISHED' || version.state === 'SUPERSEDED') &&
+        version.effectiveFrom !== undefined &&
+        atIso >= version.effectiveFrom &&
+        (version.effectiveTo === undefined || atIso < version.effectiveTo),
+    ) ?? null
+  );
+}
+
+export type ComponentEffectiveEntry = {
+  component: PolicyComponent;
+  /** `null` = sem versão vigente nesta data — só aparece para componente **documentável** (I29). */
+  version: ComponentVersion | null;
+};
+
+/**
+ * A política em `at`, por componente — a mesma pergunta de `getPortfolioAt`
+ * para matriz, aplicada à árvore. `MATRIX` fica de fora (é espelho: sua
+ * vigência é a da matriz, já coberta por `getPortfolioAt`) e **seção sem
+ * nenhuma versão também fica de fora inteiramente** — ela é estrutura pura
+ * (I29), e listá-la com `version: null` a faria aparecer como "sem política
+ * vigente", que é exatamente o que I29 proíbe.
+ */
+export function listComponentsEffectiveAt(
+  doc: PolicyOpsDocument,
+  projectId: string,
+  at: Date,
+): ComponentEffectiveEntry[] {
+  return doc.components
+    .filter((component) => component.projectId === projectId && component.type !== 'MATRIX')
+    .filter((component) => component.versions.length > 0)
+    .map((component) => ({ component, version: getComponentEffectiveVersion(component, at) }));
+}
+
+// ---------------------------------------------------------------------------
+// Rascunhos pendentes de componente — docs/07 §17.4, RN-GOV-09
+// ---------------------------------------------------------------------------
+// #region: rascunhos-pendentes-de-componente
+
+export type PendingComponentVersion = {
+  component: PolicyComponent;
+  version: ComponentVersion;
+};
+
+/**
+ * Todo componente do projeto com um rascunho em aberto (I29: no máximo um por
+ * componente) — o universo de "Publicar pendentes" (docs/07 §17.4). Ordenado
+ * pelo mesmo caminho de leitura da árvore, para que o lote apareça na ordem
+ * em que o usuário digitou.
+ */
+export function listPendingComponentVersions(
+  doc: PolicyOpsDocument,
+  projectId: string,
+): PendingComponentVersion[] {
+  return doc.components
+    .filter((component) => component.projectId === projectId && component.type !== 'MATRIX')
+    .flatMap((component) => {
+      const draft = component.versions.find((version) => version.state === 'DRAFT');
+      return draft === undefined ? [] : [{ component, version: draft }];
+    })
+    .sort((a, b) => {
+      const pathA = componentPath(doc, a.component.id).map((c) => c.position);
+      const pathB = componentPath(doc, b.component.id).map((c) => c.position);
+      const length = Math.min(pathA.length, pathB.length);
+      for (let i = 0; i < length; i++) {
+        if (pathA[i] !== pathB[i]) return pathA[i]! - pathB[i]!;
+      }
+      return pathA.length - pathB.length;
+    });
 }

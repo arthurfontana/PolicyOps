@@ -196,6 +196,39 @@ describe('project/update e project/archive', () => {
     expectFailure(doc, ctx, archiveProject({ projectId: 'fantasma' }), 'NOT_FOUND');
     expectFailure(doc, ctx, updateProject({ projectId: IDS.projectA, name: ' ' }), 'INVALID_INPUT');
   });
+
+  it('RN-GOV-09: define, sobrescreve e apaga a vigência da fundação, com a mesma semântica de três estados', () => {
+    const ctx = testCtx();
+    const doc = baseDocument();
+    expect(doc.projects[0]!.foundationEffectiveFrom).toBeUndefined();
+
+    const definida = apply(
+      doc,
+      ctx,
+      updateProject({ projectId: IDS.projectA, foundationEffectiveFrom: '2024-01-01T00:00:00.000Z' }),
+    );
+    expect(definida.document.projects[0]!.foundationEffectiveFrom).toBe('2024-01-01T00:00:00.000Z');
+
+    const inalterada = apply(definida.document, ctx, updateProject({ projectId: IDS.projectA, name: 'Projeto A' }));
+    expect(inalterada.document.projects[0]!.foundationEffectiveFrom).toBe('2024-01-01T00:00:00.000Z');
+
+    const apagada = apply(
+      inalterada.document,
+      ctx,
+      updateProject({ projectId: IDS.projectA, foundationEffectiveFrom: null }),
+    );
+    expect('foundationEffectiveFrom' in apagada.document.projects[0]!).toBe(false);
+
+    const desfeito = apply(apagada.document, ctx, apagada.result.inverse);
+    expect(desfeito.document.projects[0]!.foundationEffectiveFrom).toBe('2024-01-01T00:00:00.000Z');
+
+    expectFailure(
+      doc,
+      ctx,
+      updateProject({ projectId: IDS.projectA, foundationEffectiveFrom: '01/01/2024' }),
+      'INVALID_INPUT',
+    );
+  });
 });
 
 describe('matrix/updateMeta e matrix/archive', () => {

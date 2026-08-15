@@ -86,8 +86,8 @@ export function ComponentContentPanel({ projectId, projectName, componentId }: C
       )}
 
       <p className="rounded-md border border-dashed border-neutral-300 p-3 text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
-        Descrição de negócio, definição técnica e o ciclo de versão deste componente chegam na
-        Sessão 33b. Edite nome, tags, origem e revisão no painel de propriedades à direita.
+        Descrição de negócio, definição técnica e o ciclo de versão deste componente ficam no painel
+        de propriedades à direita, junto de nome, tags, origem e revisão.
       </p>
     </div>
   );

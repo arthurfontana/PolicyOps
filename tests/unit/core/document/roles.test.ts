@@ -131,6 +131,12 @@ describe('minRoleForCommand — tabela de papéis de docs/14 §6', () => {
     expect(minRoleForCommand('matrix/archive')).toBe('PUBLISHER');
   });
 
+  it('publicar componente (individual e em lote) e arquivar componente: PUBLISHER', () => {
+    expect(minRoleForCommand('componentVersion/publish')).toBe('PUBLISHER');
+    expect(minRoleForCommand('componentVersion/publishPending')).toBe('PUBLISHER');
+    expect(minRoleForCommand('component/archive')).toBe('PUBLISHER');
+  });
+
   it('editar a ACL: ADMIN', () => {
     expect(minRoleForCommand('acl/set')).toBe('ADMIN');
   });

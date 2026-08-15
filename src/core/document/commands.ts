@@ -1,6 +1,6 @@
 import { applyToDocument, defineCommand, isoFrom, makeEvent, type Command } from '../command';
 import { DomainError } from '../errors';
-import { CODE_REGEX, type Acl, type Matrix, type PolicyOpsDocument, type Project } from './schema';
+import { CODE_REGEX, ISO_DATE_REGEX, type Acl, type Matrix, type PolicyOpsDocument, type Project } from './schema';
 
 /**
  * Comandos de documento, projeto e metadados de matriz — docs/08 §3.
@@ -229,7 +229,21 @@ export type UpdateProjectInput = {
   projectId: string;
   name?: string;
   description?: string | null;
+  /**
+   * Vigência da fundação (RN-GOV-09, docs/07 §17.4): ausente = não mexe,
+   * `null` = apaga, valor = define. Não é um estado nem um modo — é só o
+   * `effectiveFrom` padrão que a primeira versão de componente novo e a
+   * publicação em lote dos pendentes sugerem, sempre sobrescrevível.
+   */
+  foundationEffectiveFrom?: string | null;
 };
+
+function assertIsoDate(value: string, what: string): string {
+  if (!ISO_DATE_REGEX.test(value)) {
+    throw new DomainError('INVALID_INPUT', `${what} precisa estar no formato ISO 8601 UTC.`, { value });
+  }
+  return value;
+}
 
 export function updateProject(input: UpdateProjectInput): Command<UpdateProjectInput, void> {
   return defineCommand({
@@ -240,16 +254,25 @@ export function updateProject(input: UpdateProjectInput): Command<UpdateProjectI
     execute(doc) {
       const { project, index } = locateProject(doc, input.projectId);
       const name = input.name === undefined ? undefined : assertText(input.name, 'O nome do projeto');
+      const foundationEffectiveFrom =
+        input.foundationEffectiveFrom === undefined || input.foundationEffectiveFrom === null
+          ? input.foundationEffectiveFrom
+          : assertIsoDate(input.foundationEffectiveFrom, 'A vigência da fundação');
       const inverse = updateProject({
         projectId: project.id,
         name: project.name,
         description: previous(project.description),
+        foundationEffectiveFrom: previous(project.foundationEffectiveFrom),
       });
       return {
         document: applyToDocument(doc, [], (draft) => {
           const target = draft.projects[index]!;
           if (name !== undefined) target.name = name;
           optionalTextUpdate(target, input.description, 'A descrição do projeto');
+          if (foundationEffectiveFrom !== undefined) {
+            if (foundationEffectiveFrom === null) delete target.foundationEffectiveFrom;
+            else target.foundationEffectiveFrom = foundationEffectiveFrom;
+          }
         }),
         data: undefined,
         events: [],

@@ -6,6 +6,8 @@ import {
   countPending,
   filterComponentTree,
   getAxisStaleness,
+  getComponentEffectiveVersion,
+  getComponentTimeline,
   getEditorView,
   getEditorViewComputations,
   getEffectiveVersion,
@@ -18,9 +20,11 @@ import {
   getVariableUsage,
   getVersionEvents,
   latestVersionOf,
+  listComponentsEffectiveAt,
   listMatrices,
   listMatrixVersions,
   listOpenDrafts,
+  listPendingComponentVersions,
   listProjectMatrices,
   listProjects,
   listUnmirroredMatrices,
@@ -34,6 +38,7 @@ import { setMatrixTags } from '@/core/document/commands';
 import { archiveCatalogItem, createCatalogItem } from '@/core/library/catalog';
 import { addLevelCommand } from '@/core/versioning/axis-commands';
 import { applyCellPatch } from '@/core/versioning/cells';
+import { createComponentDraft, publishComponentVersion } from '@/core/versioning/component-lifecycle';
 import { createDraft, createMatrix, locateVersion, publishVersion } from '@/core/versioning/lifecycle';
 import {
   apply,
@@ -1053,5 +1058,102 @@ describe('sidebarTreeAnchors', () => {
     // RULE dentro de Fraude é nível 3 — não entra na âncora da sidebar.
     expect(anchors.level2ByParent.get(fraude)).toBeUndefined();
     expect(anchors.level2ByParent.get(grupos)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Vigência e timeline de componente — docs/14 §3.2/§6, I29, RN-GOV-09
+// ---------------------------------------------------------------------------
+
+const VIGENCIA_1 = '2026-02-01T00:00:00.000Z';
+const VIGENCIA_2 = '2026-03-01T00:00:00.000Z';
+
+describe('getComponentTimeline', () => {
+  it('um segmento por versão publicada/histórica, em ordem cronológica; MATRIX nunca versiona', () => {
+    const { ctx, document, regraA } = policyTreeDoc();
+    const v1 = apply(
+      document,
+      ctx,
+      createComponentDraft({ componentId: regraA, payload: { kind: 'RULE', businessDescription: 'v1' } }),
+    );
+    const p1 = apply(v1.document, ctx, publishComponentVersion({ versionId: v1.data.versionId, effectiveFrom: VIGENCIA_1 }));
+    const v2 = apply(p1.document, ctx, createComponentDraft({ componentId: regraA }));
+    const p2 = apply(v2.document, ctx, publishComponentVersion({ versionId: v2.data.versionId, effectiveFrom: VIGENCIA_2 }));
+
+    const component = p2.document.components.find((c) => c.id === regraA)!;
+    const timeline = getComponentTimeline(component);
+    expect(timeline.map((s) => [s.number, s.state, s.effectiveFrom, s.effectiveTo])).toEqual([
+      [1, 'SUPERSEDED', VIGENCIA_1, VIGENCIA_2],
+      [2, 'PUBLISHED', VIGENCIA_2, null],
+    ]);
+  });
+
+  it('componente sem nenhuma versão publicada devolve timeline vazia', () => {
+    const { document, regraB } = policyTreeDoc();
+    const component = document.components.find((c) => c.id === regraB)!;
+    expect(getComponentTimeline(component)).toEqual([]);
+  });
+});
+
+describe('getComponentEffectiveVersion e listComponentsEffectiveAt', () => {
+  it('seção sem nenhuma versão nunca entra na consulta de vigência (I29) — não é "sem política vigente"', () => {
+    const { document, cma } = policyTreeDoc();
+    const secaoPura = document.components.find((c) => c.id === cma)!;
+    expect(secaoPura.versions).toEqual([]);
+    expect(getComponentEffectiveVersion(secaoPura, new Date(VIGENCIA_1))).toBeNull();
+
+    const entries = listComponentsEffectiveAt(document, IDS.projectA, new Date(VIGENCIA_1));
+    expect(entries.some((entry) => entry.component.id === cma)).toBe(false);
+  });
+
+  it('componente documentável sem versão vigente na data aparece com version: null', () => {
+    const { ctx, document, regraA } = policyTreeDoc();
+    const v1 = apply(
+      document,
+      ctx,
+      createComponentDraft({ componentId: regraA, payload: { kind: 'RULE', businessDescription: 'v1' } }),
+    );
+    const publicado = apply(v1.document, ctx, publishComponentVersion({ versionId: v1.data.versionId, effectiveFrom: VIGENCIA_1 }));
+
+    const antesDaFundacao = listComponentsEffectiveAt(publicado.document, IDS.projectA, new Date('2026-01-01T00:00:00.000Z'));
+    const entry = antesDaFundacao.find((candidate) => candidate.component.id === regraA);
+    expect(entry).toBeDefined();
+    expect(entry!.version).toBeNull();
+    expect(getComponentEffectiveVersion(entry!.component, new Date('2026-01-01T00:00:00.000Z'))).toBeNull();
+
+    const depois = listComponentsEffectiveAt(publicado.document, IDS.projectA, new Date(VIGENCIA_2));
+    expect(depois.find((candidate) => candidate.component.id === regraA)!.version!.number).toBe(1);
+  });
+});
+
+describe('listPendingComponentVersions', () => {
+  it('lista só os componentes com rascunho em aberto, na ordem de leitura da árvore', () => {
+    const { ctx, document, regraA, regraB } = policyTreeDoc();
+    const draftA = apply(
+      document,
+      ctx,
+      createComponentDraft({ componentId: regraA, payload: { kind: 'RULE', businessDescription: 'A' } }),
+    );
+    const draftB = apply(
+      draftA.document,
+      ctx,
+      createComponentDraft({ componentId: regraB, payload: { kind: 'RULE', businessDescription: 'B' } }),
+    );
+
+    const pending = listPendingComponentVersions(draftB.document, IDS.projectA);
+    expect(pending.map((entry) => entry.component.id)).toEqual([regraA, regraB]);
+    expect(pending.every((entry) => entry.version.state === 'DRAFT')).toBe(true);
+  });
+
+  it('componente publicado, sem rascunho, não aparece', () => {
+    const { ctx, document, regraA } = policyTreeDoc();
+    const v1 = apply(
+      document,
+      ctx,
+      createComponentDraft({ componentId: regraA, payload: { kind: 'RULE', businessDescription: 'v1' } }),
+    );
+    const publicado = apply(v1.document, ctx, publishComponentVersion({ versionId: v1.data.versionId, effectiveFrom: VIGENCIA_1 }));
+
+    expect(listPendingComponentVersions(publicado.document, IDS.projectA)).toEqual([]);
   });
 });

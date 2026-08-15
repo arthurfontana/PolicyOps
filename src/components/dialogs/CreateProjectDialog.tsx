@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createProject, updateProject } from '@/core/document/commands';
 import type { Project } from '@/core/document/schema';
+import { dateInputToIso, isoToDateInputValue } from '@/lib/format';
 import { useDocumentStore } from '@/store/document-store';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -36,12 +37,16 @@ export function CreateProjectDialog({
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [foundationEffectiveFrom, setFoundationEffectiveFrom] = useState('');
 
   useEffect(() => {
     if (!open) return;
     setCode(project?.code ?? '');
     setName(project?.name ?? '');
     setDescription(project?.description ?? '');
+    setFoundationEffectiveFrom(
+      project?.foundationEffectiveFrom !== undefined ? isoToDateInputValue(project.foundationEffectiveFrom) : '',
+    );
   }, [open, project]);
 
   const isEdit = project !== null;
@@ -54,6 +59,7 @@ export function CreateProjectDialog({
           projectId: project.id,
           name: name.trim(),
           description: description.trim() === '' ? null : description.trim(),
+          foundationEffectiveFrom: foundationEffectiveFrom === '' ? null : dateInputToIso(foundationEffectiveFrom),
         }),
       );
       if (!result.ok) {
@@ -65,19 +71,27 @@ export function CreateProjectDialog({
       return;
     }
 
-    const result = dispatch(
+    const createResult = dispatch(
       createProject({
         code: code.trim().toUpperCase(),
         name: name.trim(),
         ...(description.trim() !== '' ? { description: description.trim() } : {}),
       }),
     );
-    if (!result.ok) {
-      toast({ title: 'Não foi possível criar o projeto', description: result.error.message });
+    if (!createResult.ok) {
+      toast({ title: 'Não foi possível criar o projeto', description: createResult.error.message });
       return;
     }
+    if (foundationEffectiveFrom !== '') {
+      dispatch(
+        updateProject({
+          projectId: createResult.data.projectId,
+          foundationEffectiveFrom: dateInputToIso(foundationEffectiveFrom),
+        }),
+      );
+    }
     onOpenChange(false);
-    onSaved?.(result.data.projectId);
+    onSaved?.(createResult.data.projectId);
   }
 
   return (
@@ -122,6 +136,19 @@ export function CreateProjectDialog({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
             />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="project-foundation-effective-from">Vigência da fundação (opcional)</Label>
+            <Input
+              id="project-foundation-effective-from"
+              type="date"
+              value={foundationEffectiveFrom}
+              onChange={(event) => setFoundationEffectiveFrom(event.target.value)}
+            />
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              Sugerida como vigência da primeira versão de cada componente novo, e usada por "Publicar
+              pendentes" na árvore — sempre editável ao publicar.
+            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
