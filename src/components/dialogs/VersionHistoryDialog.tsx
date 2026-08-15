@@ -92,6 +92,16 @@ const EVENT_ICONS: Record<DocEventType, LucideIcon> = {
   COMPONENT_DRAFT_DISCARDED: Trash2,
   COMPONENT_VERSION_PUBLISHED: CheckCircle2,
   COMPONENT_VERSION_SUPERSEDED: HistoryIcon,
+  // Governança (schema 5, S32b): a trilha do DB vive dentro do próprio DB e
+  // ganha tela na S35 — aqui só o ícone, para o mapa continuar total.
+  CR_CREATED: FilePlus,
+  CR_UPDATED: SquarePen,
+  CR_ITEM_CHANGED: ListTree,
+  CR_TRANSITIONED: ArrowUpDown,
+  CR_DECIDED: ShieldCheck,
+  RELEASE_CREATED: FilePlus,
+  RELEASE_UPDATED: SquarePen,
+  RELEASE_CANCELLED: Trash2,
 };
 
 const ALL_FILTER = 'TODOS';

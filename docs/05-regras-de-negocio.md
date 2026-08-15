@@ -514,17 +514,31 @@ Mais os do épico Plataforma (`14-plataforma-local.md`): `ROLE_REQUIRED` e `ACL_
 
 `14-governanca-de-alteracoes.md` §6 nomeia os erros do épico como `E-GOV-01..06`. Esses rótulos são
 de leitura do documento normativo; no código eles são códigos simbólicos, como todos os outros. A
-correspondência é esta, e o catálogo entra **inteiro** na S32a — os de workflow ficam sem emissor
-até a S32b ligar os comandos de DB e release:
+correspondência é esta, e o catálogo entrou **inteiro** na S32a; a S32b ligou os comandos de DB e
+release e, com eles, os erros de workflow:
 
 | Rótulo | `DomainErrorCode` | Quando acontece | Emissor |
 |---|---|---|---|
-| `E-GOV-01` | `CR_TRANSITION_INVALID` | Transição de status fora do grafo de §5 de `docs/14`, ou tentativa de mexer em item de DB já congelado (I30) | S32b |
-| `E-GOV-02` | `CR_BASE_VERSION_STALE` | A versão vigente do componente mudou depois que o item foi escrito: publicar exige rebase explícito (RN-GOV-02) | S32b |
-| `E-GOV-03` | `CR_INCOMPLETE` | Submeter sem motivador, sem item com `proposedSummary` ou sem vigência proposta (RN-GOV-03) | S32b |
-| `E-GOV-04` | `RELEASE_PUBLISH_BLOCKED` | Publicação de DB ou release abortada inteira por pendência em algum item (RN-GOV-05) — nada é publicado | S32b |
+| `E-GOV-01` | `CR_TRANSITION_INVALID` | Transição de status fora do grafo de §5 de `docs/14`, ou tentativa de mexer em item de DB já congelado (I30) | **S32b** ✅ |
+| `E-GOV-02` | `CR_BASE_VERSION_STALE` | A versão vigente do componente mudou depois que o item foi escrito: publicar exige rebase explícito (RN-GOV-02) | S36 (a S32b só **avalia**, ver abaixo) |
+| `E-GOV-03` | `CR_INCOMPLETE` | Submeter sem motivador, sem item com `proposedSummary` ou sem vigência proposta (RN-GOV-03) | **S32b** ✅ |
+| `E-GOV-04` | `RELEASE_PUBLISH_BLOCKED` | Publicação de DB ou release abortada inteira por pendência em algum item (RN-GOV-05) — nada é publicado | S36 (a S32b entrega a lista de pendências) |
 | `E-GOV-05` | `ATTACHMENT_TOO_LARGE` | Imagem embutida acima do teto de 300 KB (`03-modelo-do-documento.md` §8.1) | S34 |
-| `E-GOV-06` | `COMPONENT_CODE_DUPLICATE` | `PolicyComponent.code` repetido no mesmo projeto (I28). É o que a carga por recorte usa para impedir o mesmo capítulo de entrar duas vezes | **S32a** |
+| `E-GOV-06` | `COMPONENT_CODE_DUPLICATE` | `PolicyComponent.code` repetido no mesmo projeto (I28). É o que a carga por recorte usa para impedir o mesmo capítulo de entrar duas vezes | **S32a** ✅ |
+
+**Os dois que continuam sem emissor são os dois que dependem de publicar.** `E-GOV-02` e `E-GOV-04`
+só fazem sentido no momento em que alguém manda publicar, e publicar é a S36/S37. O que a S32b
+entrega no lugar é a **avaliação estática**: `assessReleaseComposition` (`src/core/document/releases.ts`)
+devolve, sem lançar nada, a lista tipada de pendências de cada DB da release — inclusive
+`ITEM_BASE_STALE` (a base defasada de `E-GOV-02`) e `ITEM_WITHOUT_DRAFT` (a pendência de
+`E-GOV-04`). A S36 lê essa lista e a transforma no `DomainError` correspondente.
+
+**O que a S32b reusa do catálogo geral**, em vez de inventar código novo: `DUPLICATE_CODE` (`code`
+de DB ou de release repetido — I31), `CATALOG_REF_MISSING` (motivador ou categoria de impacto fora
+do catálogo, mesma regra de `Matrix.tags`), `NOT_FOUND` (DB, release, componente, versão base ou
+rascunho inexistente), `VERSION_NOT_DRAFT` (item vinculado a versão que não é mais rascunho) e
+`INVALID_INPUT` (texto em branco, data fora do ISO, devolução sem comentário, e o componente
+repetido no mesmo DB da RN-GOV-02 — que é regra de entrada, não de workflow).
 
 Fora do catálogo `E-GOV`, a árvore de componentes acrescenta **um** código próprio:
 `COMPONENT_TREE_INVALID`, a recusa em tempo de comando do que I27/I28 garantem no documento parado —

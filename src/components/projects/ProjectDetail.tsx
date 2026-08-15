@@ -9,6 +9,8 @@ import { CreateMatrixDialog } from '@/components/dialogs/CreateMatrixDialog';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { EvidenceSection } from '@/components/inspector/EvidenceSection';
 import { TagFilterBar } from '@/components/projects/TagFilterBar';
+import { PolicyTree } from '@/components/tree/PolicyTree';
+import { ComponentContentPanel } from '@/components/tree/ComponentContentPanel';
 import { archiveMatrix, archiveProject } from '@/core/document/commands';
 import { listMatrices, listProjectMatrices, resolveOpenVersion } from '@/core/queries';
 import { formatDateBR } from '@/lib/format';
@@ -30,6 +32,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   const document = useDocumentStore((s) => s.document);
   const dispatch = useDocumentStore((s) => s.dispatch);
   const setSelectedProject = useEditorStore((s) => s.setSelectedProject);
+  const selectedComponentId = useEditorStore((s) => s.selectedComponentId);
   const openMatrix = useEditorStore((s) => s.openMatrix);
   const boardItems = useEditorStore((s) => s.boardItems);
   const pinToBoard = useEditorStore((s) => s.pinToBoard);
@@ -125,7 +128,13 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-8">
+    <div className="flex h-full min-h-0">
+      <PolicyTree projectId={projectId} />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {selectedComponentId !== null ? (
+          <ComponentContentPanel projectId={projectId} projectName={project.name} componentId={selectedComponentId} />
+        ) : (
+          <div className="mx-auto flex max-w-4xl flex-col gap-4 p-8">
       <div className="flex items-center gap-2">
         <Button
           type="button"
@@ -180,7 +189,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
       </div>
 
       {allMatrices.length > 0 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2" data-testid="matrix-tag-filter">
           <div className="flex items-center gap-2">
             <Input
               placeholder="Buscar por código ou nome…"
@@ -299,6 +308,9 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
       {/* Evidências do projeto inteiro (docs/14 §7): normativos e ofícios que
           valem para todas as matrizes, não para uma versão específica. */}
       <EvidenceSection target={{ kind: 'PROJECT', projectId: project.id }} />
+          </div>
+        )}
+      </div>
 
       <CreateProjectDialog open={editOpen} onOpenChange={setEditOpen} project={project} />
       <ConfirmDialog

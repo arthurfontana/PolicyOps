@@ -440,6 +440,8 @@ type DocEvent = {
   scope: {
     projectId?: string; matrixId?: string; versionId?: string;
     variableId?: string; compatibilityId?: string;
+    componentId?: string; componentVersionId?: string;      // schema 5, S32a
+    changeRequestId?: string; releaseId?: string;           // schema 5, S32b
   };
   summary: string;                 // frase pronta em pt-BR para a timeline
   payload?: Record<string, unknown>;
@@ -455,8 +457,19 @@ type DocEventType =
   | 'CATALOG_CHANGED'
   | 'IMPORT_RUN' | 'IMPORT_PROFILE_SAVED' | 'MATRIX_TAGGED'
   | 'ACL_CHANGED'
-  | 'EVIDENCE_ATTACHED' | 'EVIDENCE_DETACHED';
+  | 'EVIDENCE_ATTACHED' | 'EVIDENCE_DETACHED'
+  // schema 5, S32a — árvore de política (DEC-GOV-018)
+  | 'COMPONENT_CREATED' | 'COMPONENT_UPDATED' | 'COMPONENT_MOVED' | 'COMPONENT_ARCHIVED'
+  | 'COMPONENT_DRAFT_CREATED' | 'COMPONENT_DRAFT_DISCARDED'
+  | 'COMPONENT_VERSION_PUBLISHED' | 'COMPONENT_VERSION_SUPERSEDED'
+  // schema 5, S32b — governança (DEC-GOV-019)
+  | 'CR_CREATED' | 'CR_UPDATED' | 'CR_ITEM_CHANGED' | 'CR_TRANSITIONED' | 'CR_DECIDED'
+  | 'RELEASE_CREATED' | 'RELEASE_UPDATED' | 'RELEASE_CANCELLED';
 ```
+
+Os cinco tipos `CR_*` são os únicos que **não** entram em `doc.events`: eles são gravados na trilha
+do próprio DB (`ChangeRequest.events`, §13), que é append-only pela mesma mecânica desta seção
+(DEC-GOV-019). Os de release vão para `doc.events` normalmente — `Release` não tem trilha própria.
 
 `IMPORT_RUN` é o evento de nível de documento que registra uma carga inteira (arquivo, hash,
 perfil e totais por estado). Os rascunhos e patches que ela produz carregam o mesmo
@@ -527,12 +540,20 @@ imagem embutida não tem alvo nem caminho no acervo.
 
 Garantidas por `src/core/document/validate.ts` e cobertas por teste. Validadas **na leitura do arquivo** e **antes de todo salvamento** — exceto I8, I9, I19, I24 e a unicidade de código de domínio de I18, que são avisos não bloqueantes (nota após a tabela).
 
-**Numeração de I27–I29 (sessão 32a, DEC-GOV-014).** `14-governanca-de-alteracoes.md` §6 escreveu
-estas três invariantes como I23, I24 e I27, antes de I23–I26 serem ocupadas pela ACL (S29) e pelas
+**Numeração de I27–I31 (sessões 32a/32b, DEC-GOV-014).** `14-governanca-de-alteracoes.md` §6 escreveu
+estas invariantes como I23, I24, I27, I25 e I26, antes de I23–I26 serem ocupadas pela ACL (S29) e pelas
 evidências (S30). A correspondência é: docs/14 I23 → **I27**, docs/14 I24 → **I28**, docs/14 I27 →
-**I29**; a S32b entra com I30 (congelamento dos itens do DB) e I31 (`code` de DB e de release).
-A imutabilidade de `PolicyComponent.code`, que docs/14 junta a I24, é garantia de **comando**
-(`component/update` não aceita `code`), não de documento parado — I28 confere só a unicidade.
+**I29** (S32a); docs/14 I25 → **I30**, docs/14 I26 → **I31** (S32b).
+
+**Três invariantes desta faixa têm uma metade que o documento parado não consegue provar**, e em
+todas o padrão é o mesmo: a garantia é de **comando**, e a invariante confere o que sobra.
+A imutabilidade de `PolicyComponent.code` (docs/14 junta a I24) é de `component/update`, que não
+aceita `code` — I28 confere só a unicidade. A imutabilidade de `ChangeRequest.code`/`Release.code`
+é de `changeRequest/update` e `release/update` — I31 confere só a unicidade. E o **congelamento dos
+itens do DB a partir de `APPROVED`** é de `assertItemsEditable`
+(`src/core/document/cr-workflow.ts`, `E-GOV-01`): um documento em repouso não sabe se o item mudou
+depois da aprovação, então I30 confere a parte estrutural (RN-GOV-02, referências e o vínculo de
+volta do rascunho).
 
 I25 e I26 são `ERROR` sem correção automática: um vínculo de evidência quebrado aponta para um arquivo real na pasta, e escolher entre "remover o vínculo" e "corrigir o alvo" é decisão de quem opera, não da aplicação (o modo de recuperação lista o problema com o caminho do anexo).
 
@@ -567,6 +588,8 @@ I25 e I26 são `ERROR` sem correção automática: um vínculo de evidência que
 | I27 | Componente `MATRIX` tem `matrixId` válido, do **mesmo projeto**, `versions: []` e nenhum filho; nenhum outro tipo tem `matrixId`, e uma matriz é referenciada por no máximo um componente. Componente `POLICY_VARIABLE` pode ter `variableId`, que precisa apontar `Variable` existente; nenhum outro tipo tem `variableId`, e uma variável é espelhada por no máximo um componente |
 | I28 | A árvore de componentes é acíclica; `projectId` e `parentId` apontam entidades existentes, e o pai é do mesmo projeto; `position` é 0-based e sem buracos **entre irmãos**; profundidade ≤ 6; `PolicyComponent.code` é único no projeto; todo `code` em `tags` referencia `CatalogItem` de kind `TAG` existente, sem repetição no mesmo componente |
 | I29 | Versões de componente seguem o mesmo ciclo das matrizes, **inclusive em `SECTION`**: no máximo uma `DRAFT` e uma `PUBLISHED`; publicada/substituída carrega `publishedAt`, `publishedBy` e `effectiveFrom`; substituída tem `effectiveTo`; rascunho não tem vigência; a cadeia `[effectiveFrom, effectiveTo)` não se sobrepõe nem deixa buraco; e o `payload.kind` casa com o tipo do componente (`SECTION` usa `OTHER`) |
+| I30 | Itens do DB: um componente aparece **uma vez só** por `ChangeRequest` (RN-GOV-02); `componentId` aponta componente existente; `baseVersionId` e `draftVersionId` apontam versão daquele componente (ou daquela matriz, no espelho `MATRIX`); o `draftVersionId` está em `DRAFT` e, quando é versão de componente, tem `changeRequestId` igual ao DB. A **imutabilidade dos itens a partir de `APPROVED`** é garantia de comando (`assertItemsEditable`, `E-GOV-01`), não de documento parado — nota abaixo |
+| I31 | `ChangeRequest.code` e `Release.code` são únicos no documento. A imutabilidade é garantia de comando: nem `changeRequest/update` nem `release/update` aceitam `code` |
 
 **I19 é deliberadamente mais fraca que a antiga regra de completude regional.** Não existe invariante exigindo que todo domínio `RANGE` tenha uma entrada em `groupingRanges` para toda combinação possível de opções — hierarquias reais são assimétricas (nem toda Regional tem MEI, por exemplo), e forçar o preenchimento de combinações que não existem no negócio seria pior do que não validar nada. O editor de domínios (`07-ux-e-editor.md` §11) ainda **avisa** (não bloqueia) quando um `path` usado por alguns domínios está ausente por completo de outros — o caso provável de "esqueci de colar uma linha" — mas isso é um aviso de UX, não uma falha de I19.
 
@@ -769,16 +792,20 @@ type InlineText = { text: string; marks?: ('bold' | 'italic' | 'code' | 'link')[
 
 ## 13. Entidades de governança (schema 5)
 
-> **Declaradas, e nada mais.** Nenhum comando desta sessão escreve `ChangeRequest` ou `Release`; o
-> workflow, as aprovações e as invariantes I30/I31 são da S32b. Elas entram no schema já na S32a
-> para que exista uma **única** migração 4 → 5 (DEC-GOV-010): a S32b liga comandos sobre uma forma
-> de documento que já é a definitiva. O porquê de cada campo está em
-> `14-governanca-de-alteracoes.md` §3.3/§3.4 e §5.
+> **Declaradas na S32a, escritas na S32b.** A forma abaixo entrou no schema já na S32a, sem nenhum
+> comando que a escrevesse, para que existisse uma **única** migração 4 → 5 (DEC-GOV-010). A **S32b**
+> ligou os comandos (`08-camada-de-comandos.md` §3), o workflow do §5 de
+> `14-governanca-de-alteracoes.md` e as invariantes **I30/I31** — sobre esta forma, sem alterá-la. O
+> porquê de cada campo está em `14-governanca-de-alteracoes.md` §3.3/§3.4 e §5.
+>
+> **`ChangeRequest.code` casa `^[A-Z0-9_]+$`** como todo `code` do §1: o "DB-519" do Word entra como
+> `DB_519`, e o hífen é coisa da apresentação. A única exceção do documento é `Release.code`
+> (`2026.09.01`), explicada no fim desta seção.
 
 ```ts
 type ChangeRequest = {
   id: string;
-  code: string;                         // "DB-519" — único no documento e imutável (I31, S32b)
+  code: string;                         // "DB_519" — único no documento e imutável (I31)
   title: string;
   status: CrStatus;                     // grafo de 12 estados — 14-governanca §5, RN-GOV-01
   motivators: string[];                 // codes de CatalogItem kind MOTIVATOR
@@ -801,7 +828,7 @@ type ChangeRequestItem = {
   componentId: string;
   changeType: 'UPDATE' | 'CREATE' | 'DEACTIVATE' | 'REACTIVATE' | 'MOVE' | 'DOC_ONLY';
   baseVersionId?: string;               // versão vigente no momento da criação do item
-  draftVersionId?: string;              // rascunho proposto (I30, S32b); em item MATRIX, da matriz
+  draftVersionId?: string;              // rascunho proposto (I30); em item MATRIX, da matriz
   currentSummary?: string;              // "Hoje": preenchido da versão vigente
   proposedSummary: string;              // "Proposto": obrigatório
 };
@@ -812,7 +839,7 @@ type CrStatus =
 
 type Release = {
   id: string;
-  code: string;                         // "2026.09.01" — único e imutável (I31, S32b)
+  code: string;                         // "2026.09.01" — único e imutável (I31)
   name?: string;
   plannedDate?: string;
   status: 'PLANNED' | 'IN_DEVELOPMENT' | 'PUBLISHED' | 'CANCELLED';

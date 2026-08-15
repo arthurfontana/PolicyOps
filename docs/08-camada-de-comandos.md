@@ -134,7 +134,7 @@ Comandos de eixo guardam no inverso **todas** as células afetadas — é o que 
 ### Templates
 `template/create` · `template/update` · `template/archive` · `template/instantiate`
 
-### Componentes de política (schema 5, sessão 32a)
+### Componentes de política (schema 5, sessões 32a e 33a)
 | Comando | Entrada | Inverso |
 |---|---|---|
 | `component/create` | `{ projectId, code, name, type, parentId?, matrixId?, variableId?, tags?, origin?, reviewStatus? }` — entra no fim dos irmãos; valida I27/I28 e recusa `code` repetido com `COMPONENT_CODE_DUPLICATE` (`E-GOV-06`) | remover o nó criado e reindexar os irmãos; recusa se ele já ganhou filho ou versão |
@@ -142,6 +142,7 @@ Comandos de eixo guardam no inverso **todas** as células afetadas — é o que 
 | `component/move` | `{ componentId, parentId?, position? }` — `parentId: null` vira raiz; valida ciclo e profundidade (contando a altura da subárvore) e reindexa origem e destino | mover de volta ao pai e à posição de origem |
 | `component/archive` | `{ componentId }` | `component/_setArchived` com o carimbo anterior |
 | `component/setReviewStatus` | `{ componentId, reviewStatus }` — promover a `VALIDATED` é ação explícita, nunca efeito de editar | o próprio comando com o estado anterior |
+| `component/duplicate` (S33a) | `{ componentId }` — cria irmão logo abaixo, sufixo `_COPIA`/`_COPIA2`… no `code`, copia `tags`/`origin`; se a origem tinha versão, o payload mais recente vira rascunho 1 da cópia, nascendo `STRUCTURED` mesmo que a origem seja `VALIDATED`. Recusa `MATRIX` (`COMPONENT_TREE_INVALID` — espelho único, I27) | remover a duplicata (e a versão única que ela tenha) e reindexar |
 
 ### Versões de componente (schema 5, sessão 32a)
 | Comando | Entrada | Inverso |
@@ -162,8 +163,54 @@ Três diferenças em relação aos comandos de matriz, todas ditadas pelo contra
 3. `componentVersion/discardDraft` **tem inverso**: sem estado `ARCHIVED` no contrato, a versão sai
    inteira da lista e o número volta a ficar livre, então desfazer é devolver o mesmo registro.
 
-Nenhum comando desta sessão escreve `changeRequests` ou `releases`: `changeRequestId` é aceito e
-preservado, e quem o preenche é a S32b.
+Nenhum comando **da S32a** escreve `changeRequests` ou `releases`: `changeRequestId` é aceito e
+preservado, e quem o preenche são os comandos de DB abaixo (S32b).
+
+### Solicitação de Alteração — o DB (schema 5, sessão 32b)
+| Comando | Entrada | Inverso |
+|---|---|---|
+| `changeRequest/create` | `{ code, title, requestedBy?, owner?, priority?, motivators?, motivationText?, spec?, acceptanceCriteria?, testScenarios?, impacts?, proposedEffectiveDate? }` — nasce em `DRAFT` e **sem itens**; `requestedBy` ausente cai em `ctx.actor`; `code` único no documento (I31, `DUPLICATE_CODE`) | remover o DB criado; recusa se ele já tem item ou já saiu de `DRAFT` |
+| `changeRequest/update` | `{ changeRequestId, title?, owner?, priority?, motivators?, motivationText?, spec?, acceptanceCriteria?, testScenarios?, impacts?, proposedEffectiveDate? }` — três estados nos opcionais. **Não aceita `code`** (imutável), **nem `status`** (workflow), **nem `items`** (comandos próprios), **nem `releaseId`** (`setRelease`) | o próprio comando com os valores anteriores |
+| `changeRequest/addItem` | `{ changeRequestId, componentId, changeType, baseVersionId?, draftVersionId?, currentSummary?, proposedSummary }` — entra no fim; RN-GOV-02 recusa componente repetido no mesmo DB | remover o item |
+| `changeRequest/removeItem` | `{ changeRequestId, componentId }` | devolver o item na posição exata |
+| `changeRequest/updateItem` | `{ changeRequestId, componentId, changeType?, baseVersionId?, draftVersionId?, currentSummary?, proposedSummary? }` — `componentId` identifica e não muda | o próprio comando com os valores anteriores |
+| `changeRequest/setRelease` | `{ changeRequestId, releaseId \| null }` — vínculo `ChangeRequest.releaseId`; recusa release `PUBLISHED`/`CANCELLED` | o próprio comando com o vínculo anterior |
+| `changeRequest/transition` | `{ changeRequestId, to, note? }` — valida **só** o grafo do §5 de `14-governanca-de-alteracoes.md` (`CR_TRANSITION_INVALID`); `SUBMITTED` exige RN-GOV-03 (`CR_INCOMPLETE`); **`PUBLISHED` é inalcançável** | `changeRequest/_setStatus` com o status anterior |
+| `changeRequest/cancel` | `{ changeRequestId, reason? }` — a transição para `CANCELLED`, permitida de qualquer estado que não seja `PUBLISHED`/`CANCELLED` | idem |
+| `changeRequest/approve` · `/return` · `/reject` | `{ changeRequestId, comment? }` — transição do grafo **mais** `{by, at, decision, comment}` em `approvals`; devolver **exige** comentário (`INVALID_INPUT`) | `changeRequest/_restoreDecision` com status e `approvals` anteriores |
+
+Cinco coisas que valem para o bloco inteiro:
+
+1. **A trilha é do DB.** Todo evento de solicitação (`CR_CREATED`, `CR_UPDATED`, `CR_ITEM_CHANGED`,
+   `CR_TRANSITIONED`, `CR_DECIDED`) é gravado em `ChangeRequest.events`, **não** em `doc.events`
+   (DEC-GOV-019). É append-only pela mesma mecânica da auditoria: desfazer devolve o status, nunca
+   rebobina o histórico — e refazer não duplica evento, porque os inversos internos não gravam.
+2. **Aprovar não publica** (RN-GOV-04). `approve` toca `status`, `approvals` e a trilha, e nada mais:
+   nenhuma versão de componente ou de matriz muda de estado.
+3. **Congelamento é de escopo, não de metadado** (I30). A partir de `APPROVED` — e portanto também
+   em `REJECTED`, `CANCELLED` e `PUBLISHED` —, `addItem`/`removeItem`/`updateItem` recusam com
+   `CR_TRANSITION_INVALID` (`E-GOV-01`, CT-GOV-04). Título, dono, prioridade e vínculo de release
+   continuam editáveis até o DB **fechar** (`PUBLISHED`/`REJECTED`/`CANCELLED`); sem isso, montar
+   uma release seria impossível, já que ela só recebe DB aprovado.
+4. **`draftVersionId` aponta rascunho deste DB** (I30). Em componente, o rascunho precisa ter
+   `changeRequestId` igual ao DB; em item de espelho `MATRIX`, o vínculo é com um rascunho **da
+   matriz** (`MatrixVersion` não tem `changeRequestId`), e ali a conferência para no pertencimento e
+   no estado.
+5. **`code` de DB casa `^[A-Z0-9_]+$`** como todos os outros (`03-modelo-do-documento.md` §1): o
+   "DB-519" do Word entra como `DB_519`. A exceção é só `Release.code`, que é rótulo de calendário
+   (`2026.09.01`).
+
+### Releases (schema 5, sessão 32b)
+| Comando | Entrada | Inverso |
+|---|---|---|
+| `release/create` | `{ code, name?, plannedDate?, notes? }` — nasce `PLANNED`; `code` único no documento (I31) | remover a release criada; recusa se ela já agrupa DB |
+| `release/update` | `{ releaseId, name?, plannedDate?, notes?, status? }` — três estados nos opcionais; `status` só entre `PLANNED` e `IN_DEVELOPMENT`. **Não aceita `code`** | o próprio comando com os valores anteriores |
+| `release/cancel` | `{ releaseId, reason? }` — não mexe nos DBs vinculados: eles continuam apontando a release cancelada até alguém movê-los | `release/_setStatus` com o status anterior |
+
+`PUBLISHED` não é alcançável por `release/update`: publicar a release é a S37, em cima da publicação
+atômica da S36 (RN-GOV-05). Os eventos de release (`RELEASE_CREATED`, `RELEASE_UPDATED`,
+`RELEASE_CANCELLED`) vão para `doc.events` — ao contrário do DB, `Release` não tem trilha própria no
+schema.
 
 ### Papéis
 | Comando | Entrada | Inverso |
@@ -198,6 +245,10 @@ Funções de leitura em `src/core/`, chamadas direto pelos componentes:
 | `listImportRuns(doc)` | `ImportRunSummary[]` — as cargas aplicadas, da mais recente para a mais antiga, lidas dos eventos `IMPORT_RUN` |
 | `getImportOrigin(doc, versionId)` | `ImportRunSummary \| null` — a carga que criou aquele rascunho, ou `null` se ele nasceu à mão |
 | `matchImportProfile(doc, header)` | `ImportProfile \| null` — perfil salvo cujo `signature` é idêntico ao cabeçalho lido |
+| `listChangeRequestsForComponent(doc, componentId, { openOnly? })` | `ChangeRequest[]` — os DBs que tocam um componente; `openOnly` deixa fora os fechados (RN-GOV-02, S32b) |
+| `assessReleaseComposition(doc, releaseId)` | `ReleaseComposition` — avaliação **estática** da release: por DB, se está pronto e o que falta (`ReleaseBlocker[]` tipado). Não publica nada; é a lista que a S36 vira `E-GOV-04` (S32b) |
+| `assessChangeRequestReadiness(doc, cr)` | `ReleaseCompositionEntry` — a mesma avaliação para um DB solto, que é o caminho da publicação individual (S36) |
+| `listReleaseChangeRequests(doc, releaseId)` · `listChangeRequestsAvailableForRelease(doc)` | os DBs de uma release, e os candidatos a entrar numa (abertos e sem release) |
 | `listMatrices(doc, { projectId?, tags?, search? })` | `{ matrices, facets }` — matrizes filtradas por facetas de tag (`E` entre grupos, `OU` dentro do grupo) e, em `facets`, a contagem por tag calculada sobre o conjunto antes do filtro do próprio grupo (comportamento padrão de faceta); tag arquivada não aparece em `facets` |
 
 `getEditorView` é memoizada por `(versionId, revisão do documento)` — recalcular o layout de cabeçalhos a cada render de célula é o erro de desempenho mais provável do projeto.
@@ -246,12 +297,18 @@ pilhas de undo ficam intocados, igual a qualquer outro erro de comando (§1 regr
 
 | Papel mínimo | Comandos |
 |---|---|
-| `EDITOR` (piso padrão) | Todo comando de rascunho, biblioteca (variáveis, compatibilidade, catálogo), tags, eixos, projetos, templates e perfis de carga — qualquer `command.type` fora das duas linhas abaixo |
+| `EDITOR` (piso padrão) | Todo comando de rascunho, biblioteca (variáveis, compatibilidade, catálogo), tags, eixos, projetos, templates, perfis de carga **e todo o épico Governança — DB e release, aprovação incluída** — qualquer `command.type` fora das duas linhas abaixo |
 | `PUBLISHER` | `version/publish`, `import/apply`, `matrix/archive`, `componentVersion/publish`, `component/archive` |
 | `ADMIN` | `acl/set` |
 
 Notas:
 
+- **Aprovar um DB é `EDITOR`, não `PUBLISHER`** (S32b). Parece contraintuitivo, e não é: o gate de
+  papéis protege o que **muda a política vigente** (publicar, arquivar matriz), e aprovar
+  explicitamente **não publica nada** (RN-GOV-04). O workflow do DB é governança processual, não
+  autenticação (DEC-GOV-004) — quem aprova fica registrado em `approvals` pelo nome, que é o mesmo
+  carimbo de `savedBy`. Quando a publicação da release chegar (S36/S37), é **ela** que entra na
+  linha `PUBLISHER`.
 - **Comandos internos** (prefixo `_`, ex. `catalog/_removeCreated`) nunca são despachados pela
   interface — só aparecem como `inverse` de undo/redo, que chamam `execute` diretamente. Por isso o
   gate não precisa (e não tenta) classificá-los: `minRoleForCommand` de um tipo desconhecido cai no

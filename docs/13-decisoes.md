@@ -886,3 +886,42 @@ real.
 | **Por quê** | A analogia certa não é "projeto" (que não tem história própria) e sim "matriz/versão" (que tem, e por isso já tinha eventos). Um componente publicado é uma peça de política vigente: quem mudou, quando e a partir de qual DB é o produto, não um detalhe. O `scope` novo também é o que faz o merge conseguir provar qual lado mexeu num componente — sem ele, toda divergência de árvore viraria conflito manual. |
 | **Custo aceito** | O catálogo de eventos cresceu de 23 para 31 tipos, e todo mapa total por `DocEventType` (hoje só o de ícones do histórico) precisou de oito linhas. O `payload` de `COMPONENT_VERSION_PUBLISHED` carrega `changeRequestId: null` explícito para publicação direta — `null` aqui é informação (RN-GOV-07), não ausência de dado. |
 | **Páginas afetadas** | `03-modelo-do-documento.md` §8, §12; `08-camada-de-comandos.md` §3 |
+
+---
+
+## DEC-GOV-019: a trilha do DB vive dentro do DB, e o catálogo de eventos cresce mais oito tipos
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `DocEventType` recebeu mais oito tipos na S32b — `CR_CREATED`, `CR_UPDATED`, `CR_ITEM_CHANGED`, `CR_TRANSITIONED`, `CR_DECIDED`, `RELEASE_CREATED`, `RELEASE_UPDATED` e `RELEASE_CANCELLED` — e `DocEvent.scope` ganhou `changeRequestId?` e `releaseId?`. Os cinco `CR_*` são gravados **só** em `ChangeRequest.events` (a "trilha própria" de `03-modelo-do-documento.md` §13), nunca em `doc.events`; os três de release vão para `doc.events`, porque `Release` não tem trilha própria no schema. A trilha é append-only como a auditoria: o inverso de uma transição devolve o `status` e **não** apaga o evento — e, como os inversos internos não gravam nada, refazer também não duplica. |
+| **Data / gatilho** | 2026-08-15, implementação da S32b: RN-GOV-01 exige que "toda transição grave evento com autor e data", e `makeEvent` só produz `DocEvent`, cujo `type` vem de um catálogo fechado. |
+| **Alternativas** | (a) gravar o evento nos dois lugares (trilha do DB **e** `doc.events`) — dobra o texto de cada evento no `.json` (o alvo de 10 MB é do arquivo inteiro) e cria a pergunta "qual das duas cópias vale?" no merge; (b) mandar tudo para `doc.events` e deixar `ChangeRequest.events` vazio — contraria o §13, e a fila do gestor (US-GOV-04) passaria a ler o log inteiro do documento filtrando por escopo para montar a história de um DB; (c) `events: []` nos comandos de DB, como projeto e metadados de matriz — impossível: o DB **é** o registro do processo, e um workflow sem trilha não responde "quem aprovou e quando", que é o problema do §1. |
+| **Por quê** | Cada trilha fica junto do que ela conta. A do DB é lida sempre no contexto de um DB (a tela da S35, o Pacote para a Fábrica da S38), e a de release não existe como conceito — o que a release tem é status, e status muda pouco. A assimetria é do schema fechado na S32a, não uma escolha nova desta sessão. |
+| **Custo aceito** | O catálogo de eventos cresceu de 31 para 39 tipos, e o mapa de ícones do histórico ganhou oito linhas para continuar total. Quem quiser "tudo que aconteceu no documento" precisa unir `doc.events` com as trilhas dos DBs — o que só será necessário quando existir uma timeline global do Diário de Bordo (S37), e lá a união é uma linha. |
+| **Páginas afetadas** | `03-modelo-do-documento.md` §8, §13; `08-camada-de-comandos.md` §3 |
+
+---
+
+## DEC-GOV-020: o grafo do §5 vence o texto — de `APPROVED` não se volta para `CHANGES_REQUESTED`
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `changeRequest/transition` implementa **literalmente** o grafo de `14-governanca-de-alteracoes.md` §5. Onde o texto em volta do grafo sugere uma aresta que o grafo não tem — "a partir de `APPROVED`, mudar o escopo exige voltar a `DRAFT` via `CHANGES_REQUESTED`" —, vale o grafo: de `APPROVED` só se vai para `IN_DEVELOPMENT` ou `CANCELLED`, e mudar escopo depois de aprovado significa **criar um DB novo**. A devolução por `CHANGES_REQUESTED` continua existindo a partir de `IN_REVIEW`, reabrindo a edição e preservando `approvals` — que é exatamente o que o CT-GOV-04 verifica. |
+| **Data / gatilho** | 2026-08-15, implementação da S32b: o prompt da sessão manda validar "exclusivamente o grafo do §5", e o terceiro bullet logo abaixo do grafo descreve um caminho que o grafo não desenha. |
+| **Alternativas** | (a) acrescentar a aresta `APPROVED → CHANGES_REQUESTED` — resolveria o texto, mas cria uma porta de saída do congelamento de I30 justamente onde ele começa a valer, e transformaria "aprovado" num estado sem consequência; (b) implementar as duas e deixar a interface escolher — a ambiguidade viraria comportamento, e a S35 herdaria a decisão sem contexto para tomá-la. |
+| **Por quê** | O congelamento pós-aprovação é a única coisa que faz a aprovação significar alguma coisa num produto sem autenticação (DEC-GOV-004): o que foi aprovado é o que vai para a fábrica. Reabrir o escopo de um DB aprovado apagaria a diferença entre "aprovado" e "em rascunho", e o próprio §5 já oferece a saída correta na segunda metade da frase — criar outro DB, que nasce com trilha, motivador e aprovação próprios. |
+| **Custo aceito** | Um DB aprovado com erro de escopo precisa ser cancelado e refeito, em vez de devolvido. É mais caro no caso raro, e é o caso em que se **quer** que seja caro. Se o uso real mostrar o contrário, o conserto é uma linha no §5 e uma em `CR_TRANSITIONS` — a decisão está isolada num módulo só (`src/core/document/cr-workflow.ts`). |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §5.1; `08-camada-de-comandos.md` §3 |
+
+---
+
+## DEC-GOV-021: a árvore vive dentro de `ProjectDetail`; a lista de matrizes com facetas continua sendo o conteúdo padrão
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O painel da árvore (`PolicyTree`, 360px) entra **dentro** da tela existente do projeto (`ProjectDetail`), como uma coluna nova ao lado do conteúdo — não como rota própria nem substituindo a lista de matrizes com facetas do §15. Sem nó selecionado na árvore, a coluna de conteúdo mostra exatamente a mesma lista de matrizes de sempre; selecionar um componente troca o conteúdo para o breadcrumb + resumo dele (`ComponentContentPanel`); selecionar um nó `MATRIX` navega direto para o grid. O inspector à direita (`ComponentInspector`) entra na mesma prioridade do `Inspector` do shell, acima da versão de matriz que possa ter ficado aberta atrás. |
+| **Data / gatilho** | 2026-08-15, implementação da S33a: `07-ux-e-editor.md` §17.1 já dizia "a árvore é a tela do projeto, não um item da sidebar" e §17.2 já dizia "a lista com facetas continua existindo e não é substituída", mas não fechava **onde** as duas ficam uma em relação à outra — e o E2E existente (`matriz-e-grid.spec.ts`) depende de clicar num projeto e achar a matriz na mesma tela, sem navegação extra. |
+| **Alternativas** | (a) rota própria (`#/tree`), com a lista de matrizes virando um item novo da sidebar ("Matrizes") — realiza o mockup de 4 colunas ao pé da letra, mas move a "porta" que os testes e os usuários atuais já conhecem, quebrando `matriz-e-grid.spec.ts` e todo fluxo que abre um projeto esperando ver as matrizes ali; (b) árvore só dentro do inspector, sem painel próprio — não cabe uma árvore de várias centenas de nós num painel de 340px pensado para propriedades. |
+| **Por quê** | As duas telas continuam existindo, do jeito que §17.2 já prometia, e nenhuma delas muda de endereço: quem sempre abriu um projeto para ver as matrizes continua vendo as matrizes primeiro; quem quer navegar pela estrutura agora tem o painel ao lado, sem sair da tela. "Duas portas para a mesma matriz" vira literalmente duas colunas da mesma tela, não duas rotas — o que é mais barato de manter em sincronia (filtro, seleção, undo) e não exige ensinar de novo onde as coisas ficam. |
+| **Custo aceito** | `ProjectDetail.tsx` deixou de ser uma coluna central única e virou um layout de duas colunas internas — o componente cresceu, e quem mexer nele de novo precisa lembrar que a coluna de conteúdo tem dois modos (lista de matrizes × componente selecionado), não um. As âncoras de 2 níveis na sidebar (§17.1) compensam parcialmente a ausência de uma rota própria: dão um atalho direto sem abrir o painel de 360px. |
+| **Páginas afetadas** | `07-ux-e-editor.md` §17.1; `src/components/projects/ProjectDetail.tsx`, `src/components/tree/`, `src/components/shell/Sidebar.tsx`, `src/components/shell/Inspector.tsx` |

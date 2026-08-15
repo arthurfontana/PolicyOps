@@ -244,6 +244,12 @@ export function baseDocument(): PolicyOpsDocument {
         numericValue: '1000',
       }),
       catalogItem(fixedId('catTag'), 'TAG', 'REVISAR', 'Revisar', 0),
+      // Governança (schema 5): motivadores e categorias de impacto do DB — os
+      // dois kinds que a S32a acrescentou ao catálogo (docs/03 §4).
+      catalogItem(fixedId('catMotReg'), 'MOTIVATOR', 'REGULATORIO', 'Exigência regulatória', 0),
+      catalogItem(fixedId('catMotRis'), 'MOTIVATOR', 'RISCO', 'Ajuste de risco', 1),
+      catalogItem(fixedId('catImpSis'), 'IMPACT_CATEGORY', 'SISTEMAS', 'Sistemas', 0),
+      catalogItem(fixedId('catImpOps'), 'IMPACT_CATEGORY', 'OPERACAO', 'Operação', 1),
     ],
     projects: [
       {
