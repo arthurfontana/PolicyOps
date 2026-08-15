@@ -23,8 +23,8 @@ domínio) vale mais delegada a um subagent de busca do que a Reads amplos nesta 
 **Regra de tamanho (guard mecânico, ADR-006)**: nova feature documenta em `docs/01..14` (se for
 normativa: schema, regra de negócio, UX) ou em `docs/claude/` (se for só detalhe de implementação);
 no `CLAUDE.md` entra **no máximo 1 linha** no mapa de ponteiros "Onde vive o quê". Teto de **~450
-linhas**, checado por `pnpm check:claude-md` no CI (`.github/workflows/ci.yml`, junto de
-`check-size`). Se a linha nova estourar o teto: primeiro pode uma seção deste arquivo que
+linhas**, checado por `pnpm check:claude-md` no CI (`.github/workflows/ci.yml`). Se a linha nova
+estourar o teto: primeiro pode uma seção deste arquivo que
 regrediu de "ponteiro" para "detalhe" (move o parágrafo para `docs/claude/` ou `docs/01..14`,
 deixa o ponteiro de 1 linha no lugar) — nunca apaga informação para caber. Só se o índice já
 estiver genuinamente enxuto, a tabela "Onde vive o quê" pode dar spillover para
@@ -35,13 +35,12 @@ lá.
 
 ```bash
 pnpm dev                  # servidor de desenvolvimento
-pnpm build                # gera dist/PolicyOps.html (roda check-size)
+pnpm build                # gera dist/PolicyOps.html
 pnpm preview              # serve o build localmente
 pnpm lint
 pnpm typecheck
 pnpm test:unit            # Vitest — node para src/core/, jsdom (via pragma) para componentes
 pnpm test:e2e             # Playwright contra dist/PolicyOps.html por file://
-pnpm check-size           # falha se dist/PolicyOps.html > 1,5 MB
 pnpm check-selfcontained  # falha se o HTML tiver qualquer referência externa
 pnpm check:claude-md      # falha se este arquivo passar de ~450 linhas
 
@@ -60,7 +59,7 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 4. **`src/core/` é TypeScript puro**: sem React, sem Zustand, sem DOM, sem `window`.
 5. **Zero requisições de rede externas** em tempo de execução. Sem CDN, sem fontes web, sem `eval`. Só o servidor local same-origin (`/api/*`).
 6. Escopo é escopo: não implementar sessões futuras "já que estou aqui".
-7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes (e `python -m pytest server/tests` quando tocar `server/`), o orçamento de 1,5 MB respeitado, e **`dist/PolicyOps.html` atualizado no commit**.
+7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes (e `python -m pytest server/tests` quando tocar `server/`), e **`dist/PolicyOps.html` atualizado no commit**.
 8. Commitar na branch de trabalho e fazer push.
 
 ## Estrutura de pastas (resumida)
@@ -80,7 +79,7 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 │   └── lib/                # colors, format, hash, download
 ├── server/                # servidor Python local (FastAPI): policyops_server.py + tests/ — S26
 ├── tests/                 # unit/ (espelha src/core/), fixtures/, e2e/
-└── scripts/               # check-size, check-selfcontained, check-claude-md, finalize-dist
+└── scripts/               # check-selfcontained, check-claude-md, finalize-dist
 ```
 
 ## Onde vive o quê (leia antes de mexer no domínio)

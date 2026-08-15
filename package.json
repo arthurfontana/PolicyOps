@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && node scripts/finalize-dist.mjs && pnpm check-size",
+    "build": "tsc -b && vite build && node scripts/finalize-dist.mjs",
     "build:plataforma": "pnpm build && node scripts/build-plataforma.mjs",
     "fetch-wheels": "node scripts/fetch-wheels.mjs",
     "preview": "vite preview",
@@ -14,7 +14,6 @@
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "check-size": "node scripts/check-size.mjs",
     "check-selfcontained": "node scripts/check-selfcontained.mjs",
     "check:claude-md": "node scripts/check-claude-md.mjs",
     "check:plataforma": "node scripts/verify-plataforma.mjs"

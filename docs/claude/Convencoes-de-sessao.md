@@ -11,7 +11,6 @@ Regra 7 das 8 regras (`docs/prompts/README.md`) — rodar antes de considerar a 
 pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build
 ```
 
-- `pnpm build` já roda `check-size` (orçamento de 1,5 MB) como parte do script.
 - Se a sessão tocou `server/`: também `python -m pytest server/tests`.
 - Se a sessão tocou `CLAUDE.md`: também `pnpm check:claude-md` (guard de ~450 linhas, ADR-006).
 - Antes de commitar mudança de UI: `pnpm check-selfcontained` (zero referência de rede externa no

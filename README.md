@@ -93,7 +93,7 @@ Pré-requisitos: Node 22, pnpm.
 ```bash
 pnpm install
 pnpm dev              # servidor de desenvolvimento com hot reload
-pnpm build            # gera dist/PolicyOps.html (roda check-size automaticamente)
+pnpm build            # gera dist/PolicyOps.html
 pnpm check-selfcontained  # garante que o HTML gerado não tem nenhuma referência externa
 pnpm lint
 pnpm typecheck
