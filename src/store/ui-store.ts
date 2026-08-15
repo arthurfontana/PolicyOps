@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ComponentReviewStatus, PolicyComponentType } from '@/core/document/schema';
 import { resolveServerToken } from '@/storage/capabilities';
 
 /**
@@ -120,6 +121,32 @@ export type MatrixFilterState = {
   search: string;
 };
 
+/**
+ * Estado de interface da árvore da política (docs/07-ux-e-editor.md §17.1):
+ * expansão, busca e os mesmos três filtros do painel — tipo, `reviewStatus`
+ * e faceta de tag. Nunca é salvo no `.json`, igual a `matrixFilter`.
+ * Escopado por `projectId` pela mesma razão: trocar de projeto começa com a
+ * árvore fechada e sem filtro; navegar dentro do mesmo projeto preserva.
+ */
+export type ComponentTreeState = {
+  projectId: string | null;
+  /** `Record`, não `Set`: zustand compara por igualdade estrutural rasa em testes e devtools. */
+  expanded: Record<string, boolean>;
+  search: string;
+  types: PolicyComponentType[];
+  reviewStatuses: ComponentReviewStatus[];
+  tags: string[];
+};
+
+const EMPTY_COMPONENT_TREE_STATE: ComponentTreeState = {
+  projectId: null,
+  expanded: {},
+  search: '',
+  types: [],
+  reviewStatuses: [],
+  tags: [],
+};
+
 interface UiState {
   view: View;
   /**
@@ -146,6 +173,7 @@ interface UiState {
   actor: string | null;
   identityDialogOpen: boolean;
   matrixFilter: MatrixFilterState;
+  componentTree: ComponentTreeState;
   setView: (view: View) => void;
   toggleSidebar: () => void;
   toggleInspector: () => void;
@@ -162,6 +190,17 @@ interface UiState {
   toggleMatrixFilterTag: (code: string) => void;
   setMatrixFilterSearch: (search: string) => void;
   clearMatrixFilter: () => void;
+
+  /** Troca o projeto da árvore; fecha os nós e limpa o filtro quando o projeto muda. */
+  setComponentTreeProject: (projectId: string | null) => void;
+  toggleComponentExpanded: (componentId: string) => void;
+  /** Abre um conjunto de nós (não fecha os demais) — usado para revelar um nó recém-criado ou navegado. */
+  expandComponents: (componentIds: string[]) => void;
+  setComponentTreeSearch: (search: string) => void;
+  toggleComponentTreeType: (type: PolicyComponentType) => void;
+  toggleComponentTreeReviewStatus: (status: ComponentReviewStatus) => void;
+  toggleComponentTreeTag: (code: string) => void;
+  clearComponentTreeFilter: () => void;
 }
 
 const initialActor = readLocalStorage(ACTOR_STORAGE_KEY);
@@ -177,6 +216,7 @@ export const useUiStore = create<UiState>((set) => ({
   actor: initialActor,
   identityDialogOpen: initialActor === null && !hasServerTokenHint(),
   matrixFilter: { projectId: null, tags: [], search: '' },
+  componentTree: EMPTY_COMPONENT_TREE_STATE,
 
   setView: (view) => set({ view }),
 
@@ -237,4 +277,58 @@ export const useUiStore = create<UiState>((set) => ({
 
   clearMatrixFilter: () =>
     set((s) => ({ matrixFilter: { ...s.matrixFilter, tags: [], search: '' } })),
+
+  setComponentTreeProject: (projectId) =>
+    set((s) =>
+      s.componentTree.projectId === projectId
+        ? s
+        : { componentTree: { ...EMPTY_COMPONENT_TREE_STATE, projectId } },
+    ),
+
+  toggleComponentExpanded: (componentId) =>
+    set((s) => ({
+      componentTree: {
+        ...s.componentTree,
+        expanded: { ...s.componentTree.expanded, [componentId]: !s.componentTree.expanded[componentId] },
+      },
+    })),
+
+  expandComponents: (componentIds) =>
+    set((s) => {
+      const expanded = { ...s.componentTree.expanded };
+      for (const id of componentIds) expanded[id] = true;
+      return { componentTree: { ...s.componentTree, expanded } };
+    }),
+
+  setComponentTreeSearch: (search) =>
+    set((s) => ({ componentTree: { ...s.componentTree, search } })),
+
+  toggleComponentTreeType: (type) =>
+    set((s) => {
+      const types = s.componentTree.types.includes(type)
+        ? s.componentTree.types.filter((candidate) => candidate !== type)
+        : [...s.componentTree.types, type];
+      return { componentTree: { ...s.componentTree, types } };
+    }),
+
+  toggleComponentTreeReviewStatus: (status) =>
+    set((s) => {
+      const reviewStatuses = s.componentTree.reviewStatuses.includes(status)
+        ? s.componentTree.reviewStatuses.filter((candidate) => candidate !== status)
+        : [...s.componentTree.reviewStatuses, status];
+      return { componentTree: { ...s.componentTree, reviewStatuses } };
+    }),
+
+  toggleComponentTreeTag: (code) =>
+    set((s) => {
+      const tags = s.componentTree.tags.includes(code)
+        ? s.componentTree.tags.filter((candidate) => candidate !== code)
+        : [...s.componentTree.tags, code];
+      return { componentTree: { ...s.componentTree, tags } };
+    }),
+
+  clearComponentTreeFilter: () =>
+    set((s) => ({
+      componentTree: { ...s.componentTree, search: '', types: [], reviewStatuses: [], tags: [] },
+    })),
 }));

@@ -1,7 +1,9 @@
 # Governança de Alterações de Política (épico GOV)
 
-> **Estado**: 🚧 Em andamento — **S32a entregue** (núcleo de componentes e `schemaVersion: 5`);
-> S32b, S33a, S33b, S34–S40 planejadas · **DECs relacionadas**:
+> **Estado**: 🚧 Em andamento — **S32a entregue** (núcleo de componentes e `schemaVersion: 5`),
+> **S33a entregue** (árvore como tela do projeto, US-GOV-01 ✅ parcial — CRUD estrutural, busca,
+> filtros e ergonomia de volume; payload/ciclo de versão continuam S33b);
+> S32b, S33b, S34–S40 planejadas · **DECs relacionadas**:
 > DEC-GOV-001 a DEC-GOV-013 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
@@ -265,19 +267,25 @@ motor está descrita no texto de cada componente (`07-ux-e-editor.md` §17).
 
 ## 4. Histórias de usuário
 
-### US-GOV-01 — Estruturar a política como árvore
+### US-GOV-01 — Estruturar a política como árvore ✅ parcial (S33a)
 **Como** analista, **quero** cadastrar os componentes da política numa hierarquia navegável
 **para** que o estado vigente de cada regra viva na ferramenta, não num Word.
 
-- Criar/renomear/mover/arquivar componentes de todos os tipos do §3.1; mover valida ciclo (I24).
-- Componente `MATRIX` é criado apontando uma matriz existente do mesmo projeto; o nó exibe estado
-  e vigência da matriz sem duplicá-los. As matrizes **já estão no documento** (épico Carga, S21–25):
-  a árvore não as cria nem as importa — ela indica **onde na política** cada uma entra.
-- Árvore com expandir/recolher, busca por nome/código, contagem por seção, filtro por
-  `reviewStatus`/tipo e filtro por faceta (`tags`, §3.1).
-- **A construção da primeira versão da política é manual e incremental** (DEC-GOV-012): montar o
-  esqueleto de seções, pendurar as matrizes, e só então cadastrar as regras. Isso faz da ergonomia
-  de digitação em volume um requisito, não um detalhe — ver US-GOV-02 e `07-ux-e-editor.md` §17.
+- ✅ Criar/renomear/mover/arquivar/**duplicar** componentes de todos os tipos do §3.1; mover e
+  duplicar validam ciclo e profundidade (I28) — `component/move`, `component/duplicate`.
+- ✅ Componente `MATRIX` é criado apontando uma matriz existente do mesmo projeto (seletor com
+  busca e filtro por tag); o nó exibe estado e vigência da matriz sem duplicá-los, e navega para o
+  grid. As matrizes **já estão no documento** (épico Carga, S21–25): a árvore não as cria nem as
+  importa — ela indica **onde na política** cada uma entra.
+- ✅ Árvore com expandir/recolher, busca por nome/código, contagem por seção, filtro por
+  `reviewStatus`/tipo e filtro por faceta (`tags`, §3.1) preservando ancestrais.
+- ✅ **A construção da primeira versão da política é manual e incremental** (DEC-GOV-012): montar o
+  esqueleto de seções, pendurar as matrizes, e só então cadastrar as regras. A ergonomia de
+  digitação em volume (`Enter`/`Tab`/`Ctrl+D`) está na árvore desde a S33a —
+  `07-ux-e-editor.md` §17.3.
+- 🔮 **S33b**: cadastrar e versionar o *conteúdo* de cada nó (payload por tipo, RichDoc, ciclo
+  rascunho/publicar, timeline, vigência da fundação) — ver US-GOV-02. A árvore da S33a já suporta
+  todos os tipos estruturalmente; o que falta é o formulário de conteúdo.
 
 ### US-GOV-02 — Cadastrar e versionar uma regra
 **Como** analista, **quero** registrar a regra com campos estruturados (§3.2) e documentação livre

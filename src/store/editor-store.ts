@@ -101,6 +101,14 @@ function emptySelection(): Pick<
 interface EditorState {
   /** Projeto selecionado em `/projects` — `null` mostra a lista. */
   selectedProjectId: string | null;
+  /**
+   * Componente selecionado na árvore da política (docs/07 §17.1) — `null` é
+   * o painel de matrizes (a "outra porta", §17.2). Fica aqui, e não em
+   * `ui-store`, porque referencia um id do documento: abrir outro arquivo
+   * invalida o id, e é o `reset()` abaixo que zera junto com o resto da
+   * navegação de documento.
+   */
+  selectedComponentId: string | null;
   /** Matriz e versão abertas na tela de matriz — `null` é o estado vazio. */
   currentMatrixId: string | null;
   currentVersionId: string | null;
@@ -160,6 +168,7 @@ interface EditorState {
   marquee: MarqueeState | null;
 
   setSelectedProject: (projectId: string | null) => void;
+  setSelectedComponent: (componentId: string | null) => void;
   openMatrix: (matrixId: string, versionId: string | null) => void;
   setVersion: (versionId: string) => void;
   closeMatrix: () => void;
@@ -197,6 +206,7 @@ interface EditorState {
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   selectedProjectId: null,
+  selectedComponentId: null,
   currentMatrixId: null,
   currentVersionId: null,
   zoom: 1,
@@ -212,7 +222,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   headerAnchor: null,
   marquee: null,
 
-  setSelectedProject: (projectId) => set({ selectedProjectId: projectId }),
+  // Trocar (ou fechar) o projeto invalida o nó selecionado do outro projeto.
+  setSelectedProject: (projectId) => set({ selectedProjectId: projectId, selectedComponentId: null }),
+
+  setSelectedComponent: (componentId) => set({ selectedComponentId: componentId }),
 
   // Abrir outra matriz ou outra versão troca o conjunto de tuplas: manter a
   // seleção apontaria para combinações que não existem no novo grid.
@@ -260,6 +273,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   reset: () =>
     set({
       selectedProjectId: null,
+      selectedComponentId: null,
       currentMatrixId: null,
       currentVersionId: null,
       zoom: 1,

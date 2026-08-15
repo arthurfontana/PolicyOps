@@ -338,10 +338,12 @@ condições, a rota mostra "Requer papel ADMIN — você é X" em vez do conteú
 - Zerar a lista de usuários e salvar volta o documento ao modo aberto (`meta.acl` removida, não
   uma ACL com `users: []` — mesmo efeito para `resolveRole`, mas mantém o arquivo limpo).
 
-## 17. Árvore da política (épico Governança — S33a/S33b)
+## 17. Árvore da política (épico Governança — S33a ✅/S33b)
 
 > Normativo para as sessões S33a e S33b. O modelo por trás está em
-> [`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md) §3.1 e §3.6.
+> [`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md) §3.1 e §3.6. **§17.1–§17.3
+> entregues na S33a** (ajustado ao que foi construído); **§17.4 e as partes de §17.5 marcadas
+> "S33b" continuam planejadas**.
 
 A política deixa de ser "uma lista de matrizes num projeto" e passa a ser **um sumário navegável**:
 seções, regras, listas e os nós que apontam as matrizes já existentes. O `Project` é a política
@@ -359,26 +361,35 @@ cabe nos 248px da sidebar (§2) sem virar rolagem infinita.
 │  248px   │ ┌────────────────┐ │ CMA › Fraude ›       │                 │
 │ Política │ │🔎 buscar       │ │ Regra A              │ Tipo    RULE    │
 │  B2C   ▾ │ │[tipo▾][revisão▾]│ │                      │ Código  FRD_A   │
-│  ├ CMA   │ │                │ │ v3 ● Vigente         │ Tags    G1·Dig. │
-│  ├ Grupos│ │▾ CMA        12 │ │ desde 01/07          │ Revisão ⚠ Pend. │
-│  └ Modelo│ │ ▾ Fraude     3 │ │                      │ Origem  B2C     │
-│          │ │  • Regra A  ● │ │ Descrição de negócio │                 │
-│Matrizes  │ │  • Regra B  ⚠ │ │ Definição técnica    │ [Criar rascunho]│
-│Biblioteca│ │▾ Grupos      7 │ │ Observação           │ Timeline v1 v2  │
-│Vigência  │ │▾ Modelo     84 │ │                      │                 │
-└──────────┴─┴────────────────┴─┴──────────────────────┴─────────────────┘
+│  ├ CMA   │ │                │ │ (breadcrumb + nome,  │ Tags    G1·Dig. │
+│  ├ Grupos│ │▾ CMA        12 │ │  tipo, revisão,      │ Revisão ⚠ Pend. │
+│  └ Modelo│ │ ▾ Fraude     3 │ │  contagem de filhos) │ Origem  B2C     │
+│          │ │  • Regra A  ● │ │                       │                 │
+│Matrizes  │ │  • Regra B  ⚠ │ │ (matrizes do projeto  │ [Mover][Duplic.]│
+│Biblioteca│ │▾ Grupos      7 │ │  com facetas, §15 —   │ [Arquivar]      │
+│Vigência  │ │▾ Modelo     84 │ │  tela padrão sem nó   │ (payload/versão │
+└──────────┴─┴────────────────┴─┴  selecionado)─────────┴  desabilitados)─┘
 ```
 
-- **Sidebar**: o projeto e os **dois primeiros níveis** da árvore, como âncoras de navegação. O
-  resto das entradas (Matrizes, Biblioteca, Vigência, Rascunhos, Acesso) continua como está em §2.
-- **Painel da árvore**: busca por nome e código, filtro por tipo, por `reviewStatus` e por faceta
-  (as mesmas tags e grupos de §15, agora também em componente), contagem por seção, expandir e
-  recolher. Estado de expansão e filtros vivem no `ui-store` — são interface, não documento, como
-  o filtro de matrizes.
+- **A árvore vive dentro da tela do projeto (`ProjectDetail`), não numa rota própria.** O painel de
+  360px (`PolicyTree`) fica à esquerda do conteúdo; a coluna de conteúdo mostra, por padrão (nenhum
+  nó selecionado), a lista de matrizes com facetas do §15 **inalterada** — é a "porta" default, e é
+  por isso que o critério "nenhuma regressão" se sustenta sem mover essa tela para outro lugar.
+  Selecionar um nó não-`MATRIX` troca o conteúdo para o breadcrumb + o resumo do componente
+  (`ComponentContentPanel`); selecionar um nó `MATRIX` navega direto para o grid (§17.2).
+- **Sidebar**: o projeto aberto ganha, abaixo do próprio nome, os **dois primeiros níveis** da
+  árvore como âncoras (`sidebarTreeAnchors`) — clicar leva à árvore já expandida naquele nó (ou ao
+  grid, se for `MATRIX`). O resto das entradas (Matrizes, Biblioteca, Vigência, Rascunhos, Acesso)
+  continua como está em §2.
+- **Painel da árvore**: busca por nome e código, chips de filtro por tipo e por `reviewStatus`, e a
+  faceta de tag (`TagFilterBar` do §15, reaproveitada) — contagem por seção (total de descendentes),
+  expandir/recolher por nó. Estado de expansão e filtros vivem em `ui-store.componentTree`,
+  escopado por projeto — interface, não documento, como o filtro de matrizes.
 - **Filtro não achata a árvore**: ao filtrar, os ancestrais dos itens que sobraram permanecem
-  visíveis, esmaecidos. Uma árvore filtrada que vira lista plana faz o usuário perder o lugar.
-- **Breadcrumb clicável** no topo do conteúdo (`CMA › Regras de Fraude › Regra A`) — obrigatório
-  com 6 níveis possíveis.
+  visíveis, esmaecidos (`filterComponentTree` devolve `matchedIds` e `visibleIds` separados). Uma
+  árvore filtrada que vira lista plana faz o usuário perder o lugar.
+- **Breadcrumb clicável** no topo do conteúdo (`CMA › Regras de Fraude › Regra A`) — suporta os 6
+  níveis possíveis (`componentPath`).
 - **A ordem é de leitura, e a tela diz isso.** Nota permanente no rodapé do painel: *"A ordem
   reflete o documento de política. A sequência de avaliação do motor está descrita no texto de
   cada regra."* É o que impede a árvore de ser lida como fluxo de execução
@@ -400,7 +411,7 @@ de convivência, dita na interface:
 - O editor de matriz mostra o caminho na árvore no breadcrumb, venha o usuário da árvore ou da
   lista.
 
-### 17.3 Cadastrar em volume é o caso de uso, não o caso de borda
+### 17.3 Cadastrar em volume é o caso de uso, não o caso de borda ✅
 
 A primeira versão da política é digitada à mão, incrementalmente
 (`14-governanca-de-alteracoes.md` §4, US-GOV-01). São ~50 seções e ~50 regras: a diferença entre
@@ -408,14 +419,20 @@ um formulário modal e um fluxo de teclado é a diferença entre duas tardes e d
 
 | Ação | Comportamento |
 |---|---|
-| `Enter` num nó | Cria um **irmão** logo abaixo, já em edição de nome |
-| `Tab` / `Shift+Tab` na criação | Desce / sobe um nível (reparenta antes de gravar) |
-| `Ctrl/Cmd+D` | Duplica o componente (payload incluído), com sufixo no `code` |
-| Arrastar, ou menu "Mover para…" | Reordena e reparenta; valida ciclo e profundidade (I24) |
-| Colar bloco de texto no inspector | Reconhece por prefixo de linha: parágrafo solto → descrição de negócio; `Definição técnica:` → definição técnica; `Observação:` → reason codes + resultado + notas. Sem parser de Markdown — é o formato do documento de origem |
-| Criar nó `MATRIX` | Seletor de matriz livre, com busca e filtro por tag |
+| `Enter` num nó | Cria um **irmão** logo abaixo, já em edição de nome, com um seletor compacto de tipo (`SECTION` por padrão, herdando o tipo do nó de origem) |
+| `Tab` / `Shift+Tab` na criação | Desce / sobe **um nível** relativo ao nó onde `Enter` foi pressionado (filho dele / irmão do pai dele) — reparenta antes de gravar, validando profundidade (I28) |
+| `Ctrl/Cmd+D` | `component/duplicate`: duplica o nó como irmão logo abaixo, com sufixo `_COPIA` no `code`; copia `tags`/`origin`; se havia versão, o payload mais recente vira rascunho 1 da cópia — sem herdar `PUBLISHED`. `MATRIX` não duplica (espelho único) |
+| Arrastar, ou menu "Mover para…" | Drag-and-drop no próprio painel (antes/depois/dentro, conforme a posição do ponteiro na linha) ou diálogo com busca + Início/Fim; os dois chamam `component/move`, que valida ciclo e profundidade (I28) |
+| Criar nó `MATRIX` | "Pendurar matriz" na barra da árvore, ou "Adicionar matriz…" no menu de um nó — seletor com busca e filtro por tag sobre as matrizes do projeto ainda não referenciadas (`AddMatrixNodeDialog`, I27) |
 
-### 17.4 Vigência da fundação
+**Adiado para a S33b** (payload/conteúdo é fora do escopo da S33a): colar bloco de texto no
+inspector reconhecendo prefixo de linha (`Definição técnica:`, `Observação:` etc.) — sem o editor
+de payload, não há onde esse texto aterrissar ainda.
+
+### 17.4 Vigência da fundação — S33b
+
+> Fora do escopo da S33a (o campo `Project.foundationEffectiveFrom` já existe no schema desde a
+> S32a; nenhuma tela o usa ainda).
 
 Publicar ~100 componentes que **já vigoram** não pode custar ~100 diálogos de publicação.
 
@@ -430,17 +447,22 @@ Publicar ~100 componentes que **já vigoram** não pode custar ~100 diálogos de
 
 ### 17.5 Inspector do componente
 
-- **Comum a todos os tipos**: nome, código (imutável depois de criado), tipo, tags, `origin`,
-  `reviewStatus` com ação explícita de promover a `VALIDATED`, e a timeline de versões no padrão
-  visual da timeline de matriz (§10).
+- **Comum a todos os tipos, entregue na S33a** (`ComponentInspector`): nome (edição em linha),
+  código (somente leitura, imutável), tipo (somente leitura, badge), tags (`ComponentTagsEditor`,
+  mesmo padrão do §15), `origin` (fonte + locator), `reviewStatus` — um `Select` com os 4 estados,
+  incluindo promover a `VALIDATED`, que é sempre uma escolha explícita do usuário, nunca efeito
+  colateral de outra edição —, contagem de filhos diretos, e as ações estruturais (Mover, Duplicar,
+  Arquivar). Campos de payload ("Descrição de negócio", "Definição técnica…") e ações de versão
+  ("Criar rascunho") aparecem **desabilitados**, com tooltip "Disponível na Sessão 33b".
+- **A timeline de versões no padrão visual da timeline de matriz (§10)** — S33b.
 - **`RULE`**: descrição de negócio, definição técnica, entradas, condições, resultado, reason
-  codes, dependências e notas (`14-governanca-de-alteracoes.md` §3.2).
-- **`SECTION`**: por padrão só nome, código e contagem de filhos — é pasta. Uma ação secundária,
-  **"Documentar esta seção"**, cria a primeira versão e a seção passa a ter texto, vigência e
-  timeline como qualquer outra (I27). É onde vive a "Visão Geral" de um capítulo.
-- **`MATRIX`**: somente leitura, espelhando a matriz, com link para abrir o grid.
+  codes, dependências e notas (`14-governanca-de-alteracoes.md` §3.2) — S33b.
+- **`SECTION`**: a ação **"Documentar esta seção"**, que cria a primeira versão e dá à seção texto,
+  vigência e timeline como qualquer outra (I29) — S33b. Na S33a, `SECTION` já é pasta pura por
+  padrão (nasce sem `versions`), só que sem essa ação de promoção ainda.
+- **`MATRIX`**: somente leitura, espelhando a matriz — entregue na árvore (§17.2: badge de estado e
+  vigência no próprio nó, clique navega para o grid); o inspector dedicado com link direto é S33b.
 - **`POLICY_VARIABLE`**: quando espelha a Biblioteca (`variableId`), mostra a variável e seus
-  domínios sem duplicá-los, com link para a tela de Variáveis (§11).
+  domínios sem duplicá-los, com link para a tela de Variáveis (§11) — S33b.
 - **Relacionados**: quando um componente é citado por outro (`dependencies`, reason code
-  compartilhado), o inspector lista as remissões — é como o documento real trata a mesma regra
-  avaliada em duas etapas, sem duplicar o nó (`14-governanca-de-alteracoes.md` §3.6).
+  compartilhado), o inspector lista as remissões — S33b (depende do payload de `RULE`).

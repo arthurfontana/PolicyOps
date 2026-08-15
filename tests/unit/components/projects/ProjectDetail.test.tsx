@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { ProjectDetail } from '@/components/projects/ProjectDetail';
@@ -87,8 +87,12 @@ describe('ProjectDetail — filtro por facetas de tag', () => {
     expect(screen.getByRole('button', { name: /MTZ_URA_G4/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /MTZ_DIGITAL_G1/ })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /CANAL_DIGITAL/ }));
-    await user.click(screen.getByRole('button', { name: /CLUSTER_G4/ }));
+    // A árvore da política (S33a) tem seu próprio filtro por faceta, sobre o
+    // mesmo catálogo de tags — por isso o filtro da lista de matrizes precisa
+    // de escopo explícito (`matrix-tag-filter`) para não colidir com o dela.
+    const matrixTagFilter = within(screen.getByTestId('matrix-tag-filter'));
+    await user.click(matrixTagFilter.getByRole('button', { name: /CANAL_DIGITAL/ }));
+    await user.click(matrixTagFilter.getByRole('button', { name: /CLUSTER_G4/ }));
 
     expect(screen.getByRole('button', { name: /MTZ_DIGITAL_G4/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /MTZ_URA_G4/ })).not.toBeInTheDocument();
@@ -100,10 +104,11 @@ describe('ProjectDetail — filtro por facetas de tag', () => {
     const { projectId } = setupTaggedProject();
     renderProject(projectId);
 
-    await user.click(screen.getByRole('button', { name: /CANAL_DIGITAL/ }));
+    const matrixTagFilter = within(screen.getByTestId('matrix-tag-filter'));
+    await user.click(matrixTagFilter.getByRole('button', { name: /CANAL_DIGITAL/ }));
     expect(screen.queryByRole('button', { name: /MTZ_URA_G4/ })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Limpar tudo' }));
+    await user.click(matrixTagFilter.getByRole('button', { name: 'Limpar tudo' }));
 
     expect(screen.getByRole('button', { name: /MTZ_DIGITAL_G4/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /MTZ_URA_G4/ })).toBeInTheDocument();

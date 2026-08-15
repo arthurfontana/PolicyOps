@@ -134,7 +134,7 @@ Comandos de eixo guardam no inverso **todas** as células afetadas — é o que 
 ### Templates
 `template/create` · `template/update` · `template/archive` · `template/instantiate`
 
-### Componentes de política (schema 5, sessão 32a)
+### Componentes de política (schema 5, sessões 32a e 33a)
 | Comando | Entrada | Inverso |
 |---|---|---|
 | `component/create` | `{ projectId, code, name, type, parentId?, matrixId?, variableId?, tags?, origin?, reviewStatus? }` — entra no fim dos irmãos; valida I27/I28 e recusa `code` repetido com `COMPONENT_CODE_DUPLICATE` (`E-GOV-06`) | remover o nó criado e reindexar os irmãos; recusa se ele já ganhou filho ou versão |
@@ -142,6 +142,7 @@ Comandos de eixo guardam no inverso **todas** as células afetadas — é o que 
 | `component/move` | `{ componentId, parentId?, position? }` — `parentId: null` vira raiz; valida ciclo e profundidade (contando a altura da subárvore) e reindexa origem e destino | mover de volta ao pai e à posição de origem |
 | `component/archive` | `{ componentId }` | `component/_setArchived` com o carimbo anterior |
 | `component/setReviewStatus` | `{ componentId, reviewStatus }` — promover a `VALIDATED` é ação explícita, nunca efeito de editar | o próprio comando com o estado anterior |
+| `component/duplicate` (S33a) | `{ componentId }` — cria irmão logo abaixo, sufixo `_COPIA`/`_COPIA2`… no `code`, copia `tags`/`origin`; se a origem tinha versão, o payload mais recente vira rascunho 1 da cópia, nascendo `STRUCTURED` mesmo que a origem seja `VALIDATED`. Recusa `MATRIX` (`COMPONENT_TREE_INVALID` — espelho único, I27) | remover a duplicata (e a versão única que ela tenha) e reindexar |
 
 ### Versões de componente (schema 5, sessão 32a)
 | Comando | Entrada | Inverso |

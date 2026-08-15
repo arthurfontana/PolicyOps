@@ -1,5 +1,6 @@
 import { CellInspector } from '@/components/inspector/CellInspector';
 import { CompareInspector } from '@/components/inspector/CompareInspector';
+import { ComponentInspector } from '@/components/inspector/ComponentInspector';
 import { VersionInspector } from '@/components/inspector/VersionInspector';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
@@ -10,10 +11,18 @@ export function Inspector() {
   const view = useUiStore((s) => s.view);
   const currentVersionId = useEditorStore((s) => s.currentVersionId);
   const selection = useEditorStore((s) => s.selection);
+  const selectedComponentId = useEditorStore((s) => s.selectedComponentId);
 
   // Na tela de comparação o painel mostra o "antes → depois" da célula
   // clicada (docs/07-ux-e-editor.md §9), não a célula do editor.
   if (hasDocument && view === 'compare') return <CompareInspector />;
+
+  // Componente selecionado na árvore (docs/07 §17.5) tem prioridade sobre a
+  // versão de matriz que possa ter ficado aberta atrás: é a árvore que o
+  // usuário está olhando agora.
+  if (hasDocument && view === 'projects' && selectedComponentId !== null) {
+    return <ComponentInspector componentId={selectedComponentId} />;
+  }
 
   if (hasDocument && currentVersionId !== null && selection.size > 0) {
     return <CellInspector selection={selection} />;

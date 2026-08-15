@@ -3,6 +3,7 @@ import {
   archiveComponent,
   componentDepth,
   createComponent,
+  duplicateComponent,
   listChildren,
   moveComponent,
   restoreArchivedComponent,
@@ -11,6 +12,7 @@ import {
   updateComponent,
 } from '@/core/document/components';
 import type { CreateComponentInput } from '@/core/document/components';
+import { createComponentDraft, publishComponentVersion } from '@/core/versioning/component-lifecycle';
 import type { PolicyOpsDocument } from '@/core/document/schema';
 import { validateDocument } from '@/core/document/validate';
 import { apply, baseDocument, createTestMatrix, expectFailure, IDS, testCtx } from '../versioning/fixtures';
@@ -646,5 +648,126 @@ describe('component/archive e component/setReviewStatus', () => {
       'NOT_FOUND',
     );
     expectFailure(document, ctx, restoreArchivedComponent({ componentId: 'nao_existe_' }), 'NOT_FOUND');
+  });
+});
+
+describe('component/duplicate', () => {
+  it('cria irmão logo abaixo, com sufixo no code, mesmo tipo e pai, e reindexa', () => {
+    const ctx = testCtx();
+    const { document, ids } = tree(ctx);
+
+    const duplicado = apply(document, ctx, duplicateComponent({ componentId: ids.divida }));
+    expect(duplicado.data.code).toBe('BLOQUEIOS_COPIA');
+
+    const siblings = listChildren(duplicado.document, IDS.projectA, ids.capitulo);
+    expect(siblings.map((c) => c.code)).toEqual(['BLOQUEIOS', 'BLOQUEIOS_COPIA', 'FRAUDE']);
+    expect(siblings.map((c) => c.position)).toEqual([0, 1, 2]);
+
+    const copia = duplicado.document.components.find((c) => c.id === duplicado.data.componentId)!;
+    expect(copia.name).toBe('Bloqueios por Dívida (cópia)');
+    expect(copia.type).toBe('SECTION');
+    expect(copia.parentId).toBe(ids.capitulo);
+    expect(copia.versions).toEqual([]);
+  });
+
+  it('gera sufixo numérico quando "_COPIA" já existe', () => {
+    const ctx = testCtx();
+    const { document, ids } = tree(ctx);
+
+    const primeira = apply(document, ctx, duplicateComponent({ componentId: ids.divida }));
+    const segunda = apply(primeira.document, ctx, duplicateComponent({ componentId: ids.divida }));
+    expect(segunda.data.code).toBe('BLOQUEIOS_COPIA2');
+  });
+
+  it('copia tags e origin, mas a duplicata nasce STRUCTURED mesmo se a origem é VALIDATED', () => {
+    const ctx = testCtx();
+    const built = tree(ctx);
+    const { ids } = built;
+    let document = built.document;
+    document = apply(
+      document,
+      ctx,
+      updateComponent({
+        componentId: ids.regra1,
+        tags: ['REVISAR'],
+        origin: { source: 'Filtros e Critérios B2C', locator: 'p. 10' },
+      }),
+    ).document;
+    document = apply(
+      document,
+      ctx,
+      setComponentReviewStatus({ componentId: ids.regra1, reviewStatus: 'VALIDATED' }),
+    ).document;
+
+    const duplicado = apply(document, ctx, duplicateComponent({ componentId: ids.regra1 }));
+    const copia = duplicado.document.components.find((c) => c.id === duplicado.data.componentId)!;
+    expect(copia.tags).toEqual(['REVISAR']);
+    expect(copia.origin).toEqual({ source: 'Filtros e Critérios B2C', locator: 'p. 10' });
+    expect(copia.reviewStatus).toBe('STRUCTURED');
+  });
+
+  it('com versão publicada: o payload mais recente vira rascunho 1 da duplicata, sem herdar publicação', () => {
+    const ctx = testCtx();
+    const { document, ids } = tree(ctx);
+    const rascunho = apply(
+      document,
+      ctx,
+      createComponentDraft({
+        componentId: ids.regra1,
+        payload: { kind: 'RULE', businessDescription: 'Bloqueia dívida acima de R$ 5.000.' },
+      }),
+    );
+    const publicado = apply(
+      rascunho.document,
+      ctx,
+      publishComponentVersion({ versionId: rascunho.data.versionId, effectiveFrom: '2026-01-01T00:00:00.000Z' }),
+    );
+
+    const duplicado = apply(publicado.document, ctx, duplicateComponent({ componentId: ids.regra1 }));
+    const copia = duplicado.document.components.find((c) => c.id === duplicado.data.componentId)!;
+    expect(copia.versions).toHaveLength(1);
+    expect(copia.versions[0]!.state).toBe('DRAFT');
+    expect(copia.versions[0]!.number).toBe(1);
+    expect(copia.versions[0]!.payload).toEqual({
+      kind: 'RULE',
+      businessDescription: 'Bloqueia dívida acima de R$ 5.000.',
+    });
+    expect(copia.versions[0]!.effectiveFrom).toBeUndefined();
+  });
+
+  it('recusa duplicar um nó MATRIX — o espelho é único', () => {
+    const ctx = testCtx();
+    const { document, ids } = tree(ctx);
+    const withMatrix = createTestMatrix(document, ctx);
+    const comMatriz = apply(
+      withMatrix.document,
+      ctx,
+      createComponent({
+        projectId: IDS.projectA,
+        code: 'MTZ_NODE',
+        name: 'Matriz',
+        type: 'MATRIX',
+        matrixId: withMatrix.data.matrixId,
+        parentId: ids.capitulo,
+      }),
+    );
+    expectFailure(
+      comMatriz.document,
+      ctx,
+      duplicateComponent({ componentId: comMatriz.data.componentId }),
+      'COMPONENT_TREE_INVALID',
+    );
+  });
+
+  it('inverso remove a duplicata e reindexa; refazer devolve o documento idêntico', () => {
+    const ctx = testCtx();
+    const { document, ids } = tree(ctx);
+    const duplicado = apply(document, ctx, duplicateComponent({ componentId: ids.divida }));
+
+    const desfeito = apply(duplicado.document, ctx, duplicado.result.inverse);
+    expect(desfeito.document.components).toEqual(document.components);
+
+    const refeito = apply(desfeito.document, ctx, desfeito.result.inverse);
+    expect(refeito.document.components).toEqual(duplicado.document.components);
   });
 });
