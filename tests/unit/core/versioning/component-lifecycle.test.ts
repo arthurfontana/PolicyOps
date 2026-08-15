@@ -7,6 +7,7 @@ import {
   discardComponentDraft,
   locateComponentVersion,
   publishComponentVersion,
+  publishPendingComponentVersions,
   updateComponentVersion,
 } from '@/core/versioning/component-lifecycle';
 import { apply, baseDocument, createTestMatrix, expectFailure, IDS, testCtx } from './fixtures';
@@ -496,6 +497,130 @@ describe('componentVersion/publish', () => {
       changeRequestId: 'db519000000',
     });
     expect(p1.result.events[0]!.summary).not.toContain('publicação direta');
+  });
+});
+
+describe('componentVersion/publishPending', () => {
+  function comRegraB(ctx: TestCtx, document: PolicyOpsDocument): { document: PolicyOpsDocument; componentId: string } {
+    const criado = apply(
+      document,
+      ctx,
+      createComponent({
+        projectId: IDS.projectA,
+        code: 'REGRA_DIVIDA_VENCIDA',
+        name: 'Dívida vencida na própria base',
+        type: 'RULE',
+      }),
+    );
+    return { document: criado.document, componentId: criado.data.componentId };
+  }
+
+  it('publica o lote inteiro numa vigência só (RN-GOV-09, caminho da fundação)', () => {
+    const ctx = testCtx();
+    const a = comRegra(ctx);
+    const b = comRegraB(ctx, a.document);
+    const draftA = apply(b.document, ctx, createComponentDraft({ componentId: a.componentId, payload: rulePayload('Regra A.') }));
+    const draftB = apply(
+      draftA.document,
+      ctx,
+      createComponentDraft({ componentId: b.componentId, payload: rulePayload('Regra B.') }),
+    );
+
+    const lote = apply(
+      draftB.document,
+      ctx,
+      publishPendingComponentVersions({
+        versionIds: [draftA.data.versionId, draftB.data.versionId],
+        effectiveFrom: VIGENCIA_1,
+      }),
+    );
+
+    const versionA = lote.document.components.find((c) => c.id === a.componentId)!.versions[0]!;
+    const versionB = lote.document.components.find((c) => c.id === b.componentId)!.versions[0]!;
+    expect(versionA.state).toBe('PUBLISHED');
+    expect(versionA.effectiveFrom).toBe(VIGENCIA_1);
+    expect(versionB.state).toBe('PUBLISHED');
+    expect(versionB.effectiveFrom).toBe(VIGENCIA_1);
+    expect(lote.data.published).toHaveLength(2);
+    expect(lote.result.events.map((event) => event.type)).toEqual([
+      'COMPONENT_VERSION_PUBLISHED',
+      'COMPONENT_VERSION_PUBLISHED',
+    ]);
+    expect(validateDocument(lote.document).ok).toBe(true);
+  });
+
+  it('RN-GOV-05: tudo ou nada — um item inválido no lote não publica nenhum', () => {
+    const ctx = testCtx();
+    const a = comRegra(ctx);
+    const b = comRegraB(ctx, a.document);
+    const draftA = apply(b.document, ctx, createComponentDraft({ componentId: a.componentId, payload: rulePayload('Regra A.') }));
+    // "b" já está publicada com VIGENCIA_1: pedir o mesmo lote com uma vigência
+    // que não é depois da vigente de "b" faz o item dela falhar.
+    const publishedB = apply(
+      draftA.document,
+      ctx,
+      createComponentDraft({ componentId: b.componentId, payload: rulePayload('Regra B.') }),
+    );
+    const bAlreadyPublished = apply(
+      publishedB.document,
+      ctx,
+      publishComponentVersion({ versionId: publishedB.data.versionId, effectiveFrom: VIGENCIA_1 }),
+    );
+    const draftB2 = apply(
+      bAlreadyPublished.document,
+      ctx,
+      createComponentDraft({ componentId: b.componentId, payload: rulePayload('Regra B, v2.') }),
+    );
+
+    const before = draftB2.document;
+    expectFailure(
+      before,
+      ctx,
+      publishPendingComponentVersions({
+        versionIds: [draftA.data.versionId, draftB2.data.versionId],
+        // Igual à vigência já publicada de "b" — EFFECTIVE_DATE_INVALID para ela.
+        effectiveFrom: VIGENCIA_1,
+      }),
+      'EFFECTIVE_DATE_INVALID',
+    );
+
+    // Nada publicou: nem "a", que sozinha seria válida.
+    const componentA = before.components.find((c) => c.id === a.componentId)!;
+    expect(componentA.versions[0]!.state).toBe('DRAFT');
+  });
+
+  it('recusa lote vazio e vigência mal formada', () => {
+    const ctx = testCtx();
+    const a = comRegra(ctx);
+    const draftA = apply(a.document, ctx, createComponentDraft({ componentId: a.componentId, payload: rulePayload('X') }));
+
+    expectFailure(
+      draftA.document,
+      ctx,
+      publishPendingComponentVersions({ versionIds: [], effectiveFrom: VIGENCIA_1 }),
+      'INVALID_INPUT',
+    );
+    expectFailure(
+      draftA.document,
+      ctx,
+      publishPendingComponentVersions({ versionIds: [draftA.data.versionId], effectiveFrom: '01/02/2026' }),
+      'INVALID_INPUT',
+    );
+  });
+
+  it('I3: publicação em lote não tem inverso — o desfazer falha com mensagem explícita', () => {
+    const ctx = testCtx();
+    const a = comRegra(ctx);
+    const draftA = apply(a.document, ctx, createComponentDraft({ componentId: a.componentId, payload: rulePayload('X') }));
+    const lote = apply(
+      draftA.document,
+      ctx,
+      publishPendingComponentVersions({ versionIds: [draftA.data.versionId], effectiveFrom: VIGENCIA_1 }),
+    );
+
+    const result = lote.result.inverse.run(lote.document, ctx);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain('não pode ser desfeito');
   });
 });
 

@@ -108,6 +108,25 @@ describe('PolicyTree — ergonomia de criação (§17.3)', () => {
     expect(created.parentId).toBe(a);
   });
 
+  it('trocar o tipo no seletor compacto antes de digitar o nome não descarta o rascunho (S33b)', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    await user.click(screen.getByTestId('tree-node-B'));
+    await user.keyboard('{Enter}');
+    // Escolher o tipo tira o foco do campo de nome (ainda vazio) antes de
+    // digitar — sem suprimir o blur, isso descartaria o rascunho inteiro.
+    await user.selectOptions(screen.getByLabelText('Tipo do novo componente'), 'RULE');
+    expect(screen.getByLabelText('Nome do novo componente')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Nome do novo componente'), 'Regra Nova');
+    await user.keyboard('{Enter}');
+    await user.keyboard('{Escape}');
+
+    const created = useDocumentStore.getState().document!.components.find((c) => c.name === 'Regra Nova');
+    expect(created?.type).toBe('RULE');
+  });
+
   it('Escape cancela o rascunho sem criar nada', async () => {
     const user = userEvent.setup();
     const { projectId, cma } = setupTree();

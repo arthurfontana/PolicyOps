@@ -161,6 +161,14 @@ interface EditorState {
    */
   pendingTemplateSeed: ExtractedTemplateSeed | null;
 
+  /**
+   * Ponte de "Ir para a Biblioteca" do inspector de componente `POLICY_VARIABLE`
+   * (docs/07 §17.5) para a tela de Variáveis — mesmo padrão de
+   * `pendingResnapshot`: quem pede deixa o id aqui e navega; `VariablesScreen`
+   * consome e limpa ao abrir o detalhe.
+   */
+  pendingVariableFocus: string | null;
+
   selection: Set<string>;
   anchor: Coord | null;
   focus: Coord | null;
@@ -181,6 +189,7 @@ interface EditorState {
   setEditable: (isEditable: boolean) => void;
   requestResnapshot: (request: { versionId: string; role: AxisRole } | null) => void;
   requestTemplateFromMatrix: (seed: ExtractedTemplateSeed | null) => void;
+  requestVariableFocus: (variableId: string | null) => void;
   setZoom: (zoom: number) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -216,6 +225,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isEditable: false,
   pendingResnapshot: null,
   pendingTemplateSeed: null,
+  pendingVariableFocus: null,
   selection: new Set<string>(),
   anchor: null,
   focus: null,
@@ -262,6 +272,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   requestTemplateFromMatrix: (seed) => set({ pendingTemplateSeed: seed }),
 
+  requestVariableFocus: (variableId) => set({ pendingVariableFocus: variableId }),
+
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
 
   zoomIn: () => set({ zoom: clampZoom(get().zoom + ZOOM_STEP) }),
@@ -283,6 +295,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isEditable: false,
       pendingResnapshot: null,
       pendingTemplateSeed: null,
+      pendingVariableFocus: null,
       ...emptySelection(),
     }),
 

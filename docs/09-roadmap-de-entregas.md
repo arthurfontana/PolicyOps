@@ -1,6 +1,6 @@
 # Roadmap de Entregas
 
-40 sessões incrementais — as 17 do MVP, 18–20 pós-MVP (biblioteca de variáveis), 21–25 do épico Carga, 26–31 do épico **Plataforma** (`14-plataforma-local.md`) e 32–40 do épico **Governança de Alterações** (`14-governanca-de-alteracoes.md`, 🔮 planejado; a 32 foi dividida em **32a**/**32b** e a 33, em **33a**/**33b** — DEC-GOV-010 e DEC-GOV-012). Cada uma termina com algo que roda, testado, commitado, e com `dist/PolicyOps.html` atualizado.
+40 sessões incrementais — as 17 do MVP, 18–20 pós-MVP (biblioteca de variáveis), 21–25 do épico Carga, 26–31 do épico **Plataforma** (`14-plataforma-local.md`) e 32–40 do épico **Governança de Alterações** (`14-governanca-de-alteracoes.md`, 🚧 em andamento — 32a/32b/33a/33b ✅ entregues, 34–40 🔮 planejadas; a 32 foi dividida em **32a**/**32b** e a 33, em **33a**/**33b** — DEC-GOV-010 e DEC-GOV-012). Cada uma termina com algo que roda, testado, commitado, e com `dist/PolicyOps.html` atualizado.
 
 ## Quadro geral
 
@@ -40,7 +40,7 @@
 | 32a ✅ | Núcleo de componentes e schema 5 | **Opus** | `schemaVersion: 5` inteiro numa migração só, `PolicyComponent`/`ComponentVersion`, invariantes **I27–I29** (renumeradas — DEC-GOV-014), comandos de árvore e de versão com inverso, catálogo `E-GOV` completo — 100% testado, sem tela | 29 |
 | 32b ✅ | DB, release e workflow (núcleo) | **Opus** | ✅ **Entregue** — comandos de `ChangeRequest`/`Release` com inverso, grafo de 12 estados (`PUBLISHED` inalcançável por transição), aprovações que não publicam, vínculo com release e composição estática, **I30–I31** — 100% testado, sem tela. **Pré-requisito da 35**, não da 33/40 | 32a |
 | 33a ✅ | Árvore da política (esqueleto) | **Sonnet** | ✅ **Entregue** — árvore como tela do projeto (painel + `ComponentContentPanel` + `ComponentInspector`): criar/renomear/mover/arquivar/duplicar componente de qualquer tipo, nó MATRIX apontando matriz existente (seletor com busca/tag), busca, filtro por tipo/revisão/faceta com ancestrais preservados, contagens, breadcrumb, âncoras de 2 níveis na sidebar, ergonomia de teclado (Enter/Tab/Ctrl+D). Sem payload de regra e sem ciclo de vida | 32a |
-| 33b | Cadastro e versionamento de regras | **Sonnet** | Formulário por tipo (`RulePayload` e demais), rascunho/publicar com vigência, timeline, ergonomia de entrada em volume, vigência da fundação e publicação em lote | 33a |
+| 33b ✅ | Cadastro e versionamento de regras | **Sonnet** | ✅ **Entregue** — formulário por tipo (`ComponentPayloadFields`: `RULE`/`LIST`/`REASON_CODE`/`POLICY_VARIABLE`/`OTHER`, `POLICY_VARIABLE` com link para a Biblioteca sem duplicar domínios), ciclo rascunho/editar/publicar/descartar na tela (mesmo padrão visual da matriz), timeline (`MatrixTimelineBar` reaproveitado), "Documentar esta seção" (I27), vigência da fundação no projeto, "Publicar pendentes" em lote tudo-ou-nada (`componentVersion/publishPending`), entrada em volume por colagem reconhecida por prefixo (`recognizeRulePaste`) | 33a |
 | 34 | Editor rico de especificação | **Opus** | `RichDoc` de blocos próprios: editar, colar do Word/Excel, imagem-anexo com teto, diff por bloco | 32a |
 | 35 | Solicitação de Alteração e workflow | **Sonnet** | Criar DB multi-componente (motivadores, atual×proposto, impactos, critérios, testes), grafo de 12 estados na tela, fila de aprovação, painel de pendências | 32b, 33, 34 |
 | 36 | Vínculo DB ↔ rascunhos e publicação | **Opus** | Item do DB vincula rascunho (componente ou matriz), congelamento pós-aprovação, publicação atômica com vigência, rebase quando a base mudou | 35 |
@@ -236,7 +236,7 @@
 > 1.353 testes e `lint`/`typecheck` verdes sem tocar. Padrão da âncora documentado em ADR-007.
 > `docs/prompts/README.md` ganhou a nota de higiene de prompts (G6).
 
-> **Sessões 32–40 são o épico Governança de Alterações** ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), decisões `DEC-GOV-*` em [`13-decisoes.md`](13-decisoes.md), 🔮 planejado): a política inteira como árvore de componentes versionados, o Diário de Bordo como Solicitação de Alteração estruturada com workflow, releases e Pacote para a Fábrica gerado. Nasceu com numeração própria (26–34) numa sessão de especificação separada da do épico Plataforma e foi renumerado para 32–40 ao consolidar as duas — inclusive o schema, que sai de `schemaVersion: 4` para `schemaVersion: 5` porque a 4 já é do épico Plataforma (`meta.acl`, S29; ver DEC-GOV-009). As perguntas abertas do §12 de `14-governanca-de-alteracoes.md` devem ser fechadas antes das sessões que as citam.
+> **Sessões 32–40 são o épico Governança de Alterações** ([`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md), decisões `DEC-GOV-*` em [`13-decisoes.md`](13-decisoes.md), 🚧 em andamento — lotes 1–3 entregues, ver tabela abaixo): a política inteira como árvore de componentes versionados, o Diário de Bordo como Solicitação de Alteração estruturada com workflow, releases e Pacote para a Fábrica gerado. Nasceu com numeração própria (26–34) numa sessão de especificação separada da do épico Plataforma e foi renumerado para 32–40 ao consolidar as duas — inclusive o schema, que sai de `schemaVersion: 4` para `schemaVersion: 5` porque a 4 já é do épico Plataforma (`meta.acl`, S29; ver DEC-GOV-009). As perguntas abertas do §12 de `14-governanca-de-alteracoes.md` devem ser fechadas antes das sessões que as citam.
 >
 > **Ordem de execução do épico (DEC-GOV-010, revista pela DEC-GOV-012)** — o objetivo continua sendo ter a política real dentro da ferramenta antes de investir no resto do épico, mas o caminho mudou: a primeira versão é **construída à mão, incrementalmente**, e não importada de uma vez. A antiga 33 virou **33a** (esqueleto) + **33b** (regras), e a carga (40) virou opcional e por recorte:
 >
@@ -254,12 +254,12 @@ ferramenta". Cada lote termina com algo que o usuário **usa** no mesmo dia:
 
 | Lote | Sessões | O que você consegue fazer ao fim |
 |---|---|---|
-| **1 — Fundação** | 32a | Nada visível: schema 5, componentes, versões e comandos testados. É a base que não dá para pular |
-| **2 — Esqueleto** | 33a | Montar a hierarquia inteira da política (capítulos, temas) e pendurar as matrizes já importadas. **Aqui você já julga se o modelo de hierarquia está certo** — antes de existir formulário de regra |
-| **3 — Conteúdo** | 33b | Digitar as regras com definição técnica, reason code e resultado, e publicar tudo com a vigência da fundação. A política vigente passa a existir na ferramenta |
+| **1 — Fundação** ✅ | 32a | Nada visível: schema 5, componentes, versões e comandos testados. É a base que não dá para pular |
+| **2 — Esqueleto** ✅ | 33a | Montar a hierarquia inteira da política (capítulos, temas) e pendurar as matrizes já importadas. **Aqui você já julga se o modelo de hierarquia está certo** — antes de existir formulário de regra |
+| **3 — Conteúdo** ✅ | 33b | Digitar as regras com definição técnica, reason code e resultado, e publicar tudo com a vigência da fundação. A política vigente passa a existir na ferramenta |
 | **⏸ Parada** | — | Uso real. Decidir: `sectionKind`, referências como nó, acelerador de matriz, e se a 40 vale |
-| **4 — Aceleração** (opcional) | 40 | Subir capítulos convertidos em Markdown dentro da seção escolhida, em recortes |
-| **5 — Governança** | 34 → 32b → 35 → 36 → 37/38 → 39 | Editor rico, Diário de Bordo, publicação com vigência, release, pacote e fotografia histórica |
+| **4 — Aceleração** (opcional) 🔮 | 40 | Subir capítulos convertidos em Markdown dentro da seção escolhida, em recortes |
+| **5 — Governança** 🔮 | 34 → 32b → 35 → 36 → 37/38 → 39 | Editor rico, Diário de Bordo, publicação com vigência, release, pacote e fotografia histórica (32b já entregue — ver linha própria acima) |
 
 Enquanto o lote 1 roda, o único trabalho paralelo que vale é converter o Word em Markdown com o
 prompt de `14-governanca-de-alteracoes.md` §9.1 — ele é a fonte de onde o texto será colado na

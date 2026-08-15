@@ -492,6 +492,151 @@ export function publishComponentVersion(
 }
 
 // ---------------------------------------------------------------------------
+// componentVersion/publishPending
+// ---------------------------------------------------------------------------
+// #region: component-version-publish-pending
+
+export type PublishPendingComponentVersionsInput = {
+  versionIds: string[];
+  /** Obrigatória, mesma vigência para todo o lote — o caminho curto da RN-GOV-09. */
+  effectiveFrom: string;
+};
+
+export type PublishPendingComponentVersionsData = {
+  published: Array<{ versionId: string; componentId: string; supersededVersionId: string | null }>;
+};
+
+type PublishPlanItem = {
+  component: PolicyComponent;
+  componentIndex: number;
+  version: ComponentVersion;
+  versionIndex: number;
+  current: ComponentVersion | undefined;
+  currentIndex: number;
+};
+
+/**
+ * "Publicar pendentes" (docs/07 §17.4, RN-GOV-09): publica vários rascunhos
+ * de componente numa vigência só, **tudo ou nada** (RN-GOV-05) — toda a
+ * validação roda sobre o documento original antes de qualquer escrita, então
+ * um item inválido no meio do lote não deixa os anteriores publicados pela
+ * metade. Mesma regra de publicação individual por item (`assertPayloadFits`,
+ * vigência depois da vigente); o que muda é que os eventos de todo o lote
+ * entram numa `applyToDocument` só.
+ */
+export function publishPendingComponentVersions(
+  input: PublishPendingComponentVersionsInput,
+): Command<PublishPendingComponentVersionsInput, PublishPendingComponentVersionsData> {
+  return defineCommand({
+    type: 'componentVersion/publishPending',
+    input,
+    label: `Publicar ${input.versionIds.length} componente(s) pendente(s)`,
+    execute(doc, ctx) {
+      if (input.versionIds.length === 0) {
+        throw new DomainError('INVALID_INPUT', 'Selecione ao menos um componente para publicar.');
+      }
+      if (!ISO_DATE_REGEX.test(input.effectiveFrom)) {
+        throw new DomainError(
+          'INVALID_INPUT',
+          'A data de vigência precisa estar no formato ISO 8601 UTC.',
+          { effectiveFrom: input.effectiveFrom },
+        );
+      }
+      const effectiveFrom = input.effectiveFrom;
+
+      // Validação inteira primeiro (docs/08 §1, regra 4): nenhuma escrita
+      // acontece antes de o lote inteiro passar.
+      const plan: PublishPlanItem[] = [];
+      const seen = new Set<string>();
+      for (const versionId of input.versionIds) {
+        if (seen.has(versionId)) continue;
+        seen.add(versionId);
+
+        const { component, componentIndex, version, versionIndex } = locateComponentVersion(
+          doc,
+          versionId,
+        );
+        assertComponentVersionDraft(version);
+        assertPayloadFits(component, version.payload);
+
+        const current = publishedVersionOf(component);
+        if (current !== undefined && effectiveFrom <= current.effectiveFrom!) {
+          throw new DomainError(
+            'EFFECTIVE_DATE_INVALID',
+            `A vigência precisa começar depois de ${current.effectiveFrom}, início da versão ${current.number} de "${component.code}".`,
+            { componentId: component.id, effectiveFrom, currentEffectiveFrom: current.effectiveFrom },
+          );
+        }
+        const currentIndex =
+          current === undefined
+            ? -1
+            : component.versions.findIndex((candidate) => candidate.id === current.id);
+
+        plan.push({ component, componentIndex, version, versionIndex, current, currentIndex });
+      }
+
+      const nowISO = isoFrom(ctx.now());
+      const events: DocEvent[] = [];
+      const published: PublishPendingComponentVersionsData['published'] = [];
+      for (const item of plan) {
+        if (item.current !== undefined) {
+          events.push(
+            makeEvent(ctx, {
+              type: 'COMPONENT_VERSION_SUPERSEDED',
+              scope: componentVersionScope(item.component, item.current.id),
+              summary: `A versão ${item.current.number} de "${item.component.code}" foi substituída pela versão ${item.version.number}.`,
+              payload: { byVersionNumber: item.version.number, effectiveTo: effectiveFrom },
+            }),
+          );
+        }
+        events.push(
+          makeEvent(ctx, {
+            type: 'COMPONENT_VERSION_PUBLISHED',
+            scope: componentVersionScope(item.component, item.version.id),
+            summary:
+              item.version.changeRequestId === undefined
+                ? `${ctx.actor} publicou a versão ${item.version.number} de "${item.component.code}" (publicação direta), vigente a partir de ${effectiveFrom}.`
+                : `${ctx.actor} publicou a versão ${item.version.number} de "${item.component.code}", vigente a partir de ${effectiveFrom}.`,
+            payload: {
+              effectiveFrom,
+              changeRequestId: item.version.changeRequestId ?? null,
+            },
+          }),
+        );
+        published.push({
+          versionId: item.version.id,
+          componentId: item.component.id,
+          supersededVersionId: item.current?.id ?? null,
+        });
+      }
+
+      return {
+        document: applyToDocument(doc, events, (draft) => {
+          for (const item of plan) {
+            const versions = draft.components[item.componentIndex]!.versions;
+            if (item.currentIndex >= 0) {
+              const superseded = versions[item.currentIndex]!;
+              superseded.state = 'SUPERSEDED';
+              superseded.effectiveTo = effectiveFrom;
+            }
+            const publishedVersion = versions[item.versionIndex]!;
+            publishedVersion.state = 'PUBLISHED';
+            publishedVersion.publishedAt = nowISO;
+            publishedVersion.publishedBy = ctx.actor;
+            publishedVersion.effectiveFrom = effectiveFrom;
+          }
+        }),
+        data: { published },
+        events,
+        inverse: irreversible(
+          'Publicar em lote não pode ser desfeito. Para voltar atrás, crie um rascunho a partir da versão anterior de cada componente e publique-o.',
+        ),
+      };
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // componentVersion/discardDraft
 // ---------------------------------------------------------------------------
 // #region: component-version-discard-draft

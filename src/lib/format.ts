@@ -35,6 +35,24 @@ export function formatDateBR(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR');
 }
 
+/** `YYYY-MM-DD` local — o valor de um `<input type="date">`, a partir de um `Date`. */
+export function dateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/** `YYYY-MM-DD` local — o mesmo valor, a partir de uma data ISO 8601 UTC já gravada no documento. */
+export function isoToDateInputValue(iso: string): string {
+  return dateInputValue(new Date(iso));
+}
+
+/** O valor de um `<input type="date">` de volta para ISO 8601 UTC, meia-noite. */
+export function dateInputToIso(value: string): string {
+  return new Date(`${value}T00:00:00.000Z`).toISOString();
+}
+
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 /** Valor decimal (string, nunca `number` — docs/03 §1) em BRL, pt-BR. */

@@ -338,12 +338,11 @@ condições, a rota mostra "Requer papel ADMIN — você é X" em vez do conteú
 - Zerar a lista de usuários e salvar volta o documento ao modo aberto (`meta.acl` removida, não
   uma ACL com `users: []` — mesmo efeito para `resolveRole`, mas mantém o arquivo limpo).
 
-## 17. Árvore da política (épico Governança — S33a ✅/S33b)
+## 17. Árvore da política (épico Governança — S33a ✅/S33b ✅)
 
 > Normativo para as sessões S33a e S33b. O modelo por trás está em
 > [`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md) §3.1 e §3.6. **§17.1–§17.3
-> entregues na S33a** (ajustado ao que foi construído); **§17.4 e as partes de §17.5 marcadas
-> "S33b" continuam planejadas**.
+> entregues na S33a** (ajustado ao que foi construído); **§17.4 e §17.5 entregues na S33b**.
 
 A política deixa de ser "uma lista de matrizes num projeto" e passa a ser **um sumário navegável**:
 seções, regras, listas e os nós que apontam as matrizes já existentes. O `Project` é a política
@@ -425,44 +424,68 @@ um formulário modal e um fluxo de teclado é a diferença entre duas tardes e d
 | Arrastar, ou menu "Mover para…" | Drag-and-drop no próprio painel (antes/depois/dentro, conforme a posição do ponteiro na linha) ou diálogo com busca + Início/Fim; os dois chamam `component/move`, que valida ciclo e profundidade (I28) |
 | Criar nó `MATRIX` | "Pendurar matriz" na barra da árvore, ou "Adicionar matriz…" no menu de um nó — seletor com busca e filtro por tag sobre as matrizes do projeto ainda não referenciadas (`AddMatrixNodeDialog`, I27) |
 
-**Adiado para a S33b** (payload/conteúdo é fora do escopo da S33a): colar bloco de texto no
-inspector reconhecendo prefixo de linha (`Definição técnica:`, `Observação:` etc.) — sem o editor
-de payload, não há onde esse texto aterrissar ainda.
+**Entregue na S33b**: colar bloco de texto no inspector reconhecendo prefixo de linha (parágrafo
+solto → `businessDescription`; `Definição técnica:` → `technicalDefinition`; `Observação:` →
+`reasonCodes` + `outcome` + `notes`), com **preview antes de aplicar** — botão "Colar bloco de
+texto" no formulário de `RULE` (`PasteRuleDialog`, `recognizeRulePaste` em
+`src/core/versioning/rule-paste.ts`). Reconhecimento de prefixo simples, deliberadamente menor que
+o vocabulário do Markdown convertido de `14-governanca-de-alteracoes.md` §9.1 — é o texto **cru**
+do documento Word, não o Markdown já estruturado da carga por recorte opcional (S40, DEC-GOV-024).
 
-### 17.4 Vigência da fundação — S33b
+### 17.4 Vigência da fundação — S33b ✅
 
-> Fora do escopo da S33a (o campo `Project.foundationEffectiveFrom` já existe no schema desde a
-> S32a; nenhuma tela o usa ainda).
+Publicar ~100 componentes que **já vigoram** não custa ~100 diálogos de publicação.
 
-Publicar ~100 componentes que **já vigoram** não pode custar ~100 diálogos de publicação.
+- Nas propriedades do projeto (diálogo "Editar projeto"): **"Vigência da fundação"** — uma data,
+  opcional, `Project.foundationEffectiveFrom` (RN-GOV-09), definida uma vez e sempre editável.
+- O diálogo de publicação da **primeira** versão de um componente já vem com essa data sugerida no
+  campo de vigência — e continua editável antes de confirmar.
+- Ação **"Publicar pendentes"** na barra da árvore (contador de pendentes no rótulo do botão):
+  lista todo componente do projeto com rascunho em aberto, uma vigência para o lote inteiro
+  (sugerida pela fundação), desmarcação item a item, e publica o que ficou marcado **tudo ou
+  nada** (RN-GOV-05) — um comando puro só, `componentVersion/publishPending`, não N publicações em
+  sequência (DEC-GOV-023).
+- O aviso da RN-GOV-07 (publicação direta, sem DB) aparece **uma vez** no diálogo do lote, não uma
+  vez por item; no diálogo de publicação individual, aparece normalmente para aquele item.
 
-- Nas propriedades do projeto: **"Vigência da fundação"** — uma data, definida uma vez
-  (`Project.foundationEffectiveFrom`, RN-GOV-09).
-- A primeira versão de cada componente novo já nasce apontando essa data; o diálogo de publicação
-  vem preenchido e continua editável.
-- Ação **"Publicar pendentes"** na árvore: lista os componentes com rascunho não publicado, permite
-  desmarcar, e publica em lote com essa vigência — tudo ou nada (RN-GOV-05), com a nota da
-  fundação em cada publicação.
-- O aviso da RN-GOV-07 (publicação direta, sem DB) aparece uma vez no lote, não uma vez por item.
-
-### 17.5 Inspector do componente
+### 17.5 Inspector do componente — S33b ✅
 
 - **Comum a todos os tipos, entregue na S33a** (`ComponentInspector`): nome (edição em linha),
   código (somente leitura, imutável), tipo (somente leitura, badge), tags (`ComponentTagsEditor`,
   mesmo padrão do §15), `origin` (fonte + locator), `reviewStatus` — um `Select` com os 4 estados,
   incluindo promover a `VALIDATED`, que é sempre uma escolha explícita do usuário, nunca efeito
   colateral de outra edição —, contagem de filhos diretos, e as ações estruturais (Mover, Duplicar,
-  Arquivar). Campos de payload ("Descrição de negócio", "Definição técnica…") e ações de versão
-  ("Criar rascunho") aparecem **desabilitados**, com tooltip "Disponível na Sessão 33b".
-- **A timeline de versões no padrão visual da timeline de matriz (§10)** — S33b.
+  Arquivar).
+- **Ciclo de vida, entregue na S33b**: "Criar rascunho" (sem componente ainda sem versão nasce com
+  `businessDescription` pré-preenchido pelo nome do componente — nunca vazio, editado na hora) →
+  formulário de payload editável (`ComponentPayloadFields`, commit por campo ao perder o foco) →
+  "Publicar" (`PublishComponentDialog`, mesmo padrão visual do diálogo de matriz — vigência
+  obrigatória, alerta de irreversibilidade; sem campo de notas, que `ComponentVersion` não tem,
+  DEC-GOV-022) → "Descartar rascunho" (confirmação, mesmo padrão de `ConfirmDialog`). Sem rascunho
+  aberto, o formulário mostra a versão vigente **somente leitura**, com "Criar rascunho a partir
+  desta versão" para começar a próxima.
+- **A timeline de versões no padrão visual da timeline de matriz (§10)**: `MatrixTimelineBar`
+  reaproveitado sem alteração sobre `getComponentTimeline` (`src/core/queries.ts`) — um segmento
+  por versão publicada/histórica, cor por estado, tooltip com o período.
 - **`RULE`**: descrição de negócio, definição técnica, entradas, condições, resultado, reason
-  codes, dependências e notas (`14-governanca-de-alteracoes.md` §3.2) — S33b.
-- **`SECTION`**: a ação **"Documentar esta seção"**, que cria a primeira versão e dá à seção texto,
-  vigência e timeline como qualquer outra (I29) — S33b. Na S33a, `SECTION` já é pasta pura por
-  padrão (nasce sem `versions`), só que sem essa ação de promoção ainda.
-- **`MATRIX`**: somente leitura, espelhando a matriz — entregue na árvore (§17.2: badge de estado e
-  vigência no próprio nó, clique navega para o grid); o inspector dedicado com link direto é S33b.
-- **`POLICY_VARIABLE`**: quando espelha a Biblioteca (`variableId`), mostra a variável e seus
-  domínios sem duplicá-los, com link para a tela de Variáveis (§11) — S33b.
-- **Relacionados**: quando um componente é citado por outro (`dependencies`, reason code
-  compartilhado), o inspector lista as remissões — S33b (depende do payload de `RULE`).
+  codes, dependências e notas (`14-governanca-de-alteracoes.md` §3.2). Campos de lista
+  (`inputs`/`reasonCodes`/`dependencies`) são texto separado por vírgula, não um editor
+  chave-valor (DEC-GOV-024) — mais rápido de digitar no volume desta sessão.
+- **`SECTION`**: a ação **"Documentar esta seção"**, que cria a primeira versão (payload `OTHER`)
+  e dá à seção texto, vigência e timeline como qualquer outra (I29). Sem essa ação, a seção
+  continua pasta pura, e nunca aparece como "sem política vigente" em `listComponentsEffectiveAt`
+  (`src/core/queries.ts`).
+- **`MATRIX`**: somente leitura, espelhando a matriz — entregue inteiramente na árvore (§17.2:
+  badge de estado e vigência no próprio nó, clique navega direto para o grid); como a navegação já
+  é direta, `MATRIX` nunca chega a abrir `ComponentInspector`.
+- **`POLICY_VARIABLE`**: o formulário de payload é editável como os demais tipos; quando o
+  componente espelha a Biblioteca (`variableId`), um card adicional mostra a variável (nome,
+  contagem de domínios da versão publicada) **sem duplicá-los**, com o botão "Ir para a
+  Biblioteca" — deep link para `VariablesScreen` via `editor-store.pendingVariableFocus`, mesmo
+  padrão de `pendingResnapshot`.
+- **`spec`** (documentação livre, `RichDoc`): placeholder somente leitura ("Editor de
+  especificação livre — Sessão 34"); o editor de blocos em si é S34.
+- **Relacionados** (`dependencies`, reason code compartilhado): fora do escopo desta sessão — o
+  campo `RulePayload.dependencies` já existe e é editável (lista de codes), mas o inspector ainda
+  não resolve o code para um link clicável; fica para quando o épico tiver DB citando os dois
+  lados (S35+).

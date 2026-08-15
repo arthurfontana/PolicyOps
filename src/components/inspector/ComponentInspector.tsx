@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Archive, Copy, FolderInput } from 'lucide-react';
+import { Archive, Copy, FolderInput, PencilLine } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ComponentPayloadFields } from '@/components/inspector/ComponentPayloadFields';
 import { ComponentTagsEditor } from '@/components/inspector/ComponentTagsEditor';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { MoveComponentDialog } from '@/components/tree/MoveComponentDialog';
+import { PublishComponentDialog } from '@/components/dialogs/PublishComponentDialog';
+import { MatrixTimelineBar } from '@/components/timeline/MatrixTimelineBar';
 import {
   archiveComponent,
   duplicateComponent,
@@ -16,33 +20,84 @@ import {
   setComponentReviewStatus,
 } from '@/core/document/components';
 import { listChildren } from '@/core/document/components';
-import { COMPONENT_REVIEW_STATUSES, type ComponentReviewStatus } from '@/core/document/schema';
+import {
+  createComponentDraft,
+  discardComponentDraft,
+  updateComponentVersion,
+} from '@/core/versioning/component-lifecycle';
+import {
+  COMPONENT_REVIEW_STATUSES,
+  PAYLOAD_KIND_BY_COMPONENT_TYPE,
+  type ComponentPayload,
+  type ComponentReviewStatus,
+  type PolicyComponentType,
+} from '@/core/document/schema';
+import { getComponentTimeline } from '@/core/queries';
 import {
   COMPONENT_REVIEW_STATUS_LABELS,
   COMPONENT_REVIEW_STATUS_VARIANTS,
   COMPONENT_TYPE_ICONS,
   COMPONENT_TYPE_LABELS,
 } from '@/lib/component-labels';
+import { formatDateTimeBR } from '@/lib/format';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
 import { useUiStore } from '@/store/ui-store';
 import { useToast } from '@/components/ui/use-toast';
 
-/**
- * Campo desabilitado com o motivo em tooltip — payload de regra, versões e
- * vigência são da S33b (docs/prompts/S33a, "Inspector mínimo").
- */
-function StubField({ label }: { label: string }) {
+/** Campo desabilitado com o motivo em tooltip — só o que ainda não existe (editor rico, S34). */
+function StubField({ label, placeholder }: { label: string; placeholder: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="flex flex-col gap-1 opacity-50">
           <Label className="text-xs">{label}</Label>
-          <Input disabled placeholder="—" />
+          <Textarea disabled rows={2} placeholder={placeholder} />
         </div>
       </TooltipTrigger>
-      <TooltipContent>Disponível na Sessão 33b.</TooltipContent>
+      <TooltipContent>Editor rico chega na Sessão 34.</TooltipContent>
     </Tooltip>
+  );
+}
+
+/** Payload inicial de um componente novo — sempre com `businessDescription` preenchido (nunca vazio). */
+function seedPayload(type: PolicyComponentType, name: string): ComponentPayload {
+  const kind = PAYLOAD_KIND_BY_COMPONENT_TYPE[type as Exclude<PolicyComponentType, 'MATRIX'>];
+  return { kind, businessDescription: name };
+}
+
+/** Espelho da variável na Biblioteca — docs/07 §17.5: sem duplicar domínios, só um link. */
+function MirroredVariableCard({ variableId }: { variableId: string }) {
+  const document = useDocumentStore((s) => s.document);
+  const requestVariableFocus = useEditorStore((s) => s.requestVariableFocus);
+  const setView = useUiStore((s) => s.setView);
+
+  const variable = document?.variables.find((candidate) => candidate.id === variableId) ?? null;
+  if (variable === null) return null;
+  const published = variable.versions.find((version) => version.state === 'PUBLISHED') ?? null;
+
+  return (
+    <div className="flex flex-col gap-1 rounded-md border border-neutral-200 p-2 text-xs dark:border-neutral-800">
+      <span className="font-semibold text-neutral-700 dark:text-neutral-300">Variável espelhada</span>
+      <p className="text-neutral-600 dark:text-neutral-400">
+        {variable.name} <span className="font-mono text-[10px] text-neutral-400">{variable.code}</span>
+      </p>
+      <p className="text-neutral-500 dark:text-neutral-400">
+        {published === null ? 'Sem versão publicada' : `${published.domains.length} domínio(s) na versão publicada`}
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-fit"
+        onClick={() => {
+          requestVariableFocus(variableId);
+          setView('library-variables');
+        }}
+      >
+        Ir para a Biblioteca
+      </Button>
+    </div>
   );
 }
 
@@ -60,6 +115,8 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
   const [locator, setLocator] = useState('');
   const [moveOpen, setMoveOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
 
   const foundComponent = document?.components.find((candidate) => candidate.id === componentId) ?? null;
 
@@ -76,9 +133,16 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
   // por controle de fluxo): closures abaixo (commitName, handleArchive…)
   // continuam vendo `PolicyComponent`, não `PolicyComponent | null`.
   const component = foundComponent;
+  const project = document.projects.find((candidate) => candidate.id === component.projectId);
 
   const Icon = COMPONENT_TYPE_ICONS[component.type];
   const childCount = listChildren(document, component.projectId, component.id).length;
+
+  const draft = component.versions.find((version) => version.state === 'DRAFT') ?? null;
+  const publishedVersion = component.versions.find((version) => version.state === 'PUBLISHED') ?? null;
+  const displayedVersion = draft ?? publishedVersion;
+  const isSectionUndocumented = component.type === 'SECTION' && component.versions.length === 0;
+  const timeline = getComponentTimeline(component);
 
   function commitName() {
     setNameEditing(false);
@@ -139,6 +203,25 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
     }
     setArchiveOpen(false);
     setSelectedComponent(null);
+  }
+
+  function handleCreateDraft() {
+    const result = dispatch(
+      createComponentDraft({ componentId: component.id, payload: seedPayload(component.type, component.name) }),
+    );
+    if (!result.ok) {
+      toast({ title: 'Não foi possível criar o rascunho', description: result.error.message });
+    }
+  }
+
+  function handleDiscardDraft() {
+    if (draft === null) return;
+    const result = dispatch(discardComponentDraft({ versionId: draft.id }));
+    if (!result.ok) {
+      toast({ title: 'Não foi possível descartar o rascunho', description: result.error.message });
+      return;
+    }
+    setDiscardOpen(false);
   }
 
   return (
@@ -254,18 +337,81 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
 
       <div className="flex flex-col gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
         <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Conteúdo e versão</p>
-        <StubField label="Descrição de negócio" />
-        <StubField label="Definição técnica" />
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button type="button" variant="outline" size="sm" disabled className="w-full">
-                Criar rascunho
+
+        {timeline.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Linha do tempo</Label>
+            <MatrixTimelineBar segments={timeline} now={new Date()} selectedAt={new Date()} onSelectVersion={() => {}} />
+          </div>
+        )}
+
+        {isSectionUndocumented && (
+          <>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+              Esta seção é uma pasta pura — sem texto, vigência nem histórico próprios.
+            </p>
+            <Button type="button" variant="secondary" size="sm" onClick={handleCreateDraft}>
+              <PencilLine className="mr-1.5 h-3.5 w-3.5" /> Documentar esta seção
+            </Button>
+          </>
+        )}
+
+        {!isSectionUndocumented && displayedVersion === null && (
+          <Button type="button" variant="secondary" size="sm" onClick={handleCreateDraft}>
+            Criar rascunho
+          </Button>
+        )}
+
+        {displayedVersion !== null && (
+          <>
+            {draft === null && (
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                Mostrando a versão {displayedVersion.number}, vigente desde{' '}
+                {displayedVersion.effectiveFrom !== undefined ? formatDateTimeBR(displayedVersion.effectiveFrom) : '—'}.
+              </p>
+            )}
+            {draft !== null && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Editando o rascunho da versão {draft.number}.
+              </p>
+            )}
+
+            <ComponentPayloadFields
+              key={displayedVersion.id}
+              payload={displayedVersion.payload}
+              editable={draft !== null}
+              onChange={(payload) => {
+                if (draft === null) return;
+                const result = dispatch(updateComponentVersion({ versionId: draft.id, payload }));
+                if (!result.ok) {
+                  toast({ title: 'Não foi possível salvar o conteúdo', description: result.error.message });
+                }
+              }}
+            />
+
+            {component.type === 'POLICY_VARIABLE' && component.variableId !== undefined && (
+              <MirroredVariableCard variableId={component.variableId} />
+            )}
+
+            <StubField label="Especificação (spec)" placeholder="Editor de especificação livre — Sessão 34." />
+
+            {draft !== null && (
+              <div className="flex gap-2">
+                <Button type="button" size="sm" onClick={() => setPublishOpen(true)}>
+                  Publicar
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => setDiscardOpen(true)}>
+                  Descartar rascunho
+                </Button>
+              </div>
+            )}
+            {draft === null && (
+              <Button type="button" variant="outline" size="sm" onClick={handleCreateDraft} className="w-fit">
+                Criar rascunho a partir desta versão
               </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>Disponível na Sessão 33b.</TooltipContent>
-        </Tooltip>
+            )}
+          </>
+        )}
       </div>
 
       <MoveComponentDialog open={moveOpen} onOpenChange={setMoveOpen} componentId={component.id} />
@@ -278,6 +424,29 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
         destructive
         onConfirm={handleArchive}
       />
+      {draft !== null && (
+        <PublishComponentDialog
+          open={publishOpen}
+          onOpenChange={setPublishOpen}
+          component={component}
+          version={draft}
+          foundationEffectiveFrom={project?.foundationEffectiveFrom}
+          onPublished={() => {
+            toast({ title: `Versão ${draft.number} publicada` });
+          }}
+        />
+      )}
+      {draft !== null && (
+        <ConfirmDialog
+          open={discardOpen}
+          onOpenChange={setDiscardOpen}
+          title={`Descartar o rascunho da versão ${draft.number}?`}
+          description="O conteúdo deste rascunho será perdido — esta ação não pode ser desfeita."
+          confirmLabel="Descartar"
+          destructive
+          onConfirm={handleDiscardDraft}
+        />
+      )}
     </div>
   );
 }

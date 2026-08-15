@@ -446,6 +446,34 @@ Retorna a versão com `state ∈ {PUBLISHED, SUPERSEDED}` cujo intervalo semiabe
 
 `getPortfolioAt(doc, projectId, at)` faz o mesmo para todas as matrizes do projeto.
 
+### 6.1 Vigência de componente de política (épico Governança, S32a/S33b)
+
+Mesmo mecanismo do §6, aplicado a `PolicyComponent`/`ComponentVersion`
+(`14-governanca-de-alteracoes.md` §3.2, normativo — este bloco é o espelho de leitura):
+
+```ts
+getComponentEffectiveVersion(component: PolicyComponent, at: Date): ComponentVersion | null
+getComponentTimeline(component: PolicyComponent): TimelineSegment[]
+listComponentsEffectiveAt(doc, projectId, at: Date): Array<{ component; version: ComponentVersion | null }>
+```
+
+- Mesmo intervalo semiaberto `[effectiveFrom, effectiveTo)`, mesma regra de "sem resultado não é
+  erro". `MATRIX` nunca tem versão própria (I27) e fica de fora — sua vigência é a da matriz,
+  já coberta por `getEffectiveVersion`/`getPortfolioAt`.
+- **Diferença do §6, ditada por I29**: `SECTION` sem nenhuma versão (pasta pura) **nunca** entra em
+  `listComponentsEffectiveAt` — nem com `version: null`. Uma matriz sem versão vigente numa data
+  aparece na tela como "sem política vigente" porque ela é sempre conteúdo; uma seção pura é
+  estrutura, e misturar as duas faria toda seção-pasta parecer uma regra que caducou. A checagem é
+  `component.versions.length > 0`, não o resultado da busca por data.
+- Publicar aceita vigência **retroativa** (RN-GOV-09, `14-governanca-de-alteracoes.md` §6) — ao
+  contrário de `publishVersion` de matriz, que não valida isso porque a UI de matriz não oferece
+  data no passado. É o caminho da fundação: cadastrar ~100 regras que já vigoram desde antes de a
+  ferramenta existir.
+- Publicação em lote (`componentVersion/publishPending`, §17.4 de `07-ux-e-editor.md`) é atômica: o
+  comando valida a vigência e o payload de todo o lote contra o documento original antes de
+  escrever qualquer versão — um item inválido no meio do lote não deixa os anteriores publicados
+  pela metade (RN-GOV-05).
+
 ## 7. Payloads dos eventos
 
 | Tipo | Payload |

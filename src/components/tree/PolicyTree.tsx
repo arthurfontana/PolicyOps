@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Copy, FolderInput, Grid3x3, Plus, Search } from 'lucide-react';
+import { CheckCheck, ChevronDown, ChevronRight, Copy, FolderInput, Grid3x3, Plus, Search } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { TagFilterBar } from '@/components/projects/TagFilterBar';
 import { MoveComponentDialog } from '@/components/tree/MoveComponentDialog';
 import { AddMatrixNodeDialog } from '@/components/tree/AddMatrixNodeDialog';
+import { PublishPendingComponentsDialog } from '@/components/dialogs/PublishPendingComponentsDialog';
 import {
   componentDepth,
   createComponent,
@@ -29,7 +30,12 @@ import {
   type PolicyComponentType,
   type PolicyOpsDocument,
 } from '@/core/document/schema';
-import { filterComponentTree, resolveOpenVersion, type ComponentTreeFilterResult } from '@/core/queries';
+import {
+  filterComponentTree,
+  listPendingComponentVersions,
+  resolveOpenVersion,
+  type ComponentTreeFilterResult,
+} from '@/core/queries';
 import { COMPONENT_REVIEW_STATUS_LABELS, COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS } from '@/lib/component-labels';
 import { vigenciaText, versionBadge } from '@/lib/matrix-badges';
 import { Badge } from '@/components/ui/badge';
@@ -136,7 +142,13 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
     open: false,
     parentId: undefined,
   });
+  const [publishPendingOpen, setPublishPendingOpen] = useState(false);
   const suppressBlurRef = useRef(false);
+
+  const pendingCount = useMemo(
+    () => (document === null ? 0 : listPendingComponentVersions(document, projectId).length),
+    [document, projectId],
+  );
 
   useEffect(() => {
     setComponentTreeProject(projectId);
@@ -390,6 +402,15 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         <select
           aria-label="Tipo do novo componente"
           value={current.type}
+          // Escolher o tipo tira o foco do campo de nome antes do `onChange`
+          // disparar — sem suprimir o blur, o nome (ainda vazio na primeira
+          // interação) comitaria cedo demais e descartaria o rascunho, ou
+          // gravaria com o tipo antigo. Mesmo padrão de supressão do Tab
+          // acima; o `useEffect` que zera `suppressBlurRef` a cada troca de
+          // `draft` cobre a troca de tipo também.
+          onMouseDown={() => {
+            suppressBlurRef.current = true;
+          }}
           onChange={(e) => setDraft({ ...current, type: e.target.value as PolicyComponentType })}
           className="h-7 shrink-0 rounded border border-neutral-300 bg-white text-xs dark:border-neutral-700 dark:bg-neutral-900"
         >
@@ -448,6 +469,17 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         matrixBadge = versionBadge(version);
         matrixVigencia = vigenciaText(version);
       }
+    }
+
+    // Regra/seção/etc versionada mostra o mesmo tipo de badge — rascunho tem
+    // prioridade (é o que está sendo editado agora), senão a publicada.
+    let componentBadge: ReturnType<typeof versionBadge> | null = null;
+    if (component.type !== 'MATRIX' && component.versions.length > 0) {
+      const shown =
+        component.versions.find((v) => v.state === 'DRAFT') ??
+        component.versions.find((v) => v.state === 'PUBLISHED') ??
+        null;
+      if (shown !== null) componentBadge = versionBadge(shown);
     }
 
     return (
@@ -560,9 +592,9 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             <span className="shrink-0 font-mono text-[10px] text-neutral-400">{component.code}</span>
           )}
 
-          {matrixBadge !== null && (
-            <Badge variant={matrixBadge.variant} className="shrink-0 px-1.5 py-0 text-[10px]">
-              {matrixBadge.label}
+          {(matrixBadge ?? componentBadge) !== null && (
+            <Badge variant={(matrixBadge ?? componentBadge)!.variant} className="shrink-0 px-1.5 py-0 text-[10px]">
+              {(matrixBadge ?? componentBadge)!.label}
             </Badge>
           )}
 
@@ -631,6 +663,15 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
               onClick={() => setMatrixDialog({ open: true, parentId: undefined })}
             >
               <Grid3x3 className="mr-1 h-3.5 w-3.5" /> Pendurar matriz
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pendingCount === 0}
+              onClick={() => setPublishPendingOpen(true)}
+            >
+              <CheckCheck className="mr-1 h-3.5 w-3.5" /> Publicar pendentes{pendingCount > 0 ? ` (${pendingCount})` : ''}
             </Button>
           </div>
         </div>
@@ -717,6 +758,15 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         onCreated={(componentId) => {
           if (matrixDialog.parentId !== undefined) expandComponents([matrixDialog.parentId]);
           setSelectedComponent(componentId);
+        }}
+      />
+      <PublishPendingComponentsDialog
+        open={publishPendingOpen}
+        onOpenChange={setPublishPendingOpen}
+        projectId={projectId}
+        foundationEffectiveFrom={document.projects.find((p) => p.id === projectId)?.foundationEffectiveFrom}
+        onPublished={(count) => {
+          toast({ title: `${count} componente(s) publicado(s)` });
         }}
       />
     </div>
