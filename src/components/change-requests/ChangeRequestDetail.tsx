@@ -14,6 +14,7 @@ import { CatalogChipPicker } from '@/components/change-requests/CatalogChipPicke
 import { ChangeRequestEventLog } from '@/components/change-requests/ChangeRequestEventLog';
 import { ChangeRequestItemRow } from '@/components/change-requests/ChangeRequestItemRow';
 import { DecisionDialog } from '@/components/change-requests/DecisionDialog';
+import { PublishChangeRequestDialog } from '@/components/change-requests/PublishChangeRequestDialog';
 import { ImpactsEditor } from '@/components/change-requests/ImpactsEditor';
 import { TestScenariosEditor } from '@/components/change-requests/TestScenariosEditor';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
@@ -31,6 +32,7 @@ import {
   missingForSubmit,
 } from '@/core/document/cr-workflow';
 import type { CrApprovalDecision, CrPriority, CrStatus } from '@/core/document/schema';
+import { RELEASE_READY_STATUSES } from '@/core/document/releases';
 import { getComponentCurrentSummary } from '@/core/queries';
 import { CR_PRIORITY_LABELS, CR_STATUS_CLOSED_CLASS, CR_STATUS_LABELS, CR_STATUS_VARIANTS } from '@/lib/change-request-labels';
 import { dateInputToIso, formatDateTimeBR, isoToDateInputValue } from '@/lib/format';
@@ -48,6 +50,9 @@ const SUBMIT_REQUIREMENT_LABEL: Record<string, string> = {
 
 /** Destinos de transição decididos pela fila (`DecisionDialog`), nunca pelo botão genérico daqui. */
 const DECISION_STATUSES = new Set<CrStatus>(['APPROVED', 'REJECTED', 'CHANGES_REQUESTED']);
+
+/** Onde `changeRequest/publish` é aceito — `RELEASE_READY_STATUSES` do núcleo. */
+const PUBLISHABLE_STATUSES = new Set<CrStatus>(RELEASE_READY_STATUSES);
 
 export interface ChangeRequestDetailProps {
   changeRequestId: string;
@@ -72,6 +77,7 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [decisionOpen, setDecisionOpen] = useState<CrApprovalDecision | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
   // Estado local só para escopar o seletor de componente antes do primeiro
   // item existir (docs/14 §3.3 — o DB não guarda `projectId`); inicializado
   // uma vez, na montagem, para nunca alternar de controlado para não
@@ -115,7 +121,11 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
   const missing = missingForSubmit(changeRequest);
   const genericTransitions = allowedTransitions(changeRequest.status).filter((to) => !DECISION_STATUSES.has(to));
   const canDecide = changeRequest.status === 'IN_REVIEW';
-  const canShowDisabledPublish = !closed && changeRequest.status !== 'DRAFT';
+  // Publicar é a aresta `SCHEDULED → PUBLISHED` do grafo, mais a entrada por
+  // `READY_FOR_RELEASE` (docs/14 §3.4): antes disso o botão aparece
+  // desabilitado, dizendo o que falta.
+  const canPublish = PUBLISHABLE_STATUSES.has(changeRequest.status);
+  const canShowDisabledPublish = !closed && !canPublish && changeRequest.status !== 'DRAFT';
 
   function commitTitle() {
     setTitleEditing(false);
@@ -281,6 +291,11 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
                 {to === 'SUBMITTED' ? 'Submeter' : `Mover para ${CR_STATUS_LABELS[to]}`}
               </Button>
             ))}
+          {canPublish && (
+            <Button type="button" size="sm" onClick={() => setPublishOpen(true)}>
+              Publicar
+            </Button>
+          )}
           {canShowDisabledPublish && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -290,7 +305,10 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
                   </Button>
                 </span>
               </TooltipTrigger>
-              <TooltipContent>Vincular rascunhos e publicar chega na S36.</TooltipContent>
+              <TooltipContent>
+                Publicar só a partir de {CR_STATUS_LABELS.READY_FOR_RELEASE} — hoje o DB está em{' '}
+                {CR_STATUS_LABELS[changeRequest.status]}.
+              </TooltipContent>
             </Tooltip>
           )}
           {genericTransitions.includes('CANCELLED') && (
@@ -451,10 +469,17 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
           open={addItemOpen}
           onOpenChange={setAddItemOpen}
           projectId={effectiveProjectId}
+          changeRequestId={changeRequest.id}
           excludeComponentIds={changeRequest.items.map((item) => item.componentId)}
           onPick={handlePickItem}
         />
       )}
+
+      <PublishChangeRequestDialog
+        open={publishOpen}
+        onOpenChange={setPublishOpen}
+        changeRequest={changeRequest}
+      />
 
       {decisionOpen !== null && (
         <DecisionDialog

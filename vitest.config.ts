@@ -67,6 +67,36 @@ export default mergeConfig(
             functions: 100,
             statements: 100,
           },
+          // Vínculo e publicação do DB (S36): publicar é irreversível e
+          // multi-entidade — uma linha não exercitada aqui é política entrando
+          // em vigor por um caminho que ninguém testou (docs/14 §3.3,
+          // RN-GOV-05). Linhas, funções e statements a 100%; ramos a 90%
+          // porque o que sobra são os `...(x === undefined ? {} : { x })` de
+          // montagem de entrada, o mesmo critério já aceito em `richdoc/`.
+          'src/core/document/cr-freeze.ts': {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
+          'src/core/document/cr-drafts.ts': {
+            lines: 100,
+            branches: 90,
+            functions: 100,
+            statements: 100,
+          },
+          'src/core/document/cr-publish.ts': {
+            lines: 100,
+            branches: 90,
+            functions: 100,
+            statements: 100,
+          },
+          'src/core/diff/component-payload.ts': {
+            lines: 100,
+            branches: 100,
+            functions: 100,
+            statements: 100,
+          },
           // Editor rico (S34): perda de trabalho do usuário é o modo de falha
           // da sessão — uma operação sem inverso exercitado é um Ctrl+Z que
           // ninguém testou (docs/14 §7). Linhas, funções e statements a 100%;

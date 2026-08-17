@@ -18,6 +18,7 @@ import type {
   PolicyOpsDocument,
 } from '../document/schema';
 import { DomainError } from '../errors';
+import { assertLinkedDraftEditable } from '../document/cr-freeze';
 import { assertEditable, locateVersion, versionScope } from './lifecycle';
 
 /**
@@ -376,6 +377,8 @@ function runPatches(
 
   // Valida tudo antes de tocar em qualquer coisa: nada de estado parcial.
   assertEditable(version);
+  // I25: rascunho de matriz vinculado a DB congelado é somente leitura (S36).
+  assertLinkedDraftEditable(doc, version.id);
   if (patches.length === 0) {
     throw new DomainError('INVALID_INPUT', 'Nenhum patch informado.');
   }

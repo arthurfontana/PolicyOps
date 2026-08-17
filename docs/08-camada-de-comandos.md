@@ -210,6 +210,37 @@ Cinco coisas que valem para o bloco inteiro:
    "DB-519" do Word entra como `DB_519`. A exceção é só `Release.code`, que é rótulo de calendário
    (`2026.09.01`).
 
+### Vínculo e publicação do DB (sessão 36)
+| Comando | Entrada | Inverso |
+|---|---|---|
+| `changeRequest/linkDraft` | `{ changeRequestId, componentId, payload?, spec?, baseVersionId? }` — cria o rascunho (componente ou matriz) ou **adota** o que já existe, carimba `changeRequestId` no de componente e preenche `baseVersionId` do item quando vazio. Recusa rascunho de outro DB (`INVALID_INPUT`), item já vinculado e DB congelado (`CR_TRANSITION_INVALID`) | os inversos dos subcomandos em ordem contrária — apaga o rascunho **se ele foi criado aqui** |
+| `changeRequest/unlinkDraft` | `{ changeRequestId, componentId, discardDraft? }` — solta o vínculo e limpa o `changeRequestId` do rascunho; `discardDraft: true` descarta junto (nunca o padrão) | idem, devolvendo vínculo e rascunho |
+| `changeRequest/createComponentItem` | `{ changeRequestId, projectId, code, name, type, parentId?, payload, spec?, proposedSummary }` — item `CREATE`: `component/create` + `addItem` + `linkDraft` numa transação só | um desfazer só, que remove os três |
+| `changeRequest/publish` | `{ changeRequestId, rebasedComponentIds? }` — publica o DB inteiro com a vigência dele (`proposedEffectiveDate`), move o status para `PUBLISHED` e grava a transição na trilha. `RELEASE_PUBLISH_BLOCKED` (`E-GOV-04`) com a lista de pendências; `CR_BASE_VERSION_STALE` (`E-GOV-02`) enquanto uma base defasada não for reconfirmada em `rebasedComponentIds` | **sem inverso** |
+
+Cinco coisas sobre este bloco:
+
+1. **Atomicidade sai da imutabilidade**, exatamente como em `import/apply`: cada passo é um comando
+   existente (`componentVersion/createDraft`, `version/createDraft`, `componentVersion/publish`,
+   `version/publish`, `component/archive`) rodado sobre um documento de trabalho; um `DomainError` no
+   meio propaga para fora de `execute` e o documento **recebido** volta intocado. Publicação parcial
+   é impossível por construção (RN-GOV-05).
+2. **Validar antes de tocar** (§1, regra 4): `changeRequest/publish` monta a lista **inteira** de
+   pendências antes do primeiro passo (`preflightChangeRequestPublish`, a mesma consulta pura que a
+   tela usa) — descobrir uma pendência por publicação faria o usuário publicar cinco vezes para achar
+   cinco problemas.
+3. **`_setItemDraft` é interno.** `linkDraft`/`unlinkDraft` escrevem o `draftVersionId` do item por um
+   comando interno sem evento, em vez de compor `changeRequest/updateItem` — assim a trilha do DB
+   registra "vinculou o rascunho de X", e não isso mais um "editou o item X" genérico ao lado.
+4. **A vigência é a do DB**, uma só para todos os itens; não existe data por item, e o diálogo de
+   publicação não a edita (mudar vigência é editar o DB — uma fonte só de verdade).
+5. **Rascunho vinculado é somente leitura a partir de `APPROVED`** (I25): `componentVersion/update`,
+   `componentVersion/discardDraft`, `richdoc/apply`, `version/applyCellPatch(es)`, os comandos de
+   `axis/*` e `version/discardDraft` chamam `assertLinkedDraftEditable`
+   (`src/core/document/cr-freeze.ts`) e recusam com `CR_TRANSITION_INVALID`. **Publicar** o rascunho
+   por fora não é barrado — é publicação direta (RN-GOV-07), e a consequência aparece como pendência
+   na publicação do DB (DEC-GOV-034).
+
 ### Releases (schema 5, sessão 32b)
 | Comando | Entrada | Inverso |
 |---|---|---|
@@ -321,7 +352,7 @@ pilhas de undo ficam intocados, igual a qualquer outro erro de comando (§1 regr
 | Papel mínimo | Comandos |
 |---|---|
 | `EDITOR` (piso padrão) | Todo comando de rascunho, biblioteca (variáveis, compatibilidade, catálogo), tags, eixos, projetos, templates, perfis de carga, **o editor rico (`richdoc/*`)** **e todo o épico Governança — DB e release, aprovação incluída** — qualquer `command.type` fora das duas linhas abaixo |
-| `PUBLISHER` | `version/publish`, `import/apply`, `matrix/archive`, `componentVersion/publish`, `component/archive` |
+| `PUBLISHER` | `version/publish`, `import/apply`, `matrix/archive`, `componentVersion/publish`, `componentVersion/publishPending`, `component/archive`, `component/importMarkdown`, **`changeRequest/publish`** |
 | `ADMIN` | `acl/set` |
 
 Notas:
@@ -330,8 +361,9 @@ Notas:
   papéis protege o que **muda a política vigente** (publicar, arquivar matriz), e aprovar
   explicitamente **não publica nada** (RN-GOV-04). O workflow do DB é governança processual, não
   autenticação (DEC-GOV-004) — quem aprova fica registrado em `approvals` pelo nome, que é o mesmo
-  carimbo de `savedBy`. Quando a publicação da release chegar (S36/S37), é **ela** que entra na
-  linha `PUBLISHER`.
+  carimbo de `savedBy`. **`changeRequest/publish` (S36) é quem entrou na linha `PUBLISHER`**, como
+  previsto: é o comando que coloca versão em vigor. O resto do épico continua no piso `EDITOR`,
+  vínculo de rascunho incluído — vincular não publica.
 - **Comandos internos** (prefixo `_`, ex. `catalog/_removeCreated`) nunca são despachados pela
   interface — só aparecem como `inverse` de undo/redo, que chamam `execute` diretamente. Por isso o
   gate não precisa (e não tenta) classificá-los: `minRoleForCommand` de um tipo desconhecido cai no

@@ -161,7 +161,7 @@ describe('ChangeRequestDetail — ações visíveis por estado (docs/14 §5)', (
     expect(screen.queryByRole('button', { name: /Mover para/ })).not.toBeInTheDocument();
   });
 
-  it('APPROVED mostra o aviso de RN-GOV-04 e um "Publicar" desabilitado com tooltip (fora do escopo — S36)', async () => {
+  it('APPROVED mostra o aviso de RN-GOV-04 e um "Publicar" desabilitado — publicar só de READY_FOR_RELEASE', async () => {
     const user = userEvent.setup();
     const { projectId } = setupProject();
     const componentId = criarGoodlistPublicada(projectId);
@@ -184,6 +184,146 @@ describe('ChangeRequestDetail — ações visíveis por estado (docs/14 §5)', (
 
     const publishButton = screen.getByRole('button', { name: 'Publicar' });
     expect(publishButton).toBeDisabled();
+  });
+});
+
+describe('ChangeRequestDetail — vínculo e publicação (S36)', () => {
+  /** DB pronto para caminhar: motivador, vigência e um item `UPDATE` sobre a Goodlist. */
+  function dbComItem(projectId: string): { changeRequestId: string; componentId: string } {
+    const componentId = criarGoodlistPublicada(projectId);
+    dispatch(createCatalogItem({ kind: 'MOTIVATOR', code: 'RISCO', label: 'Risco' }));
+    const changeRequestId = dispatch(
+      createChangeRequest({ code: 'DB_515', title: 'Goodlist passa a olhar o valor do pedido' }),
+    ).changeRequestId;
+    dispatch(
+      updateChangeRequest({
+        changeRequestId,
+        motivators: ['RISCO'],
+        proposedEffectiveDate: '2026-09-01T00:00:00.000Z',
+      }),
+    );
+    dispatch(
+      addChangeRequestItem({
+        changeRequestId,
+        componentId,
+        changeType: 'UPDATE',
+        proposedSummary: 'Aprova só se o valor do pedido for menor ou igual ao limite em lista.',
+      }),
+    );
+    return { changeRequestId, componentId };
+  }
+
+  it('vincular pela linha do item cria o rascunho apontando o DB e mostra o comparativo', async () => {
+    const user = userEvent.setup();
+    const { projectId } = setupProject();
+    const { changeRequestId, componentId } = dbComItem(projectId);
+
+    renderDetail(changeRequestId);
+
+    expect(screen.getByText('Sem rascunho')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Vincular rascunho/ }));
+
+    expect(await screen.findByText('Vinculado')).toBeInTheDocument();
+    const componente = useDocumentStore
+      .getState()
+      .document!.components.find((c) => c.id === componentId)!;
+    const rascunho = componente.versions.find((v) => v.state === 'DRAFT')!;
+    expect(rascunho.changeRequestId).toBe(changeRequestId);
+    expect(currentCr(changeRequestId).items[0]!.draftVersionId).toBe(rascunho.id);
+
+    // O comparativo abre sozinho depois de vincular (docs/07 §19.5).
+    expect(screen.getByText(/Conteúdo — campo a campo/)).toBeInTheDocument();
+  });
+
+  it('desvincular pede confirmação e, por padrão, não descarta o rascunho', async () => {
+    const user = userEvent.setup();
+    const { projectId } = setupProject();
+    const { changeRequestId, componentId } = dbComItem(projectId);
+
+    renderDetail(changeRequestId);
+    await user.click(screen.getByRole('button', { name: /Vincular rascunho/ }));
+    await user.click(await screen.findByRole('button', { name: /Desvincular o rascunho de Goodlist/ }));
+
+    const dialog = await screen.findByRole('dialog', { name: /Desvincular o rascunho/ });
+    await user.click(within(dialog).getByRole('button', { name: 'Desvincular' }));
+
+    expect(await screen.findByText('Sem rascunho')).toBeInTheDocument();
+    const componente = useDocumentStore
+      .getState()
+      .document!.components.find((c) => c.id === componentId)!;
+    // O rascunho continua no componente, solto de qualquer DB.
+    const rascunho = componente.versions.find((v) => v.state === 'DRAFT')!;
+    expect(rascunho.changeRequestId).toBeUndefined();
+    expect(currentCr(changeRequestId).items[0]!.draftVersionId).toBeUndefined();
+  });
+
+  it('em READY_FOR_RELEASE, publicar sem rascunho é travado por E-GOV-04; com rascunho, publica tudo', async () => {
+    const user = userEvent.setup();
+    const { projectId } = setupProject();
+    const { changeRequestId, componentId } = dbComItem(projectId);
+
+    renderDetail(changeRequestId);
+    await user.click(screen.getByRole('button', { name: 'Submeter' }));
+    await user.click(await screen.findByRole('button', { name: /Mover para Em revisão/ }));
+    await user.click(await screen.findByRole('button', { name: 'Aprovar' }));
+    const decisao = await screen.findByRole('dialog', { name: 'Aprovar a solicitação' });
+    await user.click(within(decisao).getByRole('button', { name: 'Aprovar' }));
+    await user.click(await screen.findByRole('button', { name: /Mover para Em desenvolvimento/ }));
+    await user.click(await screen.findByRole('button', { name: /Mover para Em validação/ }));
+    await user.click(await screen.findByRole('button', { name: /Mover para Pronto para release/ }));
+
+    // Sem rascunho vinculado: o diálogo abre, lista a pendência e trava o botão.
+    await user.click(await screen.findByRole('button', { name: 'Publicar' }));
+    const bloqueado = await screen.findByRole('dialog', { name: /Publicar "DB_515"/ });
+    expect(within(bloqueado).getByText(/impedem a publicação \(E-GOV-04\)/)).toBeInTheDocument();
+    expect(within(bloqueado).getByRole('button', { name: 'Publicar o DB' })).toBeDisabled();
+    await user.click(within(bloqueado).getByRole('button', { name: 'Cancelar' }));
+
+    // Congelado (I25): o vínculo não pode ser feito de dentro do DB aprovado —
+    // é a publicação direta do rascunho que o analista já tinha, ou um DB novo.
+    expect(screen.queryByRole('button', { name: /Vincular rascunho/ })).not.toBeInTheDocument();
+    void componentId;
+  });
+
+  it('DB com rascunho vinculado antes da aprovação publica pela tela e o componente ganha a v2', async () => {
+    const user = userEvent.setup();
+    const { projectId } = setupProject();
+    const { changeRequestId, componentId } = dbComItem(projectId);
+
+    renderDetail(changeRequestId);
+    await user.click(screen.getByRole('button', { name: /Vincular rascunho/ }));
+    await screen.findByText('Vinculado');
+
+    await user.click(screen.getByRole('button', { name: 'Submeter' }));
+    await user.click(await screen.findByRole('button', { name: /Mover para Em revisão/ }));
+    await user.click(await screen.findByRole('button', { name: 'Aprovar' }));
+    const decisao = await screen.findByRole('dialog', { name: 'Aprovar a solicitação' });
+    await user.click(within(decisao).getByRole('button', { name: 'Aprovar' }));
+    await user.click(await screen.findByRole('button', { name: /Mover para Em desenvolvimento/ }));
+    await user.click(await screen.findByRole('button', { name: /Mover para Em validação/ }));
+    await user.click(await screen.findByRole('button', { name: /Mover para Pronto para release/ }));
+
+    await user.click(await screen.findByRole('button', { name: 'Publicar' }));
+    const dialog = await screen.findByRole('dialog', { name: /Publicar "DB_515"/ });
+    expect(within(dialog).getByText(/Tudo pronto/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Publicar o DB' }));
+
+    expect(await screen.findByText('Publicado')).toBeInTheDocument();
+    expect(currentCr(changeRequestId).status).toBe('PUBLISHED');
+
+    const componente = useDocumentStore
+      .getState()
+      .document!.components.find((c) => c.id === componentId)!;
+    const vigente = componente.versions.find((v) => v.state === 'PUBLISHED')!;
+    expect(vigente).toMatchObject({
+      number: 2,
+      effectiveFrom: '2026-09-01T00:00:00.000Z',
+      changeRequestId,
+    });
+    expect(componente.versions.find((v) => v.number === 1)).toMatchObject({
+      state: 'SUPERSEDED',
+      effectiveTo: '2026-09-01T00:00:00.000Z',
+    });
   });
 });
 

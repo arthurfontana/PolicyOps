@@ -7,6 +7,7 @@ import {
   type Command,
 } from '../command';
 import { locateComponent } from '../document/components';
+import { assertLinkedDraftEditable } from '../document/cr-freeze';
 import {
   ISO_DATE_REGEX,
   PAYLOAD_KIND_BY_COMPONENT_TYPE,
@@ -344,6 +345,8 @@ export function updateComponentVersion(
         input.versionId,
       );
       assertComponentVersionEditable(version);
+      // I25: rascunho vinculado a DB congelado é somente leitura (`./document/cr-freeze.ts`).
+      assertLinkedDraftEditable(doc, version.id, version.changeRequestId);
       if (input.payload !== undefined) assertPayloadFits(component, input.payload);
 
       const inverse = updateComponentVersion({
@@ -664,6 +667,8 @@ export function discardComponentDraft(
         input.versionId,
       );
       assertComponentVersionDraft(version);
+      // I25: descartar é edição de escopo — o DB congelado não perde o que aprovou.
+      assertLinkedDraftEditable(doc, version.id, version.changeRequestId);
       const removed = structuredClone(version);
 
       const events = [

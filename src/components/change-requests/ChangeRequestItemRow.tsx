@@ -1,23 +1,31 @@
 import { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Link2, Link2Off, PencilLine, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ChangeRequestItemDiff } from '@/components/change-requests/ChangeRequestItemDiff';
+import { UnlinkDraftDialog } from '@/components/change-requests/UnlinkDraftDialog';
 import {
   removeChangeRequestItem,
   updateChangeRequestItem,
 } from '@/core/document/change-requests';
+import { linkChangeRequestDraft } from '@/core/document/cr-drafts';
+import { PAYLOAD_KIND_BY_COMPONENT_TYPE } from '@/core/document/schema';
 import type {
   ChangeRequest,
   ChangeRequestChangeType,
   ChangeRequestItem,
+  ComponentPayload,
   PolicyOpsDocument,
 } from '@/core/document/schema';
 import { componentPath } from '@/core/queries';
 import { CHANGE_TYPE_LABELS } from '@/lib/change-request-labels';
 import { COMPONENT_TYPE_ICONS } from '@/lib/component-labels';
 import { useDocumentStore } from '@/store/document-store';
+import { useEditorStore } from '@/store/editor-store';
+import { useUiStore } from '@/store/ui-store';
 import { useToast } from '@/components/ui/use-toast';
 
 const CHANGE_TYPES: readonly ChangeRequestChangeType[] = [
@@ -36,13 +44,24 @@ export interface ChangeRequestItemRowProps {
   editable: boolean;
 }
 
-/** Uma linha de item do DB (US-GOV-03): componente, tipo de alteração, "hoje" × "proposto". */
+/**
+ * Uma linha de item do DB (US-GOV-03): componente, tipo de alteração, "hoje" ×
+ * "proposto" e — desde a S36 — o **rascunho vinculado**: criar/apontar,
+ * desvincular, abrir para editar, e o comparativo rico do que ele propõe
+ * (`ChangeRequestItemDiff`, docs/07 §19.5).
+ */
 export function ChangeRequestItemRow({ document, changeRequest, item, editable }: ChangeRequestItemRowProps) {
   const dispatch = useDocumentStore((s) => s.dispatch);
+  const setSelectedComponent = useEditorStore((s) => s.setSelectedComponent);
+  const setSelectedProject = useEditorStore((s) => s.setSelectedProject);
+  const openMatrix = useEditorStore((s) => s.openMatrix);
+  const setView = useUiStore((s) => s.setView);
   const { toast } = useToast();
 
   const [current, setCurrent] = useState(item.currentSummary ?? '');
   const [proposed, setProposed] = useState(item.proposedSummary);
+  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [diffOpen, setDiffOpen] = useState(false);
 
   useEffect(() => setCurrent(item.currentSummary ?? ''), [item.currentSummary]);
   useEffect(() => setProposed(item.proposedSummary), [item.proposedSummary]);
@@ -52,6 +71,7 @@ export function ChangeRequestItemRow({ document, changeRequest, item, editable }
   const Icon = COMPONENT_TYPE_ICONS[component.type];
   const path = componentPath(document, component.id);
   const breadcrumb = path.slice(0, -1).map((ancestor) => ancestor.name).join(' › ');
+  const hasDraft = item.draftVersionId !== undefined;
 
   function commitCurrent() {
     if (current === (item.currentSummary ?? '')) return;
@@ -102,6 +122,50 @@ export function ChangeRequestItemRow({ document, changeRequest, item, editable }
     if (!result.ok) {
       toast({ title: 'Não foi possível remover o item', description: result.error.message });
     }
+  }
+
+  function handleLinkDraft() {
+    if (component === undefined) return;
+    // Primeira versão de um componente sem histórico: o rascunho precisa de
+    // conteúdo para nascer (`NO_VERSION_TO_DERIVE`), e o texto do "proposto" é
+    // o que o analista já escreveu — editável depois, no inspector.
+    const semVersao = component.type !== 'MATRIX' && component.versions.length === 0;
+    const payload: ComponentPayload | undefined =
+      semVersao && component.type !== 'MATRIX'
+        ? ({
+            kind: PAYLOAD_KIND_BY_COMPONENT_TYPE[component.type],
+            businessDescription: item.proposedSummary,
+          } as ComponentPayload)
+        : undefined;
+    const result = dispatch(
+      linkChangeRequestDraft({
+        changeRequestId: changeRequest.id,
+        componentId: item.componentId,
+        ...(payload === undefined ? {} : { payload }),
+      }),
+    );
+    if (!result.ok) {
+      toast({
+        variant: 'destructive',
+        title: 'Não foi possível vincular o rascunho',
+        description: result.error.message,
+      });
+      return;
+    }
+    setDiffOpen(true);
+  }
+
+  /** Abre o rascunho onde ele se edita: a árvore, ou o grid da matriz. */
+  function handleOpenDraft() {
+    if (component === undefined || item.draftVersionId === undefined) return;
+    if (component.type === 'MATRIX' && component.matrixId !== undefined) {
+      openMatrix(component.matrixId, item.draftVersionId);
+      setView('matrix');
+      return;
+    }
+    setSelectedProject(component.projectId);
+    setSelectedComponent(component.id);
+    setView('projects');
   }
 
   return (
@@ -182,6 +246,98 @@ export function ChangeRequestItemRow({ document, changeRequest, item, editable }
           />
         </div>
       </div>
+
+      {/* Rascunho vinculado (S36) — o conteúdo exato que vai entrar em vigor */}
+      <div className="flex flex-col gap-2 border-t border-neutral-200 pt-2 dark:border-neutral-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <Label className="text-xs">Rascunho</Label>
+          {hasDraft ? (
+            <Badge variant="blue">Vinculado</Badge>
+          ) : (
+            <Badge variant="secondary">Sem rascunho</Badge>
+          )}
+
+          {!hasDraft && editable && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleLinkDraft}
+            >
+              <Link2 className="mr-1.5 h-3.5 w-3.5" /> Vincular rascunho
+            </Button>
+          )}
+
+          {hasDraft && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={handleOpenDraft}
+              >
+                <PencilLine className="mr-1.5 h-3.5 w-3.5" />
+                {editable ? 'Editar rascunho' : 'Ver rascunho'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setDiffOpen((open) => !open)}
+              >
+                {diffOpen ? 'Ocultar comparativo' : 'Ver atual × proposto'}
+              </Button>
+              {editable && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  aria-label={`Desvincular o rascunho de ${component.name}`}
+                  onClick={() => setUnlinkOpen(true)}
+                >
+                  <Link2Off className="mr-1.5 h-3.5 w-3.5" /> Desvincular
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+
+        {!hasDraft && (
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            {NO_DRAFT_HINT[item.changeType]}
+          </p>
+        )}
+
+        {diffOpen && hasDraft && (
+          <ChangeRequestItemDiff document={document} component={component} item={item} />
+        )}
+      </div>
+
+      <UnlinkDraftDialog
+        open={unlinkOpen}
+        onOpenChange={setUnlinkOpen}
+        changeRequest={changeRequest}
+        component={component}
+      />
     </div>
   );
 }
+
+/**
+ * O que a ausência de rascunho significa depende do tipo de alteração: para
+ * `UPDATE`/`CREATE` é pendência que trava a publicação (`E-GOV-04`); para os
+ * demais é o esperado, e dizer isso evita o analista caçar um botão que não
+ * precisa apertar.
+ */
+const NO_DRAFT_HINT: Record<ChangeRequestChangeType, string> = {
+  UPDATE: 'Este item precisa de rascunho para ser publicado (E-GOV-04).',
+  CREATE: 'Este item precisa de rascunho para ser publicado (E-GOV-04).',
+  DOC_ONLY: 'Opcional: vincule um rascunho se a documentação da versão for mudar.',
+  DEACTIVATE: 'Não precisa de rascunho — publicar o DB arquiva o componente.',
+  REACTIVATE: 'Não precisa de rascunho — publicar o DB desarquiva o componente.',
+  MOVE: 'Não precisa de rascunho — a mudança de lugar já vale na árvore.',
+};

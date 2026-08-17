@@ -110,6 +110,24 @@ isola qualquer `checkIN` individualmente.
 | 967 | `change-request-decisoes` |
 | 1116 | `change-request-consultas` |
 
+### `src/core/document/cr-drafts.ts` (S36)
+| Linha | Âncora |
+|---|---|
+| 50 | `cr-drafts-composicao` |
+| 102 | `cr-drafts-localizacao` |
+| 148 | `cr-set-item-draft` |
+| 206 | `cr-link-draft` |
+| 399 | `cr-unlink-draft` |
+| 498 | `cr-create-component-item` |
+
+### `src/core/document/cr-publish.ts` (S36)
+| Linha | Âncora |
+|---|---|
+| 55 | `cr-publish-contrato` |
+| 86 | `cr-publish-pendencias` |
+| 160 | `cr-publish-comando` |
+| 323 | `cr-publish-plano` |
+
 ### `src/core/document/releases.ts`
 | Linha | Âncora |
 |---|---|

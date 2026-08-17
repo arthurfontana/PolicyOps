@@ -8,8 +8,10 @@
 > entregue** (US-GOV-09 ✅ — carga por recorte: Markdown → árvore, com revisão e undo total), **S34
 > entregue** (`RichDoc`, editor de blocos próprio, plugado no inspector do componente) e **S35
 > entregue** (US-GOV-03 ✅/US-GOV-04 ✅/US-GOV-10 ✅ — tela do DB, workflow de 12 estados, fila de
-> aprovação e painel de pendências, docs/07 §19); S36–S39 planejadas · **DECs relacionadas**:
-> DEC-GOV-001 a DEC-GOV-032 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
+> aprovação e painel de pendências, docs/07 §19) e **S36 entregue** (US-GOV-05 ✅ parcial — vínculo
+> item ↔ rascunho, congelamento de ponta a ponta, publicação atômica do DB com vigência e rebase
+> explícito; a publicação **por release** é a S37); S37–S39 planejadas · **DECs relacionadas**:
+> DEC-GOV-001 a DEC-GOV-036 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
 >
@@ -23,7 +25,7 @@
 >
 > ```
 > 32a → 33a → 33b ✅ → ⟨ponto de parada: você constrói a política as-is e a gente ajusta a rota⟩
->   → 40 ✅ (opcional, por recorte) → 34 ✅ → 32b ✅ → 35 ✅ → 36 → 37/38 → 39
+>   → 40 ✅ (opcional, por recorte) → 34 ✅ → 32b ✅ → 35 ✅ → 36 ✅ → 37/38 → 39
 > ```
 >
 > O que só o Diário de Bordo consome (DB, release, grafo de estados, I25/I26) saiu da antiga S32 e
@@ -220,6 +222,34 @@ type ChangeRequestItem = {
 Para itens sobre componentes `MATRIX`, `draftVersionId` aponta um rascunho da **matriz** — o
 mecanismo de rascunho existente, sem duplicação.
 
+#### O vínculo item ↔ rascunho ✅ fechado na S36
+
+Comandos em `src/core/document/cr-drafts.ts` (`08-camada-de-comandos.md` §3), tela em
+`07-ux-e-editor.md` §19.5. Cinco regras, todas verificadas em tempo de comando:
+
+1. **Vincular cria ou adota.** `changeRequest/linkDraft` cria o rascunho quando ele não existe
+   (`componentVersion/createDraft` para componente, `version/createDraft` para matriz) ou **adota**
+   o que o analista já tinha começado — nunca um segundo rascunho, porque I29/I1 permitem um só por
+   componente/matriz. Ao adotar um rascunho de componente, o `changeRequestId` dele passa a apontar
+   o DB (I30).
+2. **Um rascunho pertence a no máximo um DB.** Em componente o vínculo é bilateral e a checagem
+   olha os dois lados; em matriz, que não tem o campo de volta (DEC-GOV-002), a exclusividade é
+   conferida varrendo os itens dos demais DBs. Violar é `INVALID_INPUT` com o código do outro DB.
+3. **`baseVersionId` é preenchido no vínculo** quando ainda estiver vazio: é ele que a detecção de
+   base desatualizada compara na hora de publicar (RN-GOV-02).
+4. **Desvincular não descarta.** `changeRequest/unlinkDraft` solta o vínculo e devolve o rascunho ao
+   componente (limpando o `changeRequestId`); descartar junto é o parâmetro explícito
+   `discardDraft`, que a interface só liga depois de a pessoa marcar a caixa no diálogo.
+5. **Item `CREATE` cria componente e rascunho juntos.** `changeRequest/createComponentItem` compõe
+   `component/create` + `changeRequest/addItem` + `changeRequest/linkDraft` numa transação só, com
+   um desfazer só. Fazer isso em três comandos separados deixaria — depois de um `Ctrl+Z` no
+   primeiro — um item de DB apontando um componente que não existe mais, o que quebra I30.
+
+Depois da publicação (§6, RN-GOV-05), `draftVersionId` **continua apontando a mesma versão**, que
+agora está `PUBLISHED`: é ele o lastro entre o que foi aprovado e o que entrou em vigor. A exigência
+de I30 se inverte nesse ponto — num DB `PUBLISHED`, item ainda em rascunho é que é erro
+(`03-modelo-do-documento.md` §9, I30).
+
 ### 3.4 Release ✅ fechada na S32b (schema na S32a)
 
 > Contrato normativo: **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §13**.
@@ -356,13 +386,22 @@ venha preenchido automaticamente da versão vigente.
   a S36, reusando `RichDocDiffView` (§18.5) para `spec`.
 - Aprovação **não** publica nada (RN-GOV-04) — o status segue para desenvolvimento.
 
-### US-GOV-05 — Publicar com vigência e release
+### US-GOV-05 — Publicar com vigência e release ✅ parcial (S36; release é a S37)
 **Como** analista, **quero** agrupar DBs aprovados numa release e publicá-la **para** que as novas
 versões entrem em vigor na data definida, de forma atômica.
 
-- Release lista seus DBs com status conjunto; publicar valida que todo item tem rascunho pronto.
-- Publicação aplica `effectiveFrom` de cada CR; falha em qualquer item aborta tudo (RN-GOV-05).
-- DB sem release pode ser publicado individualmente pelo mesmo mecanismo.
+- ✅ **DB sem release publica individualmente** (`changeRequest/publish`, S36) — e é este o mecanismo
+  que a release vai reutilizar em lote: publicar a release é rodar o mesmo plano para N DBs.
+- ✅ Publicar valida **todos** os itens antes de escrever qualquer coisa (rascunho presente e ainda
+  em rascunho, status na fila de publicação, vigência definida e coerente com a vigente de cada
+  item); falha em qualquer um aborta tudo com `E-GOV-04` e a lista completa (RN-GOV-05).
+- ✅ A publicação aplica o `effectiveFrom` do DB em **componentes e matrizes juntos**, numa operação
+  atômica no padrão de `import/apply` — publicação parcial é impossível por construção, não por
+  disciplina (DEC-GOV-034).
+- ✅ Base desatualizada exige **rebase explícito**: rever o comparativo contra a nova vigente e
+  reconfirmar item a item (`E-GOV-02`, RN-GOV-02). Nunca silencioso.
+- Release lista seus DBs com status conjunto e publica em lote — **S37**, sobre
+  `assessReleaseComposition` (já pronta desde a S32b) e o comando desta sessão.
 
 ### US-GOV-06 — Gerar o Pacote para a Fábrica
 **Como** analista, **quero** gerar o documento de especificação no padrão atual dos DBs **para**
@@ -433,10 +472,10 @@ Qualquer estado exceto PUBLISHED → CANCELLED
 
 - `SUBMITTED` exige: ≥1 motivador, ≥1 item com `proposedSummary`, vigência proposta (RN-GOV-03).
 - `CHANGES_REQUESTED` devolve a edição ao autor; o histórico de aprovação anterior permanece.
-- A partir de `APPROVED`, itens ficam **congelados** (I25): mudar o escopo exige voltar a `DRAFT`
-  via `CHANGES_REQUESTED` ou criar novo DB.
-- `PUBLISHED` é terminal e só é atingido pela publicação (individual ou por release), nunca por
-  mudança manual de status.
+- A partir de `APPROVED`, itens **e rascunhos vinculados** ficam **congelados** (I25): mudar o
+  escopo exige voltar a `DRAFT` via `CHANGES_REQUESTED` ou criar novo DB.
+- `PUBLISHED` é terminal e só é atingido pela publicação (individual — `changeRequest/publish`, S36
+  — ou por release, S37), nunca por mudança manual de status.
 
 ### 5.1 Como o grafo virou código (S32b)
 
@@ -445,7 +484,11 @@ Qualquer estado exceto PUBLISHED → CANCELLED
 impõe, a RN-GOV-03 ao entrar em `SUBMITTED`. Quatro leituras que o texto deixava implícitas:
 
 1. **`PUBLISHED` é inalcançável por `transition`.** A aresta `SCHEDULED → PUBLISHED` existe no
-  grafo, e é a publicação da S36 que a percorre; pedir a transição manualmente é `E-GOV-01`.
+  grafo, e é a publicação da S36 (`changeRequest/publish`) que a percorre; pedir a transição
+  manualmente é `E-GOV-01`. Publicar é aceito a partir de **`READY_FOR_RELEASE`** — os dois estados
+  de `RELEASE_READY_STATUSES` (§3.4): `SCHEDULED` é o DB que já tem data marcada numa release, e
+  exigir a passagem por ele antes de publicar um DB **sem** release seria burocracia sem release
+  para agendar.
 2. **`CANCELLED` é terminal.** "Qualquer estado exceto `PUBLISHED` → `CANCELLED`" descreve as
   arestas *de entrada*; cancelar de novo o que já está cancelado é `E-GOV-01`, não um no-op.
 3. **"status ≥ `APPROVED`" (I25/I30) é a ordem de `CrStatus`** como declarada em
@@ -472,15 +515,32 @@ impõe, a RN-GOV-03 ao entrar em `SUBMITTED`. Quatro leituras que o texto deixav
 
 - **RN-GOV-01** — Transições de status seguem exclusivamente o grafo do §5; toda transição grava
   evento com autor e data. Violação: `E-GOV-01`.
-- **RN-GOV-02** — Um DB tem 1..N itens; um componente não pode aparecer duas vezes no mesmo DB;
-  dois DBs abertos (status < APPROVED não conta) podem tocar o mesmo componente, mas a publicação
-  do segundo exige rebase explícito se a versão base mudou (`E-GOV-02`, mesma filosofia da
-  detecção de conflito de salvamento).
+- **RN-GOV-02** ✅ **completa na S36** — Um DB tem 1..N itens; um componente não pode aparecer duas
+  vezes no mesmo DB; dois DBs abertos (status < APPROVED não conta) podem tocar o mesmo componente,
+  mas a publicação do segundo exige rebase explícito se a versão base mudou (`E-GOV-02`, mesma
+  filosofia da detecção de conflito de salvamento). **Como o rebase acontece**: `changeRequest/publish`
+  compara `item.baseVersionId` com a versão vigente **no instante da publicação**; divergiu, recusa
+  com `E-GOV-02` e não escreve nada. A tela mostra o comparativo do rascunho contra a **nova**
+  vigente (não contra a base declarada — é essa a pergunta) e libera uma caixa de reconfirmação por
+  componente; publicar de novo passa os `componentId` reconfirmados, e a reconfirmação vale só para
+  aquela chamada. Reconfirmar **não** reescreve o rascunho: o conteúdo proposto é publicado como
+  está, por cima da nova vigente.
 - **RN-GOV-03** — Submeter exige motivador, itens completos e vigência proposta. `E-GOV-03`.
 - **RN-GOV-04** — **Aprovação não é publicação.** Aprovar apenas move o status; nenhuma versão
   muda de estado. A UI diz isso explicitamente.
-- **RN-GOV-05** — Publicação (de DB ou de release) é atômica: valida todos os rascunhos
-  vinculados, aplica `effectiveFrom`, publica tudo ou nada. `E-GOV-04` com a lista de pendências.
+- **RN-GOV-05** ✅ **implementada na S36 para o DB individual** (release é a S37) — Publicação (de DB
+  ou de release) é atômica: valida todos os rascunhos vinculados, aplica `effectiveFrom`, publica
+  tudo ou nada. `E-GOV-04` com a lista de pendências. O que a S36 fecha, item a item:
+  - **quem publica versão**: item `UPDATE`, `CREATE` ou `DOC_ONLY` **com rascunho vinculado**;
+  - **quem não publica versão, mas faz efeito**: `DEACTIVATE` arquiva o componente e `REACTIVATE` o
+    desarquiva, na mesma transação (`component/archive` / o interno que o desfaz);
+  - **quem não faz nada**: `MOVE` — a árvore já foi movida quando o analista a moveu; e
+    `DOC_ONLY`/`DEACTIVATE`/`REACTIVATE` sem rascunho. O diálogo de publicação diz isso em uma linha
+    por item, para ninguém procurar um efeito que não existe;
+  - **a vigência é a do DB** (`proposedEffectiveDate`), a mesma para todos os itens — não há data
+    por item, e mudá-la é editar o DB;
+  - **`PUBLISHED` é atingido só por aqui** (§5), e publicar é irreversível: o inverso é o comando
+    que falha com mensagem clara, como em `version/publish`.
 - **RN-GOV-06** — Nunca sobrescrita destrutiva: publicar versão N marca N−1 como `SUPERSEDED` com
   `effectiveTo = effectiveFrom(N)`; toda versão permanece consultável.
 - **RN-GOV-07** — Publicação direta de componente (sem DB) é permitida e carimbada como
@@ -506,8 +566,15 @@ impõe, a RN-GOV-03 ao entrar em `SUBMITTED`. Quatro leituras que o texto deixav
 - **I27** — Versões em `SECTION` são permitidas e opcionais; quando existirem, seguem exatamente o
   mesmo ciclo e as mesmas regras das demais (RN-GOV-06). Seção sem versões nunca aparece como
   "sem política vigente" nas consultas por data — ela é estrutura, não conteúdo.
-- **I25** — DB com status ≥ `APPROVED` tem itens imutáveis; `draftVersionId` de um item aponta
-  rascunho cujo `changeRequestId` é o próprio DB.
+- **I25** ✅ **completa na S36** — DB com status ≥ `APPROVED` tem itens imutáveis; `draftVersionId` de
+  um item aponta rascunho cujo `changeRequestId` é o próprio DB. **O congelamento alcança o
+  rascunho, não só o item** (`src/core/document/cr-freeze.ts`): a partir de `APPROVED`, editar
+  payload, especificação, células ou eixos de um rascunho vinculado é `E-GOV-01`, e descartá-lo
+  também. O que **não** é barrado é publicar aquele rascunho por fora do DB — isso continua sendo
+  publicação direta (RN-GOV-07), e a consequência aparece na hora certa: o item passa a apontar uma
+  versão que não é mais rascunho, e a publicação do DB recusa com `E-GOV-04` em vez de escrever por
+  cima (DEC-GOV-034). `CHANGES_REQUESTED` reabre tudo, item e rascunho, preservando o histórico de
+  aprovação.
 - **I26** — `ChangeRequest.code` e `Release.code` são únicos no documento e imutáveis após
   criação (mesma regra dos demais `code`).
 
@@ -540,7 +607,20 @@ impõe, a RN-GOV-03 ao entrar em `SUBMITTED`. Quatro leituras que o texto deixav
 >
 > **RN-GOV-06 e vigência retroativa**: publicar versão de componente **aceita** data no passado, ao
 > contrário das matrizes. É o que a RN-GOV-09 exige — a fundação cadastra regras que já vigoram — e
-> fecha a pergunta 4 do §12 para componentes (`03-modelo-do-documento.md` §12.1).
+> fecha a pergunta 4 do §12 para componentes (`03-modelo-do-documento.md` §12.1). **Na publicação do
+> DB (S36) cada entidade mantém a sua regra** (DEC-GOV-035): um DB só de componentes publica com
+> vigência retroativa; um DB com item de **matriz** e vigência no passado é recusado antes de
+> escrever qualquer coisa, com a pendência tipada `ITEM_EFFECTIVE_DATE_RETROACTIVE` dentro de
+> `E-GOV-04` — a saída é ajustar a vigência ou tirar a matriz do escopo. A ordem continua valendo
+> para os dois: a vigência nova precisa começar depois da vigente de cada item
+> (`ITEM_EFFECTIVE_DATE_ORDER`).
+>
+> **Os dois erros que faltavam ganharam emissor na S36**: `E-GOV-02` (`CR_BASE_VERSION_STALE`) e
+> `E-GOV-04` (`RELEASE_PUBLISH_BLOCKED`) são lançados por `changeRequest/publish`, que lê a
+> avaliação estática de `assessChangeRequestReadiness` (S32b) e a transforma em `DomainError` —
+> exatamente como `05-regras-de-negocio.md` §9.1 previa. A mesma avaliação, agora com o instante da
+> publicação, é o que a tela pinta **antes** de o usuário clicar
+> (`preflightChangeRequestPublish`).
 
 ## 7. Editor rico de especificação (`RichDoc`) ✅ entregue (S34)
 
@@ -674,11 +754,11 @@ Então  "Goodlist" tem v2 PUBLISHED com effectiveFrom 2026-09-01 e changeRequest
   E    v1 está SUPERSEDED com effectiveTo 2026-09-01
   E    a consulta da política em 2026-08-15 mostra v1; em 2026-09-02, v2
 ```
-✅ **Parcial pela tela desde a S35** (`tests/e2e/diario-de-bordo.spec.ts`): cobre DRAFT → SUBMITTED →
-IN_REVIEW → APPROVED pela interface, motivador, item com "hoje" vindo da versão vigente,
-"proposto", vigência e trilha completa. A parte `READY_FOR_RELEASE → publicado`/v2 do componente é
-S36 (publicação); o núcleo de comandos (sem tela) já é 100% testado desde a S32b
-(`tests/unit/core/document/change-requests.test.ts`).
+✅ **Completo na S36** (`tests/e2e/diario-de-bordo.spec.ts` de ponta a ponta pela tela, mais
+`tests/unit/core/document/cr-publish.test.ts` no núcleo): DRAFT → … → READY_FOR_RELEASE →
+**PUBLISHED**, com o rascunho vinculado, a v2 em vigor em 2026-09-01 carregando
+`changeRequestId = DB-515`, a v1 `SUPERSEDED` com `effectiveTo` casando, e a consulta por data
+devolvendo v1 em 2026-08-15 e v2 em 2026-09-02.
 
 ### CT-GOV-02 — Aprovação não publica (cobre US-04, RN-GOV-04)
 ```gherkin
@@ -698,6 +778,11 @@ Quando o usuário publica a release
 Então  a operação falha com E-GOV-04 listando a pendência do DB-519
   E    nenhuma versão de nenhum DB foi publicada
 ```
+✅ **Coberto no caso individual desde a S36** (`cr-publish.test.ts`): um DB com dois itens, um deles
+sem rascunho, falha com `E-GOV-04` apontando o item pendente, e o item que **estava** pronto continua
+sem publicar. O caso da release (N DBs) é a S37, que reusa o mesmo comando. Um segundo teste prova a
+atomicidade contra falha no meio do lote: com o segundo item quebrado (matriz com célula pendente,
+I6), o documento sai byte a byte igual ao que entrou.
 
 ### CT-GOV-04 — Item congelado após aprovação (cobre RN-GOV-01, I25)
 ```gherkin
@@ -706,6 +791,10 @@ Quando o autor tenta alterar o proposedSummary de um item
 Então  a operação falha com E-GOV-01
   E    devolver para CHANGES_REQUESTED reabre a edição preservando o histórico de aprovação
 ```
+✅ **Completo na S36** (`cr-drafts.test.ts`): além do item, o **rascunho vinculado** é testado nas
+quatro portas de edição — payload, especificação rica, células e eixos de matriz, e descarte —, todas
+recusando com `E-GOV-01`; a devolução por `CHANGES_REQUESTED` reabre e as `approvals` anteriores
+continuam lá. Devolver **a partir de** `APPROVED` continua fora do grafo (DEC-GOV-020).
 
 ### CT-GOV-05 — Carga inicial preserva origem (cobre US-09)
 ```gherkin
@@ -723,6 +812,12 @@ Quando o DB é publicado com vigência 2026-09-01
 Então  a versão da regra e a versão da matriz publicam juntas, ambas com a mesma vigência
   E    a timeline da matriz aponta o DB como origem
 ```
+✅ **Coberto na S36** (`cr-publish.test.ts`). Como `MatrixVersion` não tem `changeRequestId`
+(DEC-GOV-002), o vínculo com o DB na timeline da matriz é o **carimbo no evento** de publicação
+(`changeRequestId`/`changeRequestCode` no payload de `VERSION_PUBLISHED`/`VERSION_SUPERSEDED`) —
+mesma técnica do `importRunId` de `import/apply`. A nota da publicação da matriz, que
+`version/publish` exige com ao menos 10 caracteres, é derivada do DB (`Publicado pelo DB_515 — …`),
+nunca pedida de novo ao usuário.
 
 ## 11. Fora do escopo do épico
 
@@ -767,5 +862,7 @@ Então  a versão da regra e a versão da matriz publicam juntas, ambas com a me
 2. ~~**Papéis**~~ ✅ fechada acima.
 3. **Boilerplate do pacote** — o checklist Serasa muda com frequência? Se sim, versionar o
    `factoryTemplate` como as demais entidades; proposta atual é campo simples editável. (S38)
-4. **Vigência retroativa** — publicar com `effectiveFrom` no passado é permitido nas matrizes;
-   manter igual para componentes? Proposta: sim, com aviso. (S36)
+4. ~~**Vigência retroativa**~~ ✅ fechada na S36 — ver a nota do §6: **sim** para componente (é o que
+   a RN-GOV-09 exige), **não** para matriz (docs/05 §1.3 continua valendo), e a publicação do DB
+   avisa antes, na revisão, em vez de descobrir no meio do lote (DEC-GOV-035).
+

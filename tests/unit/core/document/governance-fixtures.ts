@@ -1,15 +1,24 @@
 import {
   addChangeRequestItem,
   createChangeRequest,
+  transitionChangeRequest,
   type CreateChangeRequestInput,
 } from '@/core/document/change-requests';
 import { createComponent } from '@/core/document/components';
-import type { PolicyOpsDocument } from '@/core/document/schema';
+import { linkChangeRequestDraft } from '@/core/document/cr-drafts';
+import type { CrStatus, PolicyOpsDocument } from '@/core/document/schema';
 import {
   createComponentDraft,
   publishComponentVersion,
 } from '@/core/versioning/component-lifecycle';
-import { apply, baseDocument, createTestMatrix, IDS, type TestCtx } from '../versioning/fixtures';
+import {
+  apply,
+  baseDocument,
+  createTestMatrix,
+  fillAllCells,
+  IDS,
+  type TestCtx,
+} from '../versioning/fixtures';
 
 /**
  * Cenário-base do épico Governança, montado **pelos próprios comandos** (nunca
@@ -84,7 +93,9 @@ export function politica(ctx: TestCtx): GovernanceScenario {
   document = novaRegra.document;
 
   const matriz = createTestMatrix(document, ctx, 'MTZ_CORTE');
-  document = matriz.document;
+  // Rascunho de matriz **publicável**: I6 exige zero combinações pendentes, e
+  // a publicação por DB (S36) não afrouxa nenhuma regra de `version/publish`.
+  document = fillAllCells(matriz.document, ctx, matriz.data.versionId);
 
   const espelho = apply(
     document,
@@ -150,4 +161,59 @@ export function dbSubmetivel(
     }),
   );
   return { document: comItem.document, changeRequestId: criado.changeRequestId };
+}
+
+/**
+ * A cadeia inteira do grafo (docs/14 §5) até `to`, pelos comandos de transição
+ * — decisão de aprovação incluída como transição simples, porque quem testa
+ * `approvals` é o teste da decisão, não este atalho.
+ */
+export const CAMINHO_ATE_PUBLICAR: readonly CrStatus[] = [
+  'SUBMITTED',
+  'IN_REVIEW',
+  'APPROVED',
+  'IN_DEVELOPMENT',
+  'IN_VALIDATION',
+  'READY_FOR_RELEASE',
+];
+
+export function avancarAte(
+  doc: PolicyOpsDocument,
+  ctx: TestCtx,
+  changeRequestId: string,
+  to: CrStatus,
+): PolicyOpsDocument {
+  let document = doc;
+  for (const status of CAMINHO_ATE_PUBLICAR) {
+    document = apply(document, ctx, transitionChangeRequest({ changeRequestId, to: status })).document;
+    if (status === to) break;
+  }
+  return document;
+}
+
+/**
+ * O DB-515 do CT-GOV-01 pronto para publicar: item `UPDATE` sobre a Goodlist
+ * com rascunho vinculado e o DB em `READY_FOR_RELEASE`.
+ */
+export function dbPublicavel(
+  doc: PolicyOpsDocument,
+  ctx: TestCtx,
+  componentId: string,
+  proposta = 'Aprova só se o valor do pedido for menor ou igual ao limite em lista.',
+): { document: PolicyOpsDocument; changeRequestId: string; draftVersionId: string } {
+  const comItem = dbSubmetivel(doc, ctx, componentId);
+  const vinculado = apply(
+    comItem.document,
+    ctx,
+    linkChangeRequestDraft({
+      changeRequestId: comItem.changeRequestId,
+      componentId,
+      payload: { kind: 'RULE', businessDescription: proposta },
+    }),
+  );
+  return {
+    document: avancarAte(vinculado.document, ctx, comItem.changeRequestId, 'READY_FOR_RELEASE'),
+    changeRequestId: comItem.changeRequestId,
+    draftVersionId: vinculado.data.draftVersionId,
+  };
 }

@@ -8,6 +8,7 @@ import type {
   RichDoc,
 } from '../document/schema';
 import { DomainError } from '../errors';
+import { assertLinkedDraftEditable } from '../document/cr-freeze';
 import { assertChangeRequestOpen } from '../document/cr-workflow';
 import { locateChangeRequest } from '../document/change-requests';
 import {
@@ -92,8 +93,10 @@ type TargetLocation =
 function locateTarget(doc: PolicyOpsDocument, target: RichDocTarget): TargetLocation {
   if (target.kind === 'COMPONENT_VERSION_SPEC') {
     const { version, componentIndex, versionIndex } = locateComponentVersion(doc, target.versionId);
-    // Especificação é conteúdo de versão: só se edita em rascunho (I3).
+    // Especificação é conteúdo de versão: só se edita em rascunho (I3) e
+    // enquanto o DB que a vinculou não estiver congelado (I25, S36).
     assertComponentVersionEditable(version);
+    assertLinkedDraftEditable(doc, version.id, version.changeRequestId);
     return { kind: target.kind, componentIndex, versionIndex };
   }
   const { changeRequest, index } = locateChangeRequest(doc, target.changeRequestId);

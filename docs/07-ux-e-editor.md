@@ -580,7 +580,7 @@ ficam fora por padrão. O diff é **por bloco**, sem realce dentro do parágrafo
 diff entre o rascunho e a versão vigente; a S36/S39 reusam a mesma peça para "hoje × proposto" e
 para a fotografia histórica.
 
-## 19. Diário de Bordo — DB, fila e pendências (épico Governança — S35 ✅)
+## 19. Diário de Bordo — DB, fila e pendências (épico Governança — S35 ✅/S36 ✅)
 
 Contrato do modelo em `14-governanca-de-alteracoes.md` §3.3/§4/§5; `src/components/change-requests/`.
 Uma `View` própria (`'change-requests'`, hash `#/db`), item fixo da barra lateral com o mesmo
@@ -649,13 +649,16 @@ decisão (nunca `changeRequest/transition` puro, docs/14 §5.1 item 4):
 - **Demais estados não terminais**: botão genérico "Mover para `<estado>`" por transição permitida
   — inclusive a cadeia `IN_DEVELOPMENT → IN_VALIDATION → READY_FOR_RELEASE → SCHEDULED`, que não
   depende de nenhuma feature da S36+ (são transições puras do grafo).
-- **"Publicar"**: um botão sempre **desabilitado**, com tooltip "Vincular rascunhos e publicar
-  chega na S36.", visível a partir de `SUBMITTED` e enquanto o DB não estiver fechado — o único
-  lugar da tela que toca publicação, deliberadamente fora de alcance nesta sessão.
+- **"Publicar"** (S36): habilitado a partir de `READY_FOR_RELEASE` (os dois estados de
+  `RELEASE_READY_STATUSES`), abrindo `PublishChangeRequestDialog` (§19.5). Antes disso o botão
+  aparece **desabilitado**, com tooltip dizendo em que estado o DB está e a partir de qual ele
+  publica — desabilitar sem explicar é o que faz o usuário procurar o botão em outro lugar.
 - **"Cancelar DB"**: quando `CANCELLED` está entre as transições permitidas, com confirmação
   (`ConfirmDialog`).
 - Itens ficam desabilitados a partir de `APPROVED` (I30, `isChangeRequestFrozen`) — os campos
-  continuam visíveis, só param de aceitar edição; "Adicionar item"/"Remover item" somem.
+  continuam visíveis, só param de aceitar edição; "Adicionar item"/"Remover item" somem, e com eles
+  (S36) "Vincular rascunho" e "Desvincular". O que **não** some é "Ver rascunho" e o comparativo: um
+  DB aprovado continua sendo lido, e é justamente aí que o gestor confere o que aprovou.
 
 A trilha (`ChangeRequestEventLog`) lista `changeRequest.events` mais recente primeiro, ícone por
 tipo de evento (só os cinco `CR_*` chegam ali, DEC-GOV-019) e "ver dados" para o `payload` bruto —
@@ -673,3 +676,47 @@ vazias. Um checkbox "Só as minhas" filtra por `requestedBy`/`owner`/autor de al
 batendo com o nome digitado (`useActor`) — texto fixo no painel deixa explícito que isso é filtro,
 não controle de acesso: papéis são declarativos e qualquer pessoa vê e age sobre qualquer DB
 (DEC-GOV-004). Clicar numa linha abre o DB direto no detalhe (mesma navegação de §19.1).
+
+### 19.5 Vínculo do rascunho e publicação (S36)
+
+O item do DB ganhou uma faixa própria (`ChangeRequestItemRow`), abaixo do "hoje × proposto", com o
+**rascunho vinculado** — o conteúdo exato que vai entrar em vigor, em oposição ao texto do
+"proposto", que é a intenção declarada. Os dois convivem de propósito: um é a promessa, o outro é o
+que está escrito no rascunho.
+
+- **Badge de estado**: "Vinculado" ou "Sem rascunho". Sem rascunho, uma linha explica o que aquilo
+  significa **para aquele tipo de alteração** — pendência que trava a publicação em `UPDATE`/`CREATE`
+  (`E-GOV-04`), esperado em `MOVE`/`DEACTIVATE`/`REACTIVATE`, opcional em `DOC_ONLY`.
+- **"Vincular rascunho"** dispara `changeRequest/linkDraft`: cria ou adota o rascunho e abre o
+  comparativo. Em componente sem versão nenhuma (o caso do item `CREATE`), o texto do "proposto" vira
+  a descrição de negócio da v1 — o rascunho precisa nascer com conteúdo, e digitar duas vezes a mesma
+  frase é trabalho que o produto não deve pedir.
+- **"Editar rascunho"** navega para onde ele se edita de verdade: a árvore da política (§17) para
+  componente, o grid (§4) para matriz. Nada de um segundo editor dentro do DB.
+- **"Desvincular"** abre `UnlinkDraftDialog`, que existe por uma regra só: **desvincular não descarta
+  sem confirmação** (docs/14 §3.3). O padrão é soltar e deixar o trabalho no componente; descartar é
+  uma caixa a marcar, e o botão muda de rótulo e de cor quando ela está marcada.
+- **"Ver atual × proposto"** abre `ChangeRequestItemDiff`, o comparativo rico de US-GOV-08: diff de
+  payload **campo a campo** (rótulos em pt-BR, mesmo vocabulário de badge do diff de matriz), diff da
+  especificação **por bloco** (`RichDocDiffView` da §18.5, sem alteração) e — para item de espelho
+  `MATRIX` — um botão que leva à tela de comparação de versões (§9) com o par já escolhido, porque
+  matriz não se compara em lista de campos.
+
+**Publicar** (`PublishChangeRequestDialog`) é o espelho fiel da validação do núcleo, e não uma
+segunda opinião sobre ela:
+
+1. **O plano**: uma linha por item dizendo o que vai acontecer — "Publica a versão 2", "Arquiva o
+   componente", "Sem efeito na publicação". Item que não faz nada aparece dizendo isso, em vez de
+   sumir e deixar a dúvida.
+2. **As pendências** (`E-GOV-04`): a lista inteira num alerta, e o botão travado. A mesma lista que o
+   comando devolveria — o usuário não descobre uma por vez.
+3. **A base desatualizada** (`E-GOV-02`): um cartão por componente, com "Rever contra a nova
+   vigente" — que abre o comparativo do rascunho contra a versão que **passou a ser** a vigente, não
+   contra a base declarada — e uma caixa de reconfirmação que só habilita depois de o comparativo ter
+   sido aberto. É uma decisão por item, nunca um "confirmar tudo".
+4. **A vigência não se edita aqui**: é a do DB, e mudá-la é editar o DB. O diálogo diz a data e
+   lembra que publicar não pode ser desfeito.
+
+Publicado, o DB vira `PUBLISHED` (estado final), a trilha ganha "publicou a solicitação …", e a
+timeline de cada componente afetado passa a mostrar o DB como origem da versão nova — em matriz, pelo
+carimbo no evento de publicação (docs/14 §10, CT-GOV-06).

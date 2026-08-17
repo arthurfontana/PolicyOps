@@ -31,6 +31,7 @@ import type {
   MatrixVersion,
   PolicyOpsDocument,
 } from '../document/schema';
+import { assertLinkedDraftEditable } from '../document/cr-freeze';
 import { DomainError } from '../errors';
 import { buildSeedCells, type SkippedSeedRule } from '../templates/seed';
 
@@ -873,6 +874,9 @@ export function discardDraft(input: DiscardDraftInput): Command<DiscardDraftInpu
     execute(doc, ctx) {
       const { matrix, matrixIndex, version, versionIndex } = locateVersion(doc, input.versionId);
       assertDraft(version);
+      // I25: descartar o rascunho que um DB congelado aprovou é edição de
+      // escopo, não mudança de estado (S36, `src/core/document/cr-freeze.ts`).
+      assertLinkedDraftEditable(doc, version.id);
 
       const editedCells = Object.keys(version.cells).length;
       const archivedAt = isoFrom(ctx.now());

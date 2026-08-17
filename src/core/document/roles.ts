@@ -73,6 +73,10 @@ const PUBLISHER_COMMANDS: ReadonlySet<string> = new Set([
   // Carga por recorte (S40, docs/14 §9): a primeira versão de cada linha
   // nasce PUBLISHED direto — mesmo critério de `import/apply`.
   'component/importMarkdown',
+  // Publicação do DB (S36, docs/14 §5): aprovar é `EDITOR` porque aprovar não
+  // publica (RN-GOV-04); **publicar** muda a política vigente, e é aqui que o
+  // épico Governança encosta na linha do `PUBLISHER` (docs/08 §6).
+  'changeRequest/publish',
 ]);
 
 const ADMIN_COMMANDS: ReadonlySet<string> = new Set(['acl/set']);
