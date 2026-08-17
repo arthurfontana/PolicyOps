@@ -29,6 +29,12 @@ export {
 export { changedFields, countStructuralCombinations, diffCells } from './cells';
 export { diffAxis, stacksMatch } from './axes';
 export { diffVersionPair, versionRef, type DiffContext, type VersionSide } from './versions';
+export {
+  diffComponentPayloads,
+  type ComponentPayloadDiff,
+  type PayloadFieldChange,
+  type PayloadFieldChangeKind,
+} from './component-payload';
 
 export function diffVersions(
   doc: PolicyOpsDocument,

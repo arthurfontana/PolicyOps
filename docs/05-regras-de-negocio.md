@@ -89,6 +89,15 @@ Efeitos:
 
 **Publicação retroativa é proibida.** Agendamento futuro é permitido: a versão fica `PUBLISHED` com `effectiveFrom` no futuro, e a consulta de vigência continua correta porque é sempre baseada no intervalo, nunca no estado.
 
+> **Publicar pelo Diário de Bordo (S36)** não afrouxa nada disto. `changeRequest/publish`
+> (`14-governanca-de-alteracoes.md` §3.3, RN-GOV-05) **compõe** `version/publish` para cada item de
+> matriz do DB, com a vigência do DB e uma nota derivada dele (`Publicado pelo DB_515 — …`, sempre
+> acima do mínimo de 10 caracteres). As seis validações acima valem igual — inclusive a proibição de
+> retroativa, que é o que separa matriz de componente: `componentVersion/publish` **aceita** data no
+> passado (RN-GOV-09), `version/publish` não, e cada entidade mantém a sua regra (DEC-GOV-035). Um DB
+> com vigência retroativa **e** item de matriz é recusado inteiro na validação prévia, com
+> `RELEASE_PUBLISH_BLOCKED` (`E-GOV-04`) — nunca no meio do lote.
+
 ### 1.4 `discardDraft(doc, versionId, actor)`
 
 `state = ARCHIVED`, `archivedAt`, evento `DRAFT_DISCARDED`. O `number` **é queimado** — a próxima versão pula. Intencional: número de versão nunca se reutiliza.
@@ -548,18 +557,23 @@ release e, com eles, os erros de workflow:
 | Rótulo | `DomainErrorCode` | Quando acontece | Emissor |
 |---|---|---|---|
 | `E-GOV-01` | `CR_TRANSITION_INVALID` | Transição de status fora do grafo de §5 de `docs/14`, ou tentativa de mexer em item de DB já congelado (I30) | **S32b** ✅ |
-| `E-GOV-02` | `CR_BASE_VERSION_STALE` | A versão vigente do componente mudou depois que o item foi escrito: publicar exige rebase explícito (RN-GOV-02) | S36 (a S32b só **avalia**, ver abaixo) |
+| `E-GOV-02` | `CR_BASE_VERSION_STALE` | A versão vigente do componente mudou depois que o item foi escrito: publicar exige rebase explícito (RN-GOV-02) | **S36** ✅ (`changeRequest/publish`) |
 | `E-GOV-03` | `CR_INCOMPLETE` | Submeter sem motivador, sem item com `proposedSummary` ou sem vigência proposta (RN-GOV-03) | **S32b** ✅ |
-| `E-GOV-04` | `RELEASE_PUBLISH_BLOCKED` | Publicação de DB ou release abortada inteira por pendência em algum item (RN-GOV-05) — nada é publicado | S36 (a S32b entrega a lista de pendências) |
+| `E-GOV-04` | `RELEASE_PUBLISH_BLOCKED` | Publicação de DB ou release abortada inteira por pendência em algum item (RN-GOV-05) — nada é publicado | **S36** ✅ no DB individual (release: S37) |
 | `E-GOV-05` | `ATTACHMENT_TOO_LARGE` | Imagem embutida acima do teto de 300 KB (`03-modelo-do-documento.md` §8.1) | S34 |
 | `E-GOV-06` | `COMPONENT_CODE_DUPLICATE` | `PolicyComponent.code` repetido no mesmo projeto (I28). É o que a carga por recorte usa para impedir o mesmo capítulo de entrar duas vezes | **S32a** ✅ |
 
-**Os dois que continuam sem emissor são os dois que dependem de publicar.** `E-GOV-02` e `E-GOV-04`
-só fazem sentido no momento em que alguém manda publicar, e publicar é a S36/S37. O que a S32b
-entrega no lugar é a **avaliação estática**: `assessReleaseComposition` (`src/core/document/releases.ts`)
-devolve, sem lançar nada, a lista tipada de pendências de cada DB da release — inclusive
-`ITEM_BASE_STALE` (a base defasada de `E-GOV-02`) e `ITEM_WITHOUT_DRAFT` (a pendência de
-`E-GOV-04`). A S36 lê essa lista e a transforma no `DomainError` correspondente.
+**Os dois últimos ganharam emissor na S36**, que é quando publicar passou a existir.
+`changeRequest/publish` (`src/core/document/cr-publish.ts`) lê a mesma **avaliação estática** que a
+S32b entregou — `assessReleaseComposition`/`assessChangeRequestReadiness`
+(`src/core/document/releases.ts`), que devolve a lista tipada de pendências sem lançar nada — e a
+transforma em `DomainError`: `ITEM_BASE_STALE` vira `E-GOV-02` (tem tratamento próprio: rever o diff
+contra a nova vigente e reconfirmar), e **todo o resto** vira `E-GOV-04` com a lista completa numa
+mensagem só. A S36 acrescentou à avaliação duas pendências de **data**, que só existem quando o
+instante da publicação é conhecido: `ITEM_EFFECTIVE_DATE_RETROACTIVE` (vigência no passado num item
+de matriz, §1.3) e `ITEM_EFFECTIVE_DATE_ORDER` (vigência que não começa depois da vigente daquele
+item). A mesma função alimenta a tela **antes** do clique (`preflightChangeRequestPublish`), então o
+usuário vê a lista em vez de descobrir uma pendência por vez.
 
 **O que a S32b reusa do catálogo geral**, em vez de inventar código novo: `DUPLICATE_CODE` (`code`
 de DB ou de release repetido — I31), `CATALOG_REF_MISSING` (motivador ou categoria de impacto fora

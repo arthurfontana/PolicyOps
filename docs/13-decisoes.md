@@ -1081,3 +1081,42 @@ real.
 | **Por quê** | Nenhuma das duas perguntas escondia uma decisão de schema ou de comando pendente — eram, na prática, "confirma que o caminho mais simples já é suficiente?". Confirmado pelos dois: campo livre com sugestão resolve numeração sem inventar reserva de sequência; identidade existente (nome digitado/login capturado) resolve "quem decidiu o quê" sem inventar autenticação. |
 | **Custo aceito** | Sem cadastro de pessoas, a fila do gestor (US-GOV-04) não sabe filtrar "os DBs atribuídos a mim" além do texto livre de `owner`/`requestedBy`/autor de decisão batendo com o nome digitado (`useActor`) — aceito, porque um cadastro real exigiria o mesmo tipo de infraestrutura de identidade que DEC-GOV-004 já recusou. |
 | **Páginas afetadas** | `14-governanca-de-alteracoes.md` §12; `08-camada-de-comandos.md` §6 (já refletia a decisão, sem cross-reference); `07-ux-e-editor.md` §19.1/§19.4 |
+
+---
+
+## DEC-GOV-034: congelamento (I25) barra edição do rascunho vinculado, não a publicação dele
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A partir de `APPROVED`, o rascunho que um item do DB aponta fica somente leitura: `componentVersion/update`, `componentVersion/discardDraft`, `richdoc/apply` sobre a especificação da versão, `version/applyCellPatch(es)`, os comandos de `axis/*` e `version/discardDraft` chamam `assertLinkedDraftEditable` (`src/core/document/cr-freeze.ts`) e recusam com `CR_TRANSITION_INVALID` (`E-GOV-01`). **Publicar aquele rascunho por fora do DB continua permitido** — é publicação direta (RN-GOV-07) —, e a inconsistência resultante aparece na hora certa: o item passa a apontar uma versão que não é mais rascunho, `assessChangeRequestReadiness` a reporta como `ITEM_DRAFT_NOT_DRAFT`, e `changeRequest/publish` recusa o DB inteiro com `E-GOV-04` em vez de escrever por cima. |
+| **Data / gatilho** | 2026-08-17, implementação da S36. O enunciado da sessão pede "itens e rascunhos vinculados somente leitura a partir de `APPROVED`", e a primeira leitura literal incluiria publicar. |
+| **Alternativas** | (a) barrar também a publicação do rascunho vinculado — exigiria uma exceção para o próprio `changeRequest/publish`, que publica exatamente esses rascunhos a partir de `READY_FOR_RELEASE`, um estado **já congelado** pela ordem de `CR_STATUSES`; a guarda teria de saber "quem está chamando", o que a camada de comandos não tem (e não deveria ter, `08-camada-de-comandos.md` §1); (b) congelar por um flag no documento — inventaria estado paralelo ao status do DB, que já é a fonte da verdade. |
+| **Por quê** | O congelamento existe para que **o que foi aprovado seja o que será publicado**. Editar o conteúdo depois da aprovação quebra isso em silêncio; publicá-lo por fora não quebra — muda o *como*, não o *quê*, e deixa rastro em dois lugares (a timeline marca "publicação direta", e o DB passa a acusar pendência). Barrar o caminho que não corrompe custaria uma exceção no núcleo; deixá-lo aberto custa uma frase de documentação. |
+| **Custo aceito** | Um usuário `PUBLISHER` pode publicar direto o rascunho de um DB aprovado e, com isso, travar a publicação daquele DB até alguém vincular outro rascunho. É recuperável (desvincular e vincular de novo, ou criar DB novo) e visível (a pendência é tipada e aparece no diálogo antes do clique) — ao contrário do que aconteceria se a publicação sobrescrevesse. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §5, §6 (I25); `08-camada-de-comandos.md` §3; `src/core/document/cr-freeze.ts`, `src/core/versioning/*`, `src/core/richdoc/commands.ts` |
+
+---
+
+## DEC-GOV-035: vigência retroativa na publicação do DB — cada entidade mantém a sua regra
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Fecha a pergunta 4 de `14-governanca-de-alteracoes.md` §12. Publicar um DB com `proposedEffectiveDate` no passado é **permitido** quando todos os itens são de componente (é o que a RN-GOV-09 exige — a fundação cadastra regras que já vigoram) e **recusado** quando há item de espelho `MATRIX` no escopo, porque `version/publish` proíbe retroativa desde a sessão 5 (`05-regras-de-negocio.md` §1.3). A recusa acontece na validação prévia, como pendência tipada (`ITEM_EFFECTIVE_DATE_RETROACTIVE`) dentro de `E-GOV-04`, com a saída explícita: ajustar a vigência ou tirar a matriz do escopo. A ordem entre versões continua valendo para os dois tipos (`ITEM_EFFECTIVE_DATE_ORDER`). |
+| **Data / gatilho** | 2026-08-17, implementação da S36 — a pergunta estava marcada "(S36)" desde a revisão de UX de 2026-08-14, e o §6 já a tinha fechado **para componentes** na S33b sem tratar o caso misto. |
+| **Alternativas** | (a) o caminho do DB relaxar a regra da matriz e aceitar retroativa em tudo — mudaria uma norma de matriz (docs/05 §1.3) que existe desde a S05 e vale para 100+ matrizes reais, para atender um caso que a fundação já resolve por outro caminho; (b) proibir retroativa em qualquer DB, componente incluído — contraria a RN-GOV-09 e tornaria impossível registrar por DB uma mudança que já entrou em vigor, que é exatamente o histórico que a área quer parar de reconstruir de memória. |
+| **Por quê** | A assimetria não é acidente de implementação, é o modelo: matriz é decisão operacional que o motor consome e cuja vigência retroativa reescreveria o passado de decisões já tomadas; componente é documentação versionada da política, e a fundação **precisa** declarar que a regra vale desde antes de a ferramenta existir. Uniformizar por baixo perderia a fundação; uniformizar por cima perderia a garantia da matriz. Mantendo cada regra, o único caso ambíguo — o DB misto — vira uma pergunta clara na tela, antes de qualquer escrita. |
+| **Custo aceito** | Um DB que mistura regra e matriz não consegue registrar vigência passada; o usuário separa em dois DBs ou usa a data de hoje. É o preço de não afrouxar a garantia da matriz, e o diálogo de publicação diz isso na revisão, não no meio do lote. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §6, §12; `05-regras-de-negocio.md` §1.3, §9.1; `src/core/document/releases.ts`, `src/core/document/cr-publish.ts` |
+
+---
+
+## DEC-GOV-036: o `draftVersionId` do item sobrevive à publicação — e I30 se inverte ali
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Publicar o DB **não** limpa `ChangeRequestItem.draftVersionId`: o item continua apontando a mesma versão, que passou de `DRAFT` a `PUBLISHED`. A invariante I30 (`03-modelo-do-documento.md` §9) passa a ler o campo conforme o status do DB — enquanto ele não publicou, a versão apontada precisa estar em `DRAFT`; num DB `PUBLISHED`, precisa **não** estar. Na mesma linha, `changeRequest/createComponentItem` compõe `component/create` + `addItem` + `linkDraft` numa transação com um desfazer só. |
+| **Data / gatilho** | 2026-08-17, implementação da S36: com o campo limpo na publicação, o documento perderia o vínculo entre o que foi aprovado e o que entrou em vigor; sem a inversão de I30, o documento publicado ficaria inválido em `validateDocument` (ERROR), o que bloquearia `prepareSave` (`06-persistencia-e-concorrencia.md` §4). |
+| **Alternativas** | (a) limpar o campo ao publicar — o DB publicado viraria uma lista de textos sem lastro, e a pergunta "qual versão exatamente este DB colocou em vigor?" voltaria a ser arqueologia, que é o problema que o épico existe para resolver (§1); (b) acrescentar um `publishedVersionId` ao lado — campo novo no schema para guardar o mesmo id que já está lá, mais uma migração, e duas fontes para o mesmo fato; (c) criar o componente do item `CREATE` em três comandos separados na interface — desfazer o primeiro deixaria um item apontando componente inexistente, quebrando I30 pelo lado das referências. |
+| **Por quê** | O item é o registro do que foi aprovado; a versão publicada é o que valeu. Quando são o mesmo objeto, o lastro é estrutural em vez de textual — e é o que a S37 (release), a S38 (pacote) e a S39 (fotografia) vão ler para dizer "esta versão veio deste DB". A leitura de I30 dependente do status é honesta: o campo não mudou de significado, mudou o momento do ciclo de vida em que ele é lido. |
+| **Custo aceito** | O nome `draftVersionId` fica impreciso depois da publicação — trocá-lo exigiria migração de schema para um ganho puramente cosmético, então fica o nome e fica a nota, aqui e em I30. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3.3; `03-modelo-do-documento.md` §9 (I30); `src/core/document/{cr-drafts,cr-publish,validate}.ts` |

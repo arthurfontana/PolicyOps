@@ -1736,7 +1736,20 @@ export function checkI30(doc: PolicyOpsDocument): ValidationIssue[] {
         });
         return;
       }
-      if (draft.state !== 'DRAFT') {
+      // Depois de publicado (S36), o vínculo do item deixa de apontar um
+      // rascunho e passa a apontar **a versão que entrou em vigor** — é ele o
+      // lastro entre o que foi aprovado e o que valeu. A exigência se inverte:
+      // num DB `PUBLISHED`, item ainda em `DRAFT` é que é erro.
+      if (cr.status === 'PUBLISHED') {
+        if (draft.state === 'DRAFT') {
+          issues.push({
+            severity: 'ERROR',
+            invariant: 'I30',
+            path: `${path}.draftVersionId`,
+            message: `A solicitação "${cr.code}" está publicada, mas o item "${component.code}" aponta a versão ${draft.number}, que continua em rascunho.`,
+          });
+        }
+      } else if (draft.state !== 'DRAFT') {
         issues.push({
           severity: 'ERROR',
           invariant: 'I30',

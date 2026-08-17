@@ -1399,6 +1399,9 @@ describe('listChangeRequests', () => {
     expect(
       listChangeRequests(db999.document, { componentId: cena.goodlistId }).map((cr) => cr.code),
     ).toEqual(['DB_515']);
+    // Componente que nenhum DB toca: o filtro exclui os dois, inclusive o que
+    // não tem item nenhum.
+    expect(listChangeRequests(db999.document, { componentId: cena.novaRegraId })).toEqual([]);
     expect(listChangeRequests(db999.document, { search: 'valor do pedido' }).map((cr) => cr.code)).toEqual([
       'DB_515',
     ]);
@@ -1483,6 +1486,12 @@ describe('getChangeRequestPendingSummary (US-GOV-10)', () => {
     expect(summary.awaitingReview.map((cr) => cr.code)).toEqual(['DB_1']);
     expect(summary.returned.map((cr) => cr.code)).toEqual(['DB_2']);
     expect(summary.approvedWithoutRelease.map((cr) => cr.code)).toEqual(['DB_3']);
+
+    // Escopado por projeto, o painel mostra as mesmas três filas: os itens
+    // dos três DBs são do mesmo projeto (docs/14 §19.4).
+    const doProjeto = getChangeRequestPendingSummary(document, IDS.projectA);
+    expect(doProjeto.awaitingReview.map((cr) => cr.code)).toEqual(['DB_1']);
+    expect(getChangeRequestPendingSummary(document, IDS.projectB).awaitingReview).toEqual([]);
   });
 
   it('aprovado com release vinculada some da lista de "sem release"', () => {

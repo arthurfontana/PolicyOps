@@ -37,6 +37,7 @@ import type {
 import { DomainError } from '../errors';
 import { computeResnapshot, type ResnapshotPlan } from '../reconcile/resnapshot';
 import { getAxisStaleness } from '../reconcile/stale';
+import { assertLinkedDraftEditable } from '../document/cr-freeze';
 import { assertEditable, locateVersion, resolveLevel, versionScope } from './lifecycle';
 
 /**
@@ -140,6 +141,7 @@ function restoreAxis(input: RestoreAxisInput, label: string): Command<RestoreAxi
     execute(doc) {
       const { matrixIndex, version, versionIndex } = locateVersion(doc, input.versionId);
       assertEditable(version);
+      assertLinkedDraftEditable(doc, version.id);
       const previous: RestoreAxisInput = {
         versionId: input.versionId,
         role: input.role,
@@ -200,6 +202,7 @@ export function addLevelCommand(
     execute(doc, ctx) {
       const { matrix, matrixIndex, version, versionIndex } = locateVersion(doc, input.versionId);
       assertEditable(version);
+      assertLinkedDraftEditable(doc, version.id);
 
       const ref = input.label === undefined
         ? { variableId: input.variableId }
@@ -272,6 +275,7 @@ export function removeLevelCommand(
     execute(doc, ctx) {
       const { matrix, matrixIndex, version, versionIndex } = locateVersion(doc, input.versionId);
       assertEditable(version);
+      assertLinkedDraftEditable(doc, version.id);
 
       const snapshot = snapshotOf(version, input.role, input.versionId);
 
@@ -340,6 +344,7 @@ export function reorderLevelsCommand(
     execute(doc, ctx) {
       const { matrix, matrixIndex, version, versionIndex } = locateVersion(doc, input.versionId);
       assertEditable(version);
+      assertLinkedDraftEditable(doc, version.id);
 
       const snapshot = snapshotOf(version, input.role, input.versionId);
       const applied = reorderAxisLevels(version, input.role, {
@@ -483,6 +488,7 @@ export function suppressTuplesCommand(
     execute(doc, ctx) {
       const { matrix, matrixIndex, version, versionIndex } = locateVersion(doc, input.versionId);
       assertEditable(version);
+      assertLinkedDraftEditable(doc, version.id);
       assertNonEmptyPaths(input.paths);
 
       const axis = axisOf(version, input.role);
@@ -540,6 +546,7 @@ export function restoreTuplesCommand(
     execute(doc, ctx) {
       const { matrix, matrixIndex, version, versionIndex } = locateVersion(doc, input.versionId);
       assertEditable(version);
+      assertLinkedDraftEditable(doc, version.id);
       assertNonEmptyPaths(input.paths);
 
       const axis = axisOf(version, input.role);
@@ -619,6 +626,7 @@ export function resnapshotAxisCommand(
       const { matrix, matrixIndex, version, versionIndex } = locateVersion(doc, input.versionId);
       // 1. Primeiro, sempre.
       assertEditable(version);
+      assertLinkedDraftEditable(doc, version.id);
 
       const staleness = getAxisStaleness(doc, axisOf(version, input.role));
       if (!staleness.stale) {

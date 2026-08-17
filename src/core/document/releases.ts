@@ -355,7 +355,11 @@ export type ReleaseBlockerKind =
   | 'CR_WITHOUT_EFFECTIVE_DATE'
   | 'ITEM_WITHOUT_DRAFT'
   | 'ITEM_DRAFT_NOT_DRAFT'
-  | 'ITEM_BASE_STALE';
+  | 'ITEM_BASE_STALE'
+  /** Vigência do DB no passado num item de **matriz** (docs/05 §1.3, S36). */
+  | 'ITEM_EFFECTIVE_DATE_RETROACTIVE'
+  /** Vigência do DB anterior (ou igual) à da versão vigente daquele item. */
+  | 'ITEM_EFFECTIVE_DATE_ORDER';
 
 export type ReleaseBlocker = {
   kind: ReleaseBlockerKind;
@@ -388,6 +392,17 @@ export function listReleaseChangeRequests(doc: PolicyOpsDocument, releaseId: str
   return doc.changeRequests.filter((cr) => cr.releaseId === releaseId);
 }
 
+export type AssessOptions = {
+  /**
+   * Instante da publicação. Presente, as checagens de **data** entram na
+   * avaliação: vigência retroativa em item de matriz e vigência fora de ordem
+   * (S36). Ausente, a avaliação continua sendo a estática da S32b — é o que a
+   * tela de composição da release usa quando ainda não há data de publicação
+   * em jogo.
+   */
+  at?: Date;
+};
+
 /**
  * Avaliação **estática** da release: o que já dá para publicar e o que falta.
  * Não escreve nada e não lança — release inexistente é `NOT_FOUND` por
@@ -397,9 +412,15 @@ export function listReleaseChangeRequests(doc: PolicyOpsDocument, releaseId: str
  * (`UPDATE`/`CREATE`); `DOC_ONLY`, `MOVE`, `DEACTIVATE` e `REACTIVATE` não
  * carregam rascunho de conteúdo (docs/14 §3.3).
  */
-export function assessReleaseComposition(doc: PolicyOpsDocument, releaseId: string): ReleaseComposition {
+export function assessReleaseComposition(
+  doc: PolicyOpsDocument,
+  releaseId: string,
+  options: AssessOptions = {},
+): ReleaseComposition {
   const { release } = locateRelease(doc, releaseId);
-  const entries = listReleaseChangeRequests(doc, release.id).map((cr) => assessChangeRequest(doc, cr));
+  const entries = listReleaseChangeRequests(doc, release.id).map((cr) =>
+    assessChangeRequest(doc, cr, options),
+  );
   const blockers = entries.flatMap((entry) => entry.blockers);
   return {
     releaseId: release.id,
@@ -415,11 +436,16 @@ export function assessReleaseComposition(doc: PolicyOpsDocument, releaseId: stri
 export function assessChangeRequestReadiness(
   doc: PolicyOpsDocument,
   changeRequest: ChangeRequest,
+  options: AssessOptions = {},
 ): ReleaseCompositionEntry {
-  return assessChangeRequest(doc, changeRequest);
+  return assessChangeRequest(doc, changeRequest, options);
 }
 
-function assessChangeRequest(doc: PolicyOpsDocument, cr: ChangeRequest): ReleaseCompositionEntry {
+function assessChangeRequest(
+  doc: PolicyOpsDocument,
+  cr: ChangeRequest,
+  options: AssessOptions = {},
+): ReleaseCompositionEntry {
   const blockers: ReleaseBlocker[] = [];
   const blocker = (kind: ReleaseBlockerKind, message: string, componentId?: string): void => {
     blockers.push({
@@ -473,10 +499,10 @@ function assessChangeRequest(doc: PolicyOpsDocument, cr: ChangeRequest): Release
     }
 
     // RN-GOV-02: a base mudou desde que o item foi escrito, então publicar
-    // exigiria rebase explícito — que é da S36. Aqui isso é só um aviso de
-    // composição, nunca uma escrita.
+    // exige rebase explícito (`E-GOV-02`, S36) — rever o diff contra a nova
+    // vigente e reconfirmar. Aqui isso é avaliação, nunca escrita.
+    const publishedNow = versions.find((version) => version.state === 'PUBLISHED');
     if (item.baseVersionId !== undefined) {
-      const publishedNow = versions.find((version) => version.state === 'PUBLISHED');
       if (publishedNow !== undefined && publishedNow.id !== item.baseVersionId) {
         blocker(
           'ITEM_BASE_STALE',
@@ -484,6 +510,34 @@ function assessChangeRequest(doc: PolicyOpsDocument, cr: ChangeRequest): Release
           item.componentId,
         );
       }
+    }
+
+    // Checagens de data (S36): só entram quando o instante da publicação é
+    // conhecido. As duas antecipam, na revisão, o que os comandos de publicar
+    // recusariam depois — e é o que impede a publicação de morrer no meio do
+    // lote em vez de nem começar.
+    if (options.at === undefined || cr.proposedEffectiveDate === undefined) continue;
+    const effectiveFrom = cr.proposedEffectiveDate;
+
+    // Componente aceita vigência retroativa (RN-GOV-09); matriz não (docs/05
+    // §1.3). Cada entidade mantém a sua regra — DEC-GOV-035.
+    if (
+      component?.type === 'MATRIX' &&
+      new Date(effectiveFrom).getTime() < options.at.getTime()
+    ) {
+      blocker(
+        'ITEM_EFFECTIVE_DATE_RETROACTIVE',
+        `A vigência ${effectiveFrom} da solicitação "${cr.code}" é retroativa, e matriz não publica no passado — ajuste a vigência ou tire "${label}" do escopo.`,
+        item.componentId,
+      );
+    }
+
+    if (publishedNow?.effectiveFrom !== undefined && effectiveFrom <= publishedNow.effectiveFrom) {
+      blocker(
+        'ITEM_EFFECTIVE_DATE_ORDER',
+        `A vigência ${effectiveFrom} da solicitação "${cr.code}" não começa depois de ${publishedNow.effectiveFrom}, início da versão vigente de "${label}".`,
+        item.componentId,
+      );
     }
   }
 
