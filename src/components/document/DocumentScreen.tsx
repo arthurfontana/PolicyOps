@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { renameDocument } from '@/core/document/commands';
+import { ChangeRequestPendingPanel } from '@/components/change-requests/ChangeRequestPendingPanel';
 import { formatDateTimeBR } from '@/lib/format';
 import { useDocumentStore } from '@/store/document-store';
 import { usePersistenceStore } from '@/store/persistence-store';
@@ -156,6 +157,8 @@ export function DocumentScreen() {
           </div>
         </CardContent>
       </Card>
+
+      <ChangeRequestPendingPanel document={document} />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <SummaryTile label="Variáveis" value={document.variables.length} />

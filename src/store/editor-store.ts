@@ -109,6 +109,13 @@ interface EditorState {
    * navegação de documento.
    */
   selectedComponentId: string | null;
+  /**
+   * DB selecionado na tela do Diário de Bordo (docs/07 §19) — `null` mostra a
+   * lista. Mesmo raciocínio de `selectedComponentId`: fica aqui porque
+   * referencia um id do documento, e `reset()` zera junto ao trocar de
+   * arquivo.
+   */
+  selectedChangeRequestId: string | null;
   /** Matriz e versão abertas na tela de matriz — `null` é o estado vazio. */
   currentMatrixId: string | null;
   currentVersionId: string | null;
@@ -177,6 +184,7 @@ interface EditorState {
 
   setSelectedProject: (projectId: string | null) => void;
   setSelectedComponent: (componentId: string | null) => void;
+  setSelectedChangeRequest: (changeRequestId: string | null) => void;
   openMatrix: (matrixId: string, versionId: string | null) => void;
   setVersion: (versionId: string) => void;
   closeMatrix: () => void;
@@ -216,6 +224,7 @@ interface EditorState {
 export const useEditorStore = create<EditorState>((set, get) => ({
   selectedProjectId: null,
   selectedComponentId: null,
+  selectedChangeRequestId: null,
   currentMatrixId: null,
   currentVersionId: null,
   zoom: 1,
@@ -236,6 +245,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSelectedProject: (projectId) => set({ selectedProjectId: projectId, selectedComponentId: null }),
 
   setSelectedComponent: (componentId) => set({ selectedComponentId: componentId }),
+
+  setSelectedChangeRequest: (changeRequestId) => set({ selectedChangeRequestId: changeRequestId }),
 
   // Abrir outra matriz ou outra versão troca o conjunto de tuplas: manter a
   // seleção apontaria para combinações que não existem no novo grid.
@@ -286,6 +297,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({
       selectedProjectId: null,
       selectedComponentId: null,
+      selectedChangeRequestId: null,
       currentMatrixId: null,
       currentVersionId: null,
       zoom: 1,

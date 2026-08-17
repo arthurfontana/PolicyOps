@@ -579,3 +579,97 @@ ficam fora por padrão. O diff é **por bloco**, sem realce dentro do parágrafo
 (DEC-GOV-029). No inspector do componente, o botão **Comparar com a publicada** troca o editor pelo
 diff entre o rascunho e a versão vigente; a S36/S39 reusam a mesma peça para "hoje × proposto" e
 para a fotografia histórica.
+
+## 19. Diário de Bordo — DB, fila e pendências (épico Governança — S35 ✅)
+
+Contrato do modelo em `14-governanca-de-alteracoes.md` §3.3/§4/§5; `src/components/change-requests/`.
+Uma `View` própria (`'change-requests'`, hash `#/db`), item fixo da barra lateral com o mesmo
+padrão visual de "Rascunhos" (badge com a contagem de `awaitingReview`, §19.3) — não uma sub-rota
+de `ProjectDetail`, porque a fila de aprovação (US-GOV-04) cruza projetos e a lista document-wide já
+resolve o filtro "por projeto" (§19.1) sem precisar herdar a árvore de 360px.
+
+### 19.1 Lista de DBs
+
+`ChangeRequestsScreen`: busca por código/título, `Select` de projeto/status/prioridade e um
+`Combobox` de componente — os quatro filtros passam direto para `listChangeRequests`
+(`src/core/document/change-requests.ts`), que deriva "projeto do DB" dos componentes dos itens
+(`ChangeRequest` não guarda `projectId`, DEC-GOV-032). Cada linha mostra código, título, badge de
+status (uma cor por estado, `src/lib/change-request-labels.ts`), prioridade e solicitante; clicar
+abre o detalhe no lugar da lista (`editor-store.selectedChangeRequestId`, mesmo padrão de
+`selectedComponentId`). **A fila de aprovação (US-GOV-04) é esta mesma lista**, filtrada por status
+`SUBMITTED`/`IN_REVIEW`: abrir qualquer DB nesse filtro já mostra a especificação completa e as
+ações de decisão (§19.3) — não existe uma segunda tela.
+
+### 19.2 Criar e editar
+
+"Novo DB" abre um diálogo mínimo — título e código, sugerido sequencialmente a partir do maior
+`DB_<n>` do documento e sempre editável (I26, `suggestNextChangeRequestCode`, DEC-GOV-032) — e nasce
+em `DRAFT`. O resto entra no detalhe (`ChangeRequestDetail`), sem wizard: motivadores primeiro,
+depois itens, impactos, critérios, testes e vigência — a ordem do fluxo é a ordem vertical da tela,
+não passos de um assistente:
+
+- **Motivadores**: `CatalogChipPicker` — escolher entre `CatalogItem` de kind `MOTIVATOR` ou criar
+  inline, mesmo padrão de `ComponentTagsEditor` (S23) generalizado sem grupo.
+- **Itens**: "Adicionar item" abre `AddChangeRequestItemDialog` (busca sobre `filterComponentTree`
+  do projeto — mesmo esqueleto de busca+lista clicável de `AddMatrixNodeDialog`, §17.2), filtrado
+  pelos componentes que ainda não estão no DB (RN-GOV-02). Ao escolher, `currentSummary` nasce do
+  `businessDescription` da versão vigente (`getComponentCurrentSummary`, `src/core/queries.ts`) —
+  ou "Não existe — sem versão vigente hoje." sem versão —, `changeType` nasce `UPDATE`/`CREATE`
+  conforme houver versão vigente, e `proposedSummary` nasce com o placeholder "A definir." (o
+  schema exige não-vazio: um item nunca entra sem texto algum, mesmo que ainda por editar) — o
+  analista edita os três campos por blur em `ChangeRequestItemRow`. Antes do primeiro item, um
+  `Select` de projeto escopa a busca (estado só de UI — o DB em si não guarda projeto, §19.1); a
+  partir do primeiro item, o projeto trava no dele.
+- **Impactos/critérios/testes**: `ImpactsEditor`/`AcceptanceCriteriaEditor`/`TestScenariosEditor`
+  — linha em digitação fica **fora** do array até os campos obrigatórios estarem preenchidos
+  (`given`/`then` do critério, `kind`/`description` do teste, `category` do impacto), porque
+  `changeRequest/update` não valida conteúdo campo a campo — quem impede string vazia é a tela.
+  Categoria de impacto usa o mesmo catálogo/criação inline dos motivadores, mas como `Select` (uma
+  só por linha, não multi-chip).
+- **Motivação e especificação**: `RichDocEditor` (§18) nos dois campos — `RichDocTarget` ganhou
+  `CR_MOTIVATION`/`CR_SPEC` (`src/core/richdoc/commands.ts`, extensão prevista desde a S34,
+  DEC-GOV-032), editável enquanto o DB não estiver fechado (mesmo critério de
+  `changeRequest/update`, não o congelamento de itens de I30 — motivação/especificação continuam
+  editáveis depois de `APPROVED`, só param em `PUBLISHED`/`REJECTED`/`CANCELLED`).
+
+### 19.3 Workflow na tela
+
+Os botões de transição vêm de `allowedTransitions(status)` (`src/core/document/cr-workflow.ts`,
+grafo de docs/14 §5), um por destino — exceto o trio de `IN_REVIEW`, que usa sempre os comandos de
+decisão (nunca `changeRequest/transition` puro, docs/14 §5.1 item 4):
+
+- **`DRAFT`**: um aviso lista o que falta para `SUBMITTED` (`missingForSubmit`, RN-GOV-03) sempre
+  que houver pendência; "Submeter" fica visível de qualquer forma — clicar sem tudo pronto volta o
+  erro `E-GOV-03` pronto do catálogo (`src/core/error-messages.ts`) num toast, em vez de travar o
+  botão silenciosamente.
+- **`IN_REVIEW`**: três botões — Aprovar / Devolver / Rejeitar — abrem `DecisionDialog`, com
+  comentário **obrigatório só na devolução** (US-GOV-04) e o aviso de RN-GOV-04 ("aprovar não
+  publica nada") sempre visível no corpo do diálogo de aprovação e, depois, como alerta permanente
+  quando o status é `APPROVED`.
+- **Demais estados não terminais**: botão genérico "Mover para `<estado>`" por transição permitida
+  — inclusive a cadeia `IN_DEVELOPMENT → IN_VALIDATION → READY_FOR_RELEASE → SCHEDULED`, que não
+  depende de nenhuma feature da S36+ (são transições puras do grafo).
+- **"Publicar"**: um botão sempre **desabilitado**, com tooltip "Vincular rascunhos e publicar
+  chega na S36.", visível a partir de `SUBMITTED` e enquanto o DB não estiver fechado — o único
+  lugar da tela que toca publicação, deliberadamente fora de alcance nesta sessão.
+- **"Cancelar DB"**: quando `CANCELLED` está entre as transições permitidas, com confirmação
+  (`ConfirmDialog`).
+- Itens ficam desabilitados a partir de `APPROVED` (I30, `isChangeRequestFrozen`) — os campos
+  continuam visíveis, só param de aceitar edição; "Adicionar item"/"Remover item" somem.
+
+A trilha (`ChangeRequestEventLog`) lista `changeRequest.events` mais recente primeiro, ícone por
+tipo de evento (só os cinco `CR_*` chegam ali, DEC-GOV-019) e "ver dados" para o `payload` bruto —
+mesmo esqueleto visual do histórico de versão de matriz (`VersionHistoryDialog`), sem o dropdown de
+filtro (a trilha é de um DB só, não do documento inteiro).
+
+### 19.4 Painel de pendências (US-GOV-10)
+
+`ChangeRequestPendingPanel`, na tela do documento (`DocumentScreen`) — "ao abrir o documento" do
+enunciado da história é a tela que aparece assim que o arquivo carrega, não uma tela nova. Três
+filas (`getChangeRequestPendingSummary`, `src/core/document/change-requests.ts`): **aguardando
+revisão** (`SUBMITTED`/`IN_REVIEW`), **devolvidos** (`CHANGES_REQUESTED`) e **aprovados sem
+release** (passou de `APPROVED`, não fechou, sem `releaseId`). O painel some quando as três estão
+vazias. Um checkbox "Só as minhas" filtra por `requestedBy`/`owner`/autor de alguma decisão
+batendo com o nome digitado (`useActor`) — texto fixo no painel deixa explícito que isso é filtro,
+não controle de acesso: papéis são declarativos e qualquer pessoa vê e age sobre qualquer DB
+(DEC-GOV-004). Clicar numa linha abre o DB direto no detalhe (mesma navegação de §19.1).

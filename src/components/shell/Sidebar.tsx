@@ -1,5 +1,6 @@
 import { Fragment, type ComponentType } from 'react';
 import {
+  BookOpenCheck,
   CalendarClock,
   Columns3,
   FolderKanban,
@@ -16,6 +17,7 @@ import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
 import { useEffectiveRole } from '@/hooks/useRole';
 import { isOpenMode } from '@/core/document/roles';
+import { getChangeRequestPendingSummary } from '@/core/document/change-requests';
 import { listMatrices, listOpenDrafts, listProjects, resolveOpenVersion, sidebarTreeAnchors } from '@/core/queries';
 import type { PolicyComponent } from '@/core/document/schema';
 import { COMPONENT_TYPE_ICONS } from '@/lib/component-labels';
@@ -36,6 +38,7 @@ const LIBRARY_ITEMS: NavItem[] = [
 ];
 
 const BOTTOM_ITEMS: NavItem[] = [
+  { view: 'change-requests', label: 'Diário de Bordo', icon: BookOpenCheck, implemented: true },
   { view: 'templates', label: 'Templates', icon: LayoutTemplate, implemented: true },
   { view: 'timeline', label: 'Vigência', icon: CalendarClock, implemented: true },
   { view: 'drafts', label: 'Rascunhos', icon: PencilLine, implemented: true },
@@ -246,6 +249,8 @@ export function Sidebar() {
   const role = useEffectiveRole();
   const openDraftCount = document === null ? 0 : listOpenDrafts(document).length;
   const boardCount = useEditorStore((s) => s.boardItems.length);
+  const changeRequestPendingCount =
+    document === null ? 0 : getChangeRequestPendingSummary(document).awaitingReview.length;
 
   return (
     <nav aria-label="Navegação principal" className="flex h-full flex-col gap-4 overflow-y-auto p-3">
@@ -267,7 +272,15 @@ export function Sidebar() {
             item={item}
             isActive={view === item.view}
             onClick={() => setView(item.view)}
-            count={item.view === 'drafts' ? openDraftCount : item.view === 'board' ? boardCount : undefined}
+            count={
+              item.view === 'drafts'
+                ? openDraftCount
+                : item.view === 'board'
+                  ? boardCount
+                  : item.view === 'change-requests'
+                    ? changeRequestPendingCount
+                    : undefined
+            }
           />
         ))}
         {/*

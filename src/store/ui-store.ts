@@ -21,7 +21,8 @@ export type View =
   | 'compare'
   | 'board'
   | 'import'
-  | 'acl';
+  | 'acl'
+  | 'change-requests';
 
 export type Theme = 'light' | 'dark';
 
@@ -43,6 +44,7 @@ export const HASH_BY_VIEW: Record<View, string> = {
   board: '#/board',
   import: '#/import',
   acl: '#/acl',
+  'change-requests': '#/db',
 };
 
 const VIEW_BY_HASH: Partial<Record<string, View>> = Object.fromEntries(

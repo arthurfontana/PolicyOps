@@ -42,7 +42,7 @@ Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
 | 33a | [x] | [S33a-arvore-da-politica.md](S33a-arvore-da-politica.md) | `Sonnet` | Árvore da política: esqueleto navegável, nós MATRIX, facetas (depende de 32a) — **lote 2: esqueleto** |
 | 33b | [x] | [S33b-cadastro-de-regras.md](S33b-cadastro-de-regras.md) | `Sonnet` | Cadastro por tipo, versionamento com vigência, entrada em volume (depende de 33a) — **lote 3: conteúdo** |
 | 34 | [x] | [S34-editor-rico.md](S34-editor-rico.md) | `Opus` | Editor rico de blocos, anexos de imagem, diff por bloco (depende de 32a) |
-| 35 | [ ] | [S35-solicitacao-e-workflow.md](S35-solicitacao-e-workflow.md) | `Sonnet` | Solicitação de Alteração (DB), workflow, fila e pendências (depende de 32b, 33b e 34) |
+| 35 | [x] | [S35-solicitacao-e-workflow.md](S35-solicitacao-e-workflow.md) | `Sonnet` | Solicitação de Alteração (DB), workflow, fila e pendências (depende de 32b, 33b e 34) |
 | 36 | [ ] | [S36-vinculo-e-publicacao.md](S36-vinculo-e-publicacao.md) | `Opus` | Vínculo DB↔rascunhos, congelamento, publicação atômica (depende de 35) |
 | 37 | [ ] | [S37-release-e-timeline.md](S37-release-e-timeline.md) | `Sonnet` | Release de política e timeline do Diário de Bordo (depende de 36) |
 | 38 | [ ] | [S38-pacote-fabrica.md](S38-pacote-fabrica.md) | `Sonnet` | Pacote para a Fábrica: HTML imprimível + Markdown (depende de 36) |

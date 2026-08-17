@@ -4,10 +4,12 @@
 > **S32b entregue** (DB, release e workflow, sem tela), **S33a entregue** (árvore como tela do
 > projeto, US-GOV-01 ✅ parcial — CRUD estrutural, busca, filtros e ergonomia de volume),
 > **S33b entregue** (US-GOV-01 ✅ completa e US-GOV-02 ✅ — payload por tipo, ciclo de vida na
-> tela, vigência da fundação e "Publicar pendentes", entrada em volume por colagem) e
-> **S40 entregue** (US-GOV-09 ✅ — carga por recorte: Markdown → árvore, com revisão e undo total);
-> S34–S39 planejadas · **DECs relacionadas**:
-> DEC-GOV-001 a DEC-GOV-027 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
+> tela, vigência da fundação e "Publicar pendentes", entrada em volume por colagem), **S40
+> entregue** (US-GOV-09 ✅ — carga por recorte: Markdown → árvore, com revisão e undo total), **S34
+> entregue** (`RichDoc`, editor de blocos próprio, plugado no inspector do componente) e **S35
+> entregue** (US-GOV-03 ✅/US-GOV-04 ✅/US-GOV-10 ✅ — tela do DB, workflow de 12 estados, fila de
+> aprovação e painel de pendências, docs/07 §19); S36–S39 planejadas · **DECs relacionadas**:
+> DEC-GOV-001 a DEC-GOV-032 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
 >
@@ -21,11 +23,13 @@
 >
 > ```
 > 32a → 33a → 33b ✅ → ⟨ponto de parada: você constrói a política as-is e a gente ajusta a rota⟩
->   → 40 ✅ (opcional, por recorte) → 34 → 32b → 35 → 36 → 37/38 → 39
+>   → 40 ✅ (opcional, por recorte) → 34 ✅ → 32b ✅ → 35 ✅ → 36 → 37/38 → 39
 > ```
 >
 > O que só o Diário de Bordo consome (DB, release, grafo de estados, I25/I26) saiu da antiga S32 e
-> virou a **S32b**, pré-requisito da S35.
+> virou a **S32b**, pré-requisito da S35. A S35 é quem dá tela a esse núcleo — nenhum comando novo,
+> só a integração com `richdoc/` (extensão de `RichDocTarget`, prevista desde a S34) e as consultas
+> de listagem/pendências que faltavam em `src/core/document/change-requests.ts`.
 
 ## 1. Contexto e problema
 
@@ -325,22 +329,31 @@ motor está descrita no texto de cada componente (`07-ux-e-editor.md` §17).
   `src/core/versioning/rule-paste.ts`) — sem parser de Markdown. Duplicar componente (`Ctrl/Cmd+D`,
   S33a) já copia o payload da versão mais recente como rascunho 1 da cópia.
 
-### US-GOV-03 — Criar uma Solicitação de Alteração
+### US-GOV-03 — Criar uma Solicitação de Alteração ✅ (S35)
 **Como** analista, **quero** criar um DB selecionando componentes na árvore **para** que o "hoje"
 venha preenchido automaticamente da versão vigente.
 
-- Fluxo: motivadores → componentes (1..N) → tipo de alteração por item → atual × proposto →
-  impactos → critérios de aceite → testes → vigência proposta → submeter.
-- Ao adicionar um item, `currentSummary` é preenchido da versão vigente (editável); para item
-  `CREATE`, o "hoje" é "não existe".
-- Um DB pode misturar tipos de componente (regra + reason code + matriz), como o DB-519 real.
+- ✅ Fluxo: motivadores → componentes (1..N) → tipo de alteração por item → atual × proposto →
+  impactos → critérios de aceite → testes → vigência proposta → submeter — tela única
+  (`ChangeRequestDetail`), sem wizard: a ordem do fluxo é a ordem vertical da tela (docs/07 §19.2).
+- ✅ Ao adicionar um item, `currentSummary` é preenchido da versão vigente (editável,
+  `getComponentCurrentSummary`); para item sem versão vigente (`CREATE` é o caso típico), o "hoje" é
+  "não existe".
+- ✅ Um DB pode misturar tipos de componente (regra + reason code + matriz), como o DB-519 real —
+  `AddChangeRequestItemDialog` não filtra por tipo.
 
-### US-GOV-04 — Aprovar, devolver ou rejeitar
+### US-GOV-04 — Aprovar, devolver ou rejeitar ✅ (S35)
 **Como** gestor, **quero** uma fila de solicitações submetidas com comparação atual × proposto
 **para** decidir com contexto e deixar a decisão registrada.
 
-- Fila filtra por status, prioridade, projeto e componente; abre a especificação completa.
-- Decisão grava `{by, at, decision, comment}`; devolução exige comentário.
+- ✅ Fila filtra por status, prioridade, projeto e componente; abre a especificação completa — é a
+  mesma lista de DBs (`ChangeRequestsScreen`, docs/07 §19.1), filtrada para `SUBMITTED`/`IN_REVIEW`,
+  não uma tela própria: qualquer DB nesse filtro já abre com atual × proposto por item e as três
+  ações de decisão.
+- ✅ Decisão grava `{by, at, decision, comment}`; devolução exige comentário — `DecisionDialog`
+  desabilita o botão de confirmar até haver texto quando a decisão é `RETURNED` (docs/07 §19.3).
+  **Atual × proposto nesta sessão é texto a texto** (`ChangeRequestItemRow`); diff rico por bloco é
+  a S36, reusando `RichDocDiffView` (§18.5) para `spec`.
 - Aprovação **não** publica nada (RN-GOV-04) — o status segue para desenvolvimento.
 
 ### US-GOV-05 — Publicar com vigência e release
@@ -396,12 +409,17 @@ política inteira de uma vez. Detalhe no §9.
   publicar é irreversível por natureza, então o undo do lote não compõe os inversos genéricos como
   `import/apply` faz).
 
-### US-GOV-10 — Pendências ao abrir
+### US-GOV-10 — Pendências ao abrir ✅ (S35)
 **Como** gestor, **quero** ver ao abrir o documento o que espera minha ação **para** que o fluxo
 ande sem notificações externas (que não existem sem servidor).
 
-- Painel "Pendências": submetidos aguardando revisão, devolvidos ao autor, aprovados sem release,
-  releases com data próxima/vencida. Filtrável por "meu nome".
+- ✅ Painel "Pendências" (`ChangeRequestPendingPanel`, na tela do documento — docs/07 §19.4):
+  submetidos aguardando revisão, devolvidos ao autor, aprovados sem release. Filtrável por "meu
+  nome" (`requestedBy`/`owner`/autor de uma decisão) — texto fixo no painel deixa explícito que
+  isso é filtro de conveniência, não controle de acesso (DEC-GOV-004).
+- "Releases com data próxima/vencida" fica para a S37, quando a tela de release existir — hoje o
+  painel não tem o que mostrar ali (`Release.plannedDate` existe no schema desde a S32a, mas nada
+  ainda lê/agrupa DBs por release na interface).
 
 ## 5. Workflow da Solicitação (RN-GOV-01) ✅ fechado na S32b
 
@@ -656,6 +674,11 @@ Então  "Goodlist" tem v2 PUBLISHED com effectiveFrom 2026-09-01 e changeRequest
   E    v1 está SUPERSEDED com effectiveTo 2026-09-01
   E    a consulta da política em 2026-08-15 mostra v1; em 2026-09-02, v2
 ```
+✅ **Parcial pela tela desde a S35** (`tests/e2e/diario-de-bordo.spec.ts`): cobre DRAFT → SUBMITTED →
+IN_REVIEW → APPROVED pela interface, motivador, item com "hoje" vindo da versão vigente,
+"proposto", vigência e trilha completa. A parte `READY_FOR_RELEASE → publicado`/v2 do componente é
+S36 (publicação); o núcleo de comandos (sem tela) já é 100% testado desde a S32b
+(`tests/unit/core/document/change-requests.test.ts`).
 
 ### CT-GOV-02 — Aprovação não publica (cobre US-04, RN-GOV-04)
 ```gherkin
@@ -664,6 +687,9 @@ Quando o gestor aprova
 Então  o status vira APPROVED, o rascunho permanece DRAFT
   E    a versão vigente do componente não mudou
 ```
+✅ **Coberto pela tela desde a S35** (mesmo spec do CT-GOV-01 acima): depois de aprovar, o item
+continua congelado mas visível, o banner de RN-GOV-04 aparece na tela, e o documento salvo confirma
+que a versão publicada da Goodlist continua só a v1 — nenhuma v2 nasceu.
 
 ### CT-GOV-03 — Publicação atômica de release (cobre US-05, RN-GOV-05)
 ```gherkin
@@ -718,11 +744,27 @@ Então  a versão da regra e a versão da matriz publicam juntas, ambas com a me
 > carga na trilha antecipada (**sim**), carga por recorte com destino (**sim, opcional, S40**).
 > O que foi **adiado com registro** está em §3.6.
 
-1. **Numeração dos DBs** — seguir a sequência atual da área (DB-520 em diante) ou reiniciar?
-   Proposta: campo livre com sugestão sequencial a partir do maior número existente. (S35)
-2. **Papéis** — vale a pena um cadastro leve de pessoas (nome + papel declarado) para preencher a
-   fila do gestor, ou o nome livre atual basta? Proposta: nome livre + papel escolhido por sessão
-   de uso, sem cadastro. (S35)
+> **Fechadas na implementação da S35** (DEC-GOV-032):
+>
+> 1. **Numeração dos DBs** — a proposta foi implementada como estava: campo livre (`code`), com
+>    sugestão sequencial a partir do maior `DB_<n>` já existente no documento
+>    (`suggestNextChangeRequestCode`), sempre editável antes de confirmar a criação — inclusive para
+>    "reiniciar" a numeração da área ou seguir de onde a lista em Word parou, basta digitar por
+>    cima da sugestão. Não há reserva nem trava de sequência: dois documentos que nunca se tocaram
+>    podem sugerir o mesmo número, e é o `code` único no documento (I31) que resolve colisão na hora
+>    de confirmar.
+> 2. **Papéis** — resolvida a favor do "nome livre basta", e mais: nem um cadastro leve chegou a ser
+>    necessário, porque a resposta já estava implementada desde a S32b sem que este documento
+>    tivesse sido atualizado para registrá-la (`08-camada-de-comandos.md` §6 — "aprovar um DB é
+>    `EDITOR`, não `PUBLISHER`"). Todo o workflow do DB, aprovação incluída, usa o mesmo mecanismo
+>    de identidade do resto do produto (`savedBy`, ADR-003): o carimbo em `approvals[].by` é o nome
+>    digitado (ou o login capturado pelo servidor local), sem papel específico de "aprovador" no
+>    motor de `src/core/document/roles.ts`. A tela (`ChangeRequestPendingPanel`, docs/07 §19.4)
+>    declara isso explicitamente para que ninguém suponha um controle de acesso que não existe
+>    (DEC-GOV-004).
+
+1. ~~**Numeração dos DBs**~~ ✅ fechada acima.
+2. ~~**Papéis**~~ ✅ fechada acima.
 3. **Boilerplate do pacote** — o checklist Serasa muda com frequência? Se sim, versionar o
    `factoryTemplate` como as demais entidades; proposta atual é campo simples editável. (S38)
 4. **Vigência retroativa** — publicar com `effectiveFrom` no passado é permitido nas matrizes;
