@@ -4,12 +4,15 @@ import {
   approveChangeRequest,
   cancelChangeRequest,
   createChangeRequest,
+  getChangeRequestPendingSummary,
+  listChangeRequests,
   listChangeRequestsForComponent,
   locateChangeRequest,
   rejectChangeRequest,
   removeChangeRequestItem,
   returnChangeRequest,
   setChangeRequestRelease,
+  suggestNextChangeRequestCode,
   transitionChangeRequest,
   updateChangeRequest,
   updateChangeRequestItem,
@@ -19,7 +22,7 @@ import { createComponentDraft } from '@/core/versioning/component-lifecycle';
 import { publishVersion } from '@/core/versioning/lifecycle';
 import type { ChangeRequest, PolicyOpsDocument } from '@/core/document/schema';
 import { validateDocument } from '@/core/document/validate';
-import { apply, expectFailure, fillAllCells, testCtx, type TestCtx } from '../versioning/fixtures';
+import { apply, baseDocument, expectFailure, fillAllCells, IDS, testCtx, type TestCtx } from '../versioning/fixtures';
 import {
   criarDb,
   dbSubmetivel,
@@ -1350,5 +1353,149 @@ describe('changeRequest/setRelease', () => {
       }),
       'CR_TRANSITION_INVALID',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Consultas — lista, numeração sugerida e pendências (S35)
+// ---------------------------------------------------------------------------
+
+describe('suggestNextChangeRequestCode (I26)', () => {
+  it('sugere DB_1 quando não há nenhum DB no documento', () => {
+    expect(suggestNextChangeRequestCode(baseDocument())).toBe('DB_1');
+  });
+
+  it('sugere o maior número + 1, ignorando código fora do padrão DB_<n>', () => {
+    const ctx = testCtx();
+    const cena = cenario(ctx);
+    let document = criarDb(cena.document, ctx, { code: 'DB_515' }).document;
+    document = criarDb(document, ctx, { code: 'DB_519' }).document;
+    document = criarDb(document, ctx, { code: 'ALTERACAO_FORA_DO_PADRAO' }).document;
+
+    expect(suggestNextChangeRequestCode(document)).toBe('DB_520');
+  });
+});
+
+describe('listChangeRequests', () => {
+  it('filtra por projeto derivado do componente do item, status, prioridade, componente e busca', () => {
+    const ctx = testCtx();
+    const cena = cenario(ctx);
+    const db515 = dbSubmetivel(cena.document, ctx, cena.goodlistId, {
+      code: 'DB_515',
+      title: 'Goodlist olha o valor do pedido',
+      priority: 'HIGH',
+    });
+    const db999 = criarDb(db515.document, ctx, { code: 'DB_999', title: 'Sem item ainda' });
+
+    const porProjeto = listChangeRequests(db999.document, { projectId: IDS.projectA });
+    expect(porProjeto.map((cr) => cr.code)).toEqual(['DB_515']);
+
+    expect(listChangeRequests(db999.document, { projectId: IDS.projectB })).toEqual([]);
+
+    expect(
+      listChangeRequests(db999.document, { status: ['DRAFT'] }).map((cr) => cr.code).sort(),
+    ).toEqual(['DB_515', 'DB_999']);
+    expect(listChangeRequests(db999.document, { priority: 'HIGH' }).map((cr) => cr.code)).toEqual(['DB_515']);
+    expect(
+      listChangeRequests(db999.document, { componentId: cena.goodlistId }).map((cr) => cr.code),
+    ).toEqual(['DB_515']);
+    expect(listChangeRequests(db999.document, { search: 'valor do pedido' }).map((cr) => cr.code)).toEqual([
+      'DB_515',
+    ]);
+    expect(listChangeRequests(db999.document, { search: 'db_999' }).map((cr) => cr.code)).toEqual(['DB_999']);
+  });
+
+  it('sem filtro, devolve todos, mais recente primeiro', () => {
+    const ctx = testCtx();
+    const cena = cenario(ctx);
+    const primeiro = criarDb(cena.document, ctx, { code: 'DB_1' });
+    ctx.advance(1000);
+    const segundo = criarDb(primeiro.document, ctx, { code: 'DB_2' });
+
+    expect(listChangeRequests(segundo.document).map((cr) => cr.code)).toEqual(['DB_2', 'DB_1']);
+  });
+});
+
+describe('getChangeRequestPendingSummary (US-GOV-10)', () => {
+  it('separa aguardando revisão, devolvidos e aprovados sem release', () => {
+    const ctx = testCtx();
+    const cena = cenario(ctx);
+
+    // DB_1: submetido, aguardando início de revisão.
+    const db1 = dbSubmetivel(cena.document, ctx, cena.goodlistId, { code: 'DB_1' });
+    let document = apply(
+      db1.document,
+      ctx,
+      transitionChangeRequest({ changeRequestId: db1.changeRequestId, to: 'SUBMITTED' }),
+    ).document;
+
+    // DB_2: submetido, em revisão, devolvido.
+    const db2 = criarDb(document, ctx, { code: 'DB_2' });
+    document = apply(
+      db2.document,
+      ctx,
+      addChangeRequestItem({
+        changeRequestId: db2.changeRequestId,
+        componentId: cena.novaRegraId,
+        changeType: 'CREATE',
+        proposedSummary: 'Cria a regra nova.',
+      }),
+    ).document;
+    document = apply(
+      document,
+      ctx,
+      transitionChangeRequest({ changeRequestId: db2.changeRequestId, to: 'SUBMITTED' }),
+    ).document;
+    document = apply(
+      document,
+      ctx,
+      transitionChangeRequest({ changeRequestId: db2.changeRequestId, to: 'IN_REVIEW' }),
+    ).document;
+    document = apply(
+      document,
+      ctx,
+      returnChangeRequest({ changeRequestId: db2.changeRequestId, comment: 'Falta critério de aceite.' }),
+    ).document;
+
+    // DB_3: submetido, em revisão, aprovado — sem release ainda.
+    const db3 = dbSubmetivel(document, ctx, cena.espelhoId, {
+      code: 'DB_3',
+      motivators: ['RISCO'],
+      proposedEffectiveDate: VIGENCIA_PROPOSTA,
+    });
+    document = apply(
+      db3.document,
+      ctx,
+      transitionChangeRequest({ changeRequestId: db3.changeRequestId, to: 'SUBMITTED' }),
+    ).document;
+    document = apply(
+      document,
+      ctx,
+      transitionChangeRequest({ changeRequestId: db3.changeRequestId, to: 'IN_REVIEW' }),
+    ).document;
+    document = apply(
+      document,
+      ctx,
+      approveChangeRequest({ changeRequestId: db3.changeRequestId }),
+    ).document;
+
+    const summary = getChangeRequestPendingSummary(document);
+    expect(summary.awaitingReview.map((cr) => cr.code)).toEqual(['DB_1']);
+    expect(summary.returned.map((cr) => cr.code)).toEqual(['DB_2']);
+    expect(summary.approvedWithoutRelease.map((cr) => cr.code)).toEqual(['DB_3']);
+  });
+
+  it('aprovado com release vinculada some da lista de "sem release"', () => {
+    const ctx = testCtx();
+    const cena = cenario(ctx);
+    const aprovado = ateAprovado(cena, ctx);
+    const comRelease = apply(aprovado.document, ctx, createRelease({ code: '2026.09.01' }));
+    const vinculado = apply(
+      comRelease.document,
+      ctx,
+      setChangeRequestRelease({ changeRequestId: aprovado.changeRequestId, releaseId: comRelease.data.releaseId }),
+    ).document;
+
+    expect(getChangeRequestPendingSummary(vinculado).approvedWithoutRelease).toEqual([]);
   });
 });

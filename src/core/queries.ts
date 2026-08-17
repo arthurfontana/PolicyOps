@@ -1222,6 +1222,21 @@ export function getComponentEffectiveVersion(component: PolicyComponent, at: Dat
   );
 }
 
+export type ComponentCurrentSummary = { version: ComponentVersion | null; summary: string };
+
+/**
+ * "Hoje" pronto para um item de DB (US-GOV-03, docs/14 §3.3):
+ * `businessDescription` da versão vigente em `at` — o único campo que os
+ * cinco payloads de `ComponentVersion` têm em comum (docs/03 §12.2). Sem
+ * versão vigente, o "hoje" é a ausência mesma: o texto avisa e o chamador
+ * decide se trata como `CREATE`.
+ */
+export function getComponentCurrentSummary(component: PolicyComponent, at: Date): ComponentCurrentSummary {
+  const version = getComponentEffectiveVersion(component, at);
+  if (version === null) return { version: null, summary: 'Não existe — sem versão vigente hoje.' };
+  return { version, summary: version.payload.businessDescription };
+}
+
 export type ComponentEffectiveEntry = {
   component: PolicyComponent;
   /** `null` = sem versão vigente nesta data — só aparece para componente **documentável** (I29). */

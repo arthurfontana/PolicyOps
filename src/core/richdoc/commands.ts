@@ -2,11 +2,14 @@ import { applyToDocument, defineCommand, isoFrom, type Command } from '../comman
 import type {
   Attachment,
   Block,
+  ChangeRequest,
   InlineImageAttachment,
   PolicyOpsDocument,
   RichDoc,
 } from '../document/schema';
 import { DomainError } from '../errors';
+import { assertChangeRequestOpen } from '../document/cr-workflow';
+import { locateChangeRequest } from '../document/change-requests';
 import {
   assertComponentVersionEditable,
   locateComponentVersion,
@@ -44,14 +47,24 @@ import { applyOp, type RichDocOp } from './operations';
 // #region: alvo
 
 /**
- * Onde o `RichDoc` mora. A S34 liga **um** alvo — a especificação da versão de
- * componente; a S35 acrescenta os campos do DB (`motivationText`, `spec`) sem
- * tocar em nada aqui além desta união.
+ * Onde o `RichDoc` mora. A S34 ligou **um** alvo — a especificação da versão
+ * de componente; a S35 acrescenta os dois campos do DB (`motivationText`,
+ * `spec`, docs/14 §3.3) sem tocar em nada além desta união e do que segue
+ * abaixo, exatamente como o comentário original previa.
  */
-export type RichDocTarget = { kind: 'COMPONENT_VERSION_SPEC'; versionId: string };
+export type RichDocTarget =
+  | { kind: 'COMPONENT_VERSION_SPEC'; versionId: string }
+  | { kind: 'CR_MOTIVATION'; changeRequestId: string }
+  | { kind: 'CR_SPEC'; changeRequestId: string };
 
 export function richDocTargetKey(target: RichDocTarget): string {
-  return `${target.kind}:${target.versionId}`;
+  switch (target.kind) {
+    case 'COMPONENT_VERSION_SPEC':
+      return `${target.kind}:${target.versionId}`;
+    case 'CR_MOTIVATION':
+    case 'CR_SPEC':
+      return `${target.kind}:${target.changeRequestId}`;
+  }
 }
 
 /** Chave de coalescência da digitação: mesmo alvo + mesmo bloco (+ mesma célula). */
@@ -59,30 +72,60 @@ export function typingCoalesceKey(target: RichDocTarget, blockId: string, slot =
   return `richdoc:${richDocTargetKey(target)}:${blockId}:${slot}`;
 }
 
-export function readRichDoc(doc: PolicyOpsDocument, target: RichDocTarget): RichDoc {
-  const { version } = locateComponentVersion(doc, target.versionId);
-  return version.spec ?? { blocks: [] };
+function crFieldOf(kind: 'CR_MOTIVATION' | 'CR_SPEC'): 'motivationText' | 'spec' {
+  return kind === 'CR_MOTIVATION' ? 'motivationText' : 'spec';
 }
 
-type TargetLocation = { componentIndex: number; versionIndex: number };
+export function readRichDoc(doc: PolicyOpsDocument, target: RichDocTarget): RichDoc {
+  if (target.kind === 'COMPONENT_VERSION_SPEC') {
+    const { version } = locateComponentVersion(doc, target.versionId);
+    return version.spec ?? { blocks: [] };
+  }
+  const { changeRequest } = locateChangeRequest(doc, target.changeRequestId);
+  return changeRequest[crFieldOf(target.kind)] ?? { blocks: [] };
+}
+
+type TargetLocation =
+  | { kind: 'COMPONENT_VERSION_SPEC'; componentIndex: number; versionIndex: number }
+  | { kind: 'CR_MOTIVATION' | 'CR_SPEC'; changeRequestIndex: number };
 
 function locateTarget(doc: PolicyOpsDocument, target: RichDocTarget): TargetLocation {
-  const { version, componentIndex, versionIndex } = locateComponentVersion(doc, target.versionId);
-  // Especificação é conteúdo de versão: só se edita em rascunho (I3).
-  assertComponentVersionEditable(version);
-  return { componentIndex, versionIndex };
+  if (target.kind === 'COMPONENT_VERSION_SPEC') {
+    const { version, componentIndex, versionIndex } = locateComponentVersion(doc, target.versionId);
+    // Especificação é conteúdo de versão: só se edita em rascunho (I3).
+    assertComponentVersionEditable(version);
+    return { kind: target.kind, componentIndex, versionIndex };
+  }
+  const { changeRequest, index } = locateChangeRequest(doc, target.changeRequestId);
+  // Motivação e especificação do DB só se editam enquanto ele não está
+  // fechado (`assertChangeRequestOpen`) — mesmo critério de `changeRequest/update`.
+  assertChangeRequestOpen(changeRequest);
+  return { kind: target.kind, changeRequestIndex: index };
+}
+
+function scopeFor(target: RichDocTarget): { componentVersionId?: string; changeRequestId?: string } {
+  return target.kind === 'COMPONENT_VERSION_SPEC'
+    ? { componentVersionId: target.versionId }
+    : { changeRequestId: target.changeRequestId };
 }
 
 function writeRichDoc(
-  draft: { components: PolicyOpsDocument['components'] },
+  draft: { components: PolicyOpsDocument['components']; changeRequests: PolicyOpsDocument['changeRequests'] },
   at: TargetLocation,
   value: RichDoc,
 ): void {
-  const version = draft.components[at.componentIndex]!.versions[at.versionIndex]!;
-  // Especificação vazia é ausência de especificação — o schema omite o campo
-  // (docs/03 §1) e o arquivo não guarda `{"blocks":[]}` por documento.
-  if (value.blocks.length === 0) delete version.spec;
-  else version.spec = value;
+  if (at.kind === 'COMPONENT_VERSION_SPEC') {
+    const version = draft.components[at.componentIndex]!.versions[at.versionIndex]!;
+    // Vazio é ausência: o schema omite o campo (docs/03 §1), o arquivo não
+    // guarda `{"blocks":[]}` por documento.
+    if (value.blocks.length === 0) delete version.spec;
+    else version.spec = value;
+    return;
+  }
+  const changeRequest = draft.changeRequests[at.changeRequestIndex]! as ChangeRequest;
+  const field = crFieldOf(at.kind);
+  if (value.blocks.length === 0) delete changeRequest[field];
+  else changeRequest[field] = value;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +155,7 @@ export function applyRichDocOp(input: ApplyRichDocOpInput): Command<ApplyRichDoc
     type: 'richdoc/apply',
     input,
     label: input.label ?? OP_LABELS[input.op.kind],
-    scope: { componentVersionId: input.target.versionId },
+    scope: scopeFor(input.target),
     ...(input.coalesceKey !== undefined ? { coalesceKey: input.coalesceKey } : {}),
     execute(doc) {
       const at = locateTarget(doc, input.target);
@@ -170,7 +213,7 @@ export function insertRichDocImage(
     type: 'richdoc/insertImage',
     input,
     label: 'Inserir imagem na especificação',
-    scope: { componentVersionId: input.target.versionId },
+    scope: scopeFor(input.target),
     execute(doc, ctx) {
       const at = locateTarget(doc, input.target);
       assertInlineImageWithinLimit(input.image.bytes, input.image.fileName);
@@ -237,7 +280,7 @@ export function removeRichDocBlock(
     type: 'richdoc/removeBlock',
     input,
     label: 'Remover bloco da especificação',
-    scope: { componentVersionId: input.target.versionId },
+    scope: scopeFor(input.target),
     execute(doc) {
       const at = locateTarget(doc, input.target);
       const current = readRichDoc(doc, input.target);
@@ -301,7 +344,7 @@ function restoreRichDocBlock(input: RestoreRichDocBlockInput): Command<RestoreRi
     type: 'richdoc/_restoreBlock',
     input,
     label: 'Restaurar bloco da especificação',
-    scope: { componentVersionId: input.target.versionId },
+    scope: scopeFor(input.target),
     execute(doc) {
       const at = locateTarget(doc, input.target);
       const current = readRichDoc(doc, input.target);

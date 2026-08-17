@@ -7,6 +7,7 @@ import {
   assertSubmittable,
   assertTransitionAllowed,
   isChangeRequestClosed,
+  isChangeRequestFrozen,
 } from './cr-workflow';
 import {
   CODE_REGEX,
@@ -1126,4 +1127,103 @@ export function listChangeRequestsForComponent(
       cr.items.some((item) => item.componentId === componentId) &&
       (options.openOnly !== true || !isChangeRequestClosed(cr.status)),
   );
+}
+
+const DB_CODE_PREFIX = 'DB_';
+
+/**
+ * Sugestão de `code` para um DB novo — I26/§3.3: sequencial a partir do maior
+ * `DB_<n>` já existente no documento, sempre editável antes de confirmar a
+ * criação (docs/14 §12, pergunta 1). Documentos sem nenhum DB começam em
+ * `DB_1`; um DB fora do padrão `DB_<n>` (código digitado à mão) não conta
+ * para o máximo, mas continua válido por si.
+ */
+export function suggestNextChangeRequestCode(doc: PolicyOpsDocument): string {
+  let max = 0;
+  for (const cr of doc.changeRequests) {
+    if (!cr.code.startsWith(DB_CODE_PREFIX)) continue;
+    const n = Number(cr.code.slice(DB_CODE_PREFIX.length));
+    if (Number.isInteger(n) && n > max) max = n;
+  }
+  return `${DB_CODE_PREFIX}${max + 1}`;
+}
+
+/**
+ * O(s) projeto(s) que um DB toca, derivado dos componentes dos seus itens —
+ * `ChangeRequest` não guarda `projectId` (docs/14 §3.3): a maioria tem um só,
+ * mas nada no modelo impede um DB tocar componentes de projetos diferentes.
+ */
+export function changeRequestProjectIds(doc: PolicyOpsDocument, cr: ChangeRequest): Set<string> {
+  const ids = new Set<string>();
+  for (const item of cr.items) {
+    const component = doc.components.find((candidate) => candidate.id === item.componentId);
+    if (component !== undefined) ids.add(component.projectId);
+  }
+  return ids;
+}
+
+export type ChangeRequestFilter = {
+  /** Um item do DB toca um componente deste projeto. */
+  projectId?: string;
+  status?: CrStatus[];
+  priority?: CrPriority;
+  componentId?: string;
+  /** Casa contra `code` e `title`, sem diferenciar maiúsculas/acentos. */
+  search?: string;
+};
+
+/** Lista de DBs por projeto (US-GOV-03/04) — busca, status, prioridade e componente, mais recente primeiro. */
+export function listChangeRequests(
+  doc: PolicyOpsDocument,
+  filter: ChangeRequestFilter = {},
+): ChangeRequest[] {
+  const { projectId, status, priority, componentId, search } = filter;
+  const searchLower = search?.trim().toLowerCase();
+
+  return doc.changeRequests
+    .filter((cr) => {
+      if (projectId !== undefined && !changeRequestProjectIds(doc, cr).has(projectId)) return false;
+      if (status !== undefined && status.length > 0 && !status.includes(cr.status)) return false;
+      if (priority !== undefined && cr.priority !== priority) return false;
+      if (componentId !== undefined && !cr.items.some((item) => item.componentId === componentId)) {
+        return false;
+      }
+      if (searchLower !== undefined && searchLower.length > 0) {
+        const haystack = `${cr.code} ${cr.title}`.toLowerCase();
+        if (!haystack.includes(searchLower)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export type ChangeRequestPendingSummary = {
+  /** `SUBMITTED`/`IN_REVIEW` — a fila de aprovação (US-GOV-04). */
+  awaitingReview: ChangeRequest[];
+  /** `CHANGES_REQUESTED` — devolvidos ao autor. */
+  returned: ChangeRequest[];
+  /** Passou de `APPROVED`, ainda não fechou, e não está numa release. */
+  approvedWithoutRelease: ChangeRequest[];
+};
+
+/**
+ * Painel de pendências ao abrir o documento (US-GOV-10) — três filas que
+ * cruzam projetos: quem aguarda revisão, quem foi devolvido, e quem já foi
+ * aprovado mas ainda não entrou numa release. `projectId` ausente é o
+ * documento inteiro; a UI filtra "meu nome" por cima (`requestedBy`/`owner`),
+ * porque papéis são declarativos, não uma lista fechada de pessoas
+ * (DEC-GOV-004).
+ */
+export function getChangeRequestPendingSummary(
+  doc: PolicyOpsDocument,
+  projectId?: string,
+): ChangeRequestPendingSummary {
+  const scoped = projectId === undefined ? doc.changeRequests : listChangeRequests(doc, { projectId });
+  return {
+    awaitingReview: scoped.filter((cr) => cr.status === 'SUBMITTED' || cr.status === 'IN_REVIEW'),
+    returned: scoped.filter((cr) => cr.status === 'CHANGES_REQUESTED'),
+    approvedWithoutRelease: scoped.filter(
+      (cr) => isChangeRequestFrozen(cr.status) && !isChangeRequestClosed(cr.status) && cr.releaseId === undefined,
+    ),
+  };
 }

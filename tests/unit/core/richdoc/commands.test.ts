@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createComponent } from '@/core/document/components';
+import {
+  approveChangeRequest,
+  cancelChangeRequest,
+  transitionChangeRequest,
+} from '@/core/document/change-requests';
 import type { InlineImageAttachment, PolicyOpsDocument, RichDoc } from '@/core/document/schema';
 import { INLINE_IMAGE_MAX_BYTES } from '@/core/document/schema';
 import { deserialize, serialize } from '@/core/document/serialize';
@@ -16,6 +21,7 @@ import {
 import { paragraphFromText } from '@/core/richdoc/model';
 import { createComponentDraft, publishComponentVersion } from '@/core/versioning/component-lifecycle';
 import { apply, baseDocument, expectFailure, IDS, testCtx, type TestCtx } from '../versioning/fixtures';
+import { criarDb, dbSubmetivel, politica } from '../document/governance-fixtures';
 
 /**
  * O editor rico na pilha de comandos — docs/08 §1 e docs/14 §7 (S34).
@@ -283,6 +289,86 @@ describe('salvar → reabrir → validar', () => {
     expect(validado.ok, JSON.stringify(validado.ok ? [] : validado.issues)).toBe(true);
     if (!validado.ok) return;
     expect(readRichDoc(validado.document, target).blocks).toEqual(readRichDoc(atual, target).blocks);
+  });
+});
+
+describe('RichDocTarget — CR_MOTIVATION/CR_SPEC (S35)', () => {
+  it('escreve a motivação e a especificação do DB, cada uma no seu campo', () => {
+    const ctx = testCtx();
+    const cenario = politica(ctx);
+    const { document, changeRequestId } = criarDb(cenario.document, ctx);
+
+    const motivation: RichDocTarget = { kind: 'CR_MOTIVATION', changeRequestId };
+    const spec: RichDocTarget = { kind: 'CR_SPEC', changeRequestId };
+
+    const comMotivacao = apply(document, ctx, applyRichDocOp({
+      target: motivation,
+      op: { kind: 'insertBlock', index: 0, block: paragraphFromText('b1__________', 'Cliente pediu revisão.') },
+    }));
+    const comEspec = apply(comMotivacao.document, ctx, applyRichDocOp({
+      target: spec,
+      op: { kind: 'insertBlock', index: 0, block: paragraphFromText('b2__________', 'Passa a olhar o valor do pedido.') },
+    }));
+
+    const cr = comEspec.document.changeRequests.find((candidate) => candidate.id === changeRequestId)!;
+    expect(cr.motivationText?.blocks).toHaveLength(1);
+    expect(cr.spec?.blocks).toHaveLength(1);
+    expect(readRichDoc(comEspec.document, motivation)).toEqual(cr.motivationText);
+    expect(readRichDoc(comEspec.document, spec)).toEqual(cr.spec);
+
+    const desfeito = apply(comEspec.document, ctx, comEspec.result.inverse);
+    expect(desfeito.document).toEqual(comMotivacao.document);
+  });
+
+  it('chave de coalescência e de alvo distinguem motivação de especificação do mesmo DB', () => {
+    const motivation: RichDocTarget = { kind: 'CR_MOTIVATION', changeRequestId: 'cr1_________' };
+    const spec: RichDocTarget = { kind: 'CR_SPEC', changeRequestId: 'cr1_________' };
+    expect(richDocTargetKey(motivation)).not.toBe(richDocTargetKey(spec));
+    expect(typingCoalesceKey(motivation, 'b1')).not.toBe(typingCoalesceKey(spec, 'b1'));
+  });
+
+  it('motivação e especificação continuam editáveis depois de APPROVED — o congelamento de I30 é do escopo (items), não do metadado, mesmo critério de `changeRequest/update`', () => {
+    const ctx = testCtx();
+    const cenario = politica(ctx);
+    const { document, changeRequestId } = dbSubmetivel(cenario.document, ctx, cenario.goodlistId);
+    const submetido = apply(document, ctx, transitionChangeRequest({ changeRequestId, to: 'SUBMITTED' }));
+    const emRevisao = apply(
+      submetido.document,
+      ctx,
+      transitionChangeRequest({ changeRequestId, to: 'IN_REVIEW' }),
+    );
+    const aprovado = apply(emRevisao.document, ctx, approveChangeRequest({ changeRequestId }));
+
+    const editado = apply(aprovado.document, ctx, applyRichDocOp({
+      target: { kind: 'CR_SPEC', changeRequestId },
+      op: { kind: 'insertBlock', index: 0, block: paragraphFromText('b1__________', 'x') },
+    }));
+    expect(readRichDoc(editado.document, { kind: 'CR_SPEC', changeRequestId }).blocks).toHaveLength(1);
+
+    // Cancelado é DB fechado (`isChangeRequestClosed`): aí sim a edição para.
+    const cancelado = apply(editado.document, ctx, cancelChangeRequest({ changeRequestId }));
+    expectFailure(
+      cancelado.document,
+      ctx,
+      applyRichDocOp({
+        target: { kind: 'CR_SPEC', changeRequestId },
+        op: { kind: 'insertBlock', index: 1, block: paragraphFromText('b2__________', 'y') },
+      }),
+      'CR_TRANSITION_INVALID',
+    );
+  });
+
+  it('DB inexistente é NOT_FOUND', () => {
+    const ctx = testCtx();
+    expectFailure(
+      baseDocument(),
+      ctx,
+      applyRichDocOp({
+        target: { kind: 'CR_MOTIVATION', changeRequestId: 'inexistente_' },
+        op: { kind: 'insertBlock', index: 0, block: paragraphFromText('b1__________', 'x') },
+      }),
+      'NOT_FOUND',
+    );
   });
 });
 
