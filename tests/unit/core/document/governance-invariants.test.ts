@@ -5,7 +5,7 @@ import { deserialize, serialize } from '@/core/document/serialize';
 import { createRelease } from '@/core/document/releases';
 import { setChangeRequestRelease } from '@/core/document/change-requests';
 import { apply, testCtx, type TestCtx } from '../versioning/fixtures';
-import { dbSubmetivel, politica, type GovernanceScenario } from './governance-fixtures';
+import { avancarAte, dbSubmetivel, politica, type GovernanceScenario } from './governance-fixtures';
 
 /**
  * I30 e I31 — o DB e a release em repouso (`14-governanca-de-alteracoes.md` §6,
@@ -41,7 +41,9 @@ describe('documento de partida', () => {
   it('é válido, com DB e release limpos', () => {
     const ctx = testCtx();
     const { document } = base(ctx);
-    const comRelease = apply(document, ctx, createRelease({ code: '2026.09.01' }));
+    // Vincular a uma release exige status ≥ APPROVED (docs/14 §3.4, S37).
+    const aprovado = avancarAte(document, ctx, document.changeRequests[0]!.id, 'APPROVED');
+    const comRelease = apply(aprovado, ctx, createRelease({ code: '2026.09.01' }));
     const vinculado = apply(
       comRelease.document,
       ctx,

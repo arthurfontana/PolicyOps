@@ -10,8 +10,11 @@
 > entregue** (US-GOV-03 ✅/US-GOV-04 ✅/US-GOV-10 ✅ — tela do DB, workflow de 12 estados, fila de
 > aprovação e painel de pendências, docs/07 §19) e **S36 entregue** (US-GOV-05 ✅ parcial — vínculo
 > item ↔ rascunho, congelamento de ponta a ponta, publicação atômica do DB com vigência e rebase
-> explícito; a publicação **por release** é a S37); S37–S39 planejadas · **DECs relacionadas**:
-> DEC-GOV-001 a DEC-GOV-036 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
+> explícito; a publicação **por release** é a S37) e **S37 entregue** (US-GOV-05 ✅ completa — CRUD
+> de release, vínculo DB ≥ APPROVED, `release/publish` em lote reaproveitando `changeRequest/publish`
+> — DEC-GOV-008 —, telas de release e da timeline do Diário de Bordo, US-GOV-08 parcial); S38–S39
+> planejadas · **DECs relacionadas**:
+> DEC-GOV-001 a DEC-GOV-037 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
 >
@@ -271,6 +274,10 @@ Uma release agrupa CRs (`ChangeRequest.releaseId`). Publicar a release publica, 
 atômica, os rascunhos vinculados de todos os CRs `READY_FOR_RELEASE`/`SCHEDULED` dela, com a
 vigência de cada CR (RN-GOV-05).
 
+> ✅ **Publicação em lote fechada na S37** (`release/publish`, DEC-GOV-008). Entrar numa release exige
+> CR **≥ APPROVED** (DEC-GOV-037) — antes disso "agrupar numa subida" não corresponde a nada decidido;
+> sair continua livre até o CR fechar. Tela em `docs/07-ux-e-editor.md` §19.6.
+
 ### 3.5 Novas coleções no documento ✅ fechada na S32a
 
 > Contrato normativo: **[`03-modelo-do-documento.md`](03-modelo-do-documento.md) §1** (estrutura de
@@ -386,7 +393,7 @@ venha preenchido automaticamente da versão vigente.
   a S36, reusando `RichDocDiffView` (§18.5) para `spec`.
 - Aprovação **não** publica nada (RN-GOV-04) — o status segue para desenvolvimento.
 
-### US-GOV-05 — Publicar com vigência e release ✅ parcial (S36; release é a S37)
+### US-GOV-05 — Publicar com vigência e release ✅ (S36 + S37)
 **Como** analista, **quero** agrupar DBs aprovados numa release e publicá-la **para** que as novas
 versões entrem em vigor na data definida, de forma atômica.
 
@@ -400,8 +407,10 @@ versões entrem em vigor na data definida, de forma atômica.
   disciplina (DEC-GOV-034).
 - ✅ Base desatualizada exige **rebase explícito**: rever o comparativo contra a nova vigente e
   reconfirmar item a item (`E-GOV-02`, RN-GOV-02). Nunca silencioso.
-- Release lista seus DBs com status conjunto e publica em lote — **S37**, sobre
-  `assessReleaseComposition` (já pronta desde a S32b) e o comando desta sessão.
+- ✅ **S37**: release lista seus DBs com **status conjunto** derivado deles (`deriveReleaseJointStatus`
+  — `EMPTY`/`IN_PROGRESS`/`READY`/`PUBLISHED`/`CANCELLED`, sobre `assessReleaseComposition` já pronta
+  desde a S32b) e publica em lote (`release/publish`, `ReleaseDetail`/`PublishReleaseDialog`, docs/07
+  §19.6). Entrar numa release exige CR ≥ `APPROVED` (DEC-GOV-037); sair continua livre até fechar.
 
 ### US-GOV-06 — Gerar o Pacote para a Fábrica
 **Como** analista, **quero** gerar o documento de especificação no padrão atual dos DBs **para**
@@ -421,12 +430,15 @@ responder auditoria sem arqueologia.
   componentes sem versão vigente na data aparecem como inexistentes/desativados.
 - Contadores do período: componentes vigentes, DBs publicados, DBs em andamento.
 
-### US-GOV-08 — Comparar e acompanhar a evolução
+### US-GOV-08 — Comparar e acompanhar a evolução ✅ parcial (S37)
 **Como** gestor, **quero** comparar regra antes × depois, política em duas datas e o conteúdo de
 uma release **para** enxergar o que mudou.
 
 - Diff de payload campo a campo + diff de `spec` por bloco (§7); matrizes usam o diff existente.
-- Timeline do Diário de Bordo: DBs publicados em ordem cronológica de vigência.
+- ✅ **S37**: Timeline do Diário de Bordo — DBs publicados em ordem cronológica de vigência, com
+  componentes afetados e link para o DB e a release (`ChangeRequestTimelineScreen`,
+  `getChangeRequestTimeline`, docs/07 §19.7). Fora desta sessão: diff entre duas datas da timeline e
+  comparação release × release (S39).
 
 ### US-GOV-09 — Carga da política por recorte (opcional) ✅ (S40)
 **Como** analista, **quero** subir um capítulo já convertido em Markdown dentro de uma seção que
@@ -456,9 +468,11 @@ ande sem notificações externas (que não existem sem servidor).
   submetidos aguardando revisão, devolvidos ao autor, aprovados sem release. Filtrável por "meu
   nome" (`requestedBy`/`owner`/autor de uma decisão) — texto fixo no painel deixa explícito que
   isso é filtro de conveniência, não controle de acesso (DEC-GOV-004).
-- "Releases com data próxima/vencida" fica para a S37, quando a tela de release existir — hoje o
-  painel não tem o que mostrar ali (`Release.plannedDate` existe no schema desde a S32a, mas nada
-  ainda lê/agrupa DBs por release na interface).
+- "Releases com data próxima/vencida" continua fora do painel: a tela de release existe desde a S37
+  (`ReleasesScreen`/`ReleaseDetail`, docs/07 §19.6, com `plannedDate` editável e listado), mas o
+  painel de pendências ainda não lê/agrupa por ela — não fazia parte do escopo declarado da S37
+  (CRUD, vínculo, publicação em lote e timeline). Revisitar quando o painel precisar mostrar mais que
+  a fila de DBs (fora do escopo declarado até aqui).
 
 ## 5. Workflow da Solicitação (RN-GOV-01) ✅ fechado na S32b
 
@@ -528,9 +542,12 @@ impõe, a RN-GOV-03 ao entrar em `SUBMITTED`. Quatro leituras que o texto deixav
 - **RN-GOV-03** — Submeter exige motivador, itens completos e vigência proposta. `E-GOV-03`.
 - **RN-GOV-04** — **Aprovação não é publicação.** Aprovar apenas move o status; nenhuma versão
   muda de estado. A UI diz isso explicitamente.
-- **RN-GOV-05** ✅ **implementada na S36 para o DB individual** (release é a S37) — Publicação (de DB
+- **RN-GOV-05** ✅ **completa** (S36 para o DB individual, S37 para a release) — Publicação (de DB
   ou de release) é atômica: valida todos os rascunhos vinculados, aplica `effectiveFrom`, publica
-  tudo ou nada. `E-GOV-04` com a lista de pendências. O que a S36 fecha, item a item:
+  tudo ou nada. `E-GOV-04` com a lista de pendências. **A release** (`release/publish`) roda a mesma
+  publicação de DB uma vez por CR pronto, dentro de uma única transação (DEC-GOV-008): pendência de
+  qualquer CR aborta a release inteira, e cada CR mantém a sua própria `proposedEffectiveDate` — não
+  existe vigência única de release. O que a S36 fecha para o DB individual, item a item:
   - **quem publica versão**: item `UPDATE`, `CREATE` ou `DOC_ONLY` **com rascunho vinculado**;
   - **quem não publica versão, mas faz efeito**: `DEACTIVATE` arquiva o componente e `REACTIVATE` o
     desarquiva, na mesma transação (`component/archive` / o interno que o desfaz);
@@ -780,9 +797,19 @@ Então  a operação falha com E-GOV-04 listando a pendência do DB-519
 ```
 ✅ **Coberto no caso individual desde a S36** (`cr-publish.test.ts`): um DB com dois itens, um deles
 sem rascunho, falha com `E-GOV-04` apontando o item pendente, e o item que **estava** pronto continua
-sem publicar. O caso da release (N DBs) é a S37, que reusa o mesmo comando. Um segundo teste prova a
-atomicidade contra falha no meio do lote: com o segundo item quebrado (matriz com célula pendente,
-I6), o documento sai byte a byte igual ao que entrou.
+sem publicar. Um segundo teste prova a atomicidade contra falha no meio do lote: com o segundo item
+quebrado (matriz com célula pendente, I6), o documento sai byte a byte igual ao que entrou.
+
+✅ **Coberto no caso da release (N DBs) na S37** (`release-publish.test.ts`), com o cenário exato do
+Gherkin acima — DB-515 pronto e DB-519 com item sem rascunho, a release inteira falha com
+`RELEASE_PUBLISH_BLOCKED` (`E-GOV-04`) apontando `DB_519`, e a Goodlist do DB-515 continua na v1. A
+mesma injeção de I6 no meio do lote (matriz do segundo DB perde uma decisão de célula depois de tudo
+pronto) prova a atomicidade da release: `release/publish` chama `changeRequest/publish` por DB dentro
+de um `Run`/`step` só (DEC-GOV-008), e o documento sai byte a byte igual ao que entrou quando o
+segundo DB falha. Um terceiro teste publica 2 DBs de vigências distintas com sucesso e confere que
+cada versão carrega o `effectiveFrom` do seu próprio DB — não existe vigência única de release. E2E
+em `tests/e2e/release-e-timeline.spec.ts`: release "2026.09.01 — DB-515, DB-519" criada, publicada e
+visível na timeline (§25 da especificação de origem).
 
 ### CT-GOV-04 — Item congelado após aprovação (cobre RN-GOV-01, I25)
 ```gherkin

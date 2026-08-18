@@ -105,6 +105,7 @@ const EVENT_ICONS: Record<DocEventType, LucideIcon> = {
   RELEASE_CREATED: FilePlus,
   RELEASE_UPDATED: SquarePen,
   RELEASE_CANCELLED: Trash2,
+  RELEASE_PUBLISHED: CheckCircle2,
 };
 
 const ALL_FILTER = 'TODOS';

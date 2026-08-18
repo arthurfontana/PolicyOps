@@ -792,6 +792,18 @@ export function setChangeRequestRelease(
 
       let releaseCode: string | null = null;
       if (input.releaseId !== null) {
+        // Entrar exige status ≥ APPROVED (docs/14 §3.4, S37): antes disso o
+        // DB nem foi decidido, e "o que entra na subida" precisa já ter
+        // passado pela aprovação. Sair não tem essa exigência — `releaseId:
+        // null` cai fora deste bloco e só pede o DB estar aberto, valendo até
+        // a publicação (`assertChangeRequestOpen` já barra `PUBLISHED`).
+        if (!isChangeRequestFrozen(cr.status)) {
+          throw new DomainError(
+            'CR_TRANSITION_INVALID',
+            `A solicitação "${cr.code}" está em ${cr.status}; só entra numa release a partir de Aprovado.`,
+            { changeRequestId: cr.id, status: cr.status },
+          );
+        }
         const release = doc.releases.find((candidate) => candidate.id === input.releaseId);
         if (release === undefined) {
           throw new DomainError('NOT_FOUND', 'A release informada não existe neste documento.', {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Plus, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Package, Plus, TriangleAlert } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ import { CR_PRIORITY_LABELS, CR_STATUS_CLOSED_CLASS, CR_STATUS_LABELS, CR_STATUS
 import { dateInputToIso, formatDateTimeBR, isoToDateInputValue } from '@/lib/format';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
+import { useUiStore } from '@/store/ui-store';
 
 const PRIORITIES: readonly CrPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const NO_PRIORITY = '__no_priority__';
@@ -67,7 +68,9 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
   const document = useDocumentStore((s) => s.document);
   const dispatch = useDocumentStore((s) => s.dispatch);
   const setSelectedChangeRequest = useEditorStore((s) => s.setSelectedChangeRequest);
+  const setSelectedRelease = useEditorStore((s) => s.setSelectedRelease);
   const selectedProjectId = useEditorStore((s) => s.selectedProjectId);
+  const setView = useUiStore((s) => s.setView);
   const { toast } = useToast();
 
   const [titleEditing, setTitleEditing] = useState(false);
@@ -87,6 +90,10 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
   );
 
   const changeRequest = document?.changeRequests.find((candidate) => candidate.id === changeRequestId) ?? null;
+  const release =
+    document === null || changeRequest?.releaseId === undefined
+      ? null
+      : (document.releases.find((candidate) => candidate.id === changeRequest.releaseId) ?? null);
 
   useEffect(() => {
     if (changeRequest === null) return;
@@ -227,6 +234,18 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
             >
               {CR_STATUS_LABELS[changeRequest.status]}
             </Badge>
+            {release !== null && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRelease(release.id);
+                  setView('releases');
+                }}
+                className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-2 py-0.5 text-xs text-neutral-500 hover:bg-neutral-50 dark:border-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
+              >
+                <Package className="h-3 w-3" /> release {release.code}
+              </button>
+            )}
           </div>
           <Input
             value={titleEditing ? title : changeRequest.title}

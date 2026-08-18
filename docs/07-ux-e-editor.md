@@ -580,7 +580,7 @@ ficam fora por padrão. O diff é **por bloco**, sem realce dentro do parágrafo
 diff entre o rascunho e a versão vigente; a S36/S39 reusam a mesma peça para "hoje × proposto" e
 para a fotografia histórica.
 
-## 19. Diário de Bordo — DB, fila e pendências (épico Governança — S35 ✅/S36 ✅)
+## 19. Diário de Bordo — DB, fila e pendências (épico Governança — S35 ✅/S36 ✅/S37 ✅)
 
 Contrato do modelo em `14-governanca-de-alteracoes.md` §3.3/§4/§5; `src/components/change-requests/`.
 Uma `View` própria (`'change-requests'`, hash `#/db`), item fixo da barra lateral com o mesmo
@@ -720,3 +720,68 @@ segunda opinião sobre ela:
 Publicado, o DB vira `PUBLISHED` (estado final), a trilha ganha "publicou a solicitação …", e a
 timeline de cada componente afetado passa a mostrar o DB como origem da versão nova — em matriz, pelo
 carimbo no evento de publicação (docs/14 §10, CT-GOV-06).
+
+### 19.6 Release: conteúdo, status por DB e publicação em lote (S37)
+
+Duas telas próprias na sidebar — "Diário de Bordo" (§19.1–19.5), "Releases" e "Linha do tempo do DB"
+(§19.7) — em vez de abas dentro da tela do DB: as três respondem perguntas diferentes (o que fazer com
+*este* DB; o que entra *nesta* subida; o que mudou *ao longo do tempo*), e nenhuma delas é sub-rota
+das outras. `ReleasesScreen`/`ReleaseDetail` (`src/components/change-requests/`), `View` própria
+(`'releases'`, hash `#/releases`), `editor-store.selectedReleaseId` no mesmo padrão de
+`selectedChangeRequestId`.
+
+- **Lista** (`ReleasesScreen`): busca por código/nome, badge do **status conjunto**
+  (`deriveReleaseJointStatus`, `src/core/document/releases.ts`) — derivado dos DBs vinculados, não o
+  `Release.status` bruto: `EMPTY` (sem DB), `IN_PROGRESS` (tem DB, algum não pronto), `READY` (todos
+  prontos para publicar), ou o terminal `PUBLISHED`/`CANCELLED` do próprio `Release.status`, que vence
+  a composição. "Nova release" pede só o código (rótulo de calendário, "2026.09.01" — I31, sem a
+  máscara de `code` de DB/componente); nome, data planejada e observação são opcionais e entram no
+  detalhe.
+- **Detalhe** (`ReleaseDetail`): nome/data planejada/observação editáveis enquanto a release estiver
+  aberta (`PLANNED`/`IN_DEVELOPMENT`); data planejada × publicada lado a lado (`publishedAt`/
+  `publishedBy`, escritos só por `release/publish`). "O que entra na subida" lista os DBs vinculados
+  (`listReleaseChangeRequests`) com status individual e vigência própria — clicar numa linha abre o DB
+  no detalhe (§19.1); "Adicionar DB" abre `AddChangeRequestToReleaseDialog`, que já filtra a lista para
+  DB **≥ `APPROVED`**, aberto e sem release — a regra de verdade é do comando
+  (`changeRequest/setRelease`, docs/14 §3.4), a tela só evita oferecer um clique que ele recusaria.
+  Tirar um DB (`X` na linha) não tem essa exigência: sai livremente enquanto o DB continuar aberto —
+  "até a publicação" é o próprio DB fechar, não a release.
+- **Publicar** (`PublishReleaseDialog`) é o mesmo espelho fiel de `PublishChangeRequestDialog`
+  (§19.5), uma camada acima: um bloco por DB com o resumo do plano; pendências (`E-GOV-04`) e bases
+  desatualizadas (`E-GOV-02`) vêm **agregadas de todos os DBs juntos**, cada uma carimbada com o código
+  do DB de origem — não existe diff embutido aqui (a release pode ter muitos DBs); o botão "Rever o
+  comparativo" leva direto ao DB para reconfirmar de lá, e a caixa de reconfirmação libera o botão só
+  depois disso. Publicar chama `release/publish` (`src/core/document/release-publish.ts`), que roda
+  `changeRequest/publish` **por DB, na mesma transação** (DEC-GOV-008) — reaproveitar a publicação do
+  DB, não reescrevê-la, é o que garante que a atomicidade e o rebase de RN-GOV-02 continuam valendo
+  sem duplicar lógica. **Cada DB publica com a sua própria vigência** — não existe data única de
+  release (docs/14 §3.4). Papel mínimo `PUBLISHER`, mesma linha de `changeRequest/publish` (docs/08
+  §6).
+- **Cancelar release** (`release/cancel`, já da S32b) fica no detalhe; não mexe nos DBs vinculados,
+  que continuam apontando a release cancelada até alguém os mover.
+- O detalhe do DB (`ChangeRequestDetail`) ganhou um selo "release `<code>`" ao lado do status, quando
+  `changeRequest.releaseId` estiver definido — link direto para o detalhe da release, mesma direção
+  contrária de navegação que a lista de DBs da release já oferece.
+
+### 19.7 Linha do tempo do Diário de Bordo (US-GOV-08 parcial, S37)
+
+`ChangeRequestTimelineScreen` (`View` `'db-timeline'`, hash `#/db-timeline`) — mesmo padrão visual da
+tela de Vigência (`TimelineScreen`, §10, S15): cartão por entrada, filtro no cabeçalho, sem abas. A
+régua aqui é diferente da de Vigência: não é "a política numa data", é "a história das mudanças" —
+`getChangeRequestTimeline` (`src/core/queries.ts`) lista os DBs **publicados**, mais recente primeiro
+por `proposedEffectiveDate` (a vigência que de fato valeu), com:
+
+- os **componentes afetados** (chips com ícone por tipo, `COMPONENT_TYPE_ICONS`);
+- a **release** de origem, quando publicado em lote — chip clicável para `ReleaseDetail` (§19.6); DB
+  publicado individualmente (sem release, RN-GOV-07 continua valendo em cima disso) não mostra chip
+  nenhum;
+- "Abrir o DB" para o detalhe completo (§19.1–19.5).
+
+Filtros: projeto (um componente afetado daquele projeto — mesmo critério de
+`changeRequestProjectIds`, já usado no filtro de projeto da lista de DBs, DEC-GOV-032) e período
+(`from`/`to` sobre a vigência, inclusive nas duas pontas). Nenhum dos dois é obrigatório; sem filtro,
+a timeline inteira aparece. DB **não publicado** nunca entra — é a fila de pendências (§19.4) que
+mostra o que ainda está em andamento; esta tela é só o que já virou fato.
+
+Fora desta sessão (US-GOV-08 completa, S39): diff de payload/spec por bloco entre duas datas da
+timeline, e comparação release × release.

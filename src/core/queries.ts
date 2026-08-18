@@ -6,6 +6,7 @@ import type {
   CatalogItem,
   CatalogItemKind,
   Cell,
+  ChangeRequest,
   CompatibilityRule,
   CompatibilityVersion,
   ComponentReviewStatus,
@@ -20,12 +21,15 @@ import type {
   PolicyComponentType,
   PolicyOpsDocument,
   Project,
+  Release,
   Template,
   Variable,
   VariableType,
   VariableVersion,
 } from './document/schema';
+import { changeRequestProjectIds } from './document/change-requests';
 import { listChildren } from './document/components';
+import { changeRequestPublishedAt } from './document/cr-publish';
 import { getAxisStaleness, type AxisStaleness } from './reconcile/stale';
 import { previewTemplate } from './templates/preview';
 import { locateMatrix, locateVersion } from './versioning/lifecycle';
@@ -1297,4 +1301,58 @@ export function listPendingComponentVersions(
       }
       return pathA.length - pathB.length;
     });
+}
+
+// ---------------------------------------------------------------------------
+// Timeline do Diário de Bordo (docs/14 §4 US-GOV-08, §10 CT-GOV-01, S37)
+// ---------------------------------------------------------------------------
+// #region: timeline-do-diario-de-bordo
+
+export type ChangeRequestTimelineEntry = {
+  changeRequest: ChangeRequest;
+  /** `changeRequest.proposedEffectiveDate` no instante da publicação — a vigência que de fato valeu. */
+  effectiveFrom: string;
+  publishedAt: string | null;
+  release: Release | null;
+  /** Componentes afetados que ainda existem no documento (item apagado à mão não aparece). */
+  affectedComponents: PolicyComponent[];
+  projectIds: string[];
+};
+
+export type ChangeRequestTimelineFilter = {
+  /** Um componente afetado deste projeto (mesmo critério de `changeRequestProjectIds`). */
+  projectId?: string;
+  /** ISO 8601, inclusive nas duas pontas. */
+  from?: string;
+  to?: string;
+};
+
+/**
+ * DBs **publicados**, em ordem de vigência (mais recente primeiro) — a régua
+ * da história da política pedida pela US-GOV-08: "o que mudou, quando, e por
+ * qual DB". Cada entrada carrega a release (quando publicado em lote) e os
+ * componentes afetados, para o link direto que a tela usa.
+ */
+export function getChangeRequestTimeline(
+  doc: PolicyOpsDocument,
+  filter: ChangeRequestTimelineFilter = {},
+): ChangeRequestTimelineEntry[] {
+  return doc.changeRequests
+    .filter((cr): cr is ChangeRequest & { proposedEffectiveDate: string } =>
+      cr.status === 'PUBLISHED' && cr.proposedEffectiveDate !== undefined,
+    )
+    .filter((cr) => filter.projectId === undefined || changeRequestProjectIds(doc, cr).has(filter.projectId))
+    .filter((cr) => filter.from === undefined || cr.proposedEffectiveDate >= filter.from)
+    .filter((cr) => filter.to === undefined || cr.proposedEffectiveDate <= filter.to)
+    .map((cr) => ({
+      changeRequest: cr,
+      effectiveFrom: cr.proposedEffectiveDate,
+      publishedAt: changeRequestPublishedAt(cr),
+      release: cr.releaseId === undefined ? null : (doc.releases.find((r) => r.id === cr.releaseId) ?? null),
+      affectedComponents: cr.items
+        .map((item) => doc.components.find((c) => c.id === item.componentId))
+        .filter((component): component is PolicyComponent => component !== undefined),
+      projectIds: [...changeRequestProjectIds(doc, cr)],
+    }))
+    .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom) || b.changeRequest.code.localeCompare(a.changeRequest.code));
 }

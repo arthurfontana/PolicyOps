@@ -19,6 +19,8 @@ import { TemplatesScreen } from '@/components/templates/TemplatesScreen';
 import { ImportWizard } from '@/components/import/ImportWizard';
 import { AclScreen } from '@/components/library/AclScreen';
 import { ChangeRequestsScreen } from '@/components/change-requests/ChangeRequestsScreen';
+import { ChangeRequestTimelineScreen } from '@/components/change-requests/ChangeRequestTimelineScreen';
+import { ReleasesScreen } from '@/components/change-requests/ReleasesScreen';
 import { IdentityDialog } from '@/components/dialogs/IdentityDialog';
 import { ConflictDialog } from '@/components/dialogs/ConflictDialog';
 import { MergeDialog } from '@/components/dialogs/MergeDialog';
@@ -70,6 +72,8 @@ function CurrentView() {
   if (view === 'import') return <ImportWizard />;
   if (view === 'acl') return <AclScreen />;
   if (view === 'change-requests') return <ChangeRequestsScreen />;
+  if (view === 'releases') return <ReleasesScreen />;
+  if (view === 'db-timeline') return <ChangeRequestTimelineScreen />;
   return <UnderConstruction view={view} />;
 }
 

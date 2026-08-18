@@ -4,9 +4,11 @@ import {
   CalendarClock,
   Columns3,
   FolderKanban,
+  History,
   LayoutTemplate,
   Library,
   ListTree,
+  Package,
   PencilLine,
   Shuffle,
   ShieldCheck,
@@ -39,6 +41,8 @@ const LIBRARY_ITEMS: NavItem[] = [
 
 const BOTTOM_ITEMS: NavItem[] = [
   { view: 'change-requests', label: 'Diário de Bordo', icon: BookOpenCheck, implemented: true },
+  { view: 'releases', label: 'Releases', icon: Package, implemented: true },
+  { view: 'db-timeline', label: 'Linha do tempo do DB', icon: History, implemented: true },
   { view: 'templates', label: 'Templates', icon: LayoutTemplate, implemented: true },
   { view: 'timeline', label: 'Vigência', icon: CalendarClock, implemented: true },
   { view: 'drafts', label: 'Rascunhos', icon: PencilLine, implemented: true },

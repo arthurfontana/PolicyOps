@@ -116,6 +116,11 @@ interface EditorState {
    * arquivo.
    */
   selectedChangeRequestId: string | null;
+  /**
+   * Release selecionada na tela de Releases (docs/07 §19.6) — `null` mostra a
+   * lista. Mesmo raciocínio de `selectedChangeRequestId`.
+   */
+  selectedReleaseId: string | null;
   /** Matriz e versão abertas na tela de matriz — `null` é o estado vazio. */
   currentMatrixId: string | null;
   currentVersionId: string | null;
@@ -185,6 +190,7 @@ interface EditorState {
   setSelectedProject: (projectId: string | null) => void;
   setSelectedComponent: (componentId: string | null) => void;
   setSelectedChangeRequest: (changeRequestId: string | null) => void;
+  setSelectedRelease: (releaseId: string | null) => void;
   openMatrix: (matrixId: string, versionId: string | null) => void;
   setVersion: (versionId: string) => void;
   closeMatrix: () => void;
@@ -225,6 +231,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedProjectId: null,
   selectedComponentId: null,
   selectedChangeRequestId: null,
+  selectedReleaseId: null,
   currentMatrixId: null,
   currentVersionId: null,
   zoom: 1,
@@ -247,6 +254,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setSelectedComponent: (componentId) => set({ selectedComponentId: componentId }),
 
   setSelectedChangeRequest: (changeRequestId) => set({ selectedChangeRequestId: changeRequestId }),
+
+  setSelectedRelease: (releaseId) => set({ selectedReleaseId: releaseId }),
 
   // Abrir outra matriz ou outra versão troca o conjunto de tuplas: manter a
   // seleção apontaria para combinações que não existem no novo grid.
@@ -298,6 +307,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedProjectId: null,
       selectedComponentId: null,
       selectedChangeRequestId: null,
+      selectedReleaseId: null,
       currentMatrixId: null,
       currentVersionId: null,
       zoom: 1,
