@@ -184,7 +184,7 @@ preservado, e quem o preenche são os comandos de DB abaixo (S32b).
 | `changeRequest/addItem` | `{ changeRequestId, componentId, changeType, baseVersionId?, draftVersionId?, currentSummary?, proposedSummary }` — entra no fim; RN-GOV-02 recusa componente repetido no mesmo DB | remover o item |
 | `changeRequest/removeItem` | `{ changeRequestId, componentId }` | devolver o item na posição exata |
 | `changeRequest/updateItem` | `{ changeRequestId, componentId, changeType?, baseVersionId?, draftVersionId?, currentSummary?, proposedSummary? }` — `componentId` identifica e não muda | o próprio comando com os valores anteriores |
-| `changeRequest/setRelease` | `{ changeRequestId, releaseId \| null }` — vínculo `ChangeRequest.releaseId`; recusa release `PUBLISHED`/`CANCELLED` | o próprio comando com o vínculo anterior |
+| `changeRequest/setRelease` | `{ changeRequestId, releaseId \| null }` — vínculo `ChangeRequest.releaseId`; entrar (`releaseId` não nulo) exige DB **≥ `APPROVED`** e release `PLANNED`/`IN_DEVELOPMENT` (S37); sair não tem essa exigência, só o DB estar aberto | o próprio comando com o vínculo anterior |
 | `changeRequest/transition` | `{ changeRequestId, to, note? }` — valida **só** o grafo do §5 de `14-governanca-de-alteracoes.md` (`CR_TRANSITION_INVALID`); `SUBMITTED` exige RN-GOV-03 (`CR_INCOMPLETE`); **`PUBLISHED` é inalcançável** | `changeRequest/_setStatus` com o status anterior |
 | `changeRequest/cancel` | `{ changeRequestId, reason? }` — a transição para `CANCELLED`, permitida de qualquer estado que não seja `PUBLISHED`/`CANCELLED` | idem |
 | `changeRequest/approve` · `/return` · `/reject` | `{ changeRequestId, comment? }` — transição do grafo **mais** `{by, at, decision, comment}` em `approvals`; devolver **exige** comentário (`INVALID_INPUT`) | `changeRequest/_restoreDecision` com status e `approvals` anteriores |
@@ -247,11 +247,30 @@ Cinco coisas sobre este bloco:
 | `release/create` | `{ code, name?, plannedDate?, notes? }` — nasce `PLANNED`; `code` único no documento (I31) | remover a release criada; recusa se ela já agrupa DB |
 | `release/update` | `{ releaseId, name?, plannedDate?, notes?, status? }` — três estados nos opcionais; `status` só entre `PLANNED` e `IN_DEVELOPMENT`. **Não aceita `code`** | o próprio comando com os valores anteriores |
 | `release/cancel` | `{ releaseId, reason? }` — não mexe nos DBs vinculados: eles continuam apontando a release cancelada até alguém movê-los | `release/_setStatus` com o status anterior |
+| `release/publish` | `{ releaseId, rebasedComponentIds? }` — `rebasedComponentIds: { changeRequestId, componentId }[]` (por DB, S37). Roda `changeRequest/publish` por DB pronto da release, na mesma transação; escreve `Release.status = PUBLISHED`, `publishedAt`, `publishedBy` | **sem inverso** |
 
-`PUBLISHED` não é alcançável por `release/update`: publicar a release é a S37, em cima da publicação
-atômica da S36 (RN-GOV-05). Os eventos de release (`RELEASE_CREATED`, `RELEASE_UPDATED`,
-`RELEASE_CANCELLED`) vão para `doc.events` — ao contrário do DB, `Release` não tem trilha própria no
-schema.
+`PUBLISHED` só é alcançável por `release/publish` (S37), em cima da publicação atômica do DB
+individual (S36, RN-GOV-05) — nunca por `release/update`. Os eventos de release (`RELEASE_CREATED`,
+`RELEASE_UPDATED`, `RELEASE_CANCELLED`, `RELEASE_PUBLISHED`) vão para `doc.events` — ao contrário do
+DB, `Release` não tem trilha própria no schema.
+
+### Publicação de release (sessão 37)
+
+`release/publish` (`src/core/document/release-publish.ts`) **não é uma segunda implementação de
+publicar**: é `changeRequest/publish` (S36) chamado uma vez por DB pronto da release, dentro do mesmo
+`Run`/`step` que `changeRequest/publish` já usa para os próprios subcomandos (DEC-GOV-008). Três
+pontos que valem a pena destacar em cima do que o §"Vínculo e publicação do DB" já cobre:
+
+1. **A validação estática é agregada, não delegada.** `preflightReleasePublish` chama
+   `preflightChangeRequestPublish` para cada DB da release e junta os `blockers`/`staleBases` de
+   todos antes de decidir; um bloqueio em qualquer DB aborta a release inteira com
+   `RELEASE_PUBLISH_BLOCKED` (`E-GOV-04`) — exatamente o CT-GOV-03 do §10 de
+   `14-governanca-de-alteracoes.md`.
+2. **Release vazia é pendência, não sucesso vazio.** Zero DBs vinculados também vira
+   `RELEASE_PUBLISH_BLOCKED` — publicar "nada" não é uma operação válida.
+3. **Reconfirmação de base desatualizada é por `{DB, componente}`.** Diferente do DB individual (só
+   `componentId`), a release precisa do par porque dois DBs da mesma release podem ter itens
+   defasados sobre componentes diferentes ao mesmo tempo.
 
 ### Editor rico de especificação (`RichDoc`, sessão 34)
 | Comando | Entrada | Inverso |
@@ -303,6 +322,8 @@ Funções de leitura em `src/core/`, chamadas direto pelos componentes:
 | `assessReleaseComposition(doc, releaseId)` | `ReleaseComposition` — avaliação **estática** da release: por DB, se está pronto e o que falta (`ReleaseBlocker[]` tipado). Não publica nada; é a lista que a S36 vira `E-GOV-04` (S32b) |
 | `assessChangeRequestReadiness(doc, cr)` | `ReleaseCompositionEntry` — a mesma avaliação para um DB solto, que é o caminho da publicação individual (S36) |
 | `listReleaseChangeRequests(doc, releaseId)` · `listChangeRequestsAvailableForRelease(doc)` | os DBs de uma release, e os candidatos a entrar numa (abertos e sem release) |
+| `deriveReleaseJointStatus(doc, releaseId, { at? })` | `ReleaseJointStatus` (`EMPTY \| IN_PROGRESS \| READY \| PUBLISHED \| CANCELLED`) — rótulo de tela derivado dos DBs sobre `assessReleaseComposition`; `PUBLISHED`/`CANCELLED` vêm do `Release.status` bruto e vencem a composição (S37) |
+| `getChangeRequestTimeline(doc, { projectId?, from?, to? })` | `ChangeRequestTimelineEntry[]` — DBs **publicados**, mais recente primeiro por `proposedEffectiveDate`, com release e componentes afetados (US-GOV-08 parcial, S37) |
 | `listMatrices(doc, { projectId?, tags?, search? })` | `{ matrices, facets }` — matrizes filtradas por facetas de tag (`E` entre grupos, `OU` dentro do grupo) e, em `facets`, a contagem por tag calculada sobre o conjunto antes do filtro do próprio grupo (comportamento padrão de faceta); tag arquivada não aparece em `facets` |
 
 `getEditorView` é memoizada por `(versionId, revisão do documento)` — recalcular o layout de cabeçalhos a cada render de célula é o erro de desempenho mais provável do projeto.

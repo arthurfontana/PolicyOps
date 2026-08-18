@@ -77,6 +77,9 @@ const PUBLISHER_COMMANDS: ReadonlySet<string> = new Set([
   // publica (RN-GOV-04); **publicar** muda a política vigente, e é aqui que o
   // épico Governança encosta na linha do `PUBLISHER` (docs/08 §6).
   'changeRequest/publish',
+  // Publicação da release (S37): mesma régua — é ela quem publica de fato,
+  // rodando `changeRequest/publish` por baixo (DEC-GOV-008).
+  'release/publish',
 ]);
 
 const ADMIN_COMMANDS: ReadonlySet<string> = new Set(['acl/set']);

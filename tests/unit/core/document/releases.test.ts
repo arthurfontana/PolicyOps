@@ -342,11 +342,24 @@ describe('composição da release (validação estática)', () => {
     const comRelease = apply(cena.document, ctx, createRelease({ code: '2026.09.01' }));
     const releaseId = comRelease.data.releaseId;
 
-    // DB_515 pronto; DB_519 em DRAFT, com item UPDATE sem rascunho.
+    // DB_515 pronto; DB_519 aprovado (entra na release, S37), com item UPDATE
+    // sem rascunho — por isso ainda não está pronto para publicar.
     const pronto = dbPronto({ ...cena, document: comRelease.document }, ctx);
-    const atrasado = dbSubmetivel({ ...cena, document: pronto.document }.document, ctx, cena.novaRegraId, {
-      code: 'DB_519',
-    });
+    const criadoAtrasado = dbSubmetivel(
+      { ...cena, document: pronto.document }.document,
+      ctx,
+      cena.novaRegraId,
+      { code: 'DB_519' },
+    );
+    let atrasadoDoc = criadoAtrasado.document;
+    for (const to of ['SUBMITTED', 'IN_REVIEW', 'APPROVED'] as const) {
+      atrasadoDoc = apply(
+        atrasadoDoc,
+        ctx,
+        transitionChangeRequest({ changeRequestId: criadoAtrasado.changeRequestId, to }),
+      ).document;
+    }
+    const atrasado = { document: atrasadoDoc, changeRequestId: criadoAtrasado.changeRequestId };
     let doc = apply(
       atrasado.document,
       ctx,

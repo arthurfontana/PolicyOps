@@ -687,7 +687,7 @@ real.
 
 ---
 
-## DEC-GOV-008: release publica em lote, atômica, reutilizando a publicação existente
+## DEC-GOV-008: release publica em lote, atômica, reutilizando a publicação existente ✅ implementada na S37
 
 | Campo | Conteúdo |
 |---|---|
@@ -697,6 +697,12 @@ real.
 | **Por quê** | Atomicidade em lote já tem precedente testado no produto (S24); reusar o padrão custa pouco e dá à área a resposta "o que mudou nessa release" de graça, via diff entre a fotografia anterior e a posterior. |
 | **Custo aceito** | Um DB pode ficar `READY_FOR_RELEASE` esperando a release inteira ficar pronta — fila explícita no painel de pendências. |
 | **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3.4, §6 (RN-GOV-05) |
+
+> ✅ **Implementada na S37** como desenhada: `release/publish` (`src/core/document/release-publish.ts`)
+> chama `changeRequest/publish` por DB, dentro do mesmo `Run`/`step` — não uma segunda
+> implementação. O diff "o que mudou nessa release" citado em **Por quê** não entrou nesta sessão
+> (fica para a S39, comparação release × release, docs/14 §11); o que a S37 entrega é a publicação em
+> si e a leitura na timeline (US-GOV-08 parcial).
 
 ---
 
@@ -1120,3 +1126,16 @@ real.
 | **Por quê** | O item é o registro do que foi aprovado; a versão publicada é o que valeu. Quando são o mesmo objeto, o lastro é estrutural em vez de textual — e é o que a S37 (release), a S38 (pacote) e a S39 (fotografia) vão ler para dizer "esta versão veio deste DB". A leitura de I30 dependente do status é honesta: o campo não mudou de significado, mudou o momento do ciclo de vida em que ele é lido. |
 | **Custo aceito** | O nome `draftVersionId` fica impreciso depois da publicação — trocá-lo exigiria migração de schema para um ganho puramente cosmético, então fica o nome e fica a nota, aqui e em I30. |
 | **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3.3; `03-modelo-do-documento.md` §9 (I30); `src/core/document/{cr-drafts,cr-publish,validate}.ts` |
+
+---
+
+## DEC-GOV-037: entrar numa release exige DB ≥ APPROVED; sair continua livre até o DB fechar
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `changeRequest/setRelease` passa a recusar o vínculo (`releaseId` não nulo) quando o DB ainda não chegou em `APPROVED` — `CR_TRANSITION_INVALID`, mesma família de erro do resto do grafo. **Sair** (`releaseId: null`) continua sem essa exigência: só pede o DB estar aberto, valendo até ele fechar (`PUBLISHED`/`REJECTED`/`CANCELLED`), não até a release publicar. A tela (`AddChangeRequestToReleaseDialog`, docs/07 §19.6) filtra a lista de candidatos por `isChangeRequestFrozen` para não oferecer um clique que o comando recusaria, mas quem garante a regra é o núcleo. |
+| **Data / gatilho** | 2026-08-18, implementação da S37: o comando já existia desde a S32b (`setChangeRequestRelease`, sem tela), escrito antes de a tela de release existir e sem essa checagem — dois testes de `releases.test.ts` (S32b) vinculavam DB em `DRAFT` a uma release só para exercitar a composição estática, e precisaram avançar o DB até `APPROVED` para continuar válidos sob a regra nova. |
+| **Alternativas** | (a) deixar qualquer status entrar, como estava, e a composição (`assessReleaseComposition`) sinalizar `CR_NOT_READY` — funciona para "pronto para publicar", mas permite montar uma release cheia de DBs em `DRAFT` que ninguém decidiu ainda, o que não é "o que entra na subida", é uma lista de candidatos; (b) exigir `READY_FOR_RELEASE`/`SCHEDULED` (os dois estados de `RELEASE_READY_STATUSES`) para entrar — trocaria "montar a release" por "só adicionar DB que já terminou o desenvolvimento", contrariando o processo real (a área monta a release com DBs aprovados e acompanha o desenvolvimento deles **dentro** dela). |
+| **Por quê** | `APPROVED` é o ponto do grafo em que a decisão foi tomada (RN-GOV-01) — antes disso, "juntar numa subida" não faz sentido de negócio, é só um agrupamento de rascunhos. Depois de aprovado, o DB pode evoluir (`IN_DEVELOPMENT` → `IN_VALIDATION` → `READY_FOR_RELEASE`) **dentro** da release, que é o caso real: a área monta a lista da subida de setembro assim que os DBs são aprovados, não espera todos ficarem prontos para só então montar a lista. |
+| **Custo aceito** | Um DB `SUBMITTED`/`IN_REVIEW` não pode ser pré-reservado numa release — se a área quiser sinalizar intenção antes da aprovação, o jeito é um campo de texto/observação na release, não o vínculo estrutural. Não é uma perda: o vínculo estrutural existir cedo demais é o que a decisão evita. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3.4; `08-camada-de-comandos.md` §3 (Releases); `src/core/document/change-requests.ts` (`setChangeRequestRelease`) |

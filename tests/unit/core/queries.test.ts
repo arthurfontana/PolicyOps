@@ -6,6 +6,7 @@ import {
   countPending,
   filterComponentTree,
   getAxisStaleness,
+  getChangeRequestTimeline,
   getComponentEffectiveVersion,
   getComponentTimeline,
   getEditorView,
@@ -35,6 +36,10 @@ import {
 } from '@/core/queries';
 import { archiveComponent, createComponent } from '@/core/document/components';
 import { setMatrixTags } from '@/core/document/commands';
+import { addChangeRequestItem } from '@/core/document/change-requests';
+import { linkChangeRequestDraft } from '@/core/document/cr-drafts';
+import { publishChangeRequest } from '@/core/document/cr-publish';
+import { createRelease } from '@/core/document/releases';
 import { archiveCatalogItem, createCatalogItem } from '@/core/library/catalog';
 import { addLevelCommand } from '@/core/versioning/axis-commands';
 import { applyCellPatch } from '@/core/versioning/cells';
@@ -53,6 +58,14 @@ import {
   T0,
   testCtx,
 } from './versioning/fixtures';
+import {
+  avancarAte,
+  criarDb,
+  dbPublicavel,
+  dbSubmetivel,
+  politica,
+  VIGENCIA_PROPOSTA,
+} from './document/governance-fixtures';
 
 function nestedMatrix() {
   const ctx = testCtx();
@@ -1155,5 +1168,86 @@ describe('listPendingComponentVersions', () => {
     const publicado = apply(v1.document, ctx, publishComponentVersion({ versionId: v1.data.versionId, effectiveFrom: VIGENCIA_1 }));
 
     expect(listPendingComponentVersions(publicado.document, IDS.projectA)).toEqual([]);
+  });
+});
+
+describe('getChangeRequestTimeline (docs/14 §4 US-GOV-08, S37)', () => {
+  it('só DBs PUBLISHED entram, mais recente primeiro, com release e componentes afetados', () => {
+    const ctx = testCtx();
+    const cenario = politica(ctx);
+    const comRelease = apply(cenario.document, ctx, createRelease({ code: '2026.09.01' }));
+    const releaseId = comRelease.data.releaseId;
+
+    const db515 = dbPublicavel(comRelease.document, ctx, cenario.goodlistId);
+    const publicado515 = apply(
+      db515.document,
+      ctx,
+      publishChangeRequest({ changeRequestId: db515.changeRequestId }),
+    ).document;
+
+    // DB-519, mais tarde, mas com vigência anterior — a ordem é por vigência, não por criação.
+    const criado519 = criarDb(publicado515, ctx, {
+      code: 'DB_519',
+      proposedEffectiveDate: '2026-02-01T00:00:00.000Z',
+    });
+    let doc519 = apply(
+      criado519.document,
+      ctx,
+      addChangeRequestItem({
+        changeRequestId: criado519.changeRequestId,
+        componentId: cenario.novaRegraId,
+        changeType: 'CREATE',
+        proposedSummary: 'Regra nova.',
+      }),
+    ).document;
+    doc519 = apply(
+      doc519,
+      ctx,
+      linkChangeRequestDraft({
+        changeRequestId: criado519.changeRequestId,
+        componentId: cenario.novaRegraId,
+        payload: { kind: 'RULE', businessDescription: 'Regra nova.' },
+      }),
+    ).document;
+    doc519 = avancarAte(doc519, ctx, criado519.changeRequestId, 'READY_FOR_RELEASE');
+    const publicado519 = apply(
+      doc519,
+      ctx,
+      publishChangeRequest({ changeRequestId: criado519.changeRequestId }),
+    ).document;
+
+    // Vincula o DB-515 (já publicado) à release, só para provar que a
+    // timeline lê `releaseId` mesmo depois de publicado — o DB-519 fica solto.
+    const comReleaseNoDb = structuredClone(publicado519);
+    comReleaseNoDb.changeRequests[0]!.releaseId = releaseId;
+
+    const timeline = getChangeRequestTimeline(comReleaseNoDb);
+    expect(timeline.map((entry) => entry.changeRequest.code)).toEqual(['DB_515', 'DB_519']);
+    expect(timeline[0]).toMatchObject({ effectiveFrom: VIGENCIA_PROPOSTA });
+    expect(timeline[0]!.release?.id).toBe(releaseId);
+    expect(timeline[0]!.affectedComponents.map((c) => c.id)).toEqual([cenario.goodlistId]);
+    expect(timeline[0]!.publishedAt).not.toBeNull();
+    expect(timeline[1]!.release).toBeNull();
+    expect(timeline[1]!.affectedComponents.map((c) => c.id)).toEqual([cenario.novaRegraId]);
+
+    // DB ainda não publicado não aparece.
+    const dbAberto = dbSubmetivel(comReleaseNoDb, ctx, cenario.espelhoId, { code: 'DB_600' });
+    expect(getChangeRequestTimeline(dbAberto.document).map((e) => e.changeRequest.code)).toEqual([
+      'DB_515',
+      'DB_519',
+    ]);
+  });
+
+  it('filtra por projeto e por período', () => {
+    const ctx = testCtx();
+    const cenario = politica(ctx);
+    const db = dbPublicavel(cenario.document, ctx, cenario.goodlistId);
+    const publicado = apply(db.document, ctx, publishChangeRequest({ changeRequestId: db.changeRequestId })).document;
+
+    expect(getChangeRequestTimeline(publicado, { projectId: IDS.projectA })).toHaveLength(1);
+    expect(getChangeRequestTimeline(publicado, { projectId: 'outroproj12' })).toHaveLength(0);
+    expect(getChangeRequestTimeline(publicado, { from: '2026-09-02T00:00:00.000Z' })).toHaveLength(0);
+    expect(getChangeRequestTimeline(publicado, { to: '2026-08-31T00:00:00.000Z' })).toHaveLength(0);
+    expect(getChangeRequestTimeline(publicado, { from: VIGENCIA_PROPOSTA, to: VIGENCIA_PROPOSTA })).toHaveLength(1);
   });
 });

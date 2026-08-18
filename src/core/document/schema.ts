@@ -773,6 +773,11 @@ export const DOC_EVENT_TYPES = [
   'RELEASE_CREATED',
   'RELEASE_UPDATED',
   'RELEASE_CANCELLED',
+  // Publicação de release em lote (schema 5, sessão 37) — docs/14 §3.4,
+  // RN-GOV-05. Um evento só por release (não um por DB: a trilha de cada DB
+  // já ganha o próprio `CR_TRANSITIONED`), vai para `doc.events` pelo mesmo
+  // motivo dos três `RELEASE_*` acima.
+  'RELEASE_PUBLISHED',
 ] as const;
 
 export type DocEventType = (typeof DOC_EVENT_TYPES)[number];

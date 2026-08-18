@@ -561,3 +561,38 @@ export function listChangeRequestsAvailableForRelease(doc: PolicyOpsDocument): C
     (cr) => !isChangeRequestClosed(cr.status) && cr.releaseId === undefined,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Status conjunto (consulta pura, S37)
+// ---------------------------------------------------------------------------
+// #region: release-status-conjunto
+
+/**
+ * Rótulo de tela para a release, **derivado dos DBs** e não um segundo campo
+ * do documento — `Release.status` continua sendo o ciclo de vida que os
+ * comandos escrevem (`PLANNED` → `IN_DEVELOPMENT` → `PUBLISHED`/`CANCELLED`,
+ * docs/14 §3.4); isto aqui é a leitura "dá para publicar hoje?" que a lista de
+ * releases (§19.6) pinta sem reabrir `assessReleaseComposition` na tela.
+ *
+ * - `PUBLISHED`/`CANCELLED` — o próprio `Release.status`, terminal, vence
+ *   qualquer composição (uma release publicada não "regride" por um DB extra
+ *   entrar depois).
+ * - `EMPTY` — nenhum DB vinculado ainda.
+ * - `READY` — todos os DBs vinculados estão prontos para publicar
+ *   (`assessReleaseComposition.ready`).
+ * - `IN_PROGRESS` — tem DB vinculado, mas ao menos um ainda não está pronto.
+ */
+export type ReleaseJointStatus = 'EMPTY' | 'IN_PROGRESS' | 'READY' | 'PUBLISHED' | 'CANCELLED';
+
+export function deriveReleaseJointStatus(
+  doc: PolicyOpsDocument,
+  releaseId: string,
+  options: AssessOptions = {},
+): ReleaseJointStatus {
+  const { release } = locateRelease(doc, releaseId);
+  if (release.status === 'PUBLISHED' || release.status === 'CANCELLED') return release.status;
+
+  const composition = assessReleaseComposition(doc, releaseId, options);
+  if (composition.entries.length === 0) return 'EMPTY';
+  return composition.ready ? 'READY' : 'IN_PROGRESS';
+}
