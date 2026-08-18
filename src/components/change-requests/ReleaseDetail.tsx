@@ -8,8 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { AddChangeRequestToReleaseDialog } from '@/components/change-requests/AddChangeRequestToReleaseDialog';
+import { downloadFactoryPackageMarkdown, printFactoryPackage } from '@/components/change-requests/factory-package-actions';
 import { PublishReleaseDialog } from '@/components/change-requests/PublishReleaseDialog';
+import { ExportMenu } from '@/components/shell/ExportMenu';
 import { setChangeRequestRelease } from '@/core/document/change-requests';
+import { isFactoryPackageAvailable } from '@/core/export';
 import { cancelRelease, deriveReleaseJointStatus, listReleaseChangeRequests, updateRelease } from '@/core/document/releases';
 import { CR_STATUS_LABELS, CR_STATUS_VARIANTS } from '@/lib/change-request-labels';
 import { dateInputToIso, formatDateBR, formatDateTimeBR, isoToDateInputValue } from '@/lib/format';
@@ -104,6 +107,17 @@ export function ReleaseDetail({ releaseId }: ReleaseDetailProps) {
     setCancelOpen(false);
   }
 
+  /** DBs elegíveis a pacote (≥ APPROVED, RN-GOV-08) — os demais ficam de fora, sem erro. */
+  const packageableCrs = crs.filter((cr) => isFactoryPackageAvailable(cr.status));
+
+  function handlePrintAllPackages() {
+    for (const cr of packageableCrs) printFactoryPackage(document!, cr.id);
+  }
+
+  function handleDownloadAllPackagesMarkdown() {
+    for (const cr of packageableCrs) downloadFactoryPackageMarkdown(document!, cr.id);
+  }
+
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-6">
       <div className="flex items-start gap-2">
@@ -182,11 +196,26 @@ export function ReleaseDetail({ releaseId }: ReleaseDetailProps) {
           <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500">
             O que entra na subida ({crs.length})
           </p>
-          {open && (
-            <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(true)}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" /> Adicionar DB
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {packageableCrs.length > 0 && (
+              <ExportMenu
+                label="Gerar pacotes"
+                items={[
+                  { key: 'print', label: `Imprimir todos (${packageableCrs.length} HTML)`, onSelect: handlePrintAllPackages },
+                  {
+                    key: 'markdown',
+                    label: `Baixar todos (${packageableCrs.length} Markdown)`,
+                    onSelect: handleDownloadAllPackagesMarkdown,
+                  },
+                ]}
+              />
+            )}
+            {open && (
+              <Button type="button" variant="outline" size="sm" onClick={() => setAddOpen(true)}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" /> Adicionar DB
+              </Button>
+            )}
+          </div>
         </div>
 
         {crs.length === 0 ? (

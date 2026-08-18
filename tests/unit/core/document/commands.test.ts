@@ -229,6 +229,49 @@ describe('project/update e project/archive', () => {
       'INVALID_INPUT',
     );
   });
+
+  it('docs/14 §8 (S38): define, sobrescreve e apaga os contatos do factoryTemplate, três estados', () => {
+    const ctx = testCtx();
+    const doc = baseDocument();
+    expect(doc.projects[0]!.factoryTemplate).toBeUndefined();
+
+    const definidos = apply(
+      doc,
+      ctx,
+      updateProject({
+        projectId: IDS.projectA,
+        factoryContacts: [{ name: 'Equipe de Políticas', role: 'Solicitante', email: 'x@exemplo.com' }],
+      }),
+    );
+    expect(definidos.document.projects[0]!.factoryTemplate).toEqual({
+      boilerplate: { blocks: [] },
+      contacts: [{ name: 'Equipe de Políticas', role: 'Solicitante', email: 'x@exemplo.com' }],
+    });
+
+    const inalterados = apply(definidos.document, ctx, updateProject({ projectId: IDS.projectA, name: 'Projeto A' }));
+    expect(inalterados.document.projects[0]!.factoryTemplate?.contacts).toHaveLength(1);
+
+    const sobrescritos = apply(
+      inalterados.document,
+      ctx,
+      updateProject({ projectId: IDS.projectA, factoryContacts: [{ name: 'Compliance' }] }),
+    );
+    expect(sobrescritos.document.projects[0]!.factoryTemplate?.contacts).toEqual([{ name: 'Compliance' }]);
+
+    const apagados = apply(sobrescritos.document, ctx, updateProject({ projectId: IDS.projectA, factoryContacts: null }));
+    // Sem boilerplate e sem contatos, `factoryTemplate` some inteiro (vazio é ausência).
+    expect(apagados.document.projects[0]!.factoryTemplate).toBeUndefined();
+
+    const desfeito = apply(apagados.document, ctx, apagados.result.inverse);
+    expect(desfeito.document.projects[0]!.factoryTemplate?.contacts).toEqual([{ name: 'Compliance' }]);
+
+    expectFailure(
+      doc,
+      ctx,
+      updateProject({ projectId: IDS.projectA, factoryContacts: [{ name: '   ' }] }),
+      'INVALID_INPUT',
+    );
+  });
 });
 
 describe('matrix/updateMeta e matrix/archive', () => {

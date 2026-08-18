@@ -10,6 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FactoryContactsEditor } from '@/components/dialogs/FactoryContactsEditor';
+import { RichDocEditor } from '@/components/richdoc/RichDocEditor';
 import { createProject, updateProject } from '@/core/document/commands';
 import type { Project } from '@/core/document/schema';
 import { dateInputToIso, isoToDateInputValue } from '@/lib/format';
@@ -96,7 +98,7 @@ export function CreateProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className={isEdit ? 'max-w-2xl max-h-[85vh] overflow-y-auto' : undefined}>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar projeto' : 'Novo projeto'}</DialogTitle>
           <DialogDescription>
@@ -150,6 +152,31 @@ export function CreateProjectDialog({
               pendentes" na árvore — sempre editável ao publicar.
             </p>
           </div>
+          {isEdit && (
+            <div className="flex flex-col gap-3 border-t border-neutral-200 pt-3 dark:border-neutral-800">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs">Contatos do Pacote para a Fábrica</Label>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Solicitante, interessados e demais contatos que o pacote gerado lista (docs/14 §8).
+                </p>
+                <FactoryContactsEditor project={project} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs">Boilerplate do Pacote para a Fábrica</Label>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Conteúdo fixo dos DBs atuais (checklist Serasa, comunicados) — editável uma vez por
+                  política e reaproveitado em todo pacote gerado.
+                </p>
+                <RichDocEditor
+                  key={`factory-boilerplate-${project.id}`}
+                  target={{ kind: 'PROJECT_FACTORY_BOILERPLATE', projectId: project.id }}
+                  value={project.factoryTemplate?.boilerplate}
+                  editable
+                  emptyLabel="Sem boilerplate registrado ainda."
+                />
+              </div>
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancelar

@@ -217,3 +217,46 @@ qualquer coisa entrar na política**.
 ## 11. Atalhos úteis
 
 Aperte `?` a qualquer momento dentro da aplicação para ver a lista completa de atalhos de teclado.
+
+## 12. Como gerar o Pacote para a Fábrica
+
+O Pacote para a Fábrica é o documento que vai para a fábrica no lugar do Word manual — gerado a
+partir do DB, nunca redigitado. Ele é sempre **derivado**: toda vez que você clica em "Gerar
+pacote", o documento é montado na hora, a partir do estado atual do DB — não existe uma cópia
+salva para editar depois. Editar o DB e gerar de novo é o jeito de corrigir o pacote.
+
+### 12.1 Configurar o boilerplate uma vez por política
+
+Antes do primeiro pacote, vale preencher o conteúdo fixo que se repete em todo DB (checklist
+Serasa, comunicados, contatos):
+
+1. Abra "Editar projeto" nas configurações do projeto.
+2. Em **Boilerplate do Pacote para a Fábrica**, escreva o texto fixo com o editor rico de sempre
+   (títulos, listas, tabela, imagem).
+3. Em **Contatos**, adicione uma linha por pessoa — nome, papel livre (`Solicitante`,
+   `Interessado`, ou qualquer outro rótulo que a política use) e e-mail opcional.
+
+Isso é opcional: um DB sem boilerplate configurado no projeto gera o pacote normalmente, só sem a
+seção "Boilerplate".
+
+### 12.2 Gerar o pacote de um DB
+
+O botão **Gerar pacote** aparece na tela do DB a partir do status Aprovado (antes disso o escopo
+ainda pode mudar demais para valer a pena gerar). Duas opções:
+
+- **Imprimir (HTML)** — abre uma janela nova já pronta para `Ctrl+P` → salvar como PDF (o mesmo
+  hábito usado para imprimir a matriz). As imagens do texto (motivação, especificação,
+  boilerplate) ficam embutidas na página.
+- **Baixar Markdown (.md)** — baixa o mesmo conteúdo em Markdown. Como o `.md` não carrega bytes de
+  imagem, cada imagem aparece referenciada pelo nome do anexo, com um aviso no topo do arquivo
+  explicando que as imagens estão só no HTML/impressão.
+
+O pacote segue sempre a mesma ordem: identificação, registro de versão, contatos, boilerplate,
+contexto e objetivo, escopo (cada item com "hoje" e "proposto" lado a lado), impactos, critérios de
+aceite, testes, vigência e anexos.
+
+### 12.3 Gerar todos os pacotes de uma release
+
+Na tela da release, o botão **Gerar pacotes** faz o mesmo para todos os DBs da release que já estão
+Aprovados ou além — os que ainda não chegaram lá ficam de fora, sem erro. As mesmas duas opções
+(imprimir todos em HTML, baixar todos em Markdown) disparam um pacote por DB elegível.
