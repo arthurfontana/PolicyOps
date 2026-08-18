@@ -14,11 +14,13 @@ import { CatalogChipPicker } from '@/components/change-requests/CatalogChipPicke
 import { ChangeRequestEventLog } from '@/components/change-requests/ChangeRequestEventLog';
 import { ChangeRequestItemRow } from '@/components/change-requests/ChangeRequestItemRow';
 import { DecisionDialog } from '@/components/change-requests/DecisionDialog';
+import { downloadFactoryPackageMarkdown, printFactoryPackage } from '@/components/change-requests/factory-package-actions';
 import { PublishChangeRequestDialog } from '@/components/change-requests/PublishChangeRequestDialog';
 import { ImpactsEditor } from '@/components/change-requests/ImpactsEditor';
 import { TestScenariosEditor } from '@/components/change-requests/TestScenariosEditor';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { RichDocEditor } from '@/components/richdoc/RichDocEditor';
+import { ExportMenu } from '@/components/shell/ExportMenu';
 import {
   addChangeRequestItem,
   cancelChangeRequest,
@@ -133,6 +135,9 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
   // desabilitado, dizendo o que falta.
   const canPublish = PUBLISHABLE_STATUSES.has(changeRequest.status);
   const canShowDisabledPublish = !closed && !canPublish && changeRequest.status !== 'DRAFT';
+  // Pacote para a Fábrica é gerável a partir de APPROVED (RN-GOV-08, docs/14
+  // §8) — a mesma ordem de `isChangeRequestFrozen` que já congela os itens.
+  const canGeneratePackage = frozen;
 
   function commitTitle() {
     setTitleEditing(false);
@@ -198,6 +203,16 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
       toast({ title: 'Não foi possível cancelar', description: result.error.message });
     }
     setCancelOpen(false);
+  }
+
+  function handlePrintPackage() {
+    const result = printFactoryPackage(document!, changeRequestId);
+    if (!result.ok) toast({ title: 'Não foi possível gerar o pacote', description: result.message });
+  }
+
+  function handleDownloadPackageMarkdown() {
+    const result = downloadFactoryPackageMarkdown(document!, changeRequestId);
+    if (!result.ok) toast({ title: 'Não foi possível gerar o pacote', description: result.message });
   }
 
   function handlePickItem(componentId: string) {
@@ -329,6 +344,15 @@ export function ChangeRequestDetail({ changeRequestId }: ChangeRequestDetailProp
                 {CR_STATUS_LABELS[changeRequest.status]}.
               </TooltipContent>
             </Tooltip>
+          )}
+          {canGeneratePackage && (
+            <ExportMenu
+              label="Gerar pacote"
+              items={[
+                { key: 'print', label: 'Imprimir (HTML)', onSelect: handlePrintPackage },
+                { key: 'markdown', label: 'Baixar Markdown (.md)', onSelect: handleDownloadPackageMarkdown },
+              ]}
+            />
           )}
           {genericTransitions.includes('CANCELLED') && (
             <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => setCancelOpen(true)}>

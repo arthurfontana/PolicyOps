@@ -1,0 +1,126 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`snapshot do pacote gerado — DB-515 (CT-GOV-01) > HTML de impressão 1`] = `
+"<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>DB_515 — Goodlist passa a olhar o valor do pedido</title>
+<style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #1a1a1a;
+  background: #ffffff;
+  margin: 0;
+  padding: 0 2rem;
+  line-height: 1.5;
+}
+h1 { font-size: 1.6rem; margin: 2rem 0 0.25rem; }
+h1.fp-subtitle { font-size: 1rem; font-weight: normal; color: #555; margin-top: 0; }
+h2 { font-size: 1.25rem; border-bottom: 2px solid #1a1a1a; padding-bottom: 0.25rem; margin-top: 0; }
+h3.rd-h1 { font-size: 1.1rem; margin-top: 1.25rem; }
+h4.rd-h2 { font-size: 1rem; margin-top: 1rem; }
+table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; font-size: 0.92rem; }
+table.rd-table th, table.rd-table td, table.fp-kv th, table.fp-kv td {
+  border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top;
+}
+table.fp-kv th { width: 12rem; background: #f5f5f5; }
+table.rd-table thead th { background: #f5f5f5; }
+blockquote { border-left: 3px solid #999; margin: 0.75rem 0; padding: 0.25rem 1rem; color: #444; }
+.rd-callout { background: #fff8e1; border: 1px solid #f0d98c; border-radius: 4px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+.rd-empty, .rd-missing { color: #888; font-style: italic; }
+.rd-figure { margin: 0.75rem 0; text-align: center; }
+.rd-figure img { max-width: 100%; max-height: 22rem; }
+.rd-figure figcaption { font-size: 0.85rem; color: #555; margin-top: 0.25rem; }
+.fp-muted { color: #666; font-size: 0.85rem; }
+.fp-section { margin-bottom: 2rem; }
+.fp-break { page-break-before: always; break-before: page; }
+@media print {
+  body { padding: 0 1cm; }
+  @page { size: A4; margin: 1.5cm; }
+}
+</style>
+</head>
+<body>
+<h1>DB_515 — Goodlist passa a olhar o valor do pedido</h1>
+<h1 class="fp-subtitle">Projeto A · Pacote para a Fábrica</h1>
+<section class="fp-section"><h2>Identificação</h2><table class="fp-kv"><tr><th>DB</th><td>DB_515</td></tr><tr><th>Título</th><td>Goodlist passa a olhar o valor do pedido</td></tr><tr><th>Projeto</th><td>Projeto A</td></tr><tr><th>Status</th><td>Pronto para release</td></tr><tr><th>Solicitado por</th><td>Arthur</td></tr><tr><th>Gerado em</th><td>05/09/2026 12:00</td></tr></table></section>
+<section class="fp-section fp-break"><h2>Registro de versão</h2><table class="rd-table"><thead><tr><th>Data</th><th>Quem</th><th>Ação</th><th>Comentário</th></tr></thead><tbody><tr><td>01/01/2026 00:00</td><td>Arthur</td><td>Criação do DB</td><td></td></tr></tbody></table></section>
+<section class="fp-section fp-break"><h2>Contatos</h2><table class="rd-table"><thead><tr><th>Nome</th><th>Papel</th><th>E-mail</th></tr></thead><tbody><tr><td>Equipe de Políticas de Crédito</td><td>Solicitante</td><td>politicas@exemplo.com</td></tr></tbody></table></section>
+<section class="fp-section fp-break"><h2>Boilerplate</h2><p>Checklist Serasa — desenvolvimento, DET e pós-produção.</p></section>
+<section class="fp-section fp-break"><h2>Contexto e objetivo</h2><p><strong>Motivadores:</strong> Ajuste de risco</p>
+<p class="rd-empty">Sem motivação registrada.</p></section>
+<section class="fp-section fp-break"><h2>Escopo</h2><table class="rd-table"><thead><tr><th>Componente</th><th>Tipo de alteração</th><th>Hoje</th><th>Proposto</th></tr></thead><tbody><tr><td>REGRA_GOODLIST<br /><span class="fp-muted">Goodlist · Regra</span></td><td>Atualizar</td><td>Hoje aprova sempre que estiver na lista.</td><td>Aprova só se o valor do pedido for menor ou igual ao limite em lista.</td></tr></tbody></table></section>
+<section class="fp-section fp-break"><h2>Impactos</h2><p class="rd-empty">Nenhum impacto registrado.</p></section>
+<section class="fp-section fp-break"><h2>Critérios de aceite</h2><p class="rd-empty">Nenhum critério registrado.</p></section>
+<section class="fp-section fp-break"><h2>Testes</h2><p class="rd-empty">Nenhum cenário registrado.</p></section>
+<section class="fp-section fp-break"><h2>Vigência</h2><table class="fp-kv"><tr><th>Vigência proposta</th><td>01/09/2026</td></tr></table></section>
+</body>
+</html>"
+`;
+
+exports[`snapshot do pacote gerado — DB-515 (CT-GOV-01) > Markdown 1`] = `
+"# DB_515 — Goodlist passa a olhar o valor do pedido
+
+Projeto A · Pacote para a Fábrica
+
+## Identificação
+
+| Campo | Valor |
+| --- | --- |
+| DB | DB_515 |
+| Título | Goodlist passa a olhar o valor do pedido |
+| Projeto | Projeto A |
+| Status | Pronto para release |
+| Solicitado por | Arthur |
+| Gerado em | 05/09/2026 12:00 |
+
+## Registro de versão
+
+| Data | Quem | Ação | Comentário |
+| --- | --- | --- | --- |
+| 01/01/2026 00:00 | Arthur | Criação do DB |  |
+
+## Contatos
+
+| Nome | Papel | E-mail |
+| --- | --- | --- |
+| Equipe de Políticas de Crédito | Solicitante | politicas@exemplo.com |
+
+## Boilerplate
+
+Checklist Serasa — desenvolvimento, DET e pós-produção.
+
+## Contexto e objetivo
+
+**Motivadores:** Ajuste de risco
+
+_Sem motivação registrada._
+
+## Escopo
+
+| Componente | Tipo de alteração | Hoje | Proposto |
+| --- | --- | --- | --- |
+| REGRA_GOODLIST (Regra) | Atualizar | Hoje aprova sempre que estiver na lista. | Aprova só se o valor do pedido for menor ou igual ao limite em lista. |
+
+## Impactos
+
+_Nenhum impacto registrado._
+
+## Critérios de aceite
+
+_Nenhum critério registrado._
+
+## Testes
+
+_Nenhum cenário registrado._
+
+## Vigência
+
+| Campo | Valor |
+| --- | --- |
+| Vigência proposta | 01/09/2026 |
+"
+`;

@@ -5,6 +5,7 @@ import {
   cancelChangeRequest,
   transitionChangeRequest,
 } from '@/core/document/change-requests';
+import { updateProject } from '@/core/document/commands';
 import type { InlineImageAttachment, PolicyOpsDocument, RichDoc } from '@/core/document/schema';
 import { INLINE_IMAGE_MAX_BYTES } from '@/core/document/schema';
 import { deserialize, serialize } from '@/core/document/serialize';
@@ -365,6 +366,77 @@ describe('RichDocTarget — CR_MOTIVATION/CR_SPEC (S35)', () => {
       ctx,
       applyRichDocOp({
         target: { kind: 'CR_MOTIVATION', changeRequestId: 'inexistente_' },
+        op: { kind: 'insertBlock', index: 0, block: paragraphFromText('b1__________', 'x') },
+      }),
+      'NOT_FOUND',
+    );
+  });
+});
+
+describe('RichDocTarget — PROJECT_FACTORY_BOILERPLATE (S38)', () => {
+  const target: RichDocTarget = { kind: 'PROJECT_FACTORY_BOILERPLATE', projectId: IDS.projectA };
+
+  it('escreve o boilerplate no projeto sem factoryTemplate; o inverso devolve exatamente o documento anterior', () => {
+    const ctx = testCtx();
+    const document = baseDocument();
+    expect(document.projects.find((p) => p.id === IDS.projectA)!.factoryTemplate).toBeUndefined();
+
+    const escrito = apply(document, ctx, applyRichDocOp({
+      target,
+      op: { kind: 'insertBlock', index: 0, block: paragraphFromText('b1__________', 'Checklist Serasa') },
+    }));
+    const project = escrito.document.projects.find((p) => p.id === IDS.projectA)!;
+    expect(project.factoryTemplate?.boilerplate.blocks).toHaveLength(1);
+    expect(readRichDoc(escrito.document, target)).toEqual(project.factoryTemplate!.boilerplate);
+
+    const desfeito = apply(escrito.document, ctx, escrito.result.inverse);
+    expect(desfeito.document).toEqual(document);
+  });
+
+  it('boilerplate vazio sem contatos apaga `factoryTemplate` inteiro — vazio é ausência', () => {
+    const ctx = testCtx();
+    const document = baseDocument();
+    const escrito = apply(document, ctx, applyRichDocOp({
+      target,
+      op: { kind: 'insertBlock', index: 0, block: paragraphFromText('b1__________', 'x') },
+    }));
+    const apagado = apply(escrito.document, ctx, applyRichDocOp({
+      target,
+      op: { kind: 'removeBlock', blockId: 'b1__________' },
+    }));
+    expect(apagado.document.projects.find((p) => p.id === IDS.projectA)!.factoryTemplate).toBeUndefined();
+  });
+
+  it('boilerplate vazio com contatos preenchidos mantém `factoryTemplate` (só o texto some)', () => {
+    const ctx = testCtx();
+    const document = baseDocument();
+    const comContatos = apply(
+      document,
+      ctx,
+      updateProject({ projectId: IDS.projectA, factoryContacts: [{ name: 'Equipe de Políticas' }] }),
+    );
+    const comTexto = apply(comContatos.document, ctx, applyRichDocOp({
+      target,
+      op: { kind: 'insertBlock', index: 0, block: paragraphFromText('b1__________', 'x') },
+    }));
+    const apagado = apply(comTexto.document, ctx, applyRichDocOp({
+      target,
+      op: { kind: 'removeBlock', blockId: 'b1__________' },
+    }));
+    const project = apagado.document.projects.find((p) => p.id === IDS.projectA)!;
+    expect(project.factoryTemplate).toEqual({
+      boilerplate: { blocks: [] },
+      contacts: [{ name: 'Equipe de Políticas' }],
+    });
+  });
+
+  it('projeto inexistente é NOT_FOUND', () => {
+    const ctx = testCtx();
+    expectFailure(
+      baseDocument(),
+      ctx,
+      applyRichDocOp({
+        target: { kind: 'PROJECT_FACTORY_BOILERPLATE', projectId: 'inexistente_' },
         op: { kind: 'insertBlock', index: 0, block: paragraphFromText('b1__________', 'x') },
       }),
       'NOT_FOUND',

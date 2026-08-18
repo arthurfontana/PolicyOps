@@ -76,7 +76,7 @@ function optionalTextUpdate(
 }
 
 /** Valor anterior de um campo opcional, no formato que o inverso precisa. */
-function previous(value: string | undefined): string | null {
+function previous<T>(value: T | undefined): T | null {
   return value === undefined ? null : value;
 }
 
@@ -236,6 +236,14 @@ export type UpdateProjectInput = {
    * publicação em lote dos pendentes sugerem, sempre sobrescrevível.
    */
   foundationEffectiveFrom?: string | null;
+  /**
+   * Contatos do Pacote para a Fábrica (docs/14 §8, S38): mesma semântica de
+   * três estados — ausente não mexe, `null`/lista vazia apaga, lista define.
+   * O boilerplate (`RichDoc`) tem comando próprio (`richdoc/apply`, alvo
+   * `PROJECT_FACTORY_BOILERPLATE`); este campo é só a parte estrutural do
+   * `factoryTemplate` — um simples editável por política (§12 pergunta 3).
+   */
+  factoryContacts?: Array<{ name: string; role?: string; email?: string }> | null;
 };
 
 function assertIsoDate(value: string, what: string): string {
@@ -243,6 +251,19 @@ function assertIsoDate(value: string, what: string): string {
     throw new DomainError('INVALID_INPUT', `${what} precisa estar no formato ISO 8601 UTC.`, { value });
   }
   return value;
+}
+
+function assertContacts(
+  contacts: Array<{ name: string; role?: string; email?: string }>,
+): Array<{ name: string; role?: string; email?: string }> {
+  return contacts.map((contact) => {
+    const next: { name: string; role?: string; email?: string } = {
+      name: assertText(contact.name, 'O nome do contato'),
+    };
+    if (contact.role !== undefined) next.role = assertText(contact.role, 'O papel do contato');
+    if (contact.email !== undefined) next.email = assertText(contact.email, 'O e-mail do contato');
+    return next;
+  });
 }
 
 export function updateProject(input: UpdateProjectInput): Command<UpdateProjectInput, void> {
@@ -258,11 +279,16 @@ export function updateProject(input: UpdateProjectInput): Command<UpdateProjectI
         input.foundationEffectiveFrom === undefined || input.foundationEffectiveFrom === null
           ? input.foundationEffectiveFrom
           : assertIsoDate(input.foundationEffectiveFrom, 'A vigência da fundação');
+      const factoryContacts =
+        input.factoryContacts === undefined || input.factoryContacts === null
+          ? input.factoryContacts
+          : assertContacts(input.factoryContacts);
       const inverse = updateProject({
         projectId: project.id,
         name: project.name,
         description: previous(project.description),
         foundationEffectiveFrom: previous(project.foundationEffectiveFrom),
+        factoryContacts: previous(project.factoryTemplate?.contacts),
       });
       return {
         document: applyToDocument(doc, [], (draft) => {
@@ -272,6 +298,19 @@ export function updateProject(input: UpdateProjectInput): Command<UpdateProjectI
           if (foundationEffectiveFrom !== undefined) {
             if (foundationEffectiveFrom === null) delete target.foundationEffectiveFrom;
             else target.foundationEffectiveFrom = foundationEffectiveFrom;
+          }
+          if (factoryContacts !== undefined) {
+            const noContacts = factoryContacts === null || factoryContacts.length === 0;
+            if (noContacts) {
+              if (target.factoryTemplate !== undefined) {
+                delete target.factoryTemplate.contacts;
+                if (target.factoryTemplate.boilerplate.blocks.length === 0) delete target.factoryTemplate;
+              }
+            } else if (target.factoryTemplate === undefined) {
+              target.factoryTemplate = { boilerplate: { blocks: [] }, contacts: factoryContacts };
+            } else {
+              target.factoryTemplate.contacts = factoryContacts;
+            }
           }
         }),
         data: undefined,

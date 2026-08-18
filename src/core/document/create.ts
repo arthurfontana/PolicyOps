@@ -3,15 +3,18 @@ import { collectPublishedCompatibility, generateTuples } from '../axes/tuples';
 import type {
   Axis,
   AxisLevel,
+  Block,
   CatalogItem,
   Cell,
   CompatibilityRule,
   Domain,
   DocEvent,
+  FactoryTemplate,
   Matrix,
   MatrixVersion,
   PolicyOpsDocument,
   Project,
+  RichDoc,
   Template,
   Variable,
   VariableVersion,
@@ -79,6 +82,70 @@ const SAMPLE_ACTOR = 'Equipe de Políticas';
 
 function domain(code: string, label: string, position: number, extra: Partial<Domain> = {}): Domain {
   return { code, label, position, ...extra };
+}
+
+function heading(text: string): Block {
+  return { id: genId(), type: 'heading1', text: [{ text }] };
+}
+
+function paragraph(text: string): Block {
+  return { id: genId(), type: 'paragraph', text: [{ text }] };
+}
+
+function bullets(items: string[]): Block {
+  return { id: genId(), type: 'bulletList', items: items.map((text) => [{ text }]) };
+}
+
+/**
+ * Boilerplate do Pacote para a Fábrica (docs/14 §8, S38) — reconstrução
+ * representativa do checklist Serasa e dos comunicados que os DBs 513/515/519
+ * repetem em ~70% do documento (docs/14 §1), não uma transcrição literal (os
+ * Words originais não fazem parte do repositório): serve para exercitar o
+ * gerador com conteúdo do formato real, e é o texto que a política de exemplo
+ * chega editando em "Editar projeto".
+ */
+function sampleFactoryBoilerplate(): RichDoc {
+  return {
+    blocks: [
+      heading('Checklist Serasa'),
+      paragraph(
+        'Todo DB que altera regra de decisão passa pelas três etapas abaixo antes de ir para produção.',
+      ),
+      { id: genId(), type: 'heading2', text: [{ text: 'Desenvolvimento' }] },
+      bullets([
+        'Ambiente de desenvolvimento aponta para a base de homologação da Serasa (nunca produção).',
+        'Massa de teste cobre ao menos um caso por decisão nova ou alterada.',
+        'Log de consulta confere o motivo (reason code) esperado por caso.',
+      ]),
+      { id: genId(), type: 'heading2', text: [{ text: 'DET — Declaração de Envio de Teste' }] },
+      bullets([
+        'DET preenchida e anexada ao chamado antes da homologação.',
+        'Aprovação da área de Políticas de Crédito registrada na DET.',
+        'Evidência de teste (print ou log) anexada por caso da massa de teste.',
+      ]),
+      { id: genId(), type: 'heading2', text: [{ text: 'Pós-produção' }] },
+      bullets([
+        'Amostra dos primeiros N casos em produção conferida contra o esperado.',
+        'Sem divergência em 48h → checklist encerrado; com divergência → reabrir o DB.',
+        'Comunicado de encerramento enviado à lista de interessados do DB.',
+      ]),
+      heading('Comunicados'),
+      paragraph(
+        'Toda mudança publicada gera um comunicado padrão às áreas de Atendimento, Cobrança e Compliance, com a regra antes × depois e a data de vigência — o mesmo conteúdo que o pacote gerado já traz na seção "Escopo".',
+      ),
+    ],
+  };
+}
+
+function sampleFactoryTemplate(): FactoryTemplate {
+  return {
+    boilerplate: sampleFactoryBoilerplate(),
+    contacts: [
+      { name: 'Equipe de Políticas de Crédito', role: 'Solicitante', email: 'politicas-credito@exemplo.com' },
+      { name: 'Squad Motor de Decisão', role: 'Interessado' },
+      { name: 'Compliance', role: 'Interessado' },
+    ],
+  };
 }
 
 function publishedVersion(
@@ -317,6 +384,11 @@ export function createSampleDocument(): PolicyOpsDocument {
     name: 'Política PF',
     position: 0,
     createdAt: t0,
+    // Semeia o Pacote para a Fábrica (docs/14 §8, S38) com o boilerplate real
+    // dos DBs — o único jeito de exercitar o gerador com conteúdo do formato
+    // atual sem inventar uma árvore de política (mesmo raciocínio de deixar
+    // `components`/`changeRequests` vazios, mais abaixo).
+    factoryTemplate: sampleFactoryTemplate(),
   };
   const projectPJ: Project = {
     id: genId(),

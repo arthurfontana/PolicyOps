@@ -1139,3 +1139,16 @@ real.
 | **Por quê** | `APPROVED` é o ponto do grafo em que a decisão foi tomada (RN-GOV-01) — antes disso, "juntar numa subida" não faz sentido de negócio, é só um agrupamento de rascunhos. Depois de aprovado, o DB pode evoluir (`IN_DEVELOPMENT` → `IN_VALIDATION` → `READY_FOR_RELEASE`) **dentro** da release, que é o caso real: a área monta a lista da subida de setembro assim que os DBs são aprovados, não espera todos ficarem prontos para só então montar a lista. |
 | **Custo aceito** | Um DB `SUBMITTED`/`IN_REVIEW` não pode ser pré-reservado numa release — se a área quiser sinalizar intenção antes da aprovação, o jeito é um campo de texto/observação na release, não o vínculo estrutural. Não é uma perda: o vínculo estrutural existir cedo demais é o que a decisão evita. |
 | **Páginas afetadas** | `14-governanca-de-alteracoes.md` §3.4; `08-camada-de-comandos.md` §3 (Releases); `src/core/document/change-requests.ts` (`setChangeRequestRelease`) |
+
+---
+
+## DEC-GOV-038: `factoryTemplate` é campo simples, não versionado
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | Fecha a pergunta 3 de `14-governanca-de-alteracoes.md` §12. `Project.factoryTemplate` (boilerplate `RichDoc` + contatos) permanece um **campo simples** por projeto, sem ciclo de versões próprio — a proposta original do §8, confirmada com o usuário antes de implementar a S38 (a pergunta estava aberta, e o prompt da sessão exigia parar e perguntar nesse caso). |
+| **Data / gatilho** | 2026-08-18, implementação da S38. |
+| **Alternativas** | Versionar `factoryTemplate` como `ComponentVersion`/`MatrixVersion` (histórico, `effectiveFrom`/`effectiveTo`, ciclo rascunho/publicar) — daria para responder "qual boilerplate valia quando o pacote X foi gerado", ao custo de schema novo, comandos novos e tela de histórico. |
+| **Por quê** | O pacote gerado nunca é uma cópia gravada no documento (RN-GOV-08 — sempre derivado, regenerado a cada clique a partir do `factoryTemplate` **atual**). Sem pacote histórico armazenado, não existe "qual boilerplate valia naquele pacote" para responder — a pergunta que motivaria versionar não tem sujeito. Um campo simples resolve o caso real (o checklist muda pouco, e quando muda, o próximo pacote gerado já reflete a mudança) sem inventar escopo que nenhum ADR/DEC previa. |
+| **Custo aceito** | Um pacote gerado hoje e um gerado amanhã, depois de alguém editar o boilerplate, mostram textos diferentes — não há como reabrir o pacote de ontem com o boilerplate de ontem, porque o pacote de ontem nunca foi salvo (é o comportamento esperado de RN-GOV-08, não uma lacuna nova). Se o checklist Serasa passar a mudar com frequência **e** existir necessidade real de auditar qual boilerplate valia num pacote passado, isso volta à mesa como sessão própria, com uso real para decidir a forma. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §8, §12 pergunta 3; `03-modelo-do-documento.md` §5 (`FactoryTemplate`); `src/core/document/schema.ts` |

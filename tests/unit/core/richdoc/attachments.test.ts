@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSampleDocument } from '@/core/document/create';
+import { createEmptyDocument, createSampleDocument } from '@/core/document/create';
 import type { InlineImageAttachment, PolicyOpsDocument, RichDoc } from '@/core/document/schema';
 import {
   INLINE_IMAGE_MAX_BYTES,
@@ -164,6 +164,12 @@ describe('referências entre `RichDoc` e anexo', () => {
   });
 
   it('documento sem `RichDoc` nenhum não referencia nada', () => {
-    expect(collectRichDocs(createSampleDocument())).toEqual([]);
+    expect(collectRichDocs(createEmptyDocument('Vazio', 'Arthur'))).toEqual([]);
+  });
+
+  it('documento de exemplo referencia o boilerplate do factoryTemplate de "Política PF" (docs/14 §8, S38)', () => {
+    const docs = collectRichDocs(createSampleDocument());
+    expect(docs).toHaveLength(1);
+    expect(docs[0]!.blocks.length).toBeGreaterThan(0);
   });
 });

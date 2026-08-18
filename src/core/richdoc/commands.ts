@@ -5,6 +5,7 @@ import type {
   ChangeRequest,
   InlineImageAttachment,
   PolicyOpsDocument,
+  Project,
   RichDoc,
 } from '../document/schema';
 import { DomainError } from '../errors';
@@ -49,14 +50,17 @@ import { applyOp, type RichDocOp } from './operations';
 
 /**
  * Onde o `RichDoc` mora. A S34 ligou **um** alvo — a especificação da versão
- * de componente; a S35 acrescenta os dois campos do DB (`motivationText`,
- * `spec`, docs/14 §3.3) sem tocar em nada além desta união e do que segue
- * abaixo, exatamente como o comentário original previa.
+ * de componente; a S35 acrescentou os dois campos do DB (`motivationText`,
+ * `spec`, docs/14 §3.3); a S38 acrescenta o boilerplate do Pacote para a
+ * Fábrica (`Project.factoryTemplate.boilerplate`, docs/14 §8) — sem tocar em
+ * nada além desta união e do que segue abaixo, exatamente como o comentário
+ * original previa.
  */
 export type RichDocTarget =
   | { kind: 'COMPONENT_VERSION_SPEC'; versionId: string }
   | { kind: 'CR_MOTIVATION'; changeRequestId: string }
-  | { kind: 'CR_SPEC'; changeRequestId: string };
+  | { kind: 'CR_SPEC'; changeRequestId: string }
+  | { kind: 'PROJECT_FACTORY_BOILERPLATE'; projectId: string };
 
 export function richDocTargetKey(target: RichDocTarget): string {
   switch (target.kind) {
@@ -65,7 +69,17 @@ export function richDocTargetKey(target: RichDocTarget): string {
     case 'CR_MOTIVATION':
     case 'CR_SPEC':
       return `${target.kind}:${target.changeRequestId}`;
+    case 'PROJECT_FACTORY_BOILERPLATE':
+      return `${target.kind}:${target.projectId}`;
   }
+}
+
+function locateProject(doc: PolicyOpsDocument, projectId: string): { project: Project; index: number } {
+  const index = doc.projects.findIndex((candidate) => candidate.id === projectId);
+  if (index < 0) {
+    throw new DomainError('NOT_FOUND', 'O projeto informado não existe neste documento.', { projectId });
+  }
+  return { project: doc.projects[index]!, index };
 }
 
 /** Chave de coalescência da digitação: mesmo alvo + mesmo bloco (+ mesma célula). */
@@ -82,13 +96,18 @@ export function readRichDoc(doc: PolicyOpsDocument, target: RichDocTarget): Rich
     const { version } = locateComponentVersion(doc, target.versionId);
     return version.spec ?? { blocks: [] };
   }
+  if (target.kind === 'PROJECT_FACTORY_BOILERPLATE') {
+    const { project } = locateProject(doc, target.projectId);
+    return project.factoryTemplate?.boilerplate ?? { blocks: [] };
+  }
   const { changeRequest } = locateChangeRequest(doc, target.changeRequestId);
   return changeRequest[crFieldOf(target.kind)] ?? { blocks: [] };
 }
 
 type TargetLocation =
   | { kind: 'COMPONENT_VERSION_SPEC'; componentIndex: number; versionIndex: number }
-  | { kind: 'CR_MOTIVATION' | 'CR_SPEC'; changeRequestIndex: number };
+  | { kind: 'CR_MOTIVATION' | 'CR_SPEC'; changeRequestIndex: number }
+  | { kind: 'PROJECT_FACTORY_BOILERPLATE'; projectIndex: number };
 
 function locateTarget(doc: PolicyOpsDocument, target: RichDocTarget): TargetLocation {
   if (target.kind === 'COMPONENT_VERSION_SPEC') {
@@ -99,6 +118,10 @@ function locateTarget(doc: PolicyOpsDocument, target: RichDocTarget): TargetLoca
     assertLinkedDraftEditable(doc, version.id, version.changeRequestId);
     return { kind: target.kind, componentIndex, versionIndex };
   }
+  if (target.kind === 'PROJECT_FACTORY_BOILERPLATE') {
+    const { index } = locateProject(doc, target.projectId);
+    return { kind: target.kind, projectIndex: index };
+  }
   const { changeRequest, index } = locateChangeRequest(doc, target.changeRequestId);
   // Motivação e especificação do DB só se editam enquanto ele não está
   // fechado (`assertChangeRequestOpen`) — mesmo critério de `changeRequest/update`.
@@ -106,14 +129,20 @@ function locateTarget(doc: PolicyOpsDocument, target: RichDocTarget): TargetLoca
   return { kind: target.kind, changeRequestIndex: index };
 }
 
-function scopeFor(target: RichDocTarget): { componentVersionId?: string; changeRequestId?: string } {
-  return target.kind === 'COMPONENT_VERSION_SPEC'
-    ? { componentVersionId: target.versionId }
-    : { changeRequestId: target.changeRequestId };
+function scopeFor(
+  target: RichDocTarget,
+): { componentVersionId?: string; changeRequestId?: string; projectId?: string } {
+  if (target.kind === 'COMPONENT_VERSION_SPEC') return { componentVersionId: target.versionId };
+  if (target.kind === 'PROJECT_FACTORY_BOILERPLATE') return { projectId: target.projectId };
+  return { changeRequestId: target.changeRequestId };
 }
 
 function writeRichDoc(
-  draft: { components: PolicyOpsDocument['components']; changeRequests: PolicyOpsDocument['changeRequests'] },
+  draft: {
+    components: PolicyOpsDocument['components'];
+    changeRequests: PolicyOpsDocument['changeRequests'];
+    projects: PolicyOpsDocument['projects'];
+  },
   at: TargetLocation,
   value: RichDoc,
 ): void {
@@ -123,6 +152,21 @@ function writeRichDoc(
     // guarda `{"blocks":[]}` por documento.
     if (value.blocks.length === 0) delete version.spec;
     else version.spec = value;
+    return;
+  }
+  if (at.kind === 'PROJECT_FACTORY_BOILERPLATE') {
+    const project = draft.projects[at.projectIndex]!;
+    const hasContacts = (project.factoryTemplate?.contacts ?? []).length > 0;
+    // `boilerplate` é campo obrigatório dentro de `FactoryTemplate` (docs/03
+    // §5): vazio só é ausência quando `contacts` também está vazio — do
+    // contrário o template continua existindo, só sem texto de boilerplate.
+    if (value.blocks.length === 0 && !hasContacts) {
+      delete project.factoryTemplate;
+    } else if (project.factoryTemplate === undefined) {
+      project.factoryTemplate = { boilerplate: value };
+    } else {
+      project.factoryTemplate.boilerplate = value;
+    }
     return;
   }
   const changeRequest = draft.changeRequests[at.changeRequestIndex]! as ChangeRequest;

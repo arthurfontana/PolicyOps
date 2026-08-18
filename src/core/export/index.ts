@@ -14,3 +14,11 @@ export {
 export { csvFileName, exportVersionCsv } from './csv';
 export { diffCsvFileName, exportDiffCsv } from './diff-csv';
 export { dateStamp, exportFileName } from './filename';
+export {
+  assertFactoryPackageAvailable,
+  buildFactoryPackage,
+  isFactoryPackageAvailable,
+  type FactoryPackage,
+} from './factory-package';
+export { factoryPackageHtmlFileName, renderFactoryPackageHtml } from './factory-package-html';
+export { factoryPackageMarkdownFileName, renderFactoryPackageMarkdown } from './factory-package-markdown';

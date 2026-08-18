@@ -12,9 +12,12 @@
 > item ↔ rascunho, congelamento de ponta a ponta, publicação atômica do DB com vigência e rebase
 > explícito; a publicação **por release** é a S37) e **S37 entregue** (US-GOV-05 ✅ completa — CRUD
 > de release, vínculo DB ≥ APPROVED, `release/publish` em lote reaproveitando `changeRequest/publish`
-> — DEC-GOV-008 —, telas de release e da timeline do Diário de Bordo, US-GOV-08 parcial); S38–S39
-> planejadas · **DECs relacionadas**:
-> DEC-GOV-001 a DEC-GOV-037 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
+> — DEC-GOV-008 —, telas de release e da timeline do Diário de Bordo, US-GOV-08 parcial) e **S38
+> entregue** (US-GOV-06 ✅ — gerador puro `buildFactoryPackage` §8, disponível a partir de `APPROVED`
+> e sempre regenerado — RN-GOV-08 —, HTML de impressão e Markdown, `factoryTemplate` editável nas
+> configurações do projeto, §12 pergunta 3 fechada); S39
+> planejada · **DECs relacionadas**:
+> DEC-GOV-001 a DEC-GOV-038 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
 >
@@ -28,7 +31,7 @@
 >
 > ```
 > 32a → 33a → 33b ✅ → ⟨ponto de parada: você constrói a política as-is e a gente ajusta a rota⟩
->   → 40 ✅ (opcional, por recorte) → 34 ✅ → 32b ✅ → 35 ✅ → 36 ✅ → 37/38 → 39
+>   → 40 ✅ (opcional, por recorte) → 34 ✅ → 32b ✅ → 35 ✅ → 36 ✅ → 37 ✅/38 ✅ → 39
 > ```
 >
 > O que só o Diário de Bordo consome (DB, release, grafo de estados, I25/I26) saiu da antiga S32 e
@@ -412,15 +415,28 @@ versões entrem em vigor na data definida, de forma atômica.
   desde a S32b) e publica em lote (`release/publish`, `ReleaseDetail`/`PublishReleaseDialog`, docs/07
   §19.6). Entrar numa release exige CR ≥ `APPROVED` (DEC-GOV-037); sair continua livre até fechar.
 
-### US-GOV-06 — Gerar o Pacote para a Fábrica
+### US-GOV-06 — Gerar o Pacote para a Fábrica ✅ (S38)
 **Como** analista, **quero** gerar o documento de especificação no padrão atual dos DBs **para**
 nunca mais montar o Word na mão.
 
-- Um clique produz HTML imprimível e Markdown com: identificação, boilerplate do projeto
-  (checklist Serasa, comunicados — template editável, §8), contexto, atual × proposto por
-  componente, impactos, critérios de aceite, testes, vigência e anexos.
-- Gerável a partir de `APPROVED`; regenerável a qualquer momento (o documento é derivado, nunca
-  editado à parte).
+- ✅ Um clique produz HTML imprimível e Markdown com: identificação, registro de versão, contatos,
+  boilerplate do projeto (checklist Serasa, comunicados — template editável, §8), contexto, atual ×
+  proposto por componente, impactos, critérios de aceite, testes, vigência e anexos —
+  `buildFactoryPackage` (`src/core/export/factory-package.ts`, puro) monta a estrutura nessa ordem
+  exata; `factory-package-html.ts`/`factory-package-markdown.ts` renderizam. HTML abre numa janela
+  dedicada (`src/lib/print-window.ts`) com imagens embutidas em base64 e quebra de página entre
+  seções; Markdown referencia imagem por nome de anexo com um aviso, sem embutir bytes.
+- ✅ Gerável a partir de `APPROVED` (`isFactoryPackageAvailable`, mesma ordem de
+  `isChangeRequestFrozen`); regenerável a qualquer momento — o pacote nunca é gravado no documento
+  (RN-GOV-08), só construído sob demanda a cada clique em "Gerar pacote" (DB) ou "Gerar pacotes"
+  (lote, na release, só para os DBs ≥ `APPROVED`).
+- ✅ `Project.factoryTemplate` (boilerplate `RichDoc` + contatos) editável em "Editar projeto":
+  boilerplate pelo `RichDocEditor` de sempre, sobre um alvo novo de `RichDocTarget`
+  (`PROJECT_FACTORY_BOILERPLATE`); contatos num editor de linhas simples
+  (`FactoryContactsEditor`, nome/papel/e-mail livres — "Solicitante"/"Interessado" são valores de
+  `role`, não um vocabulário fechado). O documento de exemplo semeia "Política PF" com um
+  boilerplate representativo do checklist Serasa (não uma transcrição literal dos Words 513/515/519,
+  que não fazem parte do repositório).
 
 ### US-GOV-07 — Consultar a política em qualquer data
 **Como** analista, **quero** selecionar uma data e ver a política inteira como estava **para**
@@ -683,11 +699,14 @@ type InlineText = { text: string; marks?: ('bold' | 'italic' | 'code' | 'link')[
   Nada de texto pendurado em estado de componente esperando um "salvar" — é o que sustenta o
   "nada do que digitar se perde".
 
-## 8. Pacote para a Fábrica
+## 8. Pacote para a Fábrica ✅ fechado na S38
 
 - O `Project` ganha `factoryTemplate?: { boilerplate: RichDoc; contacts?: {...} }` — o conteúdo
   fixo dos DBs atuais (checklist Serasa, comunicados, boas práticas) editável uma vez por
-  política.
+  política. `factoryTemplate` é um **campo simples**, não versionado (§12 pergunta 3): o pacote em
+  si nunca é uma cópia gravada (RN-GOV-08 já garante isso), então não existe pacote histórico cujo
+  boilerplate precisasse ser reconstituído como estava — regenerar sempre lê o `factoryTemplate`
+  **atual**.
 - O pacote gerado segue a ordem do DB atual: capa/identificação → registro de versão → contatos →
   boilerplate → contexto e objetivo → escopo (por item: componente, hoje, proposto) → impactos →
   critérios de aceite → testes → vigência → anexos.
@@ -887,8 +906,15 @@ nunca pedida de novo ao usuário.
 
 1. ~~**Numeração dos DBs**~~ ✅ fechada acima.
 2. ~~**Papéis**~~ ✅ fechada acima.
-3. **Boilerplate do pacote** — o checklist Serasa muda com frequência? Se sim, versionar o
-   `factoryTemplate` como as demais entidades; proposta atual é campo simples editável. (S38)
+3. ~~**Boilerplate do pacote**~~ ✅ fechada na S38 — **campo simples editável**, não versionado.
+   Confirmada com o usuário antes de implementar (a pergunta estava aberta, e o prompt da S38 exigia
+   parar e perguntar): como o pacote gerado nunca é uma cópia gravada (RN-GOV-08 — sempre derivado,
+   regenerado a cada clique), não existe "pacote histórico" cujo boilerplate precisasse ficar
+   congelado no formato de quando foi gerado. Versionar o `factoryTemplate` resolveria um problema
+   que não existe hoje e abriria escopo novo (schema de histórico, comandos, tela) sem nenhum ADR/DEC
+   prevendo isso. Se o checklist Serasa via a mudar com frequência **e** existir a necessidade real
+   de saber qual boilerplate valia num pacote gerado no passado, isso volta à mesa como sessão
+   própria — não é o caso hoje, com um único template por projeto.
 4. ~~**Vigência retroativa**~~ ✅ fechada na S36 — ver a nota do §6: **sim** para componente (é o que
    a RN-GOV-09 exige), **não** para matriz (docs/05 §1.3 continua valendo), e a publicação do DB
    avisa antes, na revisão, em vez de descobrir no meio do lote (DEC-GOV-035).
