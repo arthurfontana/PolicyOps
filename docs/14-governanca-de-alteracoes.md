@@ -6,7 +6,7 @@
 > **S33b entregue** (US-GOV-01 ✅ completa e US-GOV-02 ✅ — payload por tipo, ciclo de vida na
 > tela, vigência da fundação e "Publicar pendentes", entrada em volume por colagem), **S40
 > entregue** (US-GOV-09 ✅ — carga por recorte: Markdown → árvore, com revisão e undo total), **S34
-> entregue** (`RichDoc`, editor de blocos próprio, plugado no inspector do componente) e **S35
+> entregue** (`RichDoc`, editor de blocos próprio, plugado na página do componente) e **S35
 > entregue** (US-GOV-03 ✅/US-GOV-04 ✅/US-GOV-10 ✅ — tela do DB, workflow de 12 estados, fila de
 > aprovação e painel de pendências, docs/07 §19) e **S36 entregue** (US-GOV-05 ✅ parcial — vínculo
 > item ↔ rascunho, congelamento de ponta a ponta, publicação atômica do DB com vigência e rebase
@@ -17,7 +17,8 @@
 > e sempre regenerado — RN-GOV-08 —, HTML de impressão e Markdown, `factoryTemplate` editável nas
 > configurações do projeto, §12 pergunta 3 fechada) e **S39 entregue** (US-GOV-07 ✅ e US-GOV-08 ✅
 > completas — fotografia da política inteira em qualquer data, comparação data × data e
-> release × release, modo fotografia da árvore, docs/07 §20, docs/05 §6.2–6.3) · **DECs relacionadas**:
+> release × release, consulta histórica da política inteira na tela de Vigência, docs/07 §10 e §20,
+> docs/05 §6.2–6.3) · **DECs relacionadas**:
 > DEC-GOV-001 a DEC-GOV-040 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
@@ -451,9 +452,9 @@ responder auditoria sem arqueologia.
   como nó de raiz (DEC-GOV-039).
 - ✅ Contadores do período (`getPolicyPeriodCounters`): componentes e matrizes vigentes no fim do
   período, DBs publicados no período (pela vigência) e DBs em andamento.
-- ✅ Na tela: **modo fotografia da árvore** ("ver como em…", badge da data, edição bloqueada de ponta
-  a ponta) e o salto "ver a política inteira nesta data" a partir da timeline do componente
-  (docs/07 §20.1–20.2).
+- ✅ Na tela: a **tela de Vigência** mostra a estrutura inteira do projeto na data escolhida, em
+  somente leitura, e a página do componente salta para ela pela faixa de vigência ("ver a política
+  inteira nesta data") — docs/07 §10 e §20.1–20.2, DEC-UX-004.
 
 ### US-GOV-08 — Comparar e acompanhar a evolução ✅ (S37 + S39)
 **Como** gestor, **quero** comparar regra antes × depois, política em duas datas e o conteúdo de
