@@ -14,29 +14,70 @@ Antes de haver documento aberto:
 ## 2. Shell
 
 ```
-┌──────────┬────────────────────────────────────────┬─────────────────┐
-│ SIDEBAR  │              CANVAS                     │   INSPECTOR     │
-│  248px   │              flex-1                     │     340px       │
-│          │  Matriz de Limite PJ    v12 ● Vigente   │                 │
-│ Projetos │ ┌─────────────────────────────────────┐ │  Propriedades   │
-│  Pol. PF │ │              Score HVI3             │ │                 │
-│  Pol. PJ │ │        R1   R2   R3   R4   R5   R6  │ │  (contextual)   │
-│          │ ├────────┬──────┬──────────────────────┤ │                 │
-│Biblioteca│ │        │até100│ ██  ██  ██  ██ ██ ██ │ │                 │
-│ Variáveis│ │ Varejo │100-5 │ ██  ██  ██  ██ ██ ██ │ │                 │
-│ Compatib.│ │        │500-1M│ ██  ██  ██  ██ ██ ██ │ │                 │
-│ Conteúdo │ ├────────┼──────┼──────────────────────┤ │                 │
-│ Templates│ │        │500-1M│ ██  ██  ██  ██ ██ ██ │ │                 │
-│          │ │Atacado │1M-10M│ ██  ██  ██  ██ ██ ██ │ │                 │
-│ Vigência │ │        │>10M  │ ██  ██  ██  ██ ██ ██ │ │                 │
-│ Rascunhos│ └────────┴──────┴──────────────────────┘ │                 │
-└──────────┴────────────────────────────────────────┴─────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────┐
+│ ☰ PolicyOps │ + Seção · + Regra · Matriz · Markdown · Publicar (1) │🔎 Filtrar│☾⌨▥│
+├───────────────┬─────────────────────────────────────────────┬──────────────────┤
+│ NAVEGAÇÃO     │                  CENTRO                     │ INSPECTOR        │
+│ 248–480px     │                  flex-1                     │ 340px            │
+│ (arrastável)  │                                             │ (só grade e      │
+│               │ Política de Crédito B2C › CMA ›             │  comparação)     │
+│ Projetos      │ ▸ Bloqueios por Dívida   BLOQUEIOS_POR_DIV. │                  │
+│ ▾ Pol. B2C 85 │ ┌─────────────────────────────────────────┐ │                  │
+│  ▾ CMA     17 │ │ Rascunho v2 · [Publicar] [Descartar] ⋯   │ │                  │
+│   • Bloqueios │ ├─────────────────────────────────────────┤ │                  │
+│   • Dívida ≥5k│ │ Tags · Origem · Revisão                 │ │                  │
+│  ▸ Decisões 12│ │ Descrição de negócio ▌                  │ │                  │
+│  ▸ Modelo  84 │ │ Definição técnica ▌                     │ │                  │
+│               │ │ Entradas · Condições · Resultado        │ │                  │
+│ Biblioteca    │ │ Especificação (editor rico)             │ │                  │
+│ Vigência      │ │ Vigência e versões                      │ │                  │
+│ Diário de Bord│ └─────────────────────────────────────────┘ │                  │
+├───────────────┴─────────────────────────────────────────────┴──────────────────┤
+│ politicas.json · Alterações não salvas · revisão 16 │ Bloqueio · A0050462 ADMIN │
+└────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- Sidebar e inspector colapsáveis (`[` e `]`).
+Três regiões, três papéis, e nenhuma repete o papel da outra:
+
+| Região | Papel | Regra |
+|---|---|---|
+| **Navegação** (esquerda) | onde as coisas estão | **Uma árvore só na aplicação**: a árvore da política (§17.1) é esta barra, não um segundo painel dentro da tela. Largura arrastável de 248 a 480px |
+| **Centro** | onde se lê e se escreve | Todo objeto com conteúdo próprio — componente (§17.5), matriz, DB, release — se edita aqui, em largura útil. Nunca em painel lateral |
+| **Inspector** (direita) | propriedades de uma **seleção dentro** do centro | Só existe onde há seleção: células do grid (§6) e célula do diff (§9). Componente não é seleção dentro de uma tela, é a tela — por isso não tem inspector (DEC-UX-002) |
+
+- Sidebar e inspector colapsáveis (`[` e `]`). A largura da sidebar é arrastada pela borda direita (alça de 4px, `aria-label="Ajustar largura da navegação"`, setas ←/→ movem 16px quando ela tem foco), respeita o intervalo 248–480px, volta ao padrão (288px) com duplo clique na alça e é lembrada por usuário em `localStorage` (`policyops.sidebarWidth`) — é interface, nunca documento (DEC-UX-005).
+- Nas telas sem seleção (política, bibliotecas, vigência, DB, releases) o inspector **não é renderizado** e o botão `▥` do cabeçalho fica desabilitado com o motivo no `title` ("Esta tela não tem propriedades de seleção"). Não existe painel direito vazio dizendo "nada selecionado".
 - Barra de status no rodapé: nome do arquivo, `Salvo` / `Alterações não salvas` / `Salvando…` / `Erro`, revisão, quem detém o lock, a identidade (login do Windows no modo `SERVER`, nome digitado nos demais) e o **papel efetivo** no documento aberto (`READER`/`EDITOR`/`PUBLISHER`/`ADMIN` — `14-plataforma-local.md` §6, S29).
 - `Ctrl+S` salva. `Ctrl+Shift+S` salva como. Isso é explícito: o usuário decide quando publicar o arquivo para o time.
 - Ações que o papel efetivo não permite ficam desabilitadas com o motivo visível (`title` do botão e, nos casos mais visados — publicar, salvar —, um texto ao lado: *"Requer papel PUBLISHER — você é EDITOR."*). A sidebar ganha o item **Acesso** (§16) só para quem pode vê-lo.
+
+### 2.1 Barra de ferramentas contextual
+
+Uma faixa de **40px, uma linha só**, abaixo do título da aplicação — o lugar de todas as ações de
+tela. Ação de tela não mora dentro de painel: painel é conteúdo, barra é comando (DEC-UX-003).
+
+| Grupo | Posição | Conteúdo |
+|---|---|---|
+| **Criação** | esquerda | O que a tela cria (na política: Nova seção · Nova regra · Pendurar matriz · Carregar Markdown) |
+| **Publicação** | após criação, separador antes | O que a tela publica em lote (na política: Publicar pendentes com o contador no rótulo) |
+| **Busca e filtro** | centro-direita | Campo de busca da tela + botão **Filtrar** com o número de filtros ativos no rótulo, abrindo popover com os chips de tipo, revisão e tag (§17.1) e "Limpar filtros" |
+| **Alvo** | direita, antes dos ícones globais | Chip `em: CMA › Fraude` — o nó onde a criação vai acontecer. Clicar rola a árvore até ele; sem nó selecionado o chip diz `em: raiz da política` |
+
+Regras da barra:
+
+- **Só o que a tela faz.** Um item desabilitado só aparece quando a ação existe naquela tela e está
+  bloqueada por papel ou estado (com o motivo no `title`). Ação de outra tela não fica na barra
+  esmaecida "para constar".
+- **Cabe numa linha.** Abaixo de ~1100px de largura, os itens de criação além do primeiro colapsam
+  num botão `⋯ Mais` com os mesmos rótulos; os ícones globais (tema, atalhos, inspector) nunca
+  colapsam.
+- **A barra é um slot do shell** (`ToolbarPortal`, `src/components/shell/Toolbar.tsx`), preenchido
+  pela tela ativa por portal — sem guardar `ReactNode` em store. Tela que ainda
+  não preencheu o slot mantém o cabeçalho próprio que já tem — a migração é por tela, não um
+  big-bang: a tela da política é a primeira (S41), e as demais entram na sessão que as tocar.
+- **Teclado**: as mesmas ações têm atalho e o atalho aparece no `title` (`Nova seção` = `Enter` na
+  árvore, `Nova regra` = `Shift+Enter`, `Publicar pendentes` = `Ctrl+Shift+P`). O diálogo de
+  atalhos (§12) lista a barra inteira.
 
 ## 3. Badges de estado
 
@@ -103,6 +144,9 @@ Feedback: borda azul 2px na seleção, âncora com borda distinta, contador flut
 Acessibilidade: `role="grid"`, `aria-selected`, roving tabindex, `aria-live` anunciando a seleção. Atalhos só agem com foco no grid — não sequestram teclas enquanto o usuário digita no inspector.
 
 ## 6. Inspector
+
+O painel direito existe onde há **seleção dentro** de uma tela — células do grid e célula do diff
+(§2). Componente de política não passa por aqui: ele tem página própria no centro (§17.5).
 
 ### 6.1 Sem seleção — propriedades da versão
 
@@ -201,14 +245,32 @@ executiva, lado a lado, sem montagem manual em PowerPoint.
   `html-to-image`, mesmo mecanismo do export de matriz única (§12) — pronto para colar num slide já
   pronto.
 
-## 10. Tela de vigência
+## 10. Tela de vigência — a política inteira em qualquer data
+
+É a tela de leitura do passado: **toda a estrutura do projeto na data escolhida**, não só as
+matrizes. Seções, regras, listas, variáveis de política e matrizes aparecem juntas, cada uma com o
+que era naquele dia (DEC-UX-004). É aqui que mora o antigo "ver como em…" da barra da árvore.
 
 - Seletor de data (padrão: hoje) e de projeto. Atalhos: Hoje · Início do mês · 30/90 dias atrás · Início do ano.
-- Lista das matrizes com a versão vigente naquela data, janela de vigência e link direto.
-- **Faixa de linha do tempo** por matriz: um segmento por versão publicada, largura proporcional à duração, marcador na data selecionada, clicável.
-- Sem versão vigente: "sem política vigente em dd/mm/aaaa" — não é erro.
-- **Visão de portfólio**: cards com miniatura do grid (células de 12px, só cor) de cada matriz na data. É a visão de comitê.
-- Viewer de versão histórica: banner *"Você está vendo a versão 11, vigente de 01/03 a 12/07. Esta é uma versão histórica."* + marca d'água discreta.
+- Três visões, em abas, sobre a **mesma** data:
+
+| Aba | O que mostra |
+|---|---|
+| **Estrutura** (padrão) | A árvore do projeto como estava na data: `v{n}` da versão vigente (de componente ou de matriz), *"sem política vigente em dd/mm/aaaa"* no conteúdo sem versão ali, e `estrutura` na seção pura (I29 — pasta nunca aparece como regra que caducou). O que não existia na data some junto com a subárvore (`05-regras-de-negocio.md` §6.2) |
+| **Matrizes** | A lista de hoje: matriz, versão vigente na data, janela de vigência, faixa de linha do tempo (um segmento por versão publicada, largura proporcional à duração, marcador na data, clicável) e link direto para o grid |
+| **Portfólio** | Cards com miniatura do grid (células de 12px, só cor) de cada matriz na data. É a visão de comitê |
+
+- Selecionar um nó da aba **Estrutura** abre, ao lado, o **conteúdo daquela versão em somente
+  leitura** — payload campo a campo e especificação rica —, com o banner *"Você está vendo a
+  versão 3, vigente de 01/03 a 12/07. Esta é uma versão histórica."* e marca d'água discreta. Nó
+  `MATRIX` abre o grid da versão vigente na data, com o mesmo banner.
+- **Nada se edita aqui.** Editar é sempre no presente: o botão **"Abrir no editor (hoje)"** leva ao
+  mesmo componente na tela da política, fora da fotografia. É o que dispensa bloquear edição campo
+  a campo na árvore lateral — a árvore da esquerda é sempre hoje (DEC-UX-004).
+- **"Comparar com outra data"** abre a tela de comparação (§20.3) com a data atual da tela já
+  preenchida de um lado.
+- Busca e filtro por tipo/revisão/tag da aba **Estrutura** usam a mesma barra de ferramentas
+  contextual (§2.1) — filtrar o passado é leitura.
 
 ## 11. Bibliotecas
 
@@ -338,11 +400,12 @@ condições, a rota mostra "Requer papel ADMIN — você é X" em vez do conteú
 - Zerar a lista de usuários e salvar volta o documento ao modo aberto (`meta.acl` removida, não
   uma ACL com `users: []` — mesmo efeito para `resolveRole`, mas mantém o arquivo limpo).
 
-## 17. Árvore da política (épico Governança — S33a ✅/S33b ✅)
+## 17. Árvore da política (épico Governança — S33a ✅/S33b ✅; layout de §17.1/§17.5 — S41/S42 🔮)
 
-> Normativo para as sessões S33a e S33b. O modelo por trás está em
-> [`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md) §3.1 e §3.6. **§17.1–§17.3
-> entregues na S33a** (ajustado ao que foi construído); **§17.4 e §17.5 entregues na S33b**.
+> O modelo por trás está em [`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md)
+> §3.1 e §3.6. O comportamento de estrutura, cadastro e versionamento é o entregue nas S33a/S33b;
+> **§17.1 (árvore na barra lateral) e §17.5 (página do componente no centro) descrevem o layout
+> alvo das sessões S41/S42** — DEC-UX-001 e DEC-UX-002.
 
 A política deixa de ser "uma lista de matrizes num projeto" e passa a ser **um sumário navegável**:
 seções, regras, listas e os nós que apontam as matrizes já existentes. O `Project` é a política
@@ -350,49 +413,57 @@ seções, regras, listas e os nós que apontam as matrizes já existentes. O `Pr
 
 ### 17.1 Onde a árvore vive
 
-**A árvore é a tela do projeto, não um item da barra lateral.** Com ~101 nós de estrutura no
-documento real mais os nós das matrizes já importadas, uma árvore de várias centenas de itens não
-cabe nos 248px da sidebar (§2) sem virar rolagem infinita.
+**A árvore da política É a barra lateral esquerda** (§2) — não existe um segundo painel de árvore
+dentro da tela (DEC-UX-001). Com ~101 nós de estrutura mais os nós das matrizes, duas listas
+hierárquicas na mesma tela (a sidebar com dois níveis e o painel de 360px com a árvore inteira)
+disputavam o mesmo trabalho e comiam metade da largura útil: o painel morreu e a sidebar recebeu a
+árvore inteira, com largura arrastável.
 
 ```
-┌──────────┬────────────────────┬──────────────────────┬─────────────────┐
-│ SIDEBAR  │  ÁRVORE ~360px     │  CONTEÚDO            │   INSPECTOR     │
-│  248px   │ ┌────────────────┐ │ CMA › Fraude ›       │                 │
-│ Política │ │🔎 buscar       │ │ Regra A              │ Tipo    RULE    │
-│  B2C   ▾ │ │[tipo▾][revisão▾]│ │                      │ Código  FRD_A   │
-│  ├ CMA   │ │                │ │ (breadcrumb + nome,  │ Tags    G1·Dig. │
-│  ├ Grupos│ │▾ CMA        12 │ │  tipo, revisão,      │ Revisão ⚠ Pend. │
-│  └ Modelo│ │ ▾ Fraude     3 │ │  contagem de filhos) │ Origem  B2C     │
-│          │ │  • Regra A  ● │ │                       │                 │
-│Matrizes  │ │  • Regra B  ⚠ │ │ (matrizes do projeto  │ [Mover][Duplic.]│
-│Biblioteca│ │▾ Grupos      7 │ │  com facetas, §15 —   │ [Arquivar]      │
-│Vigência  │ │▾ Modelo     84 │ │  tela padrão sem nó   │ (payload/versão │
-└──────────┴─┴────────────────┴─┴  selecionado)─────────┴  desabilitados)─┘
+┌───────────────┬──────────────────────────────────────────┬──────────────────┐
+│ Projetos      │  BARRA DE FERRAMENTAS (§2.1)             │                  │
+│ ▾ Pol. B2C 85 │  Política de Crédito B2C › CMA           │                  │
+│  ▾ CMA     17 │  ▸ Bloqueios por Dívida                  │  (sem inspector) │
+│   • Bloqueios │  (página do componente — §17.5)          │                  │
+│   • Dívida≥5k │                                          │                  │
+│  ▸ Decisões12 │                                          │                  │
+│ Biblioteca    │                                          │                  │
+│ Vigência      │                                          │                  │
+└───────────────┴──────────────────────────────────────────┴──────────────────┘
 ```
 
-- **A árvore vive dentro da tela do projeto (`ProjectDetail`), não numa rota própria.** O painel de
-  360px (`PolicyTree`) fica à esquerda do conteúdo; a coluna de conteúdo mostra, por padrão (nenhum
-  nó selecionado), a lista de matrizes com facetas do §15 **inalterada** — é a "porta" default, e é
-  por isso que o critério "nenhuma regressão" se sustenta sem mover essa tela para outro lugar.
-  Selecionar um nó não-`MATRIX` troca o conteúdo para o breadcrumb + o resumo do componente
-  (`ComponentContentPanel`); selecionar um nó `MATRIX` navega direto para o grid (§17.2).
-- **Sidebar**: o projeto aberto ganha, abaixo do próprio nome, os **dois primeiros níveis** da
-  árvore como âncoras (`sidebarTreeAnchors`) — clicar leva à árvore já expandida naquele nó (ou ao
-  grid, se for `MATRIX`). O resto das entradas (Matrizes, Biblioteca, Vigência, Rascunhos, Acesso)
-  continua como está em §2.
-- **Painel da árvore**: busca por nome e código, chips de filtro por tipo e por `reviewStatus`, e a
-  faceta de tag (`TagFilterBar` do §15, reaproveitada) — contagem por seção (total de descendentes),
-  expandir/recolher por nó. Estado de expansão e filtros vivem em `ui-store.componentTree`,
-  escopado por projeto — interface, não documento, como o filtro de matrizes.
+- **A sidebar é uma coisa só**: `Projetos` → o projeto aberto se expande na **árvore inteira**
+  (todos os níveis, não os dois primeiros) → abaixo dela, Biblioteca, Vigência, Diário de Bordo,
+  Releases, Templates, Rascunhos, Comparação e Acesso, como em §2. Fechar o projeto recolhe a
+  árvore inteira.
+- **Linha do nó**: chevron, ícone do tipo, nome, badge de estado/vigência (§3), `⚠` de revisão
+  pendente, contagem de descendentes na seção e o menu `⋯` (visível no hover e sempre no nó
+  selecionado). O `code` aparece à direita **a partir de 340px** de largura da sidebar — abaixo
+  disso ele fica só no `title` e na página do componente, porque nome truncado é pior que código
+  ausente.
+- **O menu `⋯` do nó é a fonte única de ações estruturais**: Novo filho · Nova regra · Adicionar
+  matriz… · Renomear (`F2`) · Mover para… · Duplicar (`Ctrl+D`) · Carregar Markdown aqui… ·
+  Arquivar. As mesmas ações estão na barra de ferramentas (§2.1) aplicadas ao nó selecionado; a
+  árvore e a barra chamam os mesmos comandos, nunca dois caminhos com regras diferentes.
+- **Abrir e fechar em bloco**: `Recolher tudo` / `Expandir tudo` no cabeçalho do projeto na
+  sidebar; `Alt+clique` no chevron (ou `*` com o nó em foco) abre/fecha a subárvore inteira daquele
+  nó. Estado de expansão e filtros continuam em `ui-store.componentTree`, escopados por projeto —
+  interface, não documento.
+- **Busca e filtros vivem na barra de ferramentas** (§2.1), não dentro da árvore: campo de busca +
+  botão `Filtrar (n)` com os chips de tipo, `reviewStatus` e tag (`TagFilterBar` do §15). A árvore
+  ganha altura útil de volta quando ninguém está filtrando.
 - **Filtro não achata a árvore**: ao filtrar, os ancestrais dos itens que sobraram permanecem
   visíveis, esmaecidos (`filterComponentTree` devolve `matchedIds` e `visibleIds` separados). Uma
   árvore filtrada que vira lista plana faz o usuário perder o lugar.
-- **Breadcrumb clicável** no topo do conteúdo (`CMA › Regras de Fraude › Regra A`) — suporta os 6
-  níveis possíveis (`componentPath`).
-- **A ordem é de leitura, e a tela diz isso.** Nota permanente no rodapé do painel: *"A ordem
-  reflete o documento de política. A sequência de avaliação do motor está descrita no texto de
-  cada regra."* É o que impede a árvore de ser lida como fluxo de execução
-  (`14-governanca-de-alteracoes.md` §3.6).
+- **A ordem é de leitura, e a tela diz isso** — a nota *"A ordem reflete o documento de política. A
+  sequência de avaliação do motor está descrita no texto de cada regra."* fica no `title` do
+  cabeçalho do projeto e no diálogo de ajuda (§12), não ocupando duas linhas fixas no rodapé da
+  navegação (`14-governanca-de-alteracoes.md` §3.6).
+- **Centro sem nó selecionado**: a tela do projeto continua sendo a lista de matrizes com facetas
+  do §15, **inalterada** — é a porta default (§17.2). Selecionar um nó não-`MATRIX` abre a página
+  do componente (§17.5); selecionar um nó `MATRIX` navega direto para o grid.
+- **Breadcrumb clicável** no topo do centro (`Política de Crédito B2C › CMA › Bloqueios por
+  Dívida`) — suporta os 6 níveis possíveis (`componentPath`).
 
 ### 17.2 Duas portas para a mesma matriz
 
@@ -422,7 +493,7 @@ um formulário modal e um fluxo de teclado é a diferença entre duas tardes e d
 | `Tab` / `Shift+Tab` na criação | Desce / sobe **um nível** relativo ao nó onde `Enter` foi pressionado (filho dele / irmão do pai dele) — reparenta antes de gravar, validando profundidade (I28) |
 | `Ctrl/Cmd+D` | `component/duplicate`: duplica o nó como irmão logo abaixo, com sufixo `_COPIA` no `code`; copia `tags`/`origin`; se havia versão, o payload mais recente vira rascunho 1 da cópia — sem herdar `PUBLISHED`. `MATRIX` não duplica (espelho único) |
 | Arrastar, ou menu "Mover para…" | Drag-and-drop no próprio painel (antes/depois/dentro, conforme a posição do ponteiro na linha) ou diálogo com busca + Início/Fim; os dois chamam `component/move`, que valida ciclo e profundidade (I28) |
-| Criar nó `MATRIX` | "Pendurar matriz" na barra da árvore, ou "Adicionar matriz…" no menu de um nó — seletor com busca e filtro por tag sobre as matrizes do projeto ainda não referenciadas (`AddMatrixNodeDialog`, I27) |
+| Criar nó `MATRIX` | "Pendurar matriz" na barra de ferramentas (§2.1), ou "Adicionar matriz…" no menu `⋯` de um nó — seletor com busca e filtro por tag sobre as matrizes do projeto ainda não referenciadas (`AddMatrixNodeDialog`, I27) |
 
 **Entregue na S33b**: colar bloco de texto no inspector reconhecendo prefixo de linha (parágrafo
 solto → `businessDescription`; `Definição técnica:` → `technicalDefinition`; `Observação:` →
@@ -440,7 +511,7 @@ Publicar ~100 componentes que **já vigoram** não custa ~100 diálogos de publi
   opcional, `Project.foundationEffectiveFrom` (RN-GOV-09), definida uma vez e sempre editável.
 - O diálogo de publicação da **primeira** versão de um componente já vem com essa data sugerida no
   campo de vigência — e continua editável antes de confirmar.
-- Ação **"Publicar pendentes"** na barra da árvore (contador de pendentes no rótulo do botão):
+- Ação **"Publicar pendentes"** na barra de ferramentas (§2.1, contador de pendentes no rótulo do botão):
   lista todo componente do projeto com rascunho em aberto, uma vigência para o lote inteiro
   (sugerida pela fundação), desmarcação item a item, e publica o que ficou marcado **tudo ou
   nada** (RN-GOV-05) — um comando puro só, `componentVersion/publishPending`, não N publicações em
@@ -448,52 +519,71 @@ Publicar ~100 componentes que **já vigoram** não custa ~100 diálogos de publi
 - O aviso da RN-GOV-07 (publicação direta, sem DB) aparece **uma vez** no diálogo do lote, não uma
   vez por item; no diálogo de publicação individual, aparece normalmente para aquele item.
 
-### 17.5 Inspector do componente — S33b ✅
+### 17.5 Página do componente — o centro da tela
 
-- **Comum a todos os tipos, entregue na S33a** (`ComponentInspector`): nome (edição em linha),
-  código (somente leitura, imutável), tipo (somente leitura, badge), tags (`ComponentTagsEditor`,
-  mesmo padrão do §15), `origin` (fonte + locator), `reviewStatus` — um `Select` com os 4 estados,
-  incluindo promover a `VALIDATED`, que é sempre uma escolha explícita do usuário, nunca efeito
-  colateral de outra edição —, contagem de filhos diretos, e as ações estruturais (Mover, Duplicar,
-  Arquivar).
-- **Ciclo de vida, entregue na S33b**: "Criar rascunho" (sem componente ainda sem versão nasce com
-  `businessDescription` pré-preenchido pelo nome do componente — nunca vazio, editado na hora) →
-  formulário de payload editável (`ComponentPayloadFields`, commit por campo ao perder o foco) →
-  "Publicar" (`PublishComponentDialog`, mesmo padrão visual do diálogo de matriz — vigência
-  obrigatória, alerta de irreversibilidade; sem campo de notas, que `ComponentVersion` não tem,
-  DEC-GOV-022) → "Descartar rascunho" (confirmação, mesmo padrão de `ConfirmDialog`). Sem rascunho
-  aberto, o formulário mostra a versão vigente **somente leitura**, com "Criar rascunho a partir
-  desta versão" para começar a próxima.
-- **A timeline de versões no padrão visual da timeline de matriz (§10)**: `MatrixTimelineBar`
-  reaproveitado sem alteração sobre `getComponentTimeline` (`src/core/queries.ts`) — um segmento
-  por versão publicada/histórica, cor por estado, tooltip com o período.
-- **`RULE`**: descrição de negócio, definição técnica, entradas, condições, resultado, reason
-  codes, dependências e notas (`14-governanca-de-alteracoes.md` §3.2). Campos de lista
-  (`inputs`/`reasonCodes`/`dependencies`) são texto separado por vírgula, não um editor
-  chave-valor (DEC-GOV-024) — mais rápido de digitar no volume desta sessão.
-- **`SECTION`**: a ação **"Documentar esta seção"**, que cria a primeira versão (payload `OTHER`)
-  e dá à seção texto, vigência e timeline como qualquer outra (I29). Sem essa ação, a seção
-  continua pasta pura, e nunca aparece como "sem política vigente" em `listComponentsEffectiveAt`
-  (`src/core/queries.ts`).
-- **`MATRIX`**: somente leitura, espelhando a matriz — entregue inteiramente na árvore (§17.2:
-  badge de estado e vigência no próprio nó, clique navega direto para o grid); como a navegação já
-  é direta, `MATRIX` nunca chega a abrir `ComponentInspector`.
-- **`POLICY_VARIABLE`**: o formulário de payload é editável como os demais tipos; quando o
-  componente espelha a Biblioteca (`variableId`), um card adicional mostra a variável (nome,
-  contagem de domínios da versão publicada) **sem duplicá-los**, com o botão "Ir para a
-  Biblioteca" — deep link para `VariablesScreen` via `editor-store.pendingVariableFocus`, mesmo
-  padrão de `pendingResnapshot`.
-- **`spec`** (documentação livre, `RichDoc`): placeholder somente leitura ("Editor de
-  especificação livre — Sessão 34"); o editor de blocos em si é S34.
-- **Relacionados** (`dependencies`, reason code compartilhado): fora do escopo desta sessão — o
-  campo `RulePayload.dependencies` já existe e é editável (lista de codes), mas o inspector ainda
-  não resolve o code para um link clicável; fica para quando o épico tiver DB citando os dois
-  lados (S35+).
+O componente é o objeto mais editado do produto: é onde a política é escrita. Por isso ele ocupa o
+**centro**, em coluna de leitura larga (máx. 960px, centralizada), e não um painel de 340px
+(DEC-UX-002). Um documento que rola, na ordem em que se trabalha — identidade, conteúdo,
+especificação, histórico —, sem abas: quem digita a regra precisa ver a definição técnica e a
+especificação na mesma rolagem.
+
+```
+Política de Crédito B2C › CMA › Bloqueios por Dívida         ‹ anterior  próximo ›
+📄 Bloqueios por Dívida   BLOQUEIOS_POR_DIVIDA   [Regra] [Validado] [Rascunho v2]
+┌────────────────────────────────────────────────────────────────────────────┐
+│ Rascunho v2 · desde 30/09/2025      [Publicar] [Descartar rascunho]    ⋯   │ ← grudenta
+├────────────────────────────────────────────────────────────────────────────┤
+│ Tags [G1 ×][Digital ×] +      Origem  [Filtros…docx] [seção 4.2]           │
+│ Revisão [Validado ▾]          Itens filhos 0                               │
+├────────────────────────────────────────────────────────────────────────────┤
+│ Descrição de negócio *                                                     │
+│ ┌────────────────────────────────────────────────────────────────────────┐ │
+│ │                                                                        │ │ ≥6 linhas
+│ └────────────────────────────────────────────────────────────────────────┘ │
+│ Definição técnica            │ Resultado                                   │
+│ Entradas [chip][chip] +      │ Reason codes [chip] +                       │
+├────────────────────────────────────────────────────────────────────────────┤
+│ Especificação (editor rico §18)                                            │
+├────────────────────────────────────────────────────────────────────────────┤
+│ Vigência e versões  ▉▉▉▉▉▉▉▉▉▉▏  v1 30/09/2025 → hoje   [Ver a política…] │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Faixa | Conteúdo |
+|---|---|
+| **Cabeçalho** | Breadcrumb clicável; ícone do tipo; **nome em edição inline** (clique ou `F2`, `Enter` confirma, `Esc` cancela); `code` em fonte mono (somente leitura, imutável); badges de tipo, revisão e estado da versão; `‹ anterior` / `próximo ›` navegam entre **irmãos** na ordem da árvore (`Alt+↑` / `Alt+↓`) |
+| **Barra de ações grudenta** | Fica colada abaixo do cabeçalho ao rolar. Estado do conteúdo à esquerda (`Sem conteúdo` · `Rascunho v2` · `Vigente v1 desde …`), ações de ciclo de vida no meio (**Criar rascunho** / **Publicar** / **Descartar rascunho**, ou **Documentar esta seção** numa `SECTION` pura) e `⋯` com Mover para…, Duplicar e Arquivar |
+| **Identidade** | Tags (`ComponentTagsEditor`), origem (fonte + locator), `reviewStatus` (`Select` com os 4 estados, incluindo promover a `VALIDATED`, sempre escolha explícita) e contagem de filhos — em grade de 2 colunas, largura total |
+| **Conteúdo da versão** | Os campos do payload por tipo (abaixo), em largura útil: campos longos ocupam a coluna inteira com no mínimo 6 linhas visíveis e crescem com o texto; campos curtos pareiam 2 por linha; campos de lista (`inputs`, `reasonCodes`, `dependencies`) são **chips** — digitar e `Enter` (ou vírgula) adiciona, `Backspace` no campo vazio remove o último, colar texto separado por vírgula vira N chips |
+| **Especificação** | O editor rico (§18) na mesma coluna, com "Comparar com a publicada" quando há rascunho sobre versão publicada |
+| **Vigência e versões** | `MatrixTimelineBar` sobre `getComponentTimeline`, um segmento por versão, tooltip com o período, e **"Ver a política inteira nesta data"**, que abre a tela de Vigência (§10) naquela data |
+
+Campos por tipo (`14-governanca-de-alteracoes.md` §3.2), inalterados desde a S33b — o que muda é
+o espaço que eles ocupam:
+
+| Tipo | Campos |
+|---|---|
+| `RULE` | Descrição de negócio (obrigatória) · Definição técnica · Entradas · Condições · Resultado · Reason codes · Dependências · Notas |
+| `SECTION` | Pasta pura por padrão; **"Documentar esta seção"** cria a primeira versão (payload `OTHER`) e dá à seção texto, vigência e histórico como qualquer outra (I29) |
+| `LIST`, `REASON_CODE`, `POLICY_VARIABLE`, `OTHER` | O payload do tipo, com o mesmo tratamento de campo longo/curto/chips |
+
+Regras de comportamento:
+
+- **Commit por campo ao perder o foco**, como hoje; a barra grudenta mostra `Salvando…`/`Salvo`
+  junto ao estado da versão, para que quem rola 800px de formulário não precise ir ao rodapé
+  conferir.
+- **Sem rascunho aberto**, os campos aparecem **somente leitura** com o aviso *"Versão 1 vigente
+  desde 30/09/2025 — crie um rascunho para editar"* e o botão **"Criar rascunho a partir desta
+  versão"**. Nunca campos editáveis que descartam o que foi digitado.
+- **`MATRIX`** continua sem página própria: o nó navega direto para o grid (§17.2).
+- **`POLICY_VARIABLE`** espelhando a Biblioteca mostra o card da variável (nome, contagem de
+  domínios da versão publicada) com "Ir para a Biblioteca", sem duplicar os domínios.
+- **Nenhum inspector à direita** nesta tela — o painel não é renderizado (§2).
 
 ### 17.6 Carga por recorte — S40 ✅
 
-`MarkdownImportDialog` (`src/components/import/markdown/`), aberto pela barra da árvore
-("Carregar Markdown") ou pelo menu de um nó ("Carregar Markdown aqui…", pré-seleciona o destino) —
+`MarkdownImportDialog` (`src/components/import/markdown/`), aberto pela barra de ferramentas (§2.1,
+"Carregar Markdown") ou pelo menu `⋯` de um nó ("Carregar Markdown aqui…", pré-seleciona o destino) —
 diálogo, não uma rota própria, porque o destino já é o contexto de onde o usuário estava
 (DEC-GOV-027). Três passos, no padrão visual do assistente de carga de matrizes (§14):
 
@@ -517,7 +607,7 @@ publicar é irreversível por natureza (DEC-GOV-026).
 
 Contrato do modelo em `14-governanca-de-alteracoes.md` §7 e `03-modelo-do-documento.md` §12.3;
 núcleo em `src/core/richdoc/`, componentes em `src/components/richdoc/`. O editor aparece no campo
-**Especificação** do inspector do componente (§17.5) — o placeholder da S33 morreu aqui — e a S35
+**Especificação** da página do componente (§17.5) — o placeholder da S33 morreu aqui — e a S35
 o pluga nos campos de texto do Diário de Bordo.
 
 ### 18.1 Um `contentEditable` por linha, nunca um global
@@ -586,7 +676,7 @@ Contrato do modelo em `14-governanca-de-alteracoes.md` §3.3/§4/§5; `src/compo
 Uma `View` própria (`'change-requests'`, hash `#/db`), item fixo da barra lateral com o mesmo
 padrão visual de "Rascunhos" (badge com a contagem de `awaitingReview`, §19.3) — não uma sub-rota
 de `ProjectDetail`, porque a fila de aprovação (US-GOV-04) cruza projetos e a lista document-wide já
-resolve o filtro "por projeto" (§19.1) sem precisar herdar a árvore de 360px.
+resolve o filtro "por projeto" (§19.1) sem precisar herdar a árvore da barra lateral (§17.1).
 
 ### 19.1 Lista de DBs
 
@@ -792,33 +882,29 @@ Duas telas para as duas perguntas de auditoria da US-GOV-07/08: "qual era a pol�
 `diffPolicySnapshots` (`05-regras-de-negocio.md` §6.2/§6.3) fazem a consulta, as telas leem e
 desenham.
 
-### 20.1 Modo fotografia da árvore ("ver como em…")
+### 20.1 A fotografia é uma tela, não um estado da árvore
 
-Na barra da árvore da política (§17.1), um seletor de data **Ver como em…**. Preenchido, a árvore
-inteira entra em modo fotografia:
+Perguntar "o que valia em 15/05?" é **leitura**, e leitura tem tela própria: a de Vigência (§10),
+que mostra a estrutura inteira do projeto na data — regras, listas, variáveis e matrizes juntas.
 
-- badge **"Fotografia de dd/mm/aaaa · somente leitura"** no lugar dos botões de criação, com
-  **"Voltar para hoje"** ao lado — sair é sempre um clique, e não desfaz nada (a fotografia é uma
-  leitura);
-- cada nó mostra o que era **naquela data**, não hoje: `v{n}` da versão vigente (de componente ou
-  de matriz), "sem política vigente em dd/mm/aaaa" quando é conteúdo sem versão ali, e "estrutura"
-  na seção pura (I29 — pasta nunca aparece como regra que caducou);
-- o que não existia na data some da árvore junto com a subárvore (arquivado depois daquele dia
-  continua aparecendo — `05` §6.2);
-- **edição bloqueada de ponta a ponta**: sem criar/pendurar/carregar/publicar na barra, sem menu de
-  ações no nó, sem renomear (duplo clique e F2 inertes), sem arrastar. O inspector acompanha —
-  mostra a versão daquela data somente leitura, com o mesmo aviso e o mesmo "Voltar para hoje", e
-  os campos de nome, origem, tags e revisão desabilitados. Editar em modo fotografia está fora do
-  escopo da S39: o caminho é sair e editar hoje.
+A árvore da barra lateral (§17.1) é **sempre hoje**: é por onde se navega e se edita, e não entra
+em modo somente leitura (DEC-UX-004). Isso elimina o estado duplo que existia antes — árvore
+"congelada" com botões sumindo, menus inertes e inspector bloqueado —, sem perder nenhuma das
+leituras do passado, que agora vivem todas na tela de Vigência:
 
-Busca e filtros continuam funcionando dentro da fotografia — filtrar o passado é leitura.
+- `v{n}` da versão vigente naquela data, *"sem política vigente em dd/mm/aaaa"* no conteúdo sem
+  versão ali e `estrutura` na seção pura (I29);
+- o que não existia na data some junto com a subárvore; o arquivado depois daquele dia continua
+  aparecendo (`05-regras-de-negocio.md` §6.2);
+- conteúdo daquela versão em somente leitura ao selecionar o nó, com banner de versão histórica;
+- **"Abrir no editor (hoje)"** em qualquer nó, para sair da consulta e editar no presente.
 
 ### 20.2 Salto a partir da timeline do componente (§17.5)
 
-Na timeline de versões do inspector, clicar num segmento leva a **árvore inteira** para a data em
-que aquela versão passou a vigorar; abaixo dela, **"Ver a política inteira nesta data"** faz o
-mesmo a partir da versão mostrada. É a continuação natural: a pergunta depois de "quando esta regra
-mudou?" é sempre "e o que mais valia naquele dia?".
+Na faixa de vigência da página do componente, clicar num segmento — ou o botão **"Ver a política
+inteira nesta data"** — abre a tela de Vigência na data em que aquela versão passou a vigorar. É a
+continuação natural: a pergunta depois de "quando esta regra mudou?" é sempre "e o que mais valia
+naquele dia?".
 
 ### 20.3 Tela de comparação (`View` `'policy-compare'`, hash `#/politica/comparar`)
 
@@ -834,7 +920,7 @@ mudou?" é sempre "e o que mais valia naquele dia?".
 
 O cabeçalho do resultado traz as duas pontas, os totais (adicionados · alterados · removidos), os
 contadores do período da US-GOV-07 (vigentes no fim, DBs publicados no período, DBs em andamento) e
-dois atalhos **"Ver a política em …"**, que levam a árvore para o modo fotografia de cada ponta.
+dois atalhos **"Ver a política em …"**, que abrem a tela de Vigência (§10) na data de cada ponta.
 
 Abaixo, as mudanças **agrupadas por seção** da árvore (raiz do projeto por último). Cada cartão traz
 nome, código, tipo, o rastro de versão (`v1 → v2`, "não existia" / "não vigora mais") e o detalhe
@@ -848,5 +934,56 @@ conforme a origem:
 Clicar no nome abre o componente na árvore (ou a matriz no grid, quando o nó é uma matriz sem
 espelho — DEC-GOV-039).
 
-Fora do escopo da S39: editar em modo fotografia, exportar a comparação e indicadores/analytics de
-mudança.
+Editar na consulta histórica continua fora de escopo — o caminho é "Abrir no editor (hoje)" (§10).
+Exportar a comparação e indicadores/analytics de mudança também não existem ainda.
+
+## 21. Fluxo do dia a dia — histórias e cenários do layout
+
+O layout de §2/§2.1/§17 existe para servir a quatro rotinas reais. As histórias abaixo são o
+critério pelo qual qualquer mudança de layout é julgada; os cenários marcados `CT-UX` são os que
+dependem de estado e sequência, e por isso viram teste.
+
+| ID | História |
+|---|---|
+| **US-UX-01** | Como analista de política, quero navegar a hierarquia inteira numa lista só, para não decidir a cada clique qual das duas árvores da tela é a certa |
+| **US-UX-02** | Como analista, quero escrever a regra na largura da tela, para digitar definição técnica e especificação sem escrever dentro de uma coluna de 340px |
+| **US-UX-03** | Como analista cadastrando ~50 regras, quero criar, renomear e publicar sem tirar as mãos do teclado, para que o volume não vire duas semanas |
+| **US-UX-04** | Como gerente, quero ver a política inteira como estava numa data — regras, listas e matrizes — numa tela de consulta, sem congelar a tela em que eu edito |
+| **US-UX-05** | Como usuário em notebook de 1366px, quero ajustar a largura da navegação, porque os nomes das minhas seções não cabem em 248px |
+
+Critérios de aceitação transversais: nenhuma ação existente hoje pode desaparecer sem substituta na
+barra (§2.1) ou no menu `⋯` do nó (§17.1); nenhuma tela pode exibir duas árvores da mesma política;
+nenhum campo de texto longo pode ficar abaixo de 480px de largura útil.
+
+```gherkin
+CT-UX-01 (US-UX-01)
+  Dado um projeto com seções em 4 níveis
+  Quando eu abro o projeto
+  Então a barra lateral mostra a árvore inteira, com todos os níveis expansíveis
+  E não existe nenhum segundo painel de árvore na tela
+
+CT-UX-02 (US-UX-02)
+  Dado um componente RULE com rascunho aberto
+  Quando eu abro o componente pela árvore
+  Então a página dele ocupa o centro da tela
+  E o painel direito não é renderizado
+  E o campo "Descrição de negócio" tem pelo menos 6 linhas visíveis
+
+CT-UX-03 (US-UX-03)
+  Dado o nó "CMA" selecionado na árvore
+  Quando eu pressiono Enter
+  Então um irmão de CMA nasce em edição de nome
+  E o chip de alvo na barra de ferramentas diz "em: CMA"
+
+CT-UX-04 (US-UX-04)
+  Dado que a versão 1 da regra vigora desde 30/09/2025 e a versão 2 desde 01/03/2026
+  Quando eu clico no segmento da versão 1 na faixa de vigência da página do componente
+  Então a tela de Vigência abre em 30/09/2025 na aba Estrutura
+  E a árvore da barra lateral continua mostrando o estado de hoje, editável
+
+CT-UX-05 (US-UX-05)
+  Dado que arrastei a borda da navegação até 420px
+  Quando eu recarrego a aplicação
+  Então a navegação continua com 420px
+  E arrastar além de 480px ou aquém de 248px não passa dos limites
+```

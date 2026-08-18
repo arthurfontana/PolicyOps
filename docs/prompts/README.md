@@ -43,11 +43,27 @@ Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
 | 33b | [x] | [S33b-cadastro-de-regras.md](S33b-cadastro-de-regras.md) | `Sonnet` | Cadastro por tipo, versionamento com vigência, entrada em volume (depende de 33a) — **lote 3: conteúdo** |
 | 34 | [x] | [S34-editor-rico.md](S34-editor-rico.md) | `Opus` | Editor rico de blocos, anexos de imagem, diff por bloco (depende de 32a) |
 | 35 | [x] | [S35-solicitacao-e-workflow.md](S35-solicitacao-e-workflow.md) | `Sonnet` | Solicitação de Alteração (DB), workflow, fila e pendências (depende de 32b, 33b e 34) |
-| 36 | [ ] | [S36-vinculo-e-publicacao.md](S36-vinculo-e-publicacao.md) | `Opus` | Vínculo DB↔rascunhos, congelamento, publicação atômica (depende de 35) |
-| 37 | [ ] | [S37-release-e-timeline.md](S37-release-e-timeline.md) | `Sonnet` | Release de política e timeline do Diário de Bordo (depende de 36) |
-| 38 | [ ] | [S38-pacote-fabrica.md](S38-pacote-fabrica.md) | `Sonnet` | Pacote para a Fábrica: HTML imprimível + Markdown (depende de 36) |
-| 39 | [ ] | [S39-fotografia-historica.md](S39-fotografia-historica.md) | `Opus` | Política inteira em qualquer data e comparações A×B (depende de 36) |
+| 36 | [x] | [S36-vinculo-e-publicacao.md](S36-vinculo-e-publicacao.md) | `Opus` | Vínculo DB↔rascunhos, congelamento, publicação atômica (depende de 35) |
+| 37 | [x] | [S37-release-e-timeline.md](S37-release-e-timeline.md) | `Sonnet` | Release de política e timeline do Diário de Bordo (depende de 36) |
+| 38 | [x] | [S38-pacote-fabrica.md](S38-pacote-fabrica.md) | `Sonnet` | Pacote para a Fábrica: HTML imprimível + Markdown (depende de 36) |
+| 39 | [x] | [S39-fotografia-historica.md](S39-fotografia-historica.md) | `Opus` | Política inteira em qualquer data e comparações A×B (depende de 36) |
 | 40 | [x] | [S40-carga-de-componentes.md](S40-carga-de-componentes.md) | `Sonnet` | 🟡 Carga da política **por recorte**, dentro da seção escolhida (depende de 32a, 33a, 33b) — **lote 4: opcional, decidir após uso real** |
+| 41 | [ ] | [S41-shell-e-navegacao.md](S41-shell-e-navegacao.md) | `Opus` | Árvore da política na barra lateral (redimensionável) e barra de ferramentas contextual (épico Experiência, depende de 33b/40) |
+| 42 | [ ] | [S42-pagina-do-componente.md](S42-pagina-do-componente.md) | `Sonnet` | Componente editado no centro da tela, em coluna larga; inspector direito só para seleção (depende de 41) |
+| 43 | [ ] | [S43-vigencia-da-politica.md](S43-vigencia-da-politica.md) | `Opus` | Vigência mostra a política inteira na data (estrutura, não só matrizes); some o modo fotografia da árvore (depende de 42) |
+| 44 | [ ] | [S44-fluxo-do-dia-a-dia.md](S44-fluxo-do-dia-a-dia.md) | `Sonnet` | Teclado na árvore, "próximo pendente", densidade e atalhos (depende de 43) |
+
+## Épico Experiência (41–44)
+
+Reforma de layout pedida depois do uso real da política dentro da ferramenta: **uma árvore só**
+(barra lateral), **o componente no centro**, **ações na barra de ferramentas** e **a consulta
+histórica como tela**. Decisões em `docs/13-decisoes.md` (DEC-UX-001 a DEC-UX-005), comportamento
+alvo em `docs/07-ux-e-editor.md` §2, §2.1, §10, §17.1, §17.5, §20 e §21. A ordem é sequencial —
+cada sessão pressupõe o layout da anterior:
+
+```
+41 (navegação) → 42 (página do componente) → 43 (vigência/consulta) → 44 (fluxo e teclado)
+```
 
 ## Ordem do épico Governança (DEC-GOV-010, revista pela DEC-GOV-012)
 

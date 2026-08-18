@@ -7,7 +7,7 @@
 Prefixos em uso: `ADR-` para decisões globais de arquitetura, `DEC-<ÉPICO>-` para decisões de um
 domínio funcional (`CARGA` = carga de matrizes, `12-carga-de-matrizes.md`; `PLAT` = plataforma
 local, `14-plataforma-local.md`; `GOV` = governança de alterações,
-`14-governanca-de-alteracoes.md`).
+`14-governanca-de-alteracoes.md`; `UX` = layout e fluxo da interface, `07-ux-e-editor.md`).
 
 ---
 
@@ -921,7 +921,7 @@ real.
 
 ---
 
-## DEC-GOV-021: a árvore vive dentro de `ProjectDetail`; a lista de matrizes com facetas continua sendo o conteúdo padrão
+## DEC-GOV-021: a árvore vive dentro de `ProjectDetail`; a lista de matrizes com facetas continua sendo o conteúdo padrão (substituída por DEC-UX-001 na parte do painel de 360px)
 
 | Campo | Conteúdo |
 |---|---|
@@ -1178,3 +1178,70 @@ real.
 | **Por quê** | DEC-GOV-035 já decidiu que cada DB da release mantém a sua própria vigência; a release é o lote de publicação, não a data em que a política muda. Com o intervalo semiaberto `[effectiveFrom, effectiveTo)`, a janela `[primeira − 1 ms, última]` é exatamente "a política sem esta release" × "a política com ela inteira". |
 | **Custo aceito** | Numa release com vigências espalhadas no tempo, a janela engloba tudo que aconteceu no meio — inclusive alterações de **outros** DBs publicados nesse intervalo. É a leitura honesta ("o que a política tinha antes de a release começar a valer × o que tem depois de ela terminar de valer"); quem quiser isolar um DB usa a timeline do DB. |
 | **Páginas afetadas** | `14-governanca-de-alteracoes.md` §4 (US-GOV-08); `07-ux-e-editor.md` §20; `src/core/timeline/policy-at.ts` |
+
+---
+
+## DEC-UX-001: a árvore da política é a barra lateral — o painel de 360px deixa de existir
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A árvore inteira do projeto (todos os níveis, menu `⋯`, arrastar, criação por teclado) passa a ser renderizada **na barra lateral do shell**, com largura arrastável de 248 a 480px. O painel `PolicyTree` de 360px dentro de `ProjectDetail` é removido, e as âncoras de dois níveis da sidebar (`sidebarTreeAnchors`) são substituídas pela árvore de verdade. |
+| **Data / gatilho** | 2026-08-18, revisão de UX com a política real carregada (~101 nós de estrutura, 85 componentes no projeto B2C): duas listas hierárquicas na mesma tela consumindo ~600px de largura, com o conteúdo espremido entre elas. |
+| **Substitui** | DEC-GOV-021 (a árvore como coluna interna de `ProjectDetail`). |
+| **Alternativas** | (a) manter o painel e só estreitá-lo — não resolve a duplicação de navegação, e a árvore de várias centenas de nós fica pior num painel menor; (b) rota própria para a árvore — tira a árvore de vista justamente quando se edita o componente, que é o momento em que se navega mais. |
+| **Por quê** | Navegação é um papel só, e quem tem duas listas hierárquicas na tela decide a cada clique qual das duas usar. A sidebar já era o lugar da navegação — faltava caber, e caber é largura arrastável, não hierarquia truncada em dois níveis. |
+| **Custo aceito** | Em telas estreitas a árvore compete com o centro pela largura; mitigado por `[` (recolher) e pela largura persistida. O `code` do nó só aparece a partir de 340px de sidebar. |
+| **Páginas afetadas** | `07-ux-e-editor.md` §2, §17.1; `09-roadmap-de-entregas.md` (S41) |
+
+---
+
+## DEC-UX-002: componente se edita no centro; o inspector direito é exclusivo de seleção
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O componente de política (regra, seção, lista, variável) ganha **página própria no centro** (`ComponentPage`, coluna de leitura de até 960px), com identidade, payload, especificação rica e vigência na mesma rolagem. `ComponentInspector` deixa de existir como painel direito. O inspector de 340px fica reservado ao que é **seleção dentro de uma tela**: células do grid e célula do diff. Telas sem seleção não renderizam o painel. |
+| **Data / gatilho** | 2026-08-18, mesma revisão: os campos mais escritos do produto (descrição de negócio, definição técnica) estavam em caixas de ~300px de largura. |
+| **Alternativas** | (a) alargar o inspector para ~520px — melhora o sintoma e mantém a causa (o objeto principal editado num painel acessório); (b) abas Conteúdo/Especificação/Histórico no centro — esconde a especificação de quem digita a regra e tira a vigência do campo de visão. |
+| **Por quê** | O painel lateral é para propriedades de uma seleção efêmera; o componente **é** o objeto da tela. Documento único em coluna larga é também o formato em que a política é lida e impressa. |
+| **Custo aceito** | Página longa: exige barra de ações grudenta para que Publicar/Descartar não fiquem a 800px de rolagem do topo. |
+| **Páginas afetadas** | `07-ux-e-editor.md` §2, §6, §17.5; `09-roadmap-de-entregas.md` (S42) |
+
+---
+
+## DEC-UX-003: ação de tela vive na barra de ferramentas contextual, não dentro dos painéis
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O shell ganha um slot de **barra de ferramentas contextual** (40px, uma linha) abaixo do título da aplicação, preenchido pela tela ativa (`ui-store.toolbar`). As ações da árvore (Nova seção, Nova regra, Pendurar matriz, Carregar Markdown, Publicar pendentes) e a busca/filtro da política migram para lá, com um chip de **alvo** (`em: CMA › Fraude`). Só aparece o que a tela faz; item desabilitado só quando a ação existe e está bloqueada por papel ou estado. A migração é por tela — a tela que ainda não preencheu o slot mantém o cabeçalho que já tem. |
+| **Data / gatilho** | 2026-08-18, mesma revisão: quatro botões, um seletor de data e três faixas de filtro ocupavam ~230px de altura do painel da árvore antes do primeiro nó. |
+| **Alternativas** | (a) barra global fixa com itens desabilitados fora de contexto — gasta a faixa mais nobre com comando inerte; (b) manter cada ação no cabeçalho da sua tela — é o estado atual, que empurra conteúdo para baixo em toda tela. |
+| **Por quê** | Painel é conteúdo, barra é comando. Separar os dois devolve altura ao conteúdo e dá um lugar previsível para o usuário procurar ação. |
+| **Custo aceito** | Distância física entre o comando (topo) e o alvo (nó na árvore); mitigada pelo chip de alvo e pelos atalhos de teclado, que continuam funcionando sobre o nó em foco. |
+| **Páginas afetadas** | `07-ux-e-editor.md` §2.1, §17.1, §17.4, §17.6; `09-roadmap-de-entregas.md` (S41) |
+
+---
+
+## DEC-UX-004: a fotografia da política é uma tela de consulta, não um estado da árvore
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | O seletor "ver como em…" sai da barra da árvore. A **tela de Vigência** passa a mostrar a estrutura inteira do projeto na data escolhida (aba Estrutura, ao lado de Matrizes e Portfólio), com o conteúdo da versão daquela data em somente leitura e "Abrir no editor (hoje)". A árvore da barra lateral é **sempre hoje** e nunca entra em modo somente leitura; `ui-store.componentTree.snapshotDate` deixa de existir e a data da consulta vira estado da tela de Vigência. Os saltos da timeline do componente e da tela de comparação passam a abrir a tela de Vigência na data. |
+| **Data / gatilho** | 2026-08-18, mesma revisão: o modo fotografia obrigava a árvore e a página do componente a manterem um segundo estado (botões sumindo, menus inertes, campos bloqueados) para uma pergunta que é de consulta. |
+| **Substitui** | O modo fotografia da árvore descrito em `07-ux-e-editor.md` §20.1 (S39). |
+| **Alternativas** | (a) manter os dois (fotografia na árvore e na Vigência) — duas fontes para a mesma leitura e o dobro de estados para testar; (b) permitir edição na fotografia — publicar retroativo já existe pelo fluxo normal, e editar "no passado" não é um conceito do modelo de vigência. |
+| **Por quê** | Consulta e edição são modos diferentes de trabalho e agora têm telas diferentes. Some o risco de o usuário achar que está editando hoje quando está olhando março, e o pedido original ("ver a estrutura inteira, inclusive regras e listas, numa data") ganha uma tela com espaço para responder. |
+| **Custo aceito** | Ver o passado passa a ser uma navegação de tela, não um seletor no lugar onde se está. `getPolicyAt` e o resto do núcleo da S39 não mudam — só quem os desenha. |
+| **Páginas afetadas** | `07-ux-e-editor.md` §10, §20.1–20.3; `14-governanca-de-alteracoes.md` §4 (US-GOV-07); `09-roadmap-de-entregas.md` (S43) |
+
+---
+
+## DEC-UX-005: largura da navegação é preferência de interface, persistida em `localStorage`
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A largura da barra lateral é arrastável (248–480px, padrão 288px, duplo clique na alça restaura o padrão) e persiste em `localStorage` sob `policyops.sidebarWidth`, como o tema e o nome do ator. **Nunca** entra no documento. |
+| **Data / gatilho** | 2026-08-18, mesma revisão: nomes de seção reais ("Bloqueios de Cadastro e Documentação") truncam em 248px. |
+| **Alternativas** | (a) largura fixa maior — resolve para um tamanho de tela só; (b) guardar no documento — poluiria o arquivo compartilhado com preferência de uma pessoa e geraria conflito de merge em algo que não é política. |
+| **Por quê** | É a mesma classe de estado do tema: por usuário, por máquina, irrelevante para o conteúdo versionado. |
+| **Custo aceito** | Um valor a mais em `localStorage` e o cuidado de validar o intervalo na leitura (valor corrompido cai no padrão). |
+| **Páginas afetadas** | `07-ux-e-editor.md` §2; `06-persistencia-e-concorrencia.md` (estado de interface fora do documento) |
