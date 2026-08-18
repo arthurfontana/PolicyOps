@@ -35,6 +35,19 @@ export {
   type PayloadFieldChange,
   type PayloadFieldChangeKind,
 } from './component-payload';
+export {
+  ROOT_SECTION_LABEL,
+  diffPolicyAt,
+  diffPolicySnapshots,
+  groupBySection,
+  orderPolicyDates,
+  type PolicyChangeKind,
+  type PolicyDiff,
+  type PolicyDiffTotals,
+  type PolicyMatrixChange,
+  type PolicyNodeChange,
+  type PolicySectionGroup,
+} from './policy-diff';
 
 export function diffVersions(
   doc: PolicyOpsDocument,

@@ -15,9 +15,10 @@
 > — DEC-GOV-008 —, telas de release e da timeline do Diário de Bordo, US-GOV-08 parcial) e **S38
 > entregue** (US-GOV-06 ✅ — gerador puro `buildFactoryPackage` §8, disponível a partir de `APPROVED`
 > e sempre regenerado — RN-GOV-08 —, HTML de impressão e Markdown, `factoryTemplate` editável nas
-> configurações do projeto, §12 pergunta 3 fechada); S39
-> planejada · **DECs relacionadas**:
-> DEC-GOV-001 a DEC-GOV-038 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
+> configurações do projeto, §12 pergunta 3 fechada) e **S39 entregue** (US-GOV-07 ✅ e US-GOV-08 ✅
+> completas — fotografia da política inteira em qualquer data, comparação data × data e
+> release × release, modo fotografia da árvore, docs/07 §20, docs/05 §6.2–6.3) · **DECs relacionadas**:
+> DEC-GOV-001 a DEC-GOV-040 em [`13-decisoes.md`](13-decisoes.md) · Normativo para as sessões do
 > épico; os contratos de schema fecham na S32a e passam a viver em
 > [`03-modelo-do-documento.md`](03-modelo-do-documento.md).
 >
@@ -31,7 +32,7 @@
 >
 > ```
 > 32a → 33a → 33b ✅ → ⟨ponto de parada: você constrói a política as-is e a gente ajusta a rota⟩
->   → 40 ✅ (opcional, por recorte) → 34 ✅ → 32b ✅ → 35 ✅ → 36 ✅ → 37 ✅/38 ✅ → 39
+>   → 40 ✅ (opcional, por recorte) → 34 ✅ → 32b ✅ → 35 ✅ → 36 ✅ → 37 ✅/38 ✅ → 39 ✅
 > ```
 >
 > O que só o Diário de Bordo consome (DB, release, grafo de estados, I25/I26) saiu da antiga S32 e
@@ -438,23 +439,36 @@ nunca mais montar o Word na mão.
   boilerplate representativo do checklist Serasa (não uma transcrição literal dos Words 513/515/519,
   que não fazem parte do repositório).
 
-### US-GOV-07 — Consultar a política em qualquer data
+### US-GOV-07 — Consultar a política em qualquer data ✅ (S39)
 **Como** analista, **quero** selecionar uma data e ver a política inteira como estava **para**
 responder auditoria sem arqueologia.
 
-- A fotografia combina componentes (versão vigente na data) e matrizes (mecanismo já existente);
-  componentes sem versão vigente na data aparecem como inexistentes/desativados.
-- Contadores do período: componentes vigentes, DBs publicados, DBs em andamento.
+- ✅ A fotografia combina componentes (versão vigente na data) e matrizes (mecanismo já existente,
+  DEC-GOV-002): `getPolicyAt` (`src/core/timeline/policy-at.ts`), regras de borda e os três estados
+  do nó (`EFFECTIVE`/`ABSENT`/`STRUCTURE`) em [`05-regras-de-negocio.md`](05-regras-de-negocio.md)
+  §6.2. Componente sem versão vigente na data aparece como "sem política vigente"; seção pura
+  aparece como estrutura (I29), nunca como regra que caducou; matriz sem espelho na árvore entra
+  como nó de raiz (DEC-GOV-039).
+- ✅ Contadores do período (`getPolicyPeriodCounters`): componentes e matrizes vigentes no fim do
+  período, DBs publicados no período (pela vigência) e DBs em andamento.
+- ✅ Na tela: **modo fotografia da árvore** ("ver como em…", badge da data, edição bloqueada de ponta
+  a ponta) e o salto "ver a política inteira nesta data" a partir da timeline do componente
+  (docs/07 §20.1–20.2).
 
-### US-GOV-08 — Comparar e acompanhar a evolução ✅ parcial (S37)
+### US-GOV-08 — Comparar e acompanhar a evolução ✅ (S37 + S39)
 **Como** gestor, **quero** comparar regra antes × depois, política em duas datas e o conteúdo de
 uma release **para** enxergar o que mudou.
 
-- Diff de payload campo a campo + diff de `spec` por bloco (§7); matrizes usam o diff existente.
 - ✅ **S37**: Timeline do Diário de Bordo — DBs publicados em ordem cronológica de vigência, com
   componentes afetados e link para o DB e a release (`ChangeRequestTimelineScreen`,
-  `getChangeRequestTimeline`, docs/07 §19.7). Fora desta sessão: diff entre duas datas da timeline e
-  comparação release × release (S39).
+  `getChangeRequestTimeline`, docs/07 §19.7).
+- ✅ **S39**: comparação da política inteira entre duas pontas (`diffPolicySnapshots`,
+  `src/core/diff/policy-diff.ts`, docs/05 §6.3): componentes adicionados/removidos/alterados com
+  diff de payload campo a campo e de `spec` por bloco (§7), matrizes com o resumo do diff existente,
+  tudo agregado por seção da árvore. A tela (docs/07 §20.3) tem dois modos: **data × data** e
+  **release × release**, este usando as fotografias imediatamente antes e depois da vigência da
+  release (DEC-GOV-040).
+- Fora do épico: exportar a comparação e indicadores/analytics de mudança (§11).
 
 ### US-GOV-09 — Carga da política por recorte (opcional) ✅ (S40)
 **Como** analista, **quero** subir um capítulo já convertido em Markdown dentro de uma seção que
@@ -794,7 +808,9 @@ Então  "Goodlist" tem v2 PUBLISHED com effectiveFrom 2026-09-01 e changeRequest
 `tests/unit/core/document/cr-publish.test.ts` no núcleo): DRAFT → … → READY_FOR_RELEASE →
 **PUBLISHED**, com o rascunho vinculado, a v2 em vigor em 2026-09-01 carregando
 `changeRequestId = DB-515`, a v1 `SUPERSEDED` com `effectiveTo` casando, e a consulta por data
-devolvendo v1 em 2026-08-15 e v2 em 2026-09-02.
+devolvendo v1 em 2026-08-15 e v2 em 2026-09-02. ✅ **A parte final também pela fotografia da política
+inteira na S39** (`tests/unit/core/timeline/policy-at.test.ts`): `getPolicyAt` em 2026-08-15 traz a
+Goodlist com v1 e em 2026-09-02 com v2, junto do resto do projeto.
 
 ### CT-GOV-02 — Aprovação não publica (cobre US-04, RN-GOV-04)
 ```gherkin

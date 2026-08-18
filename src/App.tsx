@@ -13,6 +13,7 @@ import { ProjectsScreen } from '@/components/projects/ProjectsScreen';
 import { MatrixScreen } from '@/components/matrix/MatrixScreen';
 import { CompareScreen } from '@/components/compare/CompareScreen';
 import { ComparisonBoardScreen } from '@/components/compare/ComparisonBoardScreen';
+import { PolicyCompareScreen } from '@/components/compare/PolicyCompareScreen';
 import { DraftsScreen } from '@/components/drafts/DraftsScreen';
 import { TimelineScreen } from '@/components/timeline/TimelineScreen';
 import { TemplatesScreen } from '@/components/templates/TemplatesScreen';
@@ -74,6 +75,7 @@ function CurrentView() {
   if (view === 'change-requests') return <ChangeRequestsScreen />;
   if (view === 'releases') return <ReleasesScreen />;
   if (view === 'db-timeline') return <ChangeRequestTimelineScreen />;
+  if (view === 'policy-compare') return <PolicyCompareScreen />;
   return <UnderConstruction view={view} />;
 }
 

@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Columns3,
   FolderKanban,
+  GitCompare,
   History,
   LayoutTemplate,
   Library,
@@ -45,6 +46,7 @@ const BOTTOM_ITEMS: NavItem[] = [
   { view: 'db-timeline', label: 'Linha do tempo do DB', icon: History, implemented: true },
   { view: 'templates', label: 'Templates', icon: LayoutTemplate, implemented: true },
   { view: 'timeline', label: 'Vigência', icon: CalendarClock, implemented: true },
+  { view: 'policy-compare', label: 'Comparar política', icon: GitCompare, implemented: true },
   { view: 'drafts', label: 'Rascunhos', icon: PencilLine, implemented: true },
   { view: 'board', label: 'Comparação', icon: Columns3, implemented: true },
 ];

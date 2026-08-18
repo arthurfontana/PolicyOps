@@ -7,6 +7,7 @@ import {
 import { createComponent } from '@/core/document/components';
 import { linkChangeRequestDraft } from '@/core/document/cr-drafts';
 import type { CrStatus, PolicyOpsDocument } from '@/core/document/schema';
+import { createDraft, publishVersion } from '@/core/versioning/lifecycle';
 import {
   createComponentDraft,
   publishComponentVersion,
@@ -215,5 +216,104 @@ export function dbPublicavel(
     document: avancarAte(vinculado.document, ctx, comItem.changeRequestId, 'READY_FOR_RELEASE'),
     changeRequestId: comItem.changeRequestId,
     draftVersionId: vinculado.data.draftVersionId,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Fotografia histórica e comparação de política (S39)
+// ---------------------------------------------------------------------------
+
+/**
+ * As três datas em que a política do `politicaComTresMudancas` muda — e nada
+ * acontece fora delas. É o que permite afirmar "a comparação março × agosto
+ * lista **exatamente** o que os DBs do intervalo mudaram" sem depender de
+ * relógio nem de ordem de execução.
+ */
+export const MUDANCAS = {
+  /** A Goodlist ganha v2. */
+  goodlist: '2026-03-01T00:00:00.000Z',
+  /** A "Regra nova" ganha a primeira versão — ela não existia antes. */
+  regraNova: '2026-06-01T00:00:00.000Z',
+  /** A matriz de corte ganha v2, com uma célula reprovada. */
+  matriz: '2026-08-01T00:00:00.000Z',
+} as const;
+
+export type TresMudancasScenario = GovernanceScenario & {
+  goodlistV2: string;
+  regraNovaV1: string;
+  /** v1 da matriz, vigente desde `VIGENCIA_V1`. */
+  matrixV1: string;
+  matrixV2: string;
+};
+
+/**
+ * A política do épico com **três** alterações em datas conhecidas — uma de
+ * cada natureza que a comparação de política precisa distinguir: componente
+ * alterado (nova versão), componente que passa a existir, e matriz alterada
+ * (a segunda fonte da fotografia, DEC-GOV-002).
+ *
+ * Continua montada só por comandos, como `politica`: uma fixture de fotografia
+ * histórica escrita à mão provaria apenas que o objeto literal casa com o
+ * `expect`, não que publicar produz aquela história.
+ */
+export function politicaComTresMudancas(ctx: TestCtx): TresMudancasScenario {
+  const base = politica(ctx);
+  let document = base.document;
+
+  // A matriz precisa de uma v1 vigente desde o começo para que a mudança de
+  // agosto seja um diff de matriz, e não o nascimento dela.
+  document = apply(
+    document,
+    ctx,
+    publishVersion({ versionId: base.matrixDraftId, notes: 'Publicação inicial da matriz.', effectiveFrom: VIGENCIA_V1 }),
+  ).document;
+
+  const goodlistV2 = apply(
+    document,
+    ctx,
+    createComponentDraft({
+      componentId: base.goodlistId,
+      payload: {
+        kind: 'RULE',
+        businessDescription: 'Aprova só se o valor do pedido for menor ou igual ao limite em lista.',
+        outcome: 'Aprovar',
+      },
+    }),
+  );
+  document = apply(
+    goodlistV2.document,
+    ctx,
+    publishComponentVersion({ versionId: goodlistV2.data.versionId, effectiveFrom: MUDANCAS.goodlist }),
+  ).document;
+
+  const regraNovaV1 = apply(
+    document,
+    ctx,
+    createComponentDraft({
+      componentId: base.novaRegraId,
+      payload: { kind: 'RULE', businessDescription: 'Deriva para a Mesa quando o aging passa de 30 dias.' },
+    }),
+  );
+  document = apply(
+    regraNovaV1.document,
+    ctx,
+    publishComponentVersion({ versionId: regraNovaV1.data.versionId, effectiveFrom: MUDANCAS.regraNova }),
+  ).document;
+
+  const matrixV2 = apply(document, ctx, createDraft({ matrixId: base.matrixId }));
+  document = fillAllCells(matrixV2.document, ctx, matrixV2.data.versionId, 'REPROVADO');
+  document = apply(
+    document,
+    ctx,
+    publishVersion({ versionId: matrixV2.data.versionId, notes: 'Fecha o corte.', effectiveFrom: MUDANCAS.matriz }),
+  ).document;
+
+  return {
+    ...base,
+    document,
+    goodlistV2: goodlistV2.data.versionId,
+    regraNovaV1: regraNovaV1.data.versionId,
+    matrixV1: base.matrixDraftId,
+    matrixV2: matrixV2.data.versionId,
   };
 }

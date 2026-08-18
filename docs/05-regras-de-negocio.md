@@ -483,6 +483,62 @@ listComponentsEffectiveAt(doc, projectId, at: Date): Array<{ component; version:
   escrever qualquer versão — um item inválido no meio do lote não deixa os anteriores publicados
   pela metade (RN-GOV-05).
 
+### 6.2 Fotografia da política inteira (épico Governança, S39)
+
+A pergunta da US-GOV-07 ("qual era a política vigente em 15/05?") não é sobre uma matriz nem sobre
+um componente: é sobre o projeto inteiro. `src/core/timeline/policy-at.ts` compõe as duas fontes de
+vigência (DEC-GOV-002) numa lista só, na ordem de leitura da árvore:
+
+```ts
+getPolicyAt(doc, projectId, at: Date): PolicySnapshot
+getPolicyPeriodCounters(doc, projectId, from: Date, to: Date): PolicyPeriodCounters
+getReleaseSnapshotWindow(doc, releaseId): ReleaseSnapshotWindow | null
+```
+
+Cada nó da fotografia tem um dos três estados:
+
+| Estado | Quando | Como aparece |
+|---|---|---|
+| `EFFECTIVE` | havia versão vigente naquela data (de componente ou de matriz) | `v{n}` |
+| `ABSENT` | é conteúdo, mas nenhuma versão vigia ali | "sem política vigente em dd/mm/aaaa" — não é erro (§6) |
+| `STRUCTURE` | `SECTION` **sem versão nenhuma** (I29) | "estrutura" — nunca entra em contador nem em comparação |
+
+As regras de borda, todas explícitas porque nenhuma aparece em teste superficial:
+
+- **vigência é semiaberta** `[effectiveFrom, effectiveTo)`, como no §6: na data exata da troca já vale
+  a versão nova, e uma versão `PUBLISHED` com `effectiveFrom` no futuro **não** vige;
+- **arquivar não reescreve o passado**: componente (ou matriz) com `archivedAt` sai das fotografias
+  a partir daquele instante — e permanece, com a versão que vigorava, em todas as anteriores. O nó
+  arquivado leva a subárvore junto, como a árvore da tela já faz;
+- **presença é vigência, nunca `createdAt`**: cadastrar hoje uma regra que vigora desde março
+  (vigência retroativa, RN-GOV-09) a coloca na fotografia de março — é o ponto de ter fundação
+  retroativa;
+- **`STRUCTURE` é `SECTION` sem versão**, não "sem versão vigente": uma seção documentada tem
+  vigência como qualquer outra, e uma regra ainda não documentada é conteúdo em branco (`ABSENT`),
+  não pasta. Difere de `listComponentsEffectiveAt` (§6.1), que exclui todo componente sem versão
+  porque lista conteúdo, não a árvore;
+- **matriz sem componente espelho não some** (DEC-GOV-039): entra ao final da fotografia, como nó de
+  raiz sem componente, com chave `matrix:<matrixId>`.
+
+`getPolicyPeriodCounters` responde os contadores do período da US-GOV-07: vigentes **no fim** do
+período (estoque), DBs do projeto publicados **pela vigência** dentro dele (fluxo, mesma régua da
+timeline do DB da S37) e DBs ainda vivos (nem publicados, nem rejeitados, nem cancelados).
+
+### 6.3 Comparação da política entre duas datas (S39)
+
+`diffPolicyAt(doc, projectId, aAt, bAt)` / `diffPolicySnapshots(doc, a, b)`
+(`src/core/diff/policy-diff.ts`) casam os nós das duas fotografias **pela chave** e classificam:
+`ADDED` (passou a ter versão vigente), `REMOVED` (deixou de ter) e `CHANGED` (versão diferente dos
+dois lados). Nó igual ou ausente dos dois lados não entra — um diff de auditoria que lista o que
+**não** mudou não responde nada; seção pura também não, porque não tem versão e portanto não tem
+como mudar.
+
+O detalhe de cada mudança reaproveita os três motores que já existem, guardando deles só o resumo:
+`diffComponentPayloads` (campo a campo, §4 do épico), `diffRichDoc` (por bloco, S34) e
+`diffVersionPair` (matriz, §4 — resumo semântico e contagem de células, sem a lista). A saída vem
+também **agregada pela seção** que contém cada mudança (o ancestral `SECTION` mais próximo; a raiz
+do projeto por último), que é a leitura de quem pergunta "o que mudou no capítulo de Listas".
+
 ## 7. Payloads dos eventos
 
 | Tipo | Payload |

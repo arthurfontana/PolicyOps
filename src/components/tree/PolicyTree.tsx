@@ -1,5 +1,17 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CheckCheck, ChevronDown, ChevronRight, Copy, FileUp, FolderInput, Grid3x3, Plus, Search } from 'lucide-react';
+import {
+  CalendarClock,
+  CheckCheck,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  FileUp,
+  FolderInput,
+  Grid3x3,
+  Plus,
+  Search,
+  X,
+} from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +49,12 @@ import {
   resolveOpenVersion,
   type ComponentTreeFilterResult,
 } from '@/core/queries';
+import {
+  getPolicyAt,
+  snapshotNodeIndex,
+  type PolicySnapshotNode,
+} from '@/core/timeline/policy-at';
+import { endOfDayInstant, formatDateInputBR } from '@/lib/timeline-dates';
 import { COMPONENT_REVIEW_STATUS_LABELS, COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS } from '@/lib/component-labels';
 import { vigenciaText, versionBadge } from '@/lib/matrix-badges';
 import { Badge } from '@/components/ui/badge';
@@ -132,6 +150,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
   const toggleComponentTreeReviewStatus = useUiStore((s) => s.toggleComponentTreeReviewStatus);
   const toggleComponentTreeTag = useUiStore((s) => s.toggleComponentTreeTag);
   const clearComponentTreeFilter = useUiStore((s) => s.clearComponentTreeFilter);
+  const setComponentTreeSnapshotDate = useUiStore((s) => s.setComponentTreeSnapshotDate);
   const { toast } = useToast();
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -171,6 +190,16 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
   const expanded = filterIsCurrent ? componentTree.expanded : {};
 
   const filterActive = isFilterActive({ search, types, reviewStatuses, tags });
+
+  // Modo fotografia (docs/07 §20): a árvore inteira passa a mostrar a política
+  // como ela era na data escolhida — e fica somente leitura, porque editar o
+  // passado não é uma operação que exista (a edição volta ao sair).
+  const snapshotDate = filterIsCurrent ? (componentTree.snapshotDate ?? null) : null;
+  const snapshotByKey = useMemo<Map<string, PolicySnapshotNode> | null>(() => {
+    if (document === null || snapshotDate === null || snapshotDate === '') return null;
+    return snapshotNodeIndex(getPolicyAt(document, projectId, endOfDayInstant(snapshotDate)));
+  }, [document, projectId, snapshotDate]);
+  const readOnly = snapshotByKey !== null;
 
   const { matchedIds, visibleIds, facets } = useMemo<ComponentTreeFilterResult>(() => {
     if (document === null) return { matchedIds: new Set<string>(), visibleIds: new Set<string>(), facets: [] };
@@ -383,6 +412,9 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
 
     children.forEach((child) => {
       if (filterActive && !visibleIds.has(child.id)) return;
+      // Fora da fotografia (arquivado antes da data) o nó não existia: some da
+      // árvore junto com a subárvore, como em `getPolicyAt`.
+      if (snapshotByKey !== null && !snapshotByKey.has(child.id)) return;
       nodes.push(renderNode(child, depth));
       if (pendingDraft !== null && pendingDraft.afterId === child.id) {
         nodes.push(renderDraftRow(pendingDraft, depth));
@@ -487,6 +519,15 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
       if (shown !== null) componentBadge = versionBadge(shown);
     }
 
+    // Na fotografia, o badge é a versão que vigorava naquela data — nunca o
+    // rascunho de hoje, que ainda não existia.
+    const snapshotNode = snapshotByKey?.get(component.id) ?? null;
+    if (snapshotNode !== null) {
+      matrixBadge = null;
+      matrixVigencia = null;
+      componentBadge = null;
+    }
+
     return (
       <Fragment key={component.id}>
         <div
@@ -494,7 +535,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
           aria-selected={isSelected}
           aria-expanded={hasChildren ? isExpanded : undefined}
           tabIndex={0}
-          draggable={!isRenaming}
+          draggable={!isRenaming && !readOnly}
           style={{ paddingLeft: depth * 16 }}
           data-testid={`tree-node-${component.code}`}
           title={matrixVigencia ?? undefined}
@@ -521,9 +562,21 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             setDropTarget(null);
           }}
           onClick={() => handleSelect(component)}
-          onDoubleClick={() => startRename(component)}
+          onDoubleClick={() => {
+            if (!readOnly) startRename(component);
+          }}
           onKeyDown={(e) => {
             if (isRenaming) return;
+            if (readOnly) {
+              if (e.key === 'ArrowRight' && hasChildren && !isExpanded) {
+                e.preventDefault();
+                toggleComponentExpanded(component.id);
+              } else if (e.key === 'ArrowLeft' && hasChildren && isExpanded) {
+                e.preventDefault();
+                toggleComponentExpanded(component.id);
+              }
+              return;
+            }
             if (e.key === 'Enter') {
               e.preventDefault();
               startCreateSibling(component);
@@ -603,6 +656,8 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             </Badge>
           )}
 
+          {snapshotNode !== null && <SnapshotBadge node={snapshotNode} date={snapshotDate!} />}
+
           {component.reviewStatus === 'PENDING_REVIEW' && (
             <span title="Aguardando revisão" className="shrink-0 text-amber-500">
               ⚠
@@ -613,6 +668,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             <span className="shrink-0 text-xs text-neutral-400 dark:text-neutral-600">{descendantCount}</span>
           )}
 
+          {!readOnly && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -651,6 +707,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          )}
         </div>
         {isExpanded && renderChildren(component.id, depth + 1)}
       </Fragment>
@@ -658,11 +715,29 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
   }
 
   return (
-    <div className="flex h-full w-[360px] shrink-0 flex-col border-r border-neutral-200 dark:border-neutral-800">
+    <div
+      data-testid="policy-tree"
+      className="flex h-full w-[360px] shrink-0 flex-col border-r border-neutral-200 dark:border-neutral-800"
+    >
       <div className="flex flex-col gap-2 border-b border-neutral-200 p-3 dark:border-neutral-800">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Árvore da política</h2>
-          <div className="flex gap-1">
+          {readOnly ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <Badge variant="secondary" className="whitespace-nowrap">
+                Fotografia de {formatDateInputBR(snapshotDate!)} · somente leitura
+              </Badge>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setComponentTreeSnapshotDate(null)}
+              >
+                <X className="mr-1 h-3.5 w-3.5" /> Voltar para hoje
+              </Button>
+            </div>
+          ) : (
+          <div className="flex flex-wrap gap-1">
             <Button type="button" size="sm" variant="outline" onClick={startCreateRoot}>
               <Plus className="mr-1 h-3.5 w-3.5" /> Nova seção
             </Button>
@@ -692,6 +767,33 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
               <CheckCheck className="mr-1 h-3.5 w-3.5" /> Publicar pendentes{pendingCount > 0 ? ` (${pendingCount})` : ''}
             </Button>
           </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor="tree-snapshot-date"
+            className="flex shrink-0 items-center gap-1 text-[11px] text-neutral-500 dark:text-neutral-400"
+          >
+            <CalendarClock className="h-3.5 w-3.5" /> Ver como em…
+          </label>
+          <Input
+            id="tree-snapshot-date"
+            type="date"
+            aria-label="Ver a política como em"
+            value={snapshotDate ?? ''}
+            onChange={(e) => setComponentTreeSnapshotDate(e.target.value === '' ? null : e.target.value)}
+            className="h-8 w-36 text-sm"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => setView('policy-compare')}
+          >
+            Comparar datas
+          </Button>
         </div>
 
         <div className="relative">
@@ -749,7 +851,9 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         {renderChildren(undefined, 0)}
         {listChildren(document, projectId, undefined).length === 0 && draft === null && (
           <p className="p-4 text-center text-sm text-neutral-500 dark:text-neutral-400">
-            Nenhum componente ainda. Comece pela primeira seção.
+            {readOnly
+              ? `Nenhum componente existia em ${formatDateInputBR(snapshotDate!)}.`
+              : 'Nenhum componente ainda. Comece pela primeira seção.'}
           </p>
         )}
       </div>
@@ -799,5 +903,33 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         }}
       />
     </div>
+  );
+}
+
+/**
+ * O que o nó era na data da fotografia (docs/07 §20). Três leituras, e a
+ * terceira é a que I29 exige: seção pura é **estrutura**, nunca "sem política
+ * vigente" — dizer o contrário faria toda pasta parecer uma regra que caducou.
+ */
+function SnapshotBadge({ node, date }: { node: PolicySnapshotNode; date: string }) {
+  if (node.status === 'STRUCTURE') {
+    return (
+      <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
+        estrutura
+      </Badge>
+    );
+  }
+  if (node.status === 'ABSENT') {
+    return (
+      <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
+        sem política vigente em {formatDateInputBR(date)}
+      </Badge>
+    );
+  }
+  const number = node.kind === 'MATRIX' ? node.matrixVersion?.number : node.version?.number;
+  return (
+    <Badge variant="green" className="shrink-0 px-1.5 py-0 text-[10px]">
+      v{number}
+    </Badge>
   );
 }

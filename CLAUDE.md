@@ -101,11 +101,11 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 | Grid e UX (shell, seleção, inspector, tags/filtro) | `docs/07-ux-e-editor.md` | `src/components/grid/`, `src/components/` |
 | Bibliotecas (variáveis, compatibilidade, catálogo) | `docs/03-modelo-do-documento.md` §2–4 | `src/core/library/`, `src/components/library/` |
 | Templates de matriz | `docs/05-regras-de-negocio.md` §8 | `src/core/templates/`, `src/components/templates/` |
-| Consultas de leitura (vigência, timeline, auditoria) | `docs/05-regras-de-negocio.md` §6 | `src/core/queries.ts` |
+| Consultas de leitura (vigência, timeline, auditoria, fotografia da política em uma data e comparação entre duas — S39 ✅) | `docs/05-regras-de-negocio.md` §6 | `src/core/queries.ts`, `src/core/timeline/policy-at.ts`, `src/core/diff/policy-diff.ts` |
 | Export (JSON/CSV canônico) | `docs/07-ux-e-editor.md` §9 | `src/core/export/` |
 | Componentes de política (árvore, versões, schema 5) | `docs/03-modelo-do-documento.md` §12–13 | `src/core/document/components.ts`, `src/core/versioning/component-lifecycle.ts` |
 | Árvore da política e cadastro/versionamento de regras (S33a/S33b ✅) | `docs/07-ux-e-editor.md` §17 | `src/components/tree/`, `src/components/inspector/{ComponentInspector,ComponentPayloadFields}.tsx`, `src/core/versioning/component-lifecycle.ts` |
-| Governança de alterações (DB, workflow, vínculo de rascunho e publicação, release, timeline, carga por recorte — épico GOV, S32b/S35/S36/S37/S38/S40 ✅, S39 🚧) | `docs/14-governanca-de-alteracoes.md` | `src/core/document/{change-requests,cr-workflow,cr-drafts,cr-freeze,cr-publish,releases,release-publish}.ts`, `src/core/import/markdown-*.ts`, `src/components/change-requests/` |
+| Governança de alterações (DB, workflow, vínculo de rascunho e publicação, release, timeline, carga por recorte — épico GOV, S32b/S35/S36/S37/S38/S39/S40 ✅) | `docs/14-governanca-de-alteracoes.md` | `src/core/document/{change-requests,cr-workflow,cr-drafts,cr-freeze,cr-publish,releases,release-publish}.ts`, `src/core/import/markdown-*.ts`, `src/components/change-requests/` |
 | Editor rico de especificação (`RichDoc`: blocos, colar, imagem embutida, diff por bloco — S34 ✅) | `docs/07-ux-e-editor.md` §18, `docs/14-governanca-de-alteracoes.md` §7 | `src/core/richdoc/`, `src/components/richdoc/` |
 | Pacote para a Fábrica (gerador puro, HTML de impressão, Markdown, `factoryTemplate` do projeto — S38 ✅) | `docs/14-governanca-de-alteracoes.md` §8 | `src/core/export/factory-package*.ts`, `src/lib/print-window.ts`, `src/components/dialogs/FactoryContactsEditor.tsx`, `src/components/change-requests/factory-package-actions.ts` |
 
