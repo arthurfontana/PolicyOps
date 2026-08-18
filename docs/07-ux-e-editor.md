@@ -783,5 +783,70 @@ Filtros: projeto (um componente afetado daquele projeto — mesmo critério de
 a timeline inteira aparece. DB **não publicado** nunca entra — é a fila de pendências (§19.4) que
 mostra o que ainda está em andamento; esta tela é só o que já virou fato.
 
-Fora desta sessão (US-GOV-08 completa, S39): diff de payload/spec por bloco entre duas datas da
-timeline, e comparação release × release.
+A comparação entre duas datas e a comparação release × release ficaram para a S39 e são a §20.
+
+## 20. Fotografia e comparação da política (épico Governança — S39 ✅)
+
+Duas telas para as duas perguntas de auditoria da US-GOV-07/08: "qual era a política vigente em
+15/05?" e "o que mudou desde março?". Nenhuma regra mora nelas — `getPolicyAt` e
+`diffPolicySnapshots` (`05-regras-de-negocio.md` §6.2/§6.3) fazem a consulta, as telas leem e
+desenham.
+
+### 20.1 Modo fotografia da árvore ("ver como em…")
+
+Na barra da árvore da política (§17.1), um seletor de data **Ver como em…**. Preenchido, a árvore
+inteira entra em modo fotografia:
+
+- badge **"Fotografia de dd/mm/aaaa · somente leitura"** no lugar dos botões de criação, com
+  **"Voltar para hoje"** ao lado — sair é sempre um clique, e não desfaz nada (a fotografia é uma
+  leitura);
+- cada nó mostra o que era **naquela data**, não hoje: `v{n}` da versão vigente (de componente ou
+  de matriz), "sem política vigente em dd/mm/aaaa" quando é conteúdo sem versão ali, e "estrutura"
+  na seção pura (I29 — pasta nunca aparece como regra que caducou);
+- o que não existia na data some da árvore junto com a subárvore (arquivado depois daquele dia
+  continua aparecendo — `05` §6.2);
+- **edição bloqueada de ponta a ponta**: sem criar/pendurar/carregar/publicar na barra, sem menu de
+  ações no nó, sem renomear (duplo clique e F2 inertes), sem arrastar. O inspector acompanha —
+  mostra a versão daquela data somente leitura, com o mesmo aviso e o mesmo "Voltar para hoje", e
+  os campos de nome, origem, tags e revisão desabilitados. Editar em modo fotografia está fora do
+  escopo da S39: o caminho é sair e editar hoje.
+
+Busca e filtros continuam funcionando dentro da fotografia — filtrar o passado é leitura.
+
+### 20.2 Salto a partir da timeline do componente (§17.5)
+
+Na timeline de versões do inspector, clicar num segmento leva a **árvore inteira** para a data em
+que aquela versão passou a vigorar; abaixo dela, **"Ver a política inteira nesta data"** faz o
+mesmo a partir da versão mostrada. É a continuação natural: a pergunta depois de "quando esta regra
+mudou?" é sempre "e o que mais valia naquele dia?".
+
+### 20.3 Tela de comparação (`View` `'policy-compare'`, hash `#/politica/comparar`)
+
+`PolicyCompareScreen` — seletor de projeto, duas abas e **dois seletores**:
+
+- **Data × data**: dois campos de data, com os mesmos atalhos da tela de Vigência (§10). A ordem
+  não importa: a base é sempre a mais antiga (§9).
+- **Release × release**: dois seletores de release publicada. Cada release vira data pela sua janela
+  de vigência (DEC-GOV-040) — a base entra pelo instante *antes* dela, a comparada pelo instante
+  *depois* da sua. **A mesma release dos dois lados** (o padrão, com a mais recente pré-selecionada)
+  responde "o que esta release mudou". Sem release publicada, a aba diz o que falta em vez de
+  mostrar uma tela vazia.
+
+O cabeçalho do resultado traz as duas pontas, os totais (adicionados · alterados · removidos), os
+contadores do período da US-GOV-07 (vigentes no fim, DBs publicados no período, DBs em andamento) e
+dois atalhos **"Ver a política em …"**, que levam a árvore para o modo fotografia de cada ponta.
+
+Abaixo, as mudanças **agrupadas por seção** da árvore (raiz do projeto por último). Cada cartão traz
+nome, código, tipo, o rastro de versão (`v1 → v2`, "não existia" / "não vigora mais") e o detalhe
+conforme a origem:
+
+- **componente**: o payload campo a campo (só os campos que mudaram, `antes → depois`) e, quando há
+  especificação rica, a contagem de blocos novos/alterados/removidos/movidos (§18.5);
+- **matriz**: o resumo semântico do diff existente (§9), não as células — com **"Abrir a comparação
+  célula a célula"**, que leva à tela de comparação de versões já existente.
+
+Clicar no nome abre o componente na árvore (ou a matriz no grid, quando o nó é uma matriz sem
+espelho — DEC-GOV-039).
+
+Fora do escopo da S39: editar em modo fotografia, exportar a comparação e indicadores/analytics de
+mudança.

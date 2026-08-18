@@ -24,7 +24,8 @@ export type View =
   | 'acl'
   | 'change-requests'
   | 'releases'
-  | 'db-timeline';
+  | 'db-timeline'
+  | 'policy-compare';
 
 export type Theme = 'light' | 'dark';
 
@@ -49,6 +50,7 @@ export const HASH_BY_VIEW: Record<View, string> = {
   'change-requests': '#/db',
   releases: '#/releases',
   'db-timeline': '#/db-timeline',
+  'policy-compare': '#/politica/comparar',
 };
 
 const VIEW_BY_HASH: Partial<Record<string, View>> = Object.fromEntries(
@@ -142,6 +144,14 @@ export type ComponentTreeState = {
   types: PolicyComponentType[];
   reviewStatuses: ComponentReviewStatus[];
   tags: string[];
+  /**
+   * Modo fotografia (docs/07 §20, S39): `yyyy-MM-dd` da data em que a árvore
+   * está sendo vista, ou `null` para "hoje". Como o filtro, é estado de
+   * interface — nunca do documento: a fotografia é uma leitura, e sair dela
+   * não desfaz nada. Enquanto tem valor, a árvore inteira fica somente
+   * leitura (edição em modo fotografia está fora do escopo da S39).
+   */
+  snapshotDate: string | null;
 };
 
 const EMPTY_COMPONENT_TREE_STATE: ComponentTreeState = {
@@ -151,6 +161,7 @@ const EMPTY_COMPONENT_TREE_STATE: ComponentTreeState = {
   types: [],
   reviewStatuses: [],
   tags: [],
+  snapshotDate: null,
 };
 
 interface UiState {
@@ -207,6 +218,8 @@ interface UiState {
   toggleComponentTreeReviewStatus: (status: ComponentReviewStatus) => void;
   toggleComponentTreeTag: (code: string) => void;
   clearComponentTreeFilter: () => void;
+  /** `null` volta a árvore para hoje (docs/07 §20). */
+  setComponentTreeSnapshotDate: (date: string | null) => void;
 }
 
 const initialActor = readLocalStorage(ACTOR_STORAGE_KEY);
@@ -337,4 +350,7 @@ export const useUiStore = create<UiState>((set) => ({
     set((s) => ({
       componentTree: { ...s.componentTree, search: '', types: [], reviewStatuses: [], tags: [] },
     })),
+
+  setComponentTreeSnapshotDate: (snapshotDate) =>
+    set((s) => ({ componentTree: { ...s.componentTree, snapshotDate } })),
 }));

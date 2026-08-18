@@ -1152,3 +1152,29 @@ real.
 | **Por quê** | O pacote gerado nunca é uma cópia gravada no documento (RN-GOV-08 — sempre derivado, regenerado a cada clique a partir do `factoryTemplate` **atual**). Sem pacote histórico armazenado, não existe "qual boilerplate valia naquele pacote" para responder — a pergunta que motivaria versionar não tem sujeito. Um campo simples resolve o caso real (o checklist muda pouco, e quando muda, o próximo pacote gerado já reflete a mudança) sem inventar escopo que nenhum ADR/DEC previa. |
 | **Custo aceito** | Um pacote gerado hoje e um gerado amanhã, depois de alguém editar o boilerplate, mostram textos diferentes — não há como reabrir o pacote de ontem com o boilerplate de ontem, porque o pacote de ontem nunca foi salvo (é o comportamento esperado de RN-GOV-08, não uma lacuna nova). Se o checklist Serasa passar a mudar com frequência **e** existir necessidade real de auditar qual boilerplate valia num pacote passado, isso volta à mesa como sessão própria, com uso real para decidir a forma. |
 | **Páginas afetadas** | `14-governanca-de-alteracoes.md` §8, §12 pergunta 3; `03-modelo-do-documento.md` §5 (`FactoryTemplate`); `src/core/document/schema.ts` |
+
+---
+
+## DEC-GOV-039: matriz sem componente espelho entra na fotografia como nó de raiz
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `getPolicyAt` (`src/core/timeline/policy-at.ts`) inclui **toda** matriz ativa do projeto. A que tem nó `MATRIX` na árvore entra na posição dele; a que não tem entra ao final, como nó de raiz (`depth: 1`) sem componente, com chave própria `matrix:<matrixId>` (`orphanMatrixKey`). Um espelho arquivado devolve a matriz a essa condição, em vez de fazê-la sumir junto. Na comparação de política, esse nó aparece com a mesma chave, agrupado na raiz do projeto. |
+| **Data / gatilho** | 2026-08-18, implementação da S39 — a fixture do épico tem matriz espelhada, mas o produto tem 25 sessões de projetos que são **só** matrizes. |
+| **Alternativas** | (a) mostrar só o que está na árvore — a fotografia de um projeto sem árvore montada viria vazia, e a resposta de auditoria ("o que valia em 15/05?") sairia errada por omissão, que é o pior erro que essa tela pode cometer; (b) criar o nó espelho automaticamente ao gerar a fotografia — escreveria no documento a partir de uma consulta de leitura, contra a regra de que consulta não altera nada (docs/08 §4); (c) listar as matrizes órfãs num bloco separado, fora da fotografia — duas listas para responder uma pergunta só, e o contador "componentes vigentes" teria de escolher um dos dois lados. |
+| **Por quê** | A árvore de componentes é **opcional e incremental** (DEC-GOV-012: a política é construída à mão, seção a seção); a fotografia da política não pode depender de ela estar pronta. Como a matriz já é a segunda fonte da vigência (DEC-GOV-002), incluí-la sem espelho não acrescenta fonte nenhuma — só deixa de perder uma. |
+| **Custo aceito** | A ordem da fotografia mistura duas origens: a leitura da árvore e, no fim, um apêndice de matrizes sem lugar definido. É visível na tela e é honesto — é exatamente o que "esta matriz ainda não foi pendurada na árvore" significa. Pendurar o espelho move a matriz para o lugar certo e a chave muda de `matrix:<id>` para o id do componente: uma comparação que cruze esse momento mostra o nó como removido de um lado e adicionado do outro. |
+| **Páginas afetadas** | `05-regras-de-negocio.md` §6.2; `14-governanca-de-alteracoes.md` §4 (US-GOV-07); `src/core/timeline/policy-at.ts`, `src/core/diff/policy-diff.ts` |
+
+---
+
+## DEC-GOV-040: a janela de comparação de uma release é a vigência dos DBs, não o clique de publicar
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | `getReleaseSnapshotWindow` monta as duas pontas de uma comparação por release a partir das **vigências** (`proposedEffectiveDate`) dos DBs publicados dela: `before` = 1 ms antes da primeira, `after` = a última. `release.publishedAt` não entra na conta. Na tela (docs/07 §20), os dois seletores do modo release usam a mesma release por padrão — a base entra pelo `before` dela, a comparada pelo `after` da sua. |
+| **Data / gatilho** | 2026-08-18, implementação da S39. |
+| **Alternativas** | (a) comparar em torno de `release.publishedAt` — uma release publicada hoje com DBs que só entram em vigor no dia 1º mostraria "nada mudou", que é falso e silencioso; (b) usar a vigência de cada DB e devolver N comparações, uma por DB — responde "o que o DB mudou", que a timeline do DB (S37) já responde, e não "o que a release mudou", que é a pergunta desta tela. |
+| **Por quê** | DEC-GOV-035 já decidiu que cada DB da release mantém a sua própria vigência; a release é o lote de publicação, não a data em que a política muda. Com o intervalo semiaberto `[effectiveFrom, effectiveTo)`, a janela `[primeira − 1 ms, última]` é exatamente "a política sem esta release" × "a política com ela inteira". |
+| **Custo aceito** | Numa release com vigências espalhadas no tempo, a janela engloba tudo que aconteceu no meio — inclusive alterações de **outros** DBs publicados nesse intervalo. É a leitura honesta ("o que a política tinha antes de a release começar a valer × o que tem depois de ela terminar de valer"); quem quiser isolar um DB usa a timeline do DB. |
+| **Páginas afetadas** | `14-governanca-de-alteracoes.md` §4 (US-GOV-08); `07-ux-e-editor.md` §20; `src/core/timeline/policy-at.ts` |

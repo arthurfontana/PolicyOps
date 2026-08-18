@@ -59,7 +59,15 @@ beforeEach(() => {
   useDocumentStore.getState().closeDocument();
   useEditorStore.getState().reset();
   useUiStore.setState({
-    componentTree: { projectId: null, expanded: {}, search: '', types: [], reviewStatuses: [], tags: [] },
+    componentTree: {
+      projectId: null,
+      expanded: {},
+      search: '',
+      types: [],
+      reviewStatuses: [],
+      tags: [],
+      snapshotDate: null,
+    },
   });
 });
 

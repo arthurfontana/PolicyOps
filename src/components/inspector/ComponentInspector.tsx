@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Archive, Copy, FolderInput, PencilLine } from 'lucide-react';
+import { Archive, CalendarClock, Copy, FolderInput, PencilLine } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +32,8 @@ import {
   type ComponentReviewStatus,
   type PolicyComponentType,
 } from '@/core/document/schema';
-import { getComponentTimeline } from '@/core/queries';
+import { getComponentEffectiveVersion, getComponentTimeline } from '@/core/queries';
+import { endOfDayInstant, formatDateInputBR, toDateInputValue } from '@/lib/timeline-dates';
 import {
   COMPONENT_REVIEW_STATUS_LABELS,
   COMPONENT_REVIEW_STATUS_VARIANTS,
@@ -92,6 +93,8 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
   const dispatch = useDocumentStore((s) => s.dispatch);
   const setSelectedComponent = useEditorStore((s) => s.setSelectedComponent);
   const expandComponents = useUiStore((s) => s.expandComponents);
+  const componentTree = useUiStore((s) => s.componentTree);
+  const setComponentTreeSnapshotDate = useUiStore((s) => s.setComponentTreeSnapshotDate);
   const { toast } = useToast();
 
   const [name, setName] = useState('');
@@ -124,11 +127,22 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
   const Icon = COMPONENT_TYPE_ICONS[component.type];
   const childCount = listChildren(document, component.projectId, component.id).length;
 
-  const draft = component.versions.find((version) => version.state === 'DRAFT') ?? null;
+  const openDraft = component.versions.find((version) => version.state === 'DRAFT') ?? null;
   const publishedVersion = component.versions.find((version) => version.state === 'PUBLISHED') ?? null;
-  const displayedVersion = draft ?? publishedVersion;
   const isSectionUndocumented = component.type === 'SECTION' && component.versions.length === 0;
   const timeline = getComponentTimeline(component);
+
+  // Modo fotografia (docs/07 §20): a árvore está mostrando uma data do
+  // passado, e o inspector acompanha — a versão que aparece é a que vigorava
+  // naquela data, e nada aqui edita (edição em modo fotografia está fora do
+  // escopo da S39). Sair da fotografia devolve o inspector editável.
+  const snapshotDate =
+    componentTree.projectId === component.projectId ? (componentTree.snapshotDate ?? null) : null;
+  const readOnly = snapshotDate !== null;
+  const snapshotVersion =
+    snapshotDate === null ? null : getComponentEffectiveVersion(component, endOfDayInstant(snapshotDate));
+  const draft = readOnly ? null : openDraft;
+  const displayedVersion = readOnly ? snapshotVersion : (openDraft ?? publishedVersion);
 
   function commitName() {
     setNameEditing(false);
@@ -223,6 +237,7 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
         </Label>
         <Input
           id="component-name"
+          disabled={readOnly}
           value={nameEditing ? name : component.name}
           onFocus={() => setNameEditing(true)}
           onChange={(e) => setName(e.target.value)}
@@ -255,13 +270,20 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
 
       <div className="flex flex-col gap-1">
         <Label className="text-xs">Tags</Label>
-        <ComponentTagsEditor component={component} />
+        {readOnly ? (
+          <p className="px-1 text-sm text-neutral-500 dark:text-neutral-400">
+            {component.tags === undefined || component.tags.length === 0 ? '—' : component.tags.join(', ')}
+          </p>
+        ) : (
+          <ComponentTagsEditor component={component} />
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5 rounded-md border border-neutral-200 p-2 dark:border-neutral-800">
         <Label className="text-xs">Origem</Label>
         <Input
           placeholder="Fonte (ex.: Filtros e Critérios B2C)"
+          disabled={readOnly}
           value={source}
           onChange={(e) => setSource(e.target.value)}
           onBlur={commitOrigin}
@@ -272,6 +294,7 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
         />
         <Input
           placeholder="Locator (ex.: p. 10, opcional)"
+          disabled={readOnly}
           value={locator}
           onChange={(e) => setLocator(e.target.value)}
           onBlur={commitOrigin}
@@ -286,7 +309,11 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
         <Label htmlFor="component-review-status" className="text-xs">
           Revisão
         </Label>
-        <Select value={component.reviewStatus} onValueChange={(v) => handleReviewStatusChange(v as ComponentReviewStatus)}>
+        <Select
+          value={component.reviewStatus}
+          disabled={readOnly}
+          onValueChange={(v) => handleReviewStatusChange(v as ComponentReviewStatus)}
+        >
           <SelectTrigger id="component-review-status" aria-label="Revisão">
             <SelectValue />
           </SelectTrigger>
@@ -307,6 +334,7 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
         {childCount} {childCount === 1 ? 'item filho' : 'itens filhos'}
       </p>
 
+      {!readOnly && (
       <div className="flex flex-wrap gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
         <Button type="button" variant="outline" size="sm" onClick={() => setMoveOpen(true)}>
           <FolderInput className="mr-1.5 h-3.5 w-3.5" /> Mover para…
@@ -320,18 +348,62 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
           <Archive className="mr-1.5 h-3.5 w-3.5" /> Arquivar
         </Button>
       </div>
+      )}
 
       <div className="flex flex-col gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
         <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">Conteúdo e versão</p>
 
-        {timeline.length > 0 && (
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs">Linha do tempo</Label>
-            <MatrixTimelineBar segments={timeline} now={new Date()} selectedAt={new Date()} onSelectVersion={() => {}} />
+        {readOnly && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md bg-neutral-100 p-2 dark:bg-neutral-800/60">
+            <Badge variant="secondary">Fotografia de {formatDateInputBR(snapshotDate)}</Badge>
+            <span className="text-xs text-neutral-500 dark:text-neutral-400">
+              Edição bloqueada enquanto a árvore mostra o passado.
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={() => setComponentTreeSnapshotDate(null)}
+            >
+              Voltar para hoje
+            </Button>
           </div>
         )}
 
-        {isSectionUndocumented && (
+        {timeline.length > 0 && (
+          <div className="flex flex-col gap-1">
+            <Label className="text-xs">Linha do tempo</Label>
+            {/* Clicar num segmento leva a árvore inteira para aquela data: a
+                pergunta que vem depois de "quando esta regra mudou?" é sempre
+                "e o que mais valia naquele dia?" (docs/07 §20, US-GOV-07). */}
+            <MatrixTimelineBar
+              segments={timeline}
+              now={new Date()}
+              selectedAt={snapshotDate === null ? new Date() : endOfDayInstant(snapshotDate)}
+              onSelectVersion={(versionId) => {
+                const segment = timeline.find((candidate) => candidate.versionId === versionId);
+                if (segment === undefined) return;
+                setComponentTreeSnapshotDate(toDateInputValue(new Date(segment.effectiveFrom)));
+              }}
+            />
+            {displayedVersion?.effectiveFrom !== undefined && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-fit px-1 text-xs"
+                onClick={() =>
+                  setComponentTreeSnapshotDate(toDateInputValue(new Date(displayedVersion.effectiveFrom!)))
+                }
+              >
+                <CalendarClock className="mr-1.5 h-3.5 w-3.5" /> Ver a política inteira nesta data
+              </Button>
+            )}
+          </div>
+        )}
+
+        {isSectionUndocumented && !readOnly && (
           <>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
               Esta seção é uma pasta pura — sem texto, vigência nem histórico próprios.
@@ -342,10 +414,18 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
           </>
         )}
 
-        {!isSectionUndocumented && displayedVersion === null && (
+        {!isSectionUndocumented && displayedVersion === null && !readOnly && (
           <Button type="button" variant="secondary" size="sm" onClick={handleCreateDraft}>
             Criar rascunho
           </Button>
+        )}
+
+        {displayedVersion === null && readOnly && (
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            {isSectionUndocumented
+              ? 'Seção sem texto próprio — estrutura, não conteúdo.'
+              : `Sem política vigente em ${formatDateInputBR(snapshotDate)}.`}
+          </p>
         )}
 
         {displayedVersion !== null && (
@@ -416,7 +496,7 @@ export function ComponentInspector({ componentId }: { componentId: string }) {
                 </Button>
               </div>
             )}
-            {draft === null && (
+            {draft === null && !readOnly && (
               <Button type="button" variant="outline" size="sm" onClick={handleCreateDraft} className="w-fit">
                 Criar rascunho a partir desta versão
               </Button>
