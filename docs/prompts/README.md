@@ -51,7 +51,7 @@ Marque a coluna **Executado** conforme cada sessão for concluída e commitada.
 | 41 | [x] | [S41-shell-e-navegacao.md](S41-shell-e-navegacao.md) | `Opus` | Árvore da política na barra lateral (redimensionável) e barra de ferramentas contextual (épico Experiência, depende de 33b/40) |
 | 42 | [x] | [S42-pagina-do-componente.md](S42-pagina-do-componente.md) | `Sonnet` | Componente editado no centro da tela, em coluna larga; inspector direito só para seleção (depende de 41) |
 | 43 | [x] | [S43-vigencia-da-politica.md](S43-vigencia-da-politica.md) | `Opus` | Vigência mostra a política inteira na data (estrutura, não só matrizes); some o modo fotografia da árvore (depende de 42) |
-| 44 | [ ] | [S44-fluxo-do-dia-a-dia.md](S44-fluxo-do-dia-a-dia.md) | `Sonnet` | Teclado na árvore, "próximo pendente", densidade e atalhos (depende de 43) |
+| 44 | [x] | [S44-fluxo-do-dia-a-dia.md](S44-fluxo-do-dia-a-dia.md) | `Sonnet` | Teclado na árvore, "próximo pendente", densidade e atalhos (depende de 43) |
 
 ## Épico Experiência (41–44)
 

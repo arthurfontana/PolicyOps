@@ -20,16 +20,35 @@ const GROUPS: ShortcutGroup[] = [
     ],
   },
   {
-    title: 'Política — barra de ferramentas e árvore',
+    title: 'Política — barra de ferramentas',
     shortcuts: [
       { keys: 'Enter', description: 'Nova seção: irmão do nó selecionado, já em edição de nome' },
       { keys: 'Shift+Enter', description: 'Nova regra: irmão do nó selecionado, do tipo Regra' },
+      { keys: 'Ctrl+Shift+P', description: 'Publicar pendentes do projeto' },
+      { keys: 'Ctrl+Shift+N', description: 'Ir para o próximo pendente (rascunho aberto ou revisão pendente), dando a volta' },
+    ],
+  },
+  {
+    title: 'Política — árvore',
+    shortcuts: [
+      { keys: '↑ / ↓', description: 'Move o foco entre os nós visíveis' },
+      { keys: '→', description: 'Expande o nó em foco' },
+      { keys: '←', description: 'Recolhe o nó em foco, ou salta para o pai se já estiver recolhido' },
+      { keys: 'Home / End', description: 'Salta para o primeiro/último nó visível' },
+      { keys: 'Digitar letras', description: 'Typeahead: salta para o próximo nó cujo nome começa com o texto digitado' },
       { keys: 'Tab / Shift+Tab', description: 'Na criação, desce/sobe um nível antes de gravar' },
       { keys: 'F2', description: 'Renomear o nó (duplo clique faz o mesmo)' },
       { keys: 'Ctrl/Cmd+D', description: 'Duplicar o nó como irmão logo abaixo' },
-      { keys: 'Ctrl+Shift+P', description: 'Publicar pendentes do projeto' },
+      { keys: 'Delete', description: 'Arquivar o nó em foco (com confirmação)' },
       { keys: 'Alt+clique no chevron', description: 'Abre ou fecha a subárvore inteira' },
       { keys: '← / →', description: 'Com a alça da navegação em foco, ajusta a largura em 16px' },
+    ],
+  },
+  {
+    title: 'Política — página do componente',
+    shortcuts: [
+      { keys: 'Alt+↑ / Alt+↓', description: 'Vai para o componente irmão anterior/próximo' },
+      { keys: 'F2 / clique no nome', description: 'Renomear o componente' },
     ],
   },
   {

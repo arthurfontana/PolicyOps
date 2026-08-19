@@ -45,9 +45,16 @@ import {
 import {
   componentPath,
   filterComponentTree,
+  findTypeaheadMatch,
+  flattenComponentTree,
   listPendingComponentVersions,
+  listPendingComponents,
+  nextPendingComponentId,
+  nextVisibleNodeId,
+  previousVisibleNodeId,
   resolveOpenVersion,
   type ComponentTreeFilterResult,
+  type FlatTreeNode,
 } from '@/core/queries';
 import { COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS } from '@/lib/component-labels';
 import { vigenciaText, versionBadge } from '@/lib/matrix-badges';
@@ -87,6 +94,7 @@ const CREATABLE_TYPES = POLICY_COMPONENT_TYPES.filter((type) => type !== 'MATRIX
 const EMPTY_TYPES: PolicyComponentType[] = [];
 const EMPTY_REVIEW_STATUSES: ComponentReviewStatus[] = [];
 const EMPTY_TAGS: string[] = [];
+const EMPTY_EXPANDED: Record<string, boolean> = {};
 
 type DraftAnchor = { id: string; parentId: string | undefined; type: PolicyComponentType };
 
@@ -180,11 +188,21 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
     parentId: undefined,
   });
   const suppressBlurRef = useRef(false);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const typeaheadRef = useRef<{ buffer: string; timer: number | null }>({ buffer: '', timer: null });
 
   const pendingCount = useMemo(
     () => (document === null ? 0 : listPendingComponentVersions(document, projectId).length),
     [document, projectId],
   );
+
+  /** §2.1/§17.1, S44: contador amplo — rascunho aberto **ou** revisão pendente. */
+  const allPendingComponents = useMemo(
+    () => (document === null ? [] : listPendingComponents(document, projectId)),
+    [document, projectId],
+  );
+  const allPendingIds = useMemo(() => new Set(allPendingComponents.map((c) => c.id)), [allPendingComponents]);
+  const allPendingCount = allPendingComponents.length;
 
   useEffect(() => {
     setComponentTreeProject(projectId);
@@ -203,7 +221,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
   const types = filterIsCurrent ? componentTree.types : EMPTY_TYPES;
   const reviewStatuses = filterIsCurrent ? componentTree.reviewStatuses : EMPTY_REVIEW_STATUSES;
   const tags = filterIsCurrent ? componentTree.tags : EMPTY_TAGS;
-  const expanded = filterIsCurrent ? componentTree.expanded : {};
+  const expanded = filterIsCurrent ? componentTree.expanded : EMPTY_EXPANDED;
 
   const filterActive = isFilterActive({ search, types, reviewStatuses, tags });
 
@@ -211,6 +229,30 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
     if (document === null) return { matchedIds: new Set<string>(), visibleIds: new Set<string>(), facets: [] };
     return filterComponentTree(document, projectId, { search, types, reviewStatuses, tags });
   }, [document, projectId, search, types, reviewStatuses, tags]);
+
+  const expandedSet = useMemo(
+    () => new Set(Object.entries(expanded).filter(([, value]) => value).map(([id]) => id)),
+    [expanded],
+  );
+
+  /**
+   * A árvore achatada na ordem visível — o modelo de `↑/↓`/`Home`/`End`/
+   * typeahead (roving tabindex, §17.1, S44). Recalculada com a mesma entrada
+   * de `renderChildren`, para as duas nunca divergirem de ordem.
+   */
+  const flatVisible: FlatTreeNode[] = useMemo(() => {
+    if (document === null) return [];
+    return flattenComponentTree(document, projectId, expandedSet, { filterActive, visibleIds });
+  }, [document, projectId, expandedSet, filterActive, visibleIds]);
+
+  // A ordem de leitura completa (não só os pendentes) para `Ctrl+Shift+N`
+  // dar a volta corretamente mesmo com nós fechados/filtrados fora da vista.
+  const fullOrderIds = useMemo(() => {
+    if (document === null) return [];
+    return flattenComponentTree(document, projectId, new Set(document.components.map((c) => c.id))).map(
+      (n) => n.id,
+    );
+  }, [document, projectId]);
 
   // Nó de destino da criação pela barra (§2.1): o selecionado, se for deste
   // projeto; senão, a raiz da política.
@@ -249,6 +291,26 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [publishPendingArmed]);
+
+  // `Ctrl+Shift+N` salta para o próximo pendente do projeto (§2.1, S44).
+  // Desarmado sem nenhum pendente — nunca dá a volta no vazio. O handler
+  // fica numa ref (atualizada a cada render) para o listener nunca disparar
+  // com `selectedComponentId`/`allPendingIds` desatualizados sem precisar
+  // reanexar o listener a cada tecla.
+  const nextPendingArmed = view === 'projects' && allPendingCount > 0;
+  const goToNextPendingRef = useRef(goToNextPending);
+  goToNextPendingRef.current = goToNextPending;
+  useEffect(() => {
+    if (!nextPendingArmed) return undefined;
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey) return;
+      if (event.key.toLowerCase() !== 'n') return;
+      event.preventDefault();
+      goToNextPendingRef.current();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [nextPendingArmed]);
 
   if (document === null) return null;
 
@@ -334,6 +396,45 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
       const node = window.document.querySelector(`[data-component-id="${id}"]`);
       node?.scrollIntoView({ block: 'nearest' });
     });
+  }
+
+  /**
+   * Roving tabindex: move o foco do teclado para um nó, abrindo ancestrais
+   * fechados se preciso. Navegação dentro da árvore (setas, Home/End,
+   * typeahead) sempre alvo um nó já visível — o elemento já existe no DOM,
+   * então o foco é síncrono. `Ctrl+Shift+N` é o único chamador que pode
+   * mirar um nó ainda recolhido; só nesse caso (elemento ainda não existe)
+   * expande os ancestrais e tenta de novo no próximo paint — tentar de novo
+   * incondicionalmente rouba o foco de volta se, nesse meio-tempo, outra
+   * tecla já tiver movido o foco para outro nó (a corrida que fazia o teste
+   * de Home/End ficar instável).
+   */
+  function moveFocus(id: string | null) {
+    if (id === null) return;
+    setFocusedId(id);
+    function focusNode(): boolean {
+      const node = window.document.querySelector<HTMLElement>(`[data-component-id="${id}"]`);
+      if (node === null) return false;
+      node.focus();
+      node.scrollIntoView({ block: 'nearest' });
+      return true;
+    }
+    if (focusNode()) return;
+    const ancestors = componentPath(document!, id)
+      .slice(0, -1)
+      .map((component) => component.id);
+    if (ancestors.length > 0) expandComponents(ancestors);
+    window.requestAnimationFrame(focusNode);
+  }
+
+  /** `Ctrl+Shift+N`: próximo pendente da política, dando a volta (§2.1, S44). */
+  function goToNextPending() {
+    if (allPendingCount === 0) return;
+    const nextId = nextPendingComponentId(fullOrderIds, allPendingIds, selectedComponentId);
+    if (nextId === null) return;
+    setSelectedComponent(nextId);
+    setView('projects');
+    moveFocus(nextId);
   }
 
   function handleDraftTab(direction: 1 | -1) {
@@ -624,7 +725,9 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
           role="treeitem"
           aria-selected={isSelected}
           aria-expanded={hasChildren ? isExpanded : undefined}
-          tabIndex={0}
+          aria-level={depth + 1}
+          tabIndex={(focusedId ?? selectedComponentId ?? flatVisible[0]?.id) === component.id ? 0 : -1}
+          onFocus={() => setFocusedId(component.id)}
           draggable={!isRenaming}
           data-testid={`tree-node-${component.code}`}
           data-component-id={component.id}
@@ -684,12 +787,44 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             } else if (e.key === 'F2') {
               e.preventDefault();
               startRename(component);
-            } else if (e.key === 'ArrowRight' && hasChildren && !isExpanded) {
+            } else if (e.key === 'Delete') {
+              // Arquivar com confirmação — a mesma ação do menu `⋯` (§17.1, S44).
               e.preventDefault();
-              toggleComponentExpanded(component.id);
-            } else if (e.key === 'ArrowLeft' && hasChildren && isExpanded) {
+              setArchiveTarget({ id: component.id, name: component.name });
+            } else if (e.key === 'ArrowRight') {
               e.preventDefault();
-              toggleComponentExpanded(component.id);
+              if (hasChildren && !isExpanded) toggleComponentExpanded(component.id);
+            } else if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              // Já recolhido (ou sem filhos): salta para o pai (§17.1, S44).
+              if (hasChildren && isExpanded) toggleComponentExpanded(component.id);
+              else if (component.parentId !== undefined) moveFocus(component.parentId);
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              moveFocus(nextVisibleNodeId(flatVisible, component.id));
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              moveFocus(previousVisibleNodeId(flatVisible, component.id));
+            } else if (e.key === 'Home') {
+              e.preventDefault();
+              moveFocus(flatVisible[0]?.id ?? null);
+            } else if (e.key === 'End') {
+              e.preventDefault();
+              moveFocus(flatVisible[flatVisible.length - 1]?.id ?? null);
+            } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+              // Typeahead: letras seguidas saltam para o próximo nó cujo nome
+              // começa com o texto acumulado (§17.1, S44).
+              const state = typeaheadRef.current;
+              state.buffer += e.key.toLowerCase();
+              if (state.timer !== null) window.clearTimeout(state.timer);
+              state.timer = window.setTimeout(() => {
+                state.buffer = '';
+              }, 600);
+              const match = findTypeaheadMatch(flatVisible, component.id, state.buffer);
+              if (match !== null) {
+                e.preventDefault();
+                moveFocus(match);
+              }
             }
           }}
           className={cn(
@@ -804,6 +939,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         <ToolbarPortal>
           <PolicyToolbar
             pendingCount={pendingCount}
+            allPendingCount={allPendingCount}
             onNewSection={() => startCreateAtTarget('SECTION')}
             onNewRule={() => startCreateAtTarget('RULE')}
             onAddMatrix={() => setMatrixDialog({ open: true, parentId: targetParentId })}
@@ -856,6 +992,20 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
           <p className="px-2 py-3 text-center text-xs text-neutral-500 dark:text-neutral-400">
             Nenhum componente ainda. Comece pela primeira seção.
           </p>
+        )}
+        {/* §12: filtro sem resultado tem estado próprio — sem isso a árvore
+            fica em branco, sem dizer que o filtro é o motivo. */}
+        {filterActive && visibleIds.size === 0 && (
+          <div className="flex flex-col items-center gap-2 px-2 py-4 text-center text-xs text-neutral-500 dark:text-neutral-400">
+            <p>Nenhum componente corresponde ao filtro.</p>
+            <button
+              type="button"
+              onClick={clearComponentTreeFilter}
+              className="text-neutral-700 underline hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-100"
+            >
+              Limpar filtros
+            </button>
+          </div>
         )}
       </div>
 

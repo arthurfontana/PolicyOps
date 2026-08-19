@@ -37,6 +37,8 @@ import { cn } from '@/lib/utils';
 
 export interface PolicyToolbarProps {
   pendingCount: number;
+  /** §2.1/§17.1, S44: rascunho aberto OU revisão pendente — mais amplo que `pendingCount`. */
+  allPendingCount: number;
   onNewSection: () => void;
   onNewRule: () => void;
   onAddMatrix: () => void;
@@ -172,6 +174,21 @@ export function PolicyToolbar(props: PolicyToolbarProps) {
       >
         <CheckCheck className="mr-1 h-3.5 w-3.5" /> {publishLabel}
       </Button>
+
+      <button
+        type="button"
+        data-testid="policy-toolbar-pending-counter"
+        onClick={props.onPublishPending}
+        disabled={props.allPendingCount === 0}
+        title={
+          props.allPendingCount === 0
+            ? 'Nenhum componente pendente neste projeto'
+            : 'Rascunho aberto ou revisão pendente — clique para abrir Publicar pendentes (Ctrl+Shift+N vai para o próximo)'
+        }
+        className="shrink-0 rounded-full border border-neutral-300 px-2 py-0.5 text-[11px] text-neutral-600 transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800"
+      >
+        {props.allPendingCount} pendente{props.allPendingCount === 1 ? '' : 's'}
+      </button>
 
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         <div className={cn('relative shrink-0', compact ? 'w-32' : 'w-44 xl:w-56')}>

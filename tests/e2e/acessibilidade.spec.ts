@@ -54,6 +54,63 @@ test('lista de variáveis não tem violação de acessibilidade', async ({ page 
   expect(results.violations).toEqual([]);
 });
 
+test('árvore da política — navegável só de teclado, aria-level correto em 4 níveis, sem violação de acessibilidade (S44)', async ({
+  page,
+}) => {
+  await openApp(page);
+  await page.getByRole('button', { name: 'Projetos' }).click();
+  await page.getByRole('button', { name: /Política PJ/ }).first().click();
+
+  // Monta 4 níveis: raiz → filho → neto → bisneto (um clique inicial por
+  // nível para nascer a caixa de criação — depois disso, tudo pelo teclado).
+  await page.getByRole('button', { name: 'Nova seção' }).click();
+  await page.getByLabel('Nome do novo componente').fill('Nível 1');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+
+  const nivel1 = page.getByTestId('tree-node-NIVEL_1');
+  await nivel1.click();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('Nível 2');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+
+  const nivel2 = page.getByTestId('tree-node-NIVEL_2');
+  await nivel2.click();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('Nível 3');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+
+  const nivel3 = page.getByTestId('tree-node-NIVEL_3');
+  await nivel3.click();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('Nível 4');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+
+  await expect(page.getByTestId('tree-node-NIVEL_1')).toHaveAttribute('aria-level', '1');
+  await expect(page.getByTestId('tree-node-NIVEL_2')).toHaveAttribute('aria-level', '2');
+  await expect(page.getByTestId('tree-node-NIVEL_3')).toHaveAttribute('aria-level', '3');
+  await expect(page.getByTestId('tree-node-NIVEL_4')).toHaveAttribute('aria-level', '4');
+
+  // Navegação só de teclado: de Nível 1, ↓ três vezes chega em Nível 4;
+  // Home volta para Nível 1 — nenhum passo aqui usa o mouse.
+  await page.getByTestId('tree-node-NIVEL_1').click();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('tree-node-NIVEL_4')).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(page.getByTestId('tree-node-NIVEL_1')).toBeFocused();
+
+  const results = await new AxeBuilder({ page }).disableRules(['color-contrast']).analyze();
+  expect(results.violations).toEqual([]);
+});
+
 /**
  * Achados relatados ao usuário, não corrigidos nesta sessão (docs/prompts/S17
  * Parte C pede para "não alterar regra de negócio" e "relatar bug de domínio

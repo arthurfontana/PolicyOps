@@ -189,7 +189,6 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
   const path = componentPath(document, componentId);
   const project = document.projects.find((candidate) => candidate.id === component.projectId);
   const Icon = COMPONENT_TYPE_ICONS[component.type];
-  const childCount = listChildren(document, projectId, component.id).length;
 
   const openDraft = component.versions.find((version) => version.state === 'DRAFT') ?? null;
   const publishedVersion = component.versions.find((version) => version.state === 'PUBLISHED') ?? null;
@@ -488,13 +487,6 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Itens filhos</Label>
-          <p className="px-1 text-sm text-neutral-500 dark:text-neutral-400">
-            {childCount} {childCount === 1 ? 'item filho' : 'itens filhos'}
-          </p>
         </div>
       </div>
 
