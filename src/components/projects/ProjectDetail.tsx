@@ -9,7 +9,7 @@ import { CreateMatrixDialog } from '@/components/dialogs/CreateMatrixDialog';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { EvidenceSection } from '@/components/inspector/EvidenceSection';
 import { TagFilterBar } from '@/components/projects/TagFilterBar';
-import { ComponentContentPanel } from '@/components/tree/ComponentContentPanel';
+import { ComponentPage } from '@/components/tree/ComponentPage';
 import { archiveMatrix, archiveProject } from '@/core/document/commands';
 import { listMatrices, listProjectMatrices, resolveOpenVersion } from '@/core/queries';
 import { formatDateBR } from '@/lib/format';
@@ -135,7 +135,7 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
       */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {selectedComponentId !== null ? (
-          <ComponentContentPanel projectId={projectId} projectName={project.name} componentId={selectedComponentId} />
+          <ComponentPage projectId={projectId} projectName={project.name} componentId={selectedComponentId} />
         ) : (
           <div className="mx-auto flex max-w-4xl flex-col gap-4 p-8">
       <div className="flex items-center gap-2">

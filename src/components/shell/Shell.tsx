@@ -8,6 +8,7 @@ import {
   useUiStore,
 } from '@/store/ui-store';
 import { Button } from '@/components/ui/button';
+import { useHasInspector } from '@/hooks/useHasInspector';
 import { Sidebar } from './Sidebar';
 import { Inspector } from './Inspector';
 import { StatusBar } from './StatusBar';
@@ -149,6 +150,8 @@ export function Shell({ children }: { children: ReactNode }) {
   const toggleInspector = useUiStore((s) => s.toggleInspector);
   const presentationMode = useUiStore((s) => s.presentationMode);
   const setPresentationMode = useUiStore((s) => s.setPresentationMode);
+  const hasInspector = useHasInspector();
+  const inspectorDisabledReason = 'Esta tela não tem propriedades de seleção';
 
   if (presentationMode) {
     return (
@@ -204,9 +207,11 @@ export function Shell({ children }: { children: ReactNode }) {
               type="button"
               variant="ghost"
               size="icon"
+              disabled={!hasInspector}
               onClick={toggleInspector}
               aria-label={inspectorCollapsed ? 'Expandir inspector (])' : 'Recolher inspector (])'}
               aria-pressed={inspectorCollapsed}
+              title={hasInspector ? undefined : inspectorDisabledReason}
             >
               <PanelRight className="h-4 w-4" />
             </Button>
@@ -240,7 +245,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <ErrorBoundary region="Conteúdo">{children}</ErrorBoundary>
         </main>
 
-        {!inspectorCollapsed && (
+        {hasInspector && !inspectorCollapsed && (
           <aside
             aria-label="Inspector"
             className={cn(

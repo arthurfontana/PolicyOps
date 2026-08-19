@@ -155,7 +155,12 @@ Acessibilidade: `role="grid"`, `aria-selected`, roving tabindex, `aria-live` anu
 ## 6. Inspector
 
 O painel direito existe onde há **seleção dentro** de uma tela — células do grid e célula do diff
-(§2). Componente de política não passa por aqui: ele tem página própria no centro (§17.5).
+(§2). Componente de política não passa por aqui: ele tem página própria no centro (§17.5,
+`ComponentPage`, S42 ✅). `Inspector.tsx` não conhece mais componente — só as duas rotas de
+seleção do grid — e o shell não renderiza o `aside` direito quando a tela ativa não tem nenhuma
+das duas (`useHasInspector`, `src/hooks/useHasInspector.ts`): o botão `▥` do cabeçalho fica
+desabilitado, com "Esta tela não tem propriedades de seleção" no `title`, em vez de mostrar um
+painel vazio dizendo "nada selecionado".
 
 ### 6.1 Sem seleção — propriedades da versão
 
@@ -409,12 +414,12 @@ condições, a rota mostra "Requer papel ADMIN — você é X" em vez do conteú
 - Zerar a lista de usuários e salvar volta o documento ao modo aberto (`meta.acl` removida, não
   uma ACL com `users: []` — mesmo efeito para `resolveRole`, mas mantém o arquivo limpo).
 
-## 17. Árvore da política (épico Governança — S33a ✅/S33b ✅; layout de §17.1 — S41 ✅, §17.5 — S42 🔮)
+## 17. Árvore da política (épico Governança — S33a ✅/S33b ✅; layout de §17.1 — S41 ✅, §17.5 — S42 ✅)
 
 > O modelo por trás está em [`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md)
 > §3.1 e §3.6. O comportamento de estrutura, cadastro e versionamento é o entregue nas S33a/S33b;
 > **§17.1 (árvore na barra lateral) foi entregue na S41** e **§17.5 (página do componente no
-> centro) descreve o layout alvo da S42** — DEC-UX-001 e DEC-UX-002.
+> centro, `ComponentPage`) foi entregue na S42** — DEC-UX-001 e DEC-UX-002.
 
 A política deixa de ser "uma lista de matrizes num projeto" e passa a ser **um sumário navegável**:
 seções, regras, listas e os nós que apontam as matrizes já existentes. O `Project` é a política
@@ -475,9 +480,7 @@ disputavam o mesmo trabalho e comiam metade da largura útil: o painel morreu e 
   duas linhas fixas no rodapé da navegação (`14-governanca-de-alteracoes.md` §3.6).
 - **Centro sem nó selecionado**: a tela do projeto continua sendo a lista de matrizes com facetas
   do §15, **inalterada** — é a porta default (§17.2). Selecionar um nó não-`MATRIX` abre a página
-  do componente (§17.5); selecionar um nó `MATRIX` navega direto para o grid. *Na S41 o componente
-  selecionado continua em `ComponentContentPanel` (centro) + `ComponentInspector` (direita); a
-  página do §17.5 é a S42.*
+  do componente (§17.5, `ComponentPage`); selecionar um nó `MATRIX` navega direto para o grid.
 - **Breadcrumb clicável** no topo do centro (`Política de Crédito B2C › CMA › Bloqueios por
   Dívida`) — suporta os 6 níveis possíveis (`componentPath`).
 
@@ -535,13 +538,15 @@ Publicar ~100 componentes que **já vigoram** não custa ~100 diálogos de publi
 - O aviso da RN-GOV-07 (publicação direta, sem DB) aparece **uma vez** no diálogo do lote, não uma
   vez por item; no diálogo de publicação individual, aparece normalmente para aquele item.
 
-### 17.5 Página do componente — o centro da tela
+### 17.5 Página do componente — o centro da tela — S42 ✅
 
 O componente é o objeto mais editado do produto: é onde a política é escrita. Por isso ele ocupa o
 **centro**, em coluna de leitura larga (máx. 960px, centralizada), e não um painel de 340px
 (DEC-UX-002). Um documento que rola, na ordem em que se trabalha — identidade, conteúdo,
 especificação, histórico —, sem abas: quem digita a regra precisa ver a definição técnica e a
-especificação na mesma rolagem.
+especificação na mesma rolagem. **Entregue**: `ComponentPage` (`src/components/tree/ComponentPage.tsx`)
+substitui os antigos `ComponentContentPanel` (centro) e `ComponentInspector` (painel de 340px), que
+deixaram de existir.
 
 ```
 Política de Crédito B2C › CMA › Bloqueios por Dívida         ‹ anterior  próximo ›
@@ -585,16 +590,21 @@ o espaço que eles ocupam:
 
 Regras de comportamento:
 
-- **Commit por campo ao perder o foco**, como hoje; a barra grudenta mostra `Salvando…`/`Salvo`
-  junto ao estado da versão, para que quem rola 800px de formulário não precise ir ao rodapé
-  conferir.
+- **Commit por campo ao perder o foco**, como hoje; a barra grudenta mostra o mesmo indicador
+  `Salvando…`/`Salvo` da barra de status (`usePersistenceStore`, §2) junto ao estado da versão,
+  para que quem rola 800px de formulário não precise ir ao rodapé conferir.
 - **Sem rascunho aberto**, os campos aparecem **somente leitura** com o aviso *"Versão 1 vigente
   desde 30/09/2025 — crie um rascunho para editar"* e o botão **"Criar rascunho a partir desta
   versão"**. Nunca campos editáveis que descartam o que foi digitado.
 - **`MATRIX`** continua sem página própria: o nó navega direto para o grid (§17.2).
 - **`POLICY_VARIABLE`** espelhando a Biblioteca mostra o card da variável (nome, contagem de
   domínios da versão publicada) com "Ir para a Biblioteca", sem duplicar os domínios.
-- **Nenhum inspector à direita** nesta tela — o painel não é renderizado (§2).
+- **Nenhum inspector à direita** nesta tela — o painel não é renderizado (§2, §6).
+- **`ComponentPayloadFields` ganhou a prop `layout: 'wide' | 'narrow'`** (`src/components/inspector/ComponentPayloadFields.tsx`)
+  em vez de um componente duplicado: `'wide'` é o que a página usa (campo longo com `AutoGrowTextarea`
+  de ≥6 linhas, campos curtos em grade de 2 colunas); `'narrow'` (o padrão, sem prop) mantém a pilha
+  vertical de antes, para quem vier a reutilizar o formulário fora desta página. Os campos de lista
+  (`inputs`, `reasonCodes`, `dependencies`) viram chips (`ChipsField`) nos dois modos.
 
 ### 17.6 Carga por recorte — S40 ✅
 
