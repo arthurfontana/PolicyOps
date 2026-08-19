@@ -1,8 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Archive,
-  ChevronDown,
-  ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
   Copy,
@@ -23,6 +21,7 @@ import { ToolbarPortal } from '@/components/shell/Toolbar';
 import { PolicyToolbar } from '@/components/tree/PolicyToolbar';
 import { MoveComponentDialog } from '@/components/tree/MoveComponentDialog';
 import { AddMatrixNodeDialog } from '@/components/tree/AddMatrixNodeDialog';
+import { TreeNodeRow } from '@/components/tree/TreeNodeRow';
 import { PublishPendingComponentsDialog } from '@/components/dialogs/PublishPendingComponentsDialog';
 import { MarkdownImportDialog } from '@/components/import/markdown/MarkdownImportDialog';
 import {
@@ -50,12 +49,6 @@ import {
   resolveOpenVersion,
   type ComponentTreeFilterResult,
 } from '@/core/queries';
-import {
-  getPolicyAt,
-  snapshotNodeIndex,
-  type PolicySnapshotNode,
-} from '@/core/timeline/policy-at';
-import { endOfDayInstant, formatDateInputBR } from '@/lib/timeline-dates';
 import { COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS } from '@/lib/component-labels';
 import { vigenciaText, versionBadge } from '@/lib/matrix-badges';
 import { Badge } from '@/components/ui/badge';
@@ -77,6 +70,10 @@ import { cn } from '@/lib/utils';
  * ferramentas do shell (§2.1): criação, publicação em lote, busca, filtros e o
  * chip de alvo — este componente ainda é quem os monta, por `ToolbarPortal`,
  * porque o estado de criação e os diálogos vivem aqui (DEC-UX-006).
+ *
+ * **A árvore é sempre hoje** (DEC-UX-004, S43): ver o passado é uma tela de
+ * consulta (a de Vigência, §10), não um estado desta árvore — nada aqui entra
+ * em somente leitura por data.
  */
 
 /** §17.1: a ordem é de leitura, e a tela diz isso — no `title`, não em duas linhas fixas. */
@@ -165,7 +162,6 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
   const toggleComponentTreeReviewStatus = useUiStore((s) => s.toggleComponentTreeReviewStatus);
   const toggleComponentTreeTag = useUiStore((s) => s.toggleComponentTreeTag);
   const clearComponentTreeFilter = useUiStore((s) => s.clearComponentTreeFilter);
-  const setComponentTreeSnapshotDate = useUiStore((s) => s.setComponentTreeSnapshotDate);
   const { toast } = useToast();
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -211,16 +207,6 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
 
   const filterActive = isFilterActive({ search, types, reviewStatuses, tags });
 
-  // Modo fotografia (docs/07 §20): a árvore inteira passa a mostrar a política
-  // como ela era na data escolhida — e fica somente leitura, porque editar o
-  // passado não é uma operação que exista (a edição volta ao sair).
-  const snapshotDate = filterIsCurrent ? (componentTree.snapshotDate ?? null) : null;
-  const snapshotByKey = useMemo<Map<string, PolicySnapshotNode> | null>(() => {
-    if (document === null || snapshotDate === null || snapshotDate === '') return null;
-    return snapshotNodeIndex(getPolicyAt(document, projectId, endOfDayInstant(snapshotDate)));
-  }, [document, projectId, snapshotDate]);
-  const readOnly = snapshotByKey !== null;
-
   const { matchedIds, visibleIds, facets } = useMemo<ComponentTreeFilterResult>(() => {
     if (document === null) return { matchedIds: new Set<string>(), visibleIds: new Set<string>(), facets: [] };
     return filterComponentTree(document, projectId, { search, types, reviewStatuses, tags });
@@ -251,7 +237,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
   // `Ctrl+Shift+P` publica os pendentes do projeto (§2.1, "teclado"). Só na
   // tela da política, e só quando existe o que publicar — o mesmo gate do
   // botão da barra.
-  const publishPendingArmed = view === 'projects' && !readOnly && pendingCount > 0;
+  const publishPendingArmed = view === 'projects' && pendingCount > 0;
   useEffect(() => {
     if (!publishPendingArmed) return undefined;
     function onKeyDown(event: KeyboardEvent) {
@@ -528,9 +514,6 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
 
     children.forEach((child) => {
       if (filterActive && !visibleIds.has(child.id)) return;
-      // Fora da fotografia (arquivado antes da data) o nó não existia: some da
-      // árvore junto com a subárvore, como em `getPolicyAt`.
-      if (snapshotByKey !== null && !snapshotByKey.has(child.id)) return;
       nodes.push(renderNode(child, depth));
       if (pendingDraft !== null && pendingDraft.afterId === child.id) {
         nodes.push(renderDraftRow(pendingDraft, depth));
@@ -635,27 +618,36 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
       if (shown !== null) componentBadge = versionBadge(shown);
     }
 
-    // Na fotografia, o badge é a versão que vigorava naquela data — nunca o
-    // rascunho de hoje, que ainda não existia.
-    const snapshotNode = snapshotByKey?.get(component.id) ?? null;
-    if (snapshotNode !== null) {
-      matrixBadge = null;
-      matrixVigencia = null;
-      componentBadge = null;
-    }
-
     return (
       <Fragment key={component.id}>
-        <div
+        <TreeNodeRow
           role="treeitem"
           aria-selected={isSelected}
           aria-expanded={hasChildren ? isExpanded : undefined}
           tabIndex={0}
-          draggable={!isRenaming && !readOnly}
-          style={{ paddingLeft: depth * 16 }}
+          draggable={!isRenaming}
           data-testid={`tree-node-${component.code}`}
           data-component-id={component.id}
           title={matrixVigencia ?? `${component.name} · ${component.code}`}
+          depth={depth}
+          icon={Icon}
+          name={component.name}
+          code={component.code}
+          showCode={showCode}
+          selected={isSelected}
+          dimmed={isDimmed}
+          hasChildren={hasChildren}
+          expanded={isExpanded}
+          expandTitle="Expandir (Alt+clique expande a subárvore inteira)"
+          collapseTitle="Recolher (Alt+clique recolhe a subárvore inteira)"
+          onToggleExpanded={(e) => {
+            e.stopPropagation();
+            if (e.altKey) {
+              toggleSubtree(component, isExpanded);
+              return;
+            }
+            toggleComponentExpanded(component.id);
+          }}
           onDragStart={(e) => {
             e.stopPropagation();
             setDraggingId(component.id);
@@ -679,21 +671,9 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             setDropTarget(null);
           }}
           onClick={() => handleSelect(component)}
-          onDoubleClick={() => {
-            if (!readOnly) startRename(component);
-          }}
+          onDoubleClick={() => startRename(component)}
           onKeyDown={(e) => {
             if (isRenaming) return;
-            if (readOnly) {
-              if (e.key === 'ArrowRight' && hasChildren && !isExpanded) {
-                e.preventDefault();
-                toggleComponentExpanded(component.id);
-              } else if (e.key === 'ArrowLeft' && hasChildren && isExpanded) {
-                e.preventDefault();
-                toggleComponentExpanded(component.id);
-              }
-              return;
-            }
             if (e.key === 'Enter') {
               e.preventDefault();
               // Shift+Enter nasce regra; Enter herda o tipo do nó (§2.1/§17.3).
@@ -713,137 +693,100 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             }
           }}
           className={cn(
-            'group flex items-center gap-1.5 rounded-md py-1 pr-1 text-sm outline-none',
-            'focus:ring-2 focus:ring-neutral-400 dark:focus:ring-neutral-600',
-            isSelected && 'bg-neutral-200 dark:bg-neutral-800',
-            !isSelected && 'hover:bg-neutral-100 dark:hover:bg-neutral-800/60',
-            isDimmed && 'opacity-40',
             isDropTarget && dropTarget?.position === 'inside' && 'ring-2 ring-blue-400',
             isDropTarget && dropTarget?.position === 'before' && 'border-t-2 border-blue-500',
             isDropTarget && dropTarget?.position === 'after' && 'border-b-2 border-blue-500',
           )}
-        >
-          {hasChildren ? (
-            <button
-              type="button"
-              aria-label={isExpanded ? `Recolher ${component.name}` : `Expandir ${component.name}`}
-              title={
-                isExpanded
-                  ? 'Recolher (Alt+clique recolhe a subárvore inteira)'
-                  : 'Expandir (Alt+clique expande a subárvore inteira)'
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                if (e.altKey) {
-                  toggleSubtree(component, isExpanded);
-                  return;
-                }
-                toggleComponentExpanded(component.id);
-              }}
-              className="flex h-5 w-5 shrink-0 items-center justify-center text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
-            >
-              {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            </button>
-          ) : (
-            <span className="w-5 shrink-0" />
-          )}
-
-          <Icon className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
-
-          {isRenaming ? (
-            <Input
-              autoFocus
-              aria-label={`Renomear ${component.name}`}
-              value={renaming.value}
-              onChange={(e) => setRenaming({ id: component.id, value: e.target.value })}
-              onClick={(e) => e.stopPropagation()}
-              onBlur={commitRename}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  e.currentTarget.blur();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setRenaming(null);
-                }
-              }}
-              className="h-6 flex-1 text-sm"
-            />
-          ) : (
-            <span className="min-w-0 flex-1 truncate text-neutral-900 dark:text-neutral-100">{component.name}</span>
-          )}
-
-          {!isRenaming && showCode && (
-            <span className="shrink-0 font-mono text-[10px] text-neutral-400">{component.code}</span>
-          )}
-
-          {(matrixBadge ?? componentBadge) !== null && (
-            <Badge variant={(matrixBadge ?? componentBadge)!.variant} className="shrink-0 px-1.5 py-0 text-[10px]">
-              {(matrixBadge ?? componentBadge)!.label}
-            </Badge>
-          )}
-
-          {snapshotNode !== null && <SnapshotBadge node={snapshotNode} date={snapshotDate!} />}
-
-          {component.reviewStatus === 'PENDING_REVIEW' && (
-            <span title="Aguardando revisão" className="shrink-0 text-amber-500">
-              ⚠
-            </span>
-          )}
-
-          {hasChildren && (
-            <span className="shrink-0 text-xs text-neutral-400 dark:text-neutral-600">{descendantCount}</span>
-          )}
-
-          {!readOnly && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={`Mais ações para ${component.name}`}
+          nameSlot={
+            isRenaming ? (
+              <Input
+                autoFocus
+                aria-label={`Renomear ${component.name}`}
+                value={renaming.value}
+                onChange={(e) => setRenaming({ id: component.id, value: e.target.value })}
                 onClick={(e) => e.stopPropagation()}
-                className="shrink-0 rounded p-0.5 text-neutral-400 opacity-0 group-hover:opacity-100 hover:text-neutral-700 focus:opacity-100 dark:hover:text-neutral-200"
-              >
-                ⋯
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-              {component.type !== 'MATRIX' && (
-                <DropdownMenuItem onSelect={() => startCreateChild(component)}>
-                  <Plus className="mr-2 h-3.5 w-3.5" /> Novo filho
-                </DropdownMenuItem>
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setRenaming(null);
+                  }
+                }}
+                className="h-6 flex-1 text-sm"
+              />
+            ) : undefined
+          }
+          badges={
+            <>
+              {(matrixBadge ?? componentBadge) !== null && (
+                <Badge variant={(matrixBadge ?? componentBadge)!.variant} className="shrink-0 px-1.5 py-0 text-[10px]">
+                  {(matrixBadge ?? componentBadge)!.label}
+                </Badge>
               )}
-              {component.type !== 'MATRIX' && (
-                <DropdownMenuItem onSelect={() => startCreateChild(component, 'RULE')}>
-                  <Plus className="mr-2 h-3.5 w-3.5" /> Nova regra
-                </DropdownMenuItem>
+
+              {component.reviewStatus === 'PENDING_REVIEW' && (
+                <span title="Aguardando revisão" className="shrink-0 text-amber-500">
+                  ⚠
+                </span>
               )}
-              {component.type !== 'MATRIX' && (
-                <DropdownMenuItem onSelect={() => setMatrixDialog({ open: true, parentId: component.id })}>
-                  <Grid3x3 className="mr-2 h-3.5 w-3.5" /> Adicionar matriz…
-                </DropdownMenuItem>
+
+              {hasChildren && (
+                <span className="shrink-0 text-xs text-neutral-400 dark:text-neutral-600">{descendantCount}</span>
               )}
-              <DropdownMenuItem onSelect={() => startRename(component)}>Renomear</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setMoveTargetId(component.id)}>
-                <FolderInput className="mr-2 h-3.5 w-3.5" /> Mover para…
-              </DropdownMenuItem>
-              {component.type !== 'MATRIX' && (
-                <DropdownMenuItem onSelect={() => handleDuplicate(component)}>
-                  <Copy className="mr-2 h-3.5 w-3.5" /> Duplicar
+            </>
+          }
+          trailing={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={`Mais ações para ${component.name}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="shrink-0 rounded p-0.5 text-neutral-400 opacity-0 group-hover:opacity-100 hover:text-neutral-700 focus:opacity-100 dark:hover:text-neutral-200"
+                >
+                  ⋯
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                {component.type !== 'MATRIX' && (
+                  <DropdownMenuItem onSelect={() => startCreateChild(component)}>
+                    <Plus className="mr-2 h-3.5 w-3.5" /> Novo filho
+                  </DropdownMenuItem>
+                )}
+                {component.type !== 'MATRIX' && (
+                  <DropdownMenuItem onSelect={() => startCreateChild(component, 'RULE')}>
+                    <Plus className="mr-2 h-3.5 w-3.5" /> Nova regra
+                  </DropdownMenuItem>
+                )}
+                {component.type !== 'MATRIX' && (
+                  <DropdownMenuItem onSelect={() => setMatrixDialog({ open: true, parentId: component.id })}>
+                    <Grid3x3 className="mr-2 h-3.5 w-3.5" /> Adicionar matriz…
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => startRename(component)}>Renomear</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setMoveTargetId(component.id)}>
+                  <FolderInput className="mr-2 h-3.5 w-3.5" /> Mover para…
                 </DropdownMenuItem>
-              )}
-              {component.type !== 'MATRIX' && (
-                <DropdownMenuItem onSelect={() => setMarkdownImportDialog({ open: true, parentId: component.id })}>
-                  <FileUp className="mr-2 h-3.5 w-3.5" /> Carregar Markdown aqui…
+                {component.type !== 'MATRIX' && (
+                  <DropdownMenuItem onSelect={() => handleDuplicate(component)}>
+                    <Copy className="mr-2 h-3.5 w-3.5" /> Duplicar
+                  </DropdownMenuItem>
+                )}
+                {component.type !== 'MATRIX' && (
+                  <DropdownMenuItem onSelect={() => setMarkdownImportDialog({ open: true, parentId: component.id })}>
+                    <FileUp className="mr-2 h-3.5 w-3.5" /> Carregar Markdown aqui…
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => setArchiveTarget({ id: component.id, name: component.name })}>
+                  <Archive className="mr-2 h-3.5 w-3.5" /> Arquivar
                 </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onSelect={() => setArchiveTarget({ id: component.id, name: component.name })}>
-                <Archive className="mr-2 h-3.5 w-3.5" /> Arquivar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          )}
-        </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
+        />
         {isExpanded && renderChildren(component.id, depth + 1)}
       </Fragment>
     );
@@ -860,10 +803,6 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
       {view === 'projects' && (
         <ToolbarPortal>
           <PolicyToolbar
-            readOnly={readOnly}
-            snapshotDate={snapshotDate}
-            onSnapshotDateChange={setComponentTreeSnapshotDate}
-            onCompareDates={() => setView('policy-compare')}
             pendingCount={pendingCount}
             onNewSection={() => startCreateAtTarget('SECTION')}
             onNewRule={() => startCreateAtTarget('RULE')}
@@ -915,9 +854,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         {renderChildren(undefined, 0)}
         {listChildren(document, projectId, undefined).length === 0 && draft === null && (
           <p className="px-2 py-3 text-center text-xs text-neutral-500 dark:text-neutral-400">
-            {readOnly
-              ? `Nenhum componente existia em ${formatDateInputBR(snapshotDate!)}.`
-              : 'Nenhum componente ainda. Comece pela primeira seção.'}
+            Nenhum componente ainda. Comece pela primeira seção.
           </p>
         )}
       </div>
@@ -973,33 +910,5 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         }}
       />
     </div>
-  );
-}
-
-/**
- * O que o nó era na data da fotografia (docs/07 §20). Três leituras, e a
- * terceira é a que I29 exige: seção pura é **estrutura**, nunca "sem política
- * vigente" — dizer o contrário faria toda pasta parecer uma regra que caducou.
- */
-function SnapshotBadge({ node, date }: { node: PolicySnapshotNode; date: string }) {
-  if (node.status === 'STRUCTURE') {
-    return (
-      <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
-        estrutura
-      </Badge>
-    );
-  }
-  if (node.status === 'ABSENT') {
-    return (
-      <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
-        sem política vigente em {formatDateInputBR(date)}
-      </Badge>
-    );
-  }
-  const number = node.kind === 'MATRIX' ? node.matrixVersion?.number : node.version?.number;
-  return (
-    <Badge variant="green" className="shrink-0 px-1.5 py-0 text-[10px]">
-      v{number}
-    </Badge>
   );
 }

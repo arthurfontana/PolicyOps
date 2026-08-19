@@ -55,7 +55,6 @@ beforeEach(() => {
       types: [],
       reviewStatuses: [],
       tags: [],
-      snapshotDate: null,
     },
   });
 });
@@ -356,4 +355,24 @@ describe('PolicyTree — ~300 componentes em 4 níveis (docs/prompts/S33a)', () 
     expect(screen.getByTestId(`tree-node-${rootCode}`).className).toContain('opacity-40');
     expect(screen.queryByTestId('tree-node-ROOT_9')).not.toBeInTheDocument();
   }, 15000);
+});
+
+describe('PolicyTree — a árvore é sempre hoje (DEC-UX-004)', () => {
+  it('a barra não tem seletor de data, e o nó continua editável com a consulta aberta em outra data', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    // A tela de Vigência está numa data do passado: a árvore não muda por isso.
+    useUiStore.setState({ policyAtDate: '2026-03-01' });
+    renderTree(projectId, { [cma]: true });
+
+    expect(screen.queryByLabelText('Ver a política como em')).toBeNull();
+    expect(screen.queryByText(/Fotografia de/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Nova seção/ })).toBeTruthy();
+    expect(screen.getByLabelText('Mais ações para CMA')).toBeTruthy();
+
+    // E editar continua funcionando: F2 renomeia como em qualquer outro dia.
+    await user.click(screen.getByTestId('tree-node-CMA'));
+    await user.keyboard('{F2}');
+    expect(screen.getByLabelText('Renomear CMA')).toBeTruthy();
+  });
 });

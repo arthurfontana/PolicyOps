@@ -43,6 +43,7 @@ async function setDates(user: ReturnType<typeof userEvent.setup>, a: string, b: 
 beforeEach(() => {
   useDocumentStore.getState().closeDocument();
   useEditorStore.getState().reset();
+  useUiStore.setState({ policyAtDate: null, view: 'policy-compare' });
 });
 
 describe('PolicyCompareScreen — data × data', () => {
@@ -95,7 +96,15 @@ describe('PolicyCompareScreen — data × data', () => {
     expect(screen.getByTestId('policy-change-REGRA_NOVA').textContent).toContain('adicionado');
   });
 
-  it('"Ver a política em…" leva a árvore para o modo fotografia daquela data', async () => {
+  it('aberta pela tela de Vigência, já chega com a data daquela consulta de um lado (§10)', () => {
+    useUiStore.setState({ policyAtDate: '2026-05-15' });
+    open(politicaComTresMudancas(testCtx()).document);
+    render(<PolicyCompareScreen />);
+
+    expect(screen.getByLabelText('Data comparada')).toHaveValue('2026-05-15');
+  });
+
+  it('"Ver a política em…" abre a tela de Vigência naquela data (§20.3)', async () => {
     const user = userEvent.setup();
     open(politicaComTresMudancas(testCtx()).document);
     render(<PolicyCompareScreen />);
@@ -103,8 +112,8 @@ describe('PolicyCompareScreen — data × data', () => {
     await setDates(user, '2026-02-15', '2026-09-01');
     await user.click(screen.getByRole('button', { name: /Ver a política em/ }));
 
-    expect(useUiStore.getState().componentTree.snapshotDate).toBe('2026-02-15');
-    expect(useUiStore.getState().view).toBe('projects');
+    expect(useUiStore.getState().policyAtDate).toBe('2026-02-15');
+    expect(useUiStore.getState().view).toBe('timeline');
   });
 });
 

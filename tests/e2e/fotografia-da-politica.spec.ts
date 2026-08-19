@@ -4,10 +4,13 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /**
- * Sessão 39 — fotografia histórica da política e comparação
- * (docs/prompts/S39-fotografia-historica.md, US-GOV-07/08, docs/07 §20):
- * a mesma árvore vista em duas datas, e a comparação listando exatamente a
- * mudança do intervalo.
+ * Consulta histórica da política — S39 (o núcleo) e S43 (a tela).
+ *
+ * A fotografia deixou de ser um estado da árvore (DEC-UX-004): a tela de
+ * **Vigência** mostra a política inteira na data, a árvore da barra lateral
+ * segue no presente e editável, e a comparação lista o que mudou entre duas
+ * pontas. Cobre CT-UX-04 (docs/07 §21) e o que a S39 exercitava no antigo
+ * modo fotografia.
  */
 const DIST_PATH = path.resolve(import.meta.dirname, '..', '..', 'dist', 'PolicyOps.html');
 const FILE_URL = pathToFileURL(DIST_PATH).href;
@@ -18,7 +21,7 @@ test.beforeAll(() => {
   }
 });
 
-test('a política em duas datas: a árvore vira fotografia e a comparação lista o que mudou', async ({
+test('CT-UX-04: a política em duas datas na tela de Vigência, com a árvore lateral seguindo no presente', async ({
   page,
 }) => {
   const pageErrors: string[] = [];
@@ -60,27 +63,48 @@ test('a política em duas datas: a árvore vira fotografia e a comparação list
   await page.getByRole('button', { name: 'Publicar versão 2' }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
 
-  // --- Modo fotografia: a mesma árvore em 15/02 e em 15/03 ----------------
-  const verComoEm = page.getByLabel('Ver a política como em');
-  await verComoEm.fill('2026-02-15');
+  // --- O salto da faixa de vigência abre a Vigência na data (§20.2) --------
+  await page.getByTestId('timeline-segment-v1').click();
 
-  await expect(page.getByText('Fotografia de 15/02/2026 · somente leitura')).toBeVisible();
-  await expect(node).toContainText('v1');
-  await expect(page.getByRole('button', { name: 'Nova seção' })).toHaveCount(0);
-  await expect(page.getByText('Edição bloqueada enquanto a árvore mostra o passado.')).toBeVisible();
-  await expect(page.getByText(/Versão 1 vigente desde/)).toBeVisible();
+  await expect(page).toHaveURL(/#\/timeline/);
+  await expect(page.getByRole('tab', { name: 'Estrutura' })).toHaveAttribute('data-state', 'active');
+  await expect(page.getByLabel('Data', { exact: true })).toHaveValue('2026-02-01');
 
-  await verComoEm.fill('2026-03-15');
+  // A árvore da barra lateral **não** congelou: segue no presente (v2) e com
+  // o menu do nó no lugar — é o que a DEC-UX-004 comprou.
   await expect(node).toContainText('v2');
-  await expect(page.getByText(/Versão 2 vigente desde/)).toBeVisible();
+  await expect(page.getByLabel('Mais ações para Goodlist')).toHaveCount(1);
+  await expect(page.getByText(/Fotografia de/)).toHaveCount(0);
 
-  // O seletor "ver como em…" e o "Voltar para hoje" da política moraram na
-  // barra do painel até a S41; agora vivem na barra de ferramentas (§2.1).
-  await page.getByTestId('policy-toolbar').getByRole('button', { name: 'Voltar para hoje' }).click();
-  await expect(page.getByRole('button', { name: 'Nova seção' })).toBeVisible();
+  // --- A estrutura na data, e o conteúdo daquela versão --------------------
+  const consulta = page.getByTestId('policy-at-node-GOODLIST');
+  await expect(consulta).toContainText('v1');
+  await consulta.click();
+
+  const detalhe = page.getByTestId('policy-at-detail');
+  await expect(detalhe).toContainText('Aprova sempre que o cliente estiver na lista.');
+  await expect(page.getByTestId('policy-at-banner')).toContainText('Esta é uma versão histórica.');
+  await expect(page.getByTestId('policy-at-watermark')).toContainText('HISTÓRICO');
+
+  // A matriz do projeto entra na mesma árvore, sem espelho (DEC-GOV-039).
+  await expect(page.getByTestId('policy-at-node-MTZ_LIMITE_PJ')).toBeVisible();
+
+  // Outra data, outra versão vigente.
+  await page.getByLabel('Data', { exact: true }).fill('2026-03-15');
+  await expect(page.getByTestId('policy-at-node-GOODLIST')).toContainText('v2');
+  await page.getByTestId('policy-at-node-GOODLIST').click();
+  await expect(page.getByTestId('policy-at-detail')).toContainText(
+    'Aprova só se o valor do pedido couber no limite em lista.',
+  );
+
+  // --- "Abrir no editor (hoje)" sai da consulta e volta ao presente --------
+  await page.getByRole('button', { name: 'Abrir no editor (hoje)' }).click();
+  await expect(page.getByTestId('component-page')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Criar rascunho a partir desta versão' })).toBeVisible();
 
   // --- Comparação data × data ---------------------------------------------
-  await page.getByRole('button', { name: 'Comparar política' }).click();
+  await page.getByRole('button', { name: 'Vigência', exact: true }).click();
+  await page.getByRole('button', { name: 'Comparar com outra data' }).click();
   await expect(page.getByRole('heading', { name: 'Comparar a política' })).toBeVisible();
 
   await page.getByLabel('Data base').fill('2026-02-15');
@@ -93,7 +117,15 @@ test('a política em duas datas: a árvore vira fotografia e a comparação list
   await expect(card).toContainText('businessDescription');
   await expect(page.getByText('1 alterados')).toBeVisible();
 
-  // Nada muda dentro de um intervalo sem publicação.
+  // O atalho "Ver a política em…" volta para a Vigência, na ponta escolhida.
+  await page.getByRole('button', { name: /Ver a política em 15\/02\/2026/ }).click();
+  await expect(page).toHaveURL(/#\/timeline/);
+  await expect(page.getByLabel('Data', { exact: true })).toHaveValue('2026-02-15');
+  await expect(page.getByTestId('policy-at-node-GOODLIST')).toContainText('v1');
+
+  // Nada mudou dentro de um intervalo sem publicação.
+  await page.getByRole('button', { name: 'Comparar com outra data' }).click();
+  await page.getByLabel('Data base').fill('2026-02-15');
   await page.getByLabel('Data comparada').fill('2026-02-20');
   await expect(page.getByText('Nada mudou na política entre as duas pontas.')).toBeVisible();
 

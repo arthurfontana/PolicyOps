@@ -19,9 +19,10 @@ import { useUiStore } from '@/store/ui-store';
 /**
  * Página do componente (docs/07 §17.5, DEC-UX-002) — migra a cobertura de
  * `ComponentInspector.test.tsx` (S33b/S39) para a página no centro: ciclo de
- * vida, "Documentar esta seção" e modo fotografia continuam cobertos, com o
- * acréscimo de chips, navegação entre irmãos e somente leitura sem rascunho
- * (S42).
+ * vida, "Documentar esta seção" e o salto para a consulta histórica continuam
+ * cobertos, com o acréscimo de chips, navegação entre irmãos e somente leitura
+ * sem rascunho (S42). A página é **sempre hoje** desde a S43 (DEC-UX-004): o
+ * passado é a tela de Vigência, e o que se verifica aqui é o salto até ela.
  */
 
 function dispatch<O>(command: Command<unknown, O>): O {
@@ -50,7 +51,11 @@ function renderPage(projectId: string, projectName: string, componentId: string)
 beforeEach(() => {
   useDocumentStore.getState().closeDocument();
   useEditorStore.getState().reset();
-  useUiStore.setState((s) => ({ componentTree: { ...s.componentTree, projectId: null, snapshotDate: null } }));
+  useUiStore.setState((s) => ({
+    componentTree: { ...s.componentTree, projectId: null },
+    policyAtDate: null,
+    view: 'projects',
+  }));
 });
 
 describe('ComponentPage — RULE (US-GOV-02)', () => {
@@ -231,7 +236,7 @@ describe('ComponentPage — SECTION documentável (I27)', () => {
   });
 });
 
-describe('ComponentPage — modo fotografia (§20, S39)', () => {
+describe('ComponentPage — salto para a consulta histórica (§20.2)', () => {
   function comDuasVersoes(): { projectId: string; projectName: string; componentId: string } {
     const { projectId, projectName } = setupProject();
     const componentId = dispatch(
@@ -254,31 +259,29 @@ describe('ComponentPage — modo fotografia (§20, S39)', () => {
     return { projectId, projectName, componentId };
   }
 
-  it('"Ver a política inteira nesta data" leva a árvore para a vigência da versão mostrada', async () => {
+  it('"Ver a política inteira nesta data" abre a tela de Vigência na vigência da versão mostrada', async () => {
     const user = userEvent.setup();
     const { projectId, projectName, componentId } = comDuasVersoes();
-    useUiStore.setState((s) => ({ componentTree: { ...s.componentTree, projectId, snapshotDate: null } }));
     renderPage(projectId, projectName, componentId);
 
     await user.click(screen.getByRole('button', { name: /Ver a política inteira nesta data/ }));
 
-    // A versão mostrada fora da fotografia é a publicada vigente (v2, junho).
-    expect(useUiStore.getState().componentTree.snapshotDate).toBe('2026-06-01');
+    // A versão mostrada é a publicada vigente (v2, junho) — e o salto é de tela.
+    expect(useUiStore.getState().policyAtDate).toBe('2026-06-01');
+    expect(useUiStore.getState().view).toBe('timeline');
   });
 
-  it('em modo fotografia mostra a versão daquela data e não oferece edição', () => {
+  it('a página continua editável com a consulta aberta em outra data (DEC-UX-004)', () => {
     const { projectId, projectName, componentId } = comDuasVersoes();
-    useUiStore.setState((s) => ({
-      componentTree: { ...s.componentTree, projectId, snapshotDate: '2026-03-01' },
-    }));
+    useUiStore.setState({ policyAtDate: '2026-03-01' });
     renderPage(projectId, projectName, componentId);
 
-    expect(screen.getByText('Fotografia de 01/03/2026')).toBeTruthy();
-    expect(screen.getByText(/Versão 1.*vigente desde/)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Criar rascunho/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Mais ações para/ })).toBeNull();
-    expect(screen.getByTestId('component-name-button')).toBeDisabled();
-    expect(screen.getByRole('heading', { name: 'Goodlist' })).toBeInTheDocument();
+    // Nada de fotografia aqui: a versão é a de hoje e todas as portas seguem abertas.
+    expect(screen.getByText(/Versão 2 vigente desde/)).toBeTruthy();
+    expect(screen.queryByText(/Fotografia de/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Criar rascunho a partir desta versão/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Mais ações para/ })).toBeTruthy();
+    expect(screen.getByTestId('component-name-button')).not.toBeDisabled();
     expect(screen.getByLabelText(/Descrição de negócio/)).toBeDisabled();
   });
 });
