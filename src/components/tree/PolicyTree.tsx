@@ -1,16 +1,15 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  CalendarClock,
-  CheckCheck,
+  Archive,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Copy,
   FileUp,
   FolderInput,
   Grid3x3,
   Plus,
-  Search,
-  X,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -18,14 +17,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { TagFilterBar } from '@/components/projects/TagFilterBar';
+import { ConfirmDialog } from '@/components/library/ConfirmDialog';
+import { ToolbarPortal } from '@/components/shell/Toolbar';
+import { PolicyToolbar } from '@/components/tree/PolicyToolbar';
 import { MoveComponentDialog } from '@/components/tree/MoveComponentDialog';
 import { AddMatrixNodeDialog } from '@/components/tree/AddMatrixNodeDialog';
 import { PublishPendingComponentsDialog } from '@/components/dialogs/PublishPendingComponentsDialog';
 import { MarkdownImportDialog } from '@/components/import/markdown/MarkdownImportDialog';
 import {
+  archiveComponent,
   componentDepth,
   createComponent,
   duplicateComponent,
@@ -35,7 +36,6 @@ import {
   updateComponent,
 } from '@/core/document/components';
 import {
-  COMPONENT_REVIEW_STATUSES,
   POLICY_COMPONENT_MAX_DEPTH,
   POLICY_COMPONENT_TYPES,
   type ComponentReviewStatus,
@@ -44,6 +44,7 @@ import {
   type PolicyOpsDocument,
 } from '@/core/document/schema';
 import {
+  componentPath,
   filterComponentTree,
   listPendingComponentVersions,
   resolveOpenVersion,
@@ -55,22 +56,32 @@ import {
   type PolicySnapshotNode,
 } from '@/core/timeline/policy-at';
 import { endOfDayInstant, formatDateInputBR } from '@/lib/timeline-dates';
-import { COMPONENT_REVIEW_STATUS_LABELS, COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS } from '@/lib/component-labels';
+import { COMPONENT_TYPE_ICONS, COMPONENT_TYPE_LABELS } from '@/lib/component-labels';
 import { vigenciaText, versionBadge } from '@/lib/matrix-badges';
 import { Badge } from '@/components/ui/badge';
 import { useDocumentStore } from '@/store/document-store';
 import { useEditorStore } from '@/store/editor-store';
-import { useUiStore } from '@/store/ui-store';
+import { SIDEBAR_CODE_VISIBLE_WIDTH, useUiStore } from '@/store/ui-store';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
 
 /**
- * Árvore da política — docs/07-ux-e-editor.md §17.1/§17.3. O painel que
- * transforma o projeto em sumário navegável: expandir/recolher, busca,
- * filtro por tipo/revisão/faceta, e a ergonomia de digitação em volume
- * (Enter cria irmão, Tab/Shift+Tab reparenta, Ctrl/Cmd+D duplica) — sem ela
- * a sessão não cumpre o objetivo de montar ~50 seções em menos de 30 min.
+ * Árvore da política — docs/07-ux-e-editor.md §17.1/§17.3, DEC-UX-001.
+ * **A árvore é a barra lateral**: renderizada dentro de `Sidebar`, sob o
+ * projeto aberto, com todos os níveis. Não há segundo painel de árvore na
+ * tela.
+ *
+ * O que fica aqui: a lista de nós e a ergonomia de digitação em volume
+ * (Enter cria irmão, Shift+Enter cria regra, Tab/Shift+Tab reparenta,
+ * Ctrl/Cmd+D duplica, F2 renomeia, arrastar move). O que saiu para a barra de
+ * ferramentas do shell (§2.1): criação, publicação em lote, busca, filtros e o
+ * chip de alvo — este componente ainda é quem os monta, por `ToolbarPortal`,
+ * porque o estado de criação e os diálogos vivem aqui (DEC-UX-006).
  */
+
+/** §17.1: a ordem é de leitura, e a tela diz isso — no `title`, não em duas linhas fixas. */
+export const READING_ORDER_NOTE =
+  'A ordem reflete o documento de política. A sequência de avaliação do motor está descrita no texto de cada regra.';
 
 const CREATABLE_TYPES = POLICY_COMPONENT_TYPES.filter((type) => type !== 'MATRIX');
 
@@ -140,11 +151,15 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
   const selectedComponentId = useEditorStore((s) => s.selectedComponentId);
   const setSelectedComponent = useEditorStore((s) => s.setSelectedComponent);
   const openMatrix = useEditorStore((s) => s.openMatrix);
+  const view = useUiStore((s) => s.view);
   const setView = useUiStore((s) => s.setView);
+  const sidebarWidth = useUiStore((s) => s.sidebarWidth);
   const componentTree = useUiStore((s) => s.componentTree);
   const setComponentTreeProject = useUiStore((s) => s.setComponentTreeProject);
   const toggleComponentExpanded = useUiStore((s) => s.toggleComponentExpanded);
   const expandComponents = useUiStore((s) => s.expandComponents);
+  const collapseComponents = useUiStore((s) => s.collapseComponents);
+  const collapseAllComponents = useUiStore((s) => s.collapseAllComponents);
   const setComponentTreeSearch = useUiStore((s) => s.setComponentTreeSearch);
   const toggleComponentTreeType = useUiStore((s) => s.toggleComponentTreeType);
   const toggleComponentTreeReviewStatus = useUiStore((s) => s.toggleComponentTreeReviewStatus);
@@ -163,6 +178,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
     parentId: undefined,
   });
   const [publishPendingOpen, setPublishPendingOpen] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<{ id: string; name: string } | null>(null);
   const [markdownImportDialog, setMarkdownImportDialog] = useState<{ open: boolean; parentId: string | undefined }>({
     open: false,
     parentId: undefined,
@@ -181,6 +197,10 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
   useEffect(() => {
     suppressBlurRef.current = false;
   }, [draft]);
+
+  // §17.1: nome truncado é pior que código ausente — abaixo de 340px o `code`
+  // sai da linha e fica só no `title`.
+  const showCode = sidebarWidth >= SIDEBAR_CODE_VISIBLE_WIDTH;
 
   const filterIsCurrent = componentTree.projectId === projectId;
   const search = filterIsCurrent ? componentTree.search : '';
@@ -206,35 +226,128 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
     return filterComponentTree(document, projectId, { search, types, reviewStatuses, tags });
   }, [document, projectId, search, types, reviewStatuses, tags]);
 
+  // Nó de destino da criação pela barra (§2.1): o selecionado, se for deste
+  // projeto; senão, a raiz da política.
+  const targetComponent =
+    document === null || selectedComponentId === null
+      ? null
+      : (document.components.find(
+          (candidate) => candidate.id === selectedComponentId && candidate.projectId === projectId,
+        ) ?? null);
+  /** Destino de "pendurar matriz"/"carregar Markdown" pela barra: um nó `MATRIX` não recebe filhos (I27). */
+  const targetParentId =
+    targetComponent === null
+      ? undefined
+      : targetComponent.type === 'MATRIX'
+        ? targetComponent.parentId
+        : targetComponent.id;
+  const targetPath =
+    document === null || targetComponent === null
+      ? null
+      : componentPath(document, targetComponent.id)
+          .map((component) => component.name)
+          .join(' › ');
+
+  // `Ctrl+Shift+P` publica os pendentes do projeto (§2.1, "teclado"). Só na
+  // tela da política, e só quando existe o que publicar — o mesmo gate do
+  // botão da barra.
+  const publishPendingArmed = view === 'projects' && !readOnly && pendingCount > 0;
+  useEffect(() => {
+    if (!publishPendingArmed) return undefined;
+    function onKeyDown(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey) return;
+      if (event.key.toLowerCase() !== 'p') return;
+      event.preventDefault();
+      setPublishPendingOpen(true);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [publishPendingArmed]);
+
   if (document === null) return null;
 
   function existingCodes(doc: PolicyOpsDocument): Set<string> {
     return new Set(doc.components.map((c) => c.code));
   }
 
-  function startCreateRoot() {
+  function startCreateRoot(type: PolicyComponentType = 'SECTION') {
     const roots = listChildren(document!, projectId, undefined);
     const last = roots[roots.length - 1];
-    setDraft({ parentId: undefined, afterId: last?.id ?? null, type: 'SECTION', value: '', levelOffset: 0 });
+    setDraft({ parentId: undefined, afterId: last?.id ?? null, type, value: '', levelOffset: 0 });
   }
 
-  function startCreateSibling(component: PolicyComponent) {
-    setDraft(siblingDraft(component));
+  function startCreateSibling(component: PolicyComponent, type?: PolicyComponentType) {
+    const base = siblingDraft(component);
+    setDraft(type === undefined ? base : { ...base, type });
     if (component.parentId !== undefined) expandComponents([component.parentId]);
   }
 
-  function startCreateChild(component: PolicyComponent) {
+  function startCreateChild(component: PolicyComponent, type: PolicyComponentType = 'SECTION') {
     if (component.type === 'MATRIX') return;
     const draftValue: Draft = {
       parentId: component.id,
       afterId: null,
-      type: 'SECTION',
+      type,
       value: '',
       anchor: { id: component.id, parentId: component.parentId, type: component.type },
       levelOffset: 1,
     };
     setDraft(draftValue);
     expandComponents([component.id]);
+  }
+
+  /**
+   * Criação disparada pela barra de ferramentas (§2.1): sem nó selecionado
+   * nasce na raiz; com nó selecionado nasce **irmão** dele — a mesma semântica
+   * do `Enter` na árvore, para a barra e a árvore nunca discordarem.
+   */
+  function startCreateAtTarget(type: PolicyComponentType) {
+    if (targetComponent === null) {
+      startCreateRoot(type);
+      return;
+    }
+    startCreateSibling(targetComponent, type);
+  }
+
+  function handleArchive() {
+    if (archiveTarget === null) return;
+    const result = dispatch(archiveComponent({ componentId: archiveTarget.id }));
+    if (!result.ok) {
+      toast({ title: 'Não foi possível arquivar', description: result.error.message });
+    } else if (selectedComponentId === archiveTarget.id) {
+      setSelectedComponent(null);
+    }
+    setArchiveTarget(null);
+  }
+
+  /** `Recolher tudo` / `Expandir tudo` do cabeçalho do projeto (§17.1). */
+  function expandAll() {
+    expandComponents(
+      document!.components
+        .filter((component) => component.projectId === projectId && component.archivedAt === undefined)
+        .map((component) => component.id),
+    );
+  }
+
+  /** `Alt+clique` no chevron: a subárvore inteira daquele nó (§17.1). */
+  function toggleSubtree(component: PolicyComponent, isExpanded: boolean) {
+    const ids = [...subtreeIds(document!, component.id)];
+    if (isExpanded) collapseComponents(ids);
+    else expandComponents(ids);
+  }
+
+  /** Chip de alvo: rola a árvore até o nó, abrindo os ancestrais fechados. */
+  function focusTarget() {
+    if (targetComponent === null) return;
+    const ancestors = componentPath(document!, targetComponent.id)
+      .slice(0, -1)
+      .map((component) => component.id);
+    if (ancestors.length > 0) expandComponents(ancestors);
+    const id = targetComponent.id;
+    window.requestAnimationFrame(() => {
+      const node = window.document.querySelector(`[data-component-id="${id}"]`);
+      node?.scrollIntoView({ block: 'nearest' });
+    });
   }
 
   function handleDraftTab(direction: 1 | -1) {
@@ -361,6 +474,9 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
       return;
     }
     setSelectedComponent(component.id);
+    // A árvore é a barra lateral: pode ser clicada de qualquer tela, e o nó
+    // selecionado só faz sentido na tela da política (§17.1).
+    setView('projects');
   }
 
   function handleDrop(targetId: string) {
@@ -538,7 +654,8 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
           draggable={!isRenaming && !readOnly}
           style={{ paddingLeft: depth * 16 }}
           data-testid={`tree-node-${component.code}`}
-          title={matrixVigencia ?? undefined}
+          data-component-id={component.id}
+          title={matrixVigencia ?? `${component.name} · ${component.code}`}
           onDragStart={(e) => {
             e.stopPropagation();
             setDraggingId(component.id);
@@ -579,7 +696,8 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             }
             if (e.key === 'Enter') {
               e.preventDefault();
-              startCreateSibling(component);
+              // Shift+Enter nasce regra; Enter herda o tipo do nó (§2.1/§17.3).
+              startCreateSibling(component, e.shiftKey ? 'RULE' : undefined);
             } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
               e.preventDefault();
               handleDuplicate(component);
@@ -609,8 +727,17 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             <button
               type="button"
               aria-label={isExpanded ? `Recolher ${component.name}` : `Expandir ${component.name}`}
+              title={
+                isExpanded
+                  ? 'Recolher (Alt+clique recolhe a subárvore inteira)'
+                  : 'Expandir (Alt+clique expande a subárvore inteira)'
+              }
               onClick={(e) => {
                 e.stopPropagation();
+                if (e.altKey) {
+                  toggleSubtree(component, isExpanded);
+                  return;
+                }
                 toggleComponentExpanded(component.id);
               }}
               className="flex h-5 w-5 shrink-0 items-center justify-center text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
@@ -646,7 +773,7 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
             <span className="min-w-0 flex-1 truncate text-neutral-900 dark:text-neutral-100">{component.name}</span>
           )}
 
-          {!isRenaming && (
+          {!isRenaming && showCode && (
             <span className="shrink-0 font-mono text-[10px] text-neutral-400">{component.code}</span>
           )}
 
@@ -687,6 +814,11 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
                 </DropdownMenuItem>
               )}
               {component.type !== 'MATRIX' && (
+                <DropdownMenuItem onSelect={() => startCreateChild(component, 'RULE')}>
+                  <Plus className="mr-2 h-3.5 w-3.5" /> Nova regra
+                </DropdownMenuItem>
+              )}
+              {component.type !== 'MATRIX' && (
                 <DropdownMenuItem onSelect={() => setMatrixDialog({ open: true, parentId: component.id })}>
                   <Grid3x3 className="mr-2 h-3.5 w-3.5" /> Adicionar matriz…
                 </DropdownMenuItem>
@@ -705,6 +837,9 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
                   <FileUp className="mr-2 h-3.5 w-3.5" /> Carregar Markdown aqui…
                 </DropdownMenuItem>
               )}
+              <DropdownMenuItem onSelect={() => setArchiveTarget({ id: component.id, name: component.name })}>
+                <Archive className="mr-2 h-3.5 w-3.5" /> Arquivar
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           )}
@@ -715,153 +850,77 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
   }
 
   return (
-    <div
-      data-testid="policy-tree"
-      className="flex h-full w-[360px] shrink-0 flex-col border-r border-neutral-200 dark:border-neutral-800"
-    >
-      <div className="flex flex-col gap-2 border-b border-neutral-200 p-3 dark:border-neutral-800">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">Árvore da política</h2>
-          {readOnly ? (
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <Badge variant="secondary" className="whitespace-nowrap">
-                Fotografia de {formatDateInputBR(snapshotDate!)} · somente leitura
-              </Badge>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => setComponentTreeSnapshotDate(null)}
-              >
-                <X className="mr-1 h-3.5 w-3.5" /> Voltar para hoje
-              </Button>
-            </div>
-          ) : (
-          <div className="flex flex-wrap gap-1">
-            <Button type="button" size="sm" variant="outline" onClick={startCreateRoot}>
-              <Plus className="mr-1 h-3.5 w-3.5" /> Nova seção
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setMatrixDialog({ open: true, parentId: undefined })}
-            >
-              <Grid3x3 className="mr-1 h-3.5 w-3.5" /> Pendurar matriz
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setMarkdownImportDialog({ open: true, parentId: undefined })}
-            >
-              <FileUp className="mr-1 h-3.5 w-3.5" /> Carregar Markdown
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={pendingCount === 0}
-              onClick={() => setPublishPendingOpen(true)}
-            >
-              <CheckCheck className="mr-1 h-3.5 w-3.5" /> Publicar pendentes{pendingCount > 0 ? ` (${pendingCount})` : ''}
-            </Button>
-          </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <label
-            htmlFor="tree-snapshot-date"
-            className="flex shrink-0 items-center gap-1 text-[11px] text-neutral-500 dark:text-neutral-400"
-          >
-            <CalendarClock className="h-3.5 w-3.5" /> Ver como em…
-          </label>
-          <Input
-            id="tree-snapshot-date"
-            type="date"
-            aria-label="Ver a política como em"
-            value={snapshotDate ?? ''}
-            onChange={(e) => setComponentTreeSnapshotDate(e.target.value === '' ? null : e.target.value)}
-            className="h-8 w-36 text-sm"
+    <div data-testid="policy-tree" className="flex min-w-0 flex-col">
+      {/*
+        A barra de ferramentas da tela da política (§2.1) é montada aqui e
+        injetada no slot do shell — só enquanto a tela da política está ativa:
+        "só o que a tela faz". Navegar para a biblioteca ou para o grid deixa a
+        faixa para quem estiver na frente.
+      */}
+      {view === 'projects' && (
+        <ToolbarPortal>
+          <PolicyToolbar
+            readOnly={readOnly}
+            snapshotDate={snapshotDate}
+            onSnapshotDateChange={setComponentTreeSnapshotDate}
+            onCompareDates={() => setView('policy-compare')}
+            pendingCount={pendingCount}
+            onNewSection={() => startCreateAtTarget('SECTION')}
+            onNewRule={() => startCreateAtTarget('RULE')}
+            onAddMatrix={() => setMatrixDialog({ open: true, parentId: targetParentId })}
+            onImportMarkdown={() => setMarkdownImportDialog({ open: true, parentId: targetParentId })}
+            onPublishPending={() => setPublishPendingOpen(true)}
+            search={search}
+            onSearchChange={setComponentTreeSearch}
+            types={types}
+            onToggleType={toggleComponentTreeType}
+            reviewStatuses={reviewStatuses}
+            onToggleReviewStatus={toggleComponentTreeReviewStatus}
+            facets={facets}
+            tags={tags}
+            onToggleTag={toggleComponentTreeTag}
+            onClearFilters={clearComponentTreeFilter}
+            targetPath={targetPath}
+            onFocusTarget={focusTarget}
           />
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="ml-auto"
-            onClick={() => setView('policy-compare')}
-          >
-            Comparar datas
-          </Button>
-        </div>
+        </ToolbarPortal>
+      )}
 
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
-          <Input
-            value={search}
-            onChange={(e) => setComponentTreeSearch(e.target.value)}
-            placeholder="Buscar por nome ou código…"
-            className="h-8 pl-7 text-sm"
-            aria-label="Buscar na árvore"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-1">
-          {POLICY_COMPONENT_TYPES.map((type) => (
-            <button
-              key={type}
-              type="button"
-              aria-pressed={types.includes(type)}
-              onClick={() => toggleComponentTreeType(type)}
-              className={cn(
-                'rounded-full border px-2 py-0.5 text-[11px] transition-colors',
-                types.includes(type)
-                  ? 'border-neutral-900 bg-neutral-900 text-neutral-50 dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                  : 'border-neutral-300 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800',
-              )}
-            >
-              {COMPONENT_TYPE_LABELS[type]}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {COMPONENT_REVIEW_STATUSES.map((status) => (
-            <button
-              key={status}
-              type="button"
-              aria-pressed={reviewStatuses.includes(status)}
-              onClick={() => toggleComponentTreeReviewStatus(status)}
-              className={cn(
-                'rounded-full border px-2 py-0.5 text-[11px] transition-colors',
-                reviewStatuses.includes(status)
-                  ? 'border-neutral-900 bg-neutral-900 text-neutral-50 dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                  : 'border-neutral-300 text-neutral-600 hover:bg-neutral-100 dark:border-neutral-700 dark:text-neutral-400 dark:hover:bg-neutral-800',
-              )}
-            >
-              {COMPONENT_REVIEW_STATUS_LABELS[status]}
-            </button>
-          ))}
-        </div>
-
-        <TagFilterBar facets={facets} selected={tags} onToggle={toggleComponentTreeTag} onClear={clearComponentTreeFilter} />
+      <div
+        title={READING_ORDER_NOTE}
+        className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400 dark:text-neutral-500"
+      >
+        <span className="flex-1 truncate">Árvore da política</span>
+        <button
+          type="button"
+          aria-label="Recolher tudo"
+          title="Recolher tudo"
+          onClick={collapseAllComponents}
+          className="rounded p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        >
+          <ChevronsDownUp className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="Expandir tudo"
+          title="Expandir tudo"
+          onClick={expandAll}
+          className="rounded p-0.5 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        >
+          <ChevronsUpDown className="h-3.5 w-3.5" />
+        </button>
       </div>
 
-      <div role="tree" aria-label="Árvore da política" className="flex-1 overflow-y-auto p-2">
+      <div role="tree" aria-label="Árvore da política" className="flex flex-col">
         {renderChildren(undefined, 0)}
         {listChildren(document, projectId, undefined).length === 0 && draft === null && (
-          <p className="p-4 text-center text-sm text-neutral-500 dark:text-neutral-400">
+          <p className="px-2 py-3 text-center text-xs text-neutral-500 dark:text-neutral-400">
             {readOnly
               ? `Nenhum componente existia em ${formatDateInputBR(snapshotDate!)}.`
               : 'Nenhum componente ainda. Comece pela primeira seção.'}
           </p>
         )}
       </div>
-
-      <p className="border-t border-neutral-200 p-2 text-[11px] text-neutral-400 dark:border-neutral-800 dark:text-neutral-600">
-        A ordem reflete o documento de política. A sequência de avaliação do motor está descrita no
-        texto de cada regra.
-      </p>
 
       {moveTargetId !== null && (
         <MoveComponentDialog
@@ -890,6 +949,17 @@ export function PolicyTree({ projectId }: PolicyTreeProps) {
         onPublished={(count) => {
           toast({ title: `${count} componente(s) publicado(s)` });
         }}
+      />
+      <ConfirmDialog
+        open={archiveTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setArchiveTarget(null);
+        }}
+        title={`Arquivar "${archiveTarget?.name ?? ''}"?`}
+        description="O componente e a subárvore dele sumem da árvore da política. O histórico de versões fica preservado no arquivo, e Ctrl+Z desfaz agora."
+        confirmLabel="Arquivar"
+        destructive
+        onConfirm={handleArchive}
       />
       <MarkdownImportDialog
         open={markdownImportDialog.open}

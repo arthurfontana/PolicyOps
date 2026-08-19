@@ -1212,7 +1212,7 @@ real.
 
 | Campo | Conteúdo |
 |---|---|
-| **Decisão** | O shell ganha um slot de **barra de ferramentas contextual** (40px, uma linha) abaixo do título da aplicação, preenchido pela tela ativa (`ui-store.toolbar`). As ações da árvore (Nova seção, Nova regra, Pendurar matriz, Carregar Markdown, Publicar pendentes) e a busca/filtro da política migram para lá, com um chip de **alvo** (`em: CMA › Fraude`). Só aparece o que a tela faz; item desabilitado só quando a ação existe e está bloqueada por papel ou estado. A migração é por tela — a tela que ainda não preencheu o slot mantém o cabeçalho que já tem. |
+| **Decisão** | O shell ganha um slot de **barra de ferramentas contextual** (40px, uma linha) abaixo do título da aplicação, preenchido pela tela ativa (por portal, `ToolbarPortal` — o mecanismo foi fechado na DEC-UX-006, que substitui a ideia original de guardar a barra em `ui-store.toolbar`). As ações da árvore (Nova seção, Nova regra, Pendurar matriz, Carregar Markdown, Publicar pendentes) e a busca/filtro da política migram para lá, com um chip de **alvo** (`em: CMA › Fraude`). Só aparece o que a tela faz; item desabilitado só quando a ação existe e está bloqueada por papel ou estado. A migração é por tela — a tela que ainda não preencheu o slot mantém o cabeçalho que já tem. |
 | **Data / gatilho** | 2026-08-18, mesma revisão: quatro botões, um seletor de data e três faixas de filtro ocupavam ~230px de altura do painel da árvore antes do primeiro nó. |
 | **Alternativas** | (a) barra global fixa com itens desabilitados fora de contexto — gasta a faixa mais nobre com comando inerte; (b) manter cada ação no cabeçalho da sua tela — é o estado atual, que empurra conteúdo para baixo em toda tela. |
 | **Por quê** | Painel é conteúdo, barra é comando. Separar os dois devolve altura ao conteúdo e dá um lugar previsível para o usuário procurar ação. |
@@ -1245,3 +1245,17 @@ real.
 | **Por quê** | É a mesma classe de estado do tema: por usuário, por máquina, irrelevante para o conteúdo versionado. |
 | **Custo aceito** | Um valor a mais em `localStorage` e o cuidado de validar o intervalo na leitura (valor corrompido cai no padrão). |
 | **Páginas afetadas** | `07-ux-e-editor.md` §2; `06-persistencia-e-concorrencia.md` (estado de interface fora do documento) |
+
+---
+
+## DEC-UX-006: o slot da barra é preenchido por portal, e quem preenche o da política é a árvore
+
+| Campo | Conteúdo |
+|---|---|
+| **Decisão** | A barra de ferramentas contextual (DEC-UX-003) é um contêiner do shell (`ToolbarSlot`) e a tela ativa injeta os itens nele por `createPortal` (`ToolbarPortal`, `src/components/shell/Toolbar.tsx`) — nada de `ReactNode` em Zustand. Na tela da política, quem monta a barra é a **própria `PolicyTree`**, condicionada a `view === 'projects'`. O colapso em `⋯ Mais` é **medido** (o conteúdo não coube na linha), com a régua de ~1100px de janela como piso e histerese na volta. |
+| **Data / gatilho** | 2026-08-19, implementação da S41: a barra da política precisa disparar criação, filtro e alvo sobre o estado que vive na árvore (rascunho em edição, diálogos de matriz/Markdown/publicação em lote, seleção), e a árvore agora mora na barra lateral — não no centro. |
+| **Refina** | DEC-UX-003 (que citava `ui-store.toolbar` como mecanismo). |
+| **Alternativas** | (a) guardar os itens da barra numa store — coloca `ReactNode` em estado global, quebra o `ui-store` como dado serializável e faz a barra re-renderizar por caminho invisível; (b) duplicar o estado de criação numa store para a barra e a árvore lerem — dois donos do mesmo rascunho, exatamente o que §17.1 proíbe ("nunca dois caminhos com regras diferentes"); (c) `ProjectDetail` preencher a barra e comandar a árvore por store — teria de recriar em store o rascunho, o alvo e os quatro diálogos que já vivem na árvore; (d) colapsar só por largura de janela — a mesma janela de 1280px cabe a barra de uma tela e não cabe a de outra, e a barra da política ainda carrega o seletor de data transitório da S43. |
+| **Por quê** | O portal mantém a regra de ouro do slot ("o lugar é do shell, o conteúdo é da tela") sem inventar um canal de comunicação novo: quem tem o estado desenha o botão. Condicionar à `view` cumpre o "só o que a tela faz" da §2.1 mesmo com a árvore visível o tempo todo na navegação. |
+| **Custo aceito** | `PolicyTree` acumula dois papéis (a lista e a barra da tela) — mitigado por `PolicyToolbar` ser um componente de apresentação puro, sem `dispatch`. Medir o colapso custa um `useLayoutEffect` por render da barra e depende de layout real, então em jsdom (`scrollWidth` = 0) o formato completo é o default dos testes. |
+| **Páginas afetadas** | `07-ux-e-editor.md` §2.1, §17.1; `src/components/shell/Toolbar.tsx`, `src/hooks/useToolbarCompact.ts`, `src/components/tree/{PolicyTree,PolicyToolbar}.tsx` |

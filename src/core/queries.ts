@@ -28,7 +28,6 @@ import type {
   VariableVersion,
 } from './document/schema';
 import { changeRequestProjectIds } from './document/change-requests';
-import { listChildren } from './document/components';
 import { changeRequestPublishedAt } from './document/cr-publish';
 import { getAxisStaleness, type AxisStaleness } from './reconcile/stale';
 import { previewTemplate } from './templates/preview';
@@ -1153,26 +1152,6 @@ export function filterComponentTree(
     });
 
   return { matchedIds, visibleIds, facets };
-}
-
-/** Anchors dos dois primeiros níveis da árvore (docs/07 §17.1) — o que a sidebar mostra sob o projeto. */
-export type SidebarTreeAnchors = {
-  level1: PolicyComponent[];
-  level2ByParent: Map<string, PolicyComponent[]>;
-};
-
-export function sidebarTreeAnchors(doc: PolicyOpsDocument, projectId: string): SidebarTreeAnchors {
-  const level1 = listChildren(doc, projectId, undefined).filter(
-    (component) => component.archivedAt === undefined,
-  );
-  const level2ByParent = new Map<string, PolicyComponent[]>();
-  for (const parent of level1) {
-    level2ByParent.set(
-      parent.id,
-      listChildren(doc, projectId, parent.id).filter((component) => component.archivedAt === undefined),
-    );
-  }
-  return { level1, level2ByParent };
 }
 
 // ---------------------------------------------------------------------------

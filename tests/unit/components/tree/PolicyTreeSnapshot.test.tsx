@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { PolicyTree } from '@/components/tree/PolicyTree';
-import { Toaster } from '@/components/ui/toaster';
+import { renderPolicyTree } from './policy-tree-harness';
 import type { Command } from '@/core/command';
 import { createComponent } from '@/core/document/components';
 import { createSampleDocument } from '@/core/document/create';
@@ -57,15 +56,7 @@ function setupPolitica(): { projectId: string } {
   return { projectId };
 }
 
-function renderTree(projectId: string) {
-  useUiStore.setState((s) => ({ componentTree: { ...s.componentTree, projectId } }));
-  return render(
-    <>
-      <PolicyTree projectId={projectId} />
-      <Toaster />
-    </>,
-  );
-}
+const renderTree = (projectId: string) => renderPolicyTree(projectId);
 
 beforeEach(() => {
   useDocumentStore.getState().closeDocument();

@@ -20,6 +20,19 @@ const GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: 'Política — barra de ferramentas e árvore',
+    shortcuts: [
+      { keys: 'Enter', description: 'Nova seção: irmão do nó selecionado, já em edição de nome' },
+      { keys: 'Shift+Enter', description: 'Nova regra: irmão do nó selecionado, do tipo Regra' },
+      { keys: 'Tab / Shift+Tab', description: 'Na criação, desce/sobe um nível antes de gravar' },
+      { keys: 'F2', description: 'Renomear o nó (duplo clique faz o mesmo)' },
+      { keys: 'Ctrl/Cmd+D', description: 'Duplicar o nó como irmão logo abaixo' },
+      { keys: 'Ctrl+Shift+P', description: 'Publicar pendentes do projeto' },
+      { keys: 'Alt+clique no chevron', description: 'Abre ou fecha a subárvore inteira' },
+      { keys: '← / →', description: 'Com a alça da navegação em foco, ajusta a largura em 16px' },
+    ],
+  },
+  {
     title: 'Grid — seleção',
     shortcuts: [
       { keys: 'Clique', description: 'Seleciona uma célula e define a âncora' },
@@ -55,7 +68,11 @@ export function ShortcutsDialog({ open, onOpenChange }: ShortcutsDialogProps) {
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Atalhos de teclado</DialogTitle>
-          <DialogDescription>Atalhos só agem com o foco fora de campos de texto.</DialogDescription>
+          <DialogDescription>
+            Atalhos só agem com o foco fora de campos de texto. Na árvore da política, a ordem
+            reflete o documento de política — a sequência de avaliação do motor está descrita no
+            texto de cada regra.
+          </DialogDescription>
         </DialogHeader>
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto pr-1">
           {GROUPS.map((group) => (

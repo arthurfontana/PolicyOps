@@ -45,7 +45,7 @@ Três regiões, três papéis, e nenhuma repete o papel da outra:
 | **Centro** | onde se lê e se escreve | Todo objeto com conteúdo próprio — componente (§17.5), matriz, DB, release — se edita aqui, em largura útil. Nunca em painel lateral |
 | **Inspector** (direita) | propriedades de uma **seleção dentro** do centro | Só existe onde há seleção: células do grid (§6) e célula do diff (§9). Componente não é seleção dentro de uma tela, é a tela — por isso não tem inspector (DEC-UX-002) |
 
-- Sidebar e inspector colapsáveis (`[` e `]`). A largura da sidebar é arrastada pela borda direita (alça de 4px, `aria-label="Ajustar largura da navegação"`, setas ←/→ movem 16px quando ela tem foco), respeita o intervalo 248–480px, volta ao padrão (288px) com duplo clique na alça e é lembrada por usuário em `localStorage` (`policyops.sidebarWidth`) — é interface, nunca documento (DEC-UX-005).
+- Sidebar e inspector colapsáveis (`[` e `]`). A largura da sidebar é arrastada pela borda direita (alça de 4px dentro do próprio `aside`, `role="separator"`, `aria-label="Ajustar largura da navegação"`, `aria-valuenow/min/max`, setas ←/→ movem 16px quando ela tem foco), respeita o intervalo 248–480px, volta ao padrão (288px) com duplo clique na alça e é lembrada por usuário em `localStorage` (`policyops.sidebarWidth`, valor fora do intervalo ou corrompido cai no padrão na leitura) — é interface, nunca documento (DEC-UX-005). **Entregue na S41**, com a árvore da política dentro da navegação (§17.1).
 - Nas telas sem seleção (política, bibliotecas, vigência, DB, releases) o inspector **não é renderizado** e o botão `▥` do cabeçalho fica desabilitado com o motivo no `title` ("Esta tela não tem propriedades de seleção"). Não existe painel direito vazio dizendo "nada selecionado".
 - Barra de status no rodapé: nome do arquivo, `Salvo` / `Alterações não salvas` / `Salvando…` / `Erro`, revisão, quem detém o lock, a identidade (login do Windows no modo `SERVER`, nome digitado nos demais) e o **papel efetivo** no documento aberto (`READER`/`EDITOR`/`PUBLISHER`/`ADMIN` — `14-plataforma-local.md` §6, S29).
 - `Ctrl+S` salva. `Ctrl+Shift+S` salva como. Isso é explícito: o usuário decide quando publicar o arquivo para o time.
@@ -55,29 +55,38 @@ Três regiões, três papéis, e nenhuma repete o papel da outra:
 
 Uma faixa de **40px, uma linha só**, abaixo do título da aplicação — o lugar de todas as ações de
 tela. Ação de tela não mora dentro de painel: painel é conteúdo, barra é comando (DEC-UX-003).
+**Entregue na S41** para a tela da política; as demais telas entram na sessão que as tocar.
 
 | Grupo | Posição | Conteúdo |
 |---|---|---|
 | **Criação** | esquerda | O que a tela cria (na política: Nova seção · Nova regra · Pendurar matriz · Carregar Markdown) |
 | **Publicação** | após criação, separador antes | O que a tela publica em lote (na política: Publicar pendentes com o contador no rótulo) |
 | **Busca e filtro** | centro-direita | Campo de busca da tela + botão **Filtrar** com o número de filtros ativos no rótulo, abrindo popover com os chips de tipo, revisão e tag (§17.1) e "Limpar filtros" |
-| **Alvo** | direita, antes dos ícones globais | Chip `em: CMA › Fraude` — o nó onde a criação vai acontecer. Clicar rola a árvore até ele; sem nó selecionado o chip diz `em: raiz da política` |
+| **Alvo** | direita, antes dos ícones globais | Chip `em: … › CMA › Fraude` — o nó onde a criação vai acontecer, pelas duas últimas pontas do caminho (o caminho inteiro fica no `title`). Clicar abre os ancestrais e rola a árvore até ele; sem nó selecionado o chip diz `em: raiz da política` |
 
 Regras da barra:
 
 - **Só o que a tela faz.** Um item desabilitado só aparece quando a ação existe naquela tela e está
   bloqueada por papel ou estado (com o motivo no `title`). Ação de outra tela não fica na barra
   esmaecida "para constar".
-- **Cabe numa linha.** Abaixo de ~1100px de largura, os itens de criação além do primeiro colapsam
-  num botão `⋯ Mais` com os mesmos rótulos; os ícones globais (tema, atalhos, inspector) nunca
-  colapsam.
-- **A barra é um slot do shell** (`ToolbarPortal`, `src/components/shell/Toolbar.tsx`), preenchido
-  pela tela ativa por portal — sem guardar `ReactNode` em store. Tela que ainda
-  não preencheu o slot mantém o cabeçalho próprio que já tem — a migração é por tela, não um
-  big-bang: a tela da política é a primeira (S41), e as demais entram na sessão que as tocar.
+- **Cabe numa linha.** Abaixo de ~1100px de largura — **ou** sempre que o conteúdo não couber na
+  linha, medido — os itens de criação além do primeiro colapsam num botão `⋯ Mais` com os mesmos
+  rótulos; os ícones globais (tema, atalhos, inspector) nunca colapsam. Medir, e não só olhar a
+  largura da janela, porque a barra não tem sempre o mesmo conteúdo: a mesma janela cabe a barra de
+  uma tela e não cabe a de outra (`useToolbarCompact`, com histerese para não oscilar no arrasto).
+- **A barra é um slot do shell** (`ToolbarSlot`/`ToolbarPortal`, `src/components/shell/Toolbar.tsx`),
+  preenchido pela tela ativa por portal — sem guardar `ReactNode` em store (DEC-UX-006). Tela que
+  ainda não preencheu o slot mantém o cabeçalho próprio que já tem, e **a faixa nem é renderizada**:
+  o contêiner só ganha altura, borda e `role="toolbar"` quando alguém o preenche. A migração é por
+  tela, não um big-bang: a tela da política é a primeira (S41), e as demais entram na sessão que as
+  tocar. Na política quem preenche o slot é a própria `PolicyTree` — ela é a dona do estado de
+  criação e dos diálogos —, e só enquanto a tela da política está na frente.
 - **Teclado**: as mesmas ações têm atalho e o atalho aparece no `title` (`Nova seção` = `Enter` na
   árvore, `Nova regra` = `Shift+Enter`, `Publicar pendentes` = `Ctrl+Shift+P`). O diálogo de
   atalhos (§12) lista a barra inteira.
+- **Transitório da S41**: o seletor `Ver como em…` e o atalho para comparar datas continuam na
+  barra da política enquanto a fotografia for um estado da árvore. Os dois saem na S43, quando a
+  consulta histórica virar tela (DEC-UX-004).
 
 ## 3. Badges de estado
 
@@ -400,18 +409,18 @@ condições, a rota mostra "Requer papel ADMIN — você é X" em vez do conteú
 - Zerar a lista de usuários e salvar volta o documento ao modo aberto (`meta.acl` removida, não
   uma ACL com `users: []` — mesmo efeito para `resolveRole`, mas mantém o arquivo limpo).
 
-## 17. Árvore da política (épico Governança — S33a ✅/S33b ✅; layout de §17.1/§17.5 — S41/S42 🔮)
+## 17. Árvore da política (épico Governança — S33a ✅/S33b ✅; layout de §17.1 — S41 ✅, §17.5 — S42 🔮)
 
 > O modelo por trás está em [`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md)
 > §3.1 e §3.6. O comportamento de estrutura, cadastro e versionamento é o entregue nas S33a/S33b;
-> **§17.1 (árvore na barra lateral) e §17.5 (página do componente no centro) descrevem o layout
-> alvo das sessões S41/S42** — DEC-UX-001 e DEC-UX-002.
+> **§17.1 (árvore na barra lateral) foi entregue na S41** e **§17.5 (página do componente no
+> centro) descreve o layout alvo da S42** — DEC-UX-001 e DEC-UX-002.
 
 A política deixa de ser "uma lista de matrizes num projeto" e passa a ser **um sumário navegável**:
 seções, regras, listas e os nós que apontam as matrizes já existentes. O `Project` é a política
 ("Política de Crédito B2C"); a árvore é o corpo dela.
 
-### 17.1 Onde a árvore vive
+### 17.1 Onde a árvore vive — S41 ✅
 
 **A árvore da política É a barra lateral esquerda** (§2) — não existe um segundo painel de árvore
 dentro da tela (DEC-UX-001). Com ~101 nós de estrutura mais os nós das matrizes, duas listas
@@ -435,7 +444,8 @@ disputavam o mesmo trabalho e comiam metade da largura útil: o painel morreu e 
 - **A sidebar é uma coisa só**: `Projetos` → o projeto aberto se expande na **árvore inteira**
   (todos os níveis, não os dois primeiros) → abaixo dela, Biblioteca, Vigência, Diário de Bordo,
   Releases, Templates, Rascunhos, Comparação e Acesso, como em §2. Fechar o projeto recolhe a
-  árvore inteira.
+  árvore inteira. A árvore acompanha o **projeto selecionado**, não a tela: clicar num nó estando na
+  Biblioteca ou nas Releases leva de volta à tela da política com aquele nó selecionado.
 - **Linha do nó**: chevron, ícone do tipo, nome, badge de estado/vigência (§3), `⚠` de revisão
   pendente, contagem de descendentes na seção e o menu `⋯` (visível no hover e sempre no nó
   selecionado). O `code` aparece à direita **a partir de 340px** de largura da sidebar — abaixo
@@ -444,24 +454,30 @@ disputavam o mesmo trabalho e comiam metade da largura útil: o painel morreu e 
 - **O menu `⋯` do nó é a fonte única de ações estruturais**: Novo filho · Nova regra · Adicionar
   matriz… · Renomear (`F2`) · Mover para… · Duplicar (`Ctrl+D`) · Carregar Markdown aqui… ·
   Arquivar. As mesmas ações estão na barra de ferramentas (§2.1) aplicadas ao nó selecionado; a
-  árvore e a barra chamam os mesmos comandos, nunca dois caminhos com regras diferentes.
-- **Abrir e fechar em bloco**: `Recolher tudo` / `Expandir tudo` no cabeçalho do projeto na
-  sidebar; `Alt+clique` no chevron (ou `*` com o nó em foco) abre/fecha a subárvore inteira daquele
-  nó. Estado de expansão e filtros continuam em `ui-store.componentTree`, escopados por projeto —
-  interface, não documento.
+  árvore e a barra chamam os mesmos comandos, nunca dois caminhos com regras diferentes. No menu,
+  "Novo filho" e "Nova regra" nascem **dentro** do nó; na barra, "Nova seção" e "Nova regra" nascem
+  **irmãs** do nó selecionado — a mesma semântica do `Enter`/`Shift+Enter` na árvore —, e sem
+  seleção nascem na raiz da política.
+- **Abrir e fechar em bloco**: `Recolher tudo` / `Expandir tudo` no cabeçalho da árvore na sidebar;
+  `Alt+clique` no chevron abre/fecha a subárvore inteira daquele nó (o `*` com o nó em foco entra na
+  S44, com o resto do teclado da árvore). Estado de expansão e filtros continuam em
+  `ui-store.componentTree`, escopados por projeto — interface, não documento.
 - **Busca e filtros vivem na barra de ferramentas** (§2.1), não dentro da árvore: campo de busca +
-  botão `Filtrar (n)` com os chips de tipo, `reviewStatus` e tag (`TagFilterBar` do §15). A árvore
-  ganha altura útil de volta quando ninguém está filtrando.
+  botão `Filtrar (n)` abrindo um popover com os chips de tipo, `reviewStatus` e tag (`TagFilterBar`
+  do §15) e "Limpar filtros". A árvore ganha altura útil de volta quando ninguém está filtrando: o
+  primeiro nó aparece logo abaixo do cabeçalho do projeto, não a ~230px do topo.
 - **Filtro não achata a árvore**: ao filtrar, os ancestrais dos itens que sobraram permanecem
   visíveis, esmaecidos (`filterComponentTree` devolve `matchedIds` e `visibleIds` separados). Uma
   árvore filtrada que vira lista plana faz o usuário perder o lugar.
 - **A ordem é de leitura, e a tela diz isso** — a nota *"A ordem reflete o documento de política. A
   sequência de avaliação do motor está descrita no texto de cada regra."* fica no `title` do
-  cabeçalho do projeto e no diálogo de ajuda (§12), não ocupando duas linhas fixas no rodapé da
-  navegação (`14-governanca-de-alteracoes.md` §3.6).
+  cabeçalho do projeto (e no do cabeçalho da árvore) e no diálogo de atalhos (§12), não ocupando
+  duas linhas fixas no rodapé da navegação (`14-governanca-de-alteracoes.md` §3.6).
 - **Centro sem nó selecionado**: a tela do projeto continua sendo a lista de matrizes com facetas
   do §15, **inalterada** — é a porta default (§17.2). Selecionar um nó não-`MATRIX` abre a página
-  do componente (§17.5); selecionar um nó `MATRIX` navega direto para o grid.
+  do componente (§17.5); selecionar um nó `MATRIX` navega direto para o grid. *Na S41 o componente
+  selecionado continua em `ComponentContentPanel` (centro) + `ComponentInspector` (direita); a
+  página do §17.5 é a S42.*
 - **Breadcrumb clicável** no topo do centro (`Política de Crédito B2C › CMA › Bloqueios por
   Dívida`) — suporta os 6 níveis possíveis (`componentPath`).
 

@@ -44,7 +44,15 @@ test('colar amostra → revisar → confirmar → árvore navegável', async ({ 
   await expect(page.getByRole('heading', { name: 'Política PJ' })).toBeVisible();
 
   // --- Passo 1: destino (raiz) + colar o texto ---------------------------
-  await page.getByRole('button', { name: 'Carregar Markdown' }).click();
+  // "Carregar Markdown" é o quarto item de criação da barra de ferramentas
+  // (§2.1): em janela estreita ele vive dentro do "⋯ Mais".
+  const botaoDireto = page.getByRole('button', { name: 'Carregar Markdown' });
+  if ((await botaoDireto.count()) === 0) {
+    await page.getByRole('button', { name: '⋯ Mais' }).click();
+    await page.getByRole('menuitem', { name: 'Carregar Markdown' }).click();
+  } else {
+    await botaoDireto.click();
+  }
   await expect(page.getByRole('dialog', { name: 'Carregar Markdown' })).toBeVisible();
   await page.getByLabel('Texto em Markdown').fill(MARKDOWN_SAMPLE);
   await page.getByRole('button', { name: 'Avançar' }).click();
@@ -66,7 +74,9 @@ test('colar amostra → revisar → confirmar → árvore navegável', async ({ 
   const secao = page.getByTestId('tree-node-BLOQUEIOS_POR_DIVIDA');
   await expect(secao).toBeVisible();
   await secao.click();
-  await expect(page.getByText('Bloqueios por Dívida').first()).toBeVisible();
+  // `.first()` pegaria o chip de alvo da barra (§2.1) — aqui o que interessa
+  // é o conteúdo do centro, do componente aberto pela árvore.
+  await expect(page.getByRole('heading', { name: 'Bloqueios por Dívida' }).first()).toBeVisible();
   await page.getByRole('button', { name: 'Expandir Bloqueios por Dívida' }).click();
 
   const regra = page.getByTestId('tree-node-DIVIDA_ACIMA_DE_R_5_000');
