@@ -57,6 +57,9 @@ test('data no passado mostra a versão histórica correta, com banner e link par
   await page.getByRole('button', { name: 'Vigência', exact: true }).click();
   await expect(page).toHaveURL(/#\/timeline/);
 
+  // A aba padrão é Estrutura (S43, docs/07 §10) — a lista de matrizes é a segunda.
+  await page.getByRole('tab', { name: 'Matrizes' }).click();
+
   // Projeto padrão já é Política PF — o primeiro projeto do documento.
   await page.getByRole('button', { name: '30 dias atrás' }).click();
 
@@ -89,10 +92,11 @@ test('data no passado mostra a versão histórica correta, com banner e link par
 
   // Um projeto sem política vigente naquela data mostra a mensagem, não erro.
   await page.getByRole('button', { name: 'Vigência', exact: true }).click();
+  await page.getByRole('tab', { name: 'Matrizes' }).click();
   await page.getByLabel('Selecionar projeto').click();
   await page.getByRole('option', { name: /Política PJ/ }).click();
   await page.getByRole('button', { name: '90 dias atrás' }).click();
-  await expect(page.getByText(/sem política vigente em/)).toBeVisible();
+  await expect(page.getByText(/sem política vigente em/).first()).toBeVisible();
 
   expect(pageErrors).toEqual([]);
 });
@@ -105,6 +109,7 @@ test('clicar num segmento da linha do tempo navega para aquela versão', async (
   await publishPFDraft(page);
 
   await page.getByRole('button', { name: 'Vigência', exact: true }).click();
+  await page.getByRole('tab', { name: 'Matrizes' }).click();
   await page.getByTestId('timeline-segment-v1').click();
 
   await expect(page.getByTestId('historical-banner')).toBeVisible();

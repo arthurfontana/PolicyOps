@@ -440,7 +440,7 @@ nunca mais montar o Word na mão.
   boilerplate representativo do checklist Serasa (não uma transcrição literal dos Words 513/515/519,
   que não fazem parte do repositório).
 
-### US-GOV-07 — Consultar a política em qualquer data ✅ (S39)
+### US-GOV-07 — Consultar a política em qualquer data ✅ (S39 + S43)
 **Como** analista, **quero** selecionar uma data e ver a política inteira como estava **para**
 responder auditoria sem arqueologia.
 
@@ -452,9 +452,15 @@ responder auditoria sem arqueologia.
   como nó de raiz (DEC-GOV-039).
 - ✅ Contadores do período (`getPolicyPeriodCounters`): componentes e matrizes vigentes no fim do
   período, DBs publicados no período (pela vigência) e DBs em andamento.
-- ✅ Na tela: a **tela de Vigência** mostra a estrutura inteira do projeto na data escolhida, em
-  somente leitura, e a página do componente salta para ela pela faixa de vigência ("ver a política
-  inteira nesta data") — docs/07 §10 e §20.1–20.2, DEC-UX-004.
+- ✅ Na tela (S43): a leitura mora na **tela de Vigência** (`TimelineScreen`, docs/07 §10), na aba
+  **Estrutura** — a árvore do projeto na data, com `v{n}`, "sem política vigente em dd/mm/aaaa" e
+  `estrutura`, o que não existia na data ausente, e o conteúdo daquela versão (payload e
+  especificação, ou o grid da matriz) em somente leitura ao lado, com banner de versão histórica e
+  **"Abrir no editor (hoje)"**. A página do componente salta para ela pela faixa de vigência
+  ("ver a política inteira nesta data") e a comparação pelos atalhos "Ver a política em…"
+  (docs/07 §20.1–20.3). A árvore da barra lateral **não** entra mais em somente leitura por data:
+  `componentTree.snapshotDate` deixou de existir e a data da consulta é `ui-store.policyAtDate`
+  (DEC-UX-004).
 
 ### US-GOV-08 — Comparar e acompanhar a evolução ✅ (S37 + S39)
 **Como** gestor, **quero** comparar regra antes × depois, política em duas datas e o conteúdo de

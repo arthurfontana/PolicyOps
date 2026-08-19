@@ -84,9 +84,11 @@ Regras da barra:
 - **Teclado**: as mesmas ações têm atalho e o atalho aparece no `title` (`Nova seção` = `Enter` na
   árvore, `Nova regra` = `Shift+Enter`, `Publicar pendentes` = `Ctrl+Shift+P`). O diálogo de
   atalhos (§12) lista a barra inteira.
-- **Transitório da S41**: o seletor `Ver como em…` e o atalho para comparar datas continuam na
-  barra da política enquanto a fotografia for um estado da árvore. Os dois saem na S43, quando a
-  consulta histórica virar tela (DEC-UX-004).
+- **A segunda tela a preencher o slot é a de Vigência (S43)**: data com os atalhos da §10, seletor
+  de projeto, **"Comparar com outra data"** e — só na aba Estrutura, porque filtrar o passado é
+  leitura — busca e `Filtrar (n)` com os mesmos chips de tipo/revisão/tag. O seletor `Ver como
+  em…` e o atalho de comparar datas **saíram** da barra da política junto com o modo fotografia
+  (DEC-UX-004): a árvore da esquerda é sempre hoje.
 
 ## 3. Badges de estado
 
@@ -259,13 +261,16 @@ executiva, lado a lado, sem montagem manual em PowerPoint.
   `html-to-image`, mesmo mecanismo do export de matriz única (§12) — pronto para colar num slide já
   pronto.
 
-## 10. Tela de vigência — a política inteira em qualquer data
+## 10. Tela de vigência — a política inteira em qualquer data (S43 ✅)
 
 É a tela de leitura do passado: **toda a estrutura do projeto na data escolhida**, não só as
 matrizes. Seções, regras, listas, variáveis de política e matrizes aparecem juntas, cada uma com o
 que era naquele dia (DEC-UX-004). É aqui que mora o antigo "ver como em…" da barra da árvore.
 
-- Seletor de data (padrão: hoje) e de projeto. Atalhos: Hoje · Início do mês · 30/90 dias atrás · Início do ano.
+- Seletor de data (padrão: hoje) e de projeto, **na barra de ferramentas** (§2.1). Atalhos: Hoje ·
+  Início do mês · 30/90 dias atrás · Início do ano. A data e o projeto continuam no hash
+  (`#/timeline?date=…&project=…`) — o link abre a mesma visão para outra pessoa — e a data mora em
+  `ui-store.policyAtDate`, porque os saltos que abrem esta tela vêm de fora dela (§20.2, §20.3).
 - Três visões, em abas, sobre a **mesma** data:
 
 | Aba | O que mostra |
@@ -277,7 +282,13 @@ que era naquele dia (DEC-UX-004). É aqui que mora o antigo "ver como em…" da 
 - Selecionar um nó da aba **Estrutura** abre, ao lado, o **conteúdo daquela versão em somente
   leitura** — payload campo a campo e especificação rica —, com o banner *"Você está vendo a
   versão 3, vigente de 01/03 a 12/07. Esta é uma versão histórica."* e marca d'água discreta. Nó
-  `MATRIX` abre o grid da versão vigente na data, com o mesmo banner.
+  `MATRIX` abre o grid da versão vigente na data, com o mesmo banner. A versão que ainda vigora
+  hoje traz o banner sem chamá-la de histórica (e sem marca d'água): o que a data mostra pode ser
+  o presente. Seção pura diz *"estrutura, não conteúdo"* e conteúdo sem versão diz *"sem política
+  vigente em dd/mm/aaaa"* — as mesmas três leituras da árvore (§20.1).
+- A árvore da aba Estrutura é o **mesmo nó** da árvore da barra lateral (`TreeNodeRow`,
+  `src/components/tree/`), em modo leitura: badge de versão no lugar do badge de hoje, sem menu
+  `⋯`, sem arrastar e sem renomear.
 - **Nada se edita aqui.** Editar é sempre no presente: o botão **"Abrir no editor (hoje)"** leva ao
   mesmo componente na tela da política, fora da fotografia. É o que dispensa bloquear edição campo
   a campo na árvore lateral — a árvore da esquerda é sempre hoje (DEC-UX-004).
@@ -901,22 +912,24 @@ mostra o que ainda está em andamento; esta tela é só o que já virou fato.
 
 A comparação entre duas datas e a comparação release × release ficaram para a S39 e são a §20.
 
-## 20. Fotografia e comparação da política (épico Governança — S39 ✅)
+## 20. Fotografia e comparação da política (épico Governança — S39 ✅; a fotografia virou tela — S43 ✅)
 
 Duas telas para as duas perguntas de auditoria da US-GOV-07/08: "qual era a política vigente em
 15/05?" e "o que mudou desde março?". Nenhuma regra mora nelas — `getPolicyAt` e
 `diffPolicySnapshots` (`05-regras-de-negocio.md` §6.2/§6.3) fazem a consulta, as telas leem e
 desenham.
 
-### 20.1 A fotografia é uma tela, não um estado da árvore
+### 20.1 A fotografia é uma tela, não um estado da árvore — S43 ✅
 
 Perguntar "o que valia em 15/05?" é **leitura**, e leitura tem tela própria: a de Vigência (§10),
 que mostra a estrutura inteira do projeto na data — regras, listas, variáveis e matrizes juntas.
 
 A árvore da barra lateral (§17.1) é **sempre hoje**: é por onde se navega e se edita, e não entra
-em modo somente leitura (DEC-UX-004). Isso elimina o estado duplo que existia antes — árvore
-"congelada" com botões sumindo, menus inertes e inspector bloqueado —, sem perder nenhuma das
-leituras do passado, que agora vivem todas na tela de Vigência:
+em modo somente leitura (DEC-UX-004). O estado duplo que existia antes — árvore "congelada" com
+botões sumindo, menus inertes e página do componente bloqueada — **deixou de existir**:
+`ui-store.componentTree.snapshotDate` saiu, e no lugar entrou `ui-store.policyAtDate`, que é a
+data da tela de Vigência e não bloqueia nada. Nenhuma leitura do passado se perdeu — todas vivem
+agora na tela de Vigência:
 
 - `v{n}` da versão vigente naquela data, *"sem política vigente em dd/mm/aaaa"* no conteúdo sem
   versão ali e `estrutura` na seção pura (I29);
@@ -925,14 +938,15 @@ leituras do passado, que agora vivem todas na tela de Vigência:
 - conteúdo daquela versão em somente leitura ao selecionar o nó, com banner de versão histórica;
 - **"Abrir no editor (hoje)"** em qualquer nó, para sair da consulta e editar no presente.
 
-### 20.2 Salto a partir da timeline do componente (§17.5)
+### 20.2 Salto a partir da timeline do componente (§17.5) — S43 ✅
 
 Na faixa de vigência da página do componente, clicar num segmento — ou o botão **"Ver a política
-inteira nesta data"** — abre a tela de Vigência na data em que aquela versão passou a vigorar. É a
-continuação natural: a pergunta depois de "quando esta regra mudou?" é sempre "e o que mais valia
-naquele dia?".
+inteira nesta data"** — abre a tela de Vigência na data em que aquela versão passou a vigorar
+(`ui-store.openPolicyAt`). É a continuação natural: a pergunta depois de "quando esta regra
+mudou?" é sempre "e o que mais valia naquele dia?". A página do componente **não muda** com o
+salto: ela é sempre hoje, e continua editável enquanto a consulta está aberta noutra tela.
 
-### 20.3 Tela de comparação (`View` `'policy-compare'`, hash `#/politica/comparar`)
+### 20.3 Tela de comparação (`View` `'policy-compare'`, hash `#/politica/comparar`) — S39 ✅, saltos revistos na S43
 
 `PolicyCompareScreen` — seletor de projeto, duas abas e **dois seletores**:
 
@@ -946,7 +960,9 @@ naquele dia?".
 
 O cabeçalho do resultado traz as duas pontas, os totais (adicionados · alterados · removidos), os
 contadores do período da US-GOV-07 (vigentes no fim, DBs publicados no período, DBs em andamento) e
-dois atalhos **"Ver a política em …"**, que abrem a tela de Vigência (§10) na data de cada ponta.
+dois atalhos **"Ver a política em …"**, que abrem a tela de Vigência (§10) na data de cada ponta
+(o mesmo `openPolicyAt` do §20.2). No sentido inverso, "Comparar com outra data" (§10) traz a data
+da consulta já preenchida em **Data comparada**, restando escolher a outra ponta.
 
 Abaixo, as mudanças **agrupadas por seção** da árvore (raiz do projeto por último). Cada cartão traz
 nome, código, tipo, o rastro de versão (`v1 → v2`, "não existia" / "não vigora mais") e o detalhe
@@ -974,7 +990,7 @@ dependem de estado e sequência, e por isso viram teste.
 | **US-UX-01** | Como analista de política, quero navegar a hierarquia inteira numa lista só, para não decidir a cada clique qual das duas árvores da tela é a certa |
 | **US-UX-02** | Como analista, quero escrever a regra na largura da tela, para digitar definição técnica e especificação sem escrever dentro de uma coluna de 340px |
 | **US-UX-03** | Como analista cadastrando ~50 regras, quero criar, renomear e publicar sem tirar as mãos do teclado, para que o volume não vire duas semanas |
-| **US-UX-04** | Como gerente, quero ver a política inteira como estava numa data — regras, listas e matrizes — numa tela de consulta, sem congelar a tela em que eu edito |
+| **US-UX-04** ✅ (S43) | Como gerente, quero ver a política inteira como estava numa data — regras, listas e matrizes — numa tela de consulta, sem congelar a tela em que eu edito |
 | **US-UX-05** | Como usuário em notebook de 1366px, quero ajustar a largura da navegação, porque os nomes das minhas seções não cabem em 248px |
 
 Critérios de aceitação transversais: nenhuma ação existente hoje pode desaparecer sem substituta na

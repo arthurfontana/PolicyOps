@@ -39,9 +39,9 @@ import {
   type ComponentReviewStatus,
   type PolicyComponentType,
 } from '@/core/document/schema';
-import { componentPath, getComponentEffectiveVersion, getComponentTimeline } from '@/core/queries';
+import { componentPath, getComponentTimeline } from '@/core/queries';
 import { versionBadge } from '@/lib/matrix-badges';
-import { endOfDayInstant, formatDateInputBR, toDateInputValue } from '@/lib/timeline-dates';
+import { toDateInputValue } from '@/lib/timeline-dates';
 import {
   COMPONENT_REVIEW_STATUS_LABELS,
   COMPONENT_REVIEW_STATUS_VARIANTS,
@@ -119,8 +119,7 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
   const dispatch = useDocumentStore((s) => s.dispatch);
   const setSelectedComponent = useEditorStore((s) => s.setSelectedComponent);
   const expandComponents = useUiStore((s) => s.expandComponents);
-  const componentTree = useUiStore((s) => s.componentTree);
-  const setComponentTreeSnapshotDate = useUiStore((s) => s.setComponentTreeSnapshotDate);
+  const openPolicyAt = useUiStore((s) => s.openPolicyAt);
   const saveStatus = usePersistenceStore((s) => s.status);
   const { toast } = useToast();
 
@@ -197,16 +196,10 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
   const isSectionUndocumented = component.type === 'SECTION' && component.versions.length === 0;
   const timeline = getComponentTimeline(component);
 
-  // Modo fotografia (docs/07 §20): a árvore está mostrando uma data do
-  // passado, e a página acompanha — a versão que aparece é a que vigorava
-  // naquela data, e nada aqui edita.
-  const snapshotDate =
-    componentTree.projectId === component.projectId ? (componentTree.snapshotDate ?? null) : null;
-  const readOnly = snapshotDate !== null;
-  const snapshotVersion =
-    snapshotDate === null ? null : getComponentEffectiveVersion(component, endOfDayInstant(snapshotDate));
-  const draft = readOnly ? null : openDraft;
-  const displayedVersion = readOnly ? snapshotVersion : (openDraft ?? publishedVersion);
+  // A página do componente é **sempre hoje** (DEC-UX-004): ver o passado é a
+  // tela de Vigência (§10), que abre pela faixa de vigência lá embaixo.
+  const draft = openDraft;
+  const displayedVersion = openDraft ?? publishedVersion;
 
   function commitName() {
     setNameEditing(false);
@@ -359,15 +352,14 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
             <button
               type="button"
               data-testid="component-name-button"
-              disabled={readOnly}
-              onClick={() => !readOnly && setNameEditing(true)}
+              onClick={() => setNameEditing(true)}
               onKeyDown={(e) => {
-                if (e.key === 'F2' && !readOnly) {
+                if (e.key === 'F2') {
                   e.preventDefault();
                   setNameEditing(true);
                 }
               }}
-              title={readOnly ? component.name : 'Clique ou F2 para renomear'}
+              title="Clique ou F2 para renomear"
               className="rounded px-1 hover:bg-neutral-100 disabled:hover:bg-transparent dark:hover:bg-neutral-800"
             >
               {component.name}
@@ -389,27 +381,24 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
       {/* --- Barra de ações grudenta --- */}
       <div className="sticky top-0 z-10 -mx-8 flex flex-wrap items-center gap-3 border-b border-neutral-200 bg-white/95 px-8 py-2.5 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/95">
         <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">{stickyStateLabel()}</span>
-        {!readOnly && displayedVersion !== null && (
+        {displayedVersion !== null && (
           <span className="text-xs text-neutral-400 dark:text-neutral-500" data-testid="component-save-status">
             {SAVE_STATUS_LABEL[saveStatus]}
           </span>
         )}
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {readOnly && (
-            <Badge variant="secondary">Fotografia de {formatDateInputBR(snapshotDate)}</Badge>
-          )}
-          {isSectionUndocumented && !readOnly && (
+          {isSectionUndocumented && (
             <Button type="button" variant="secondary" size="sm" onClick={handleCreateDraft}>
               Documentar esta seção
             </Button>
           )}
-          {!isSectionUndocumented && displayedVersion === null && !readOnly && (
+          {!isSectionUndocumented && displayedVersion === null && (
             <Button type="button" variant="secondary" size="sm" onClick={handleCreateDraft}>
               Criar rascunho
             </Button>
           )}
-          {displayedVersion !== null && draft === null && !readOnly && (
+          {displayedVersion !== null && draft === null && (
             <Button type="button" variant="outline" size="sm" onClick={handleCreateDraft}>
               Criar rascunho a partir desta versão
             </Button>
@@ -424,55 +413,34 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
               </Button>
             </>
           )}
-          {!readOnly && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon" aria-label={`Mais ações para ${component.name}`}>
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setMoveOpen(true)}>
-                  <FolderInput className="mr-2 h-3.5 w-3.5" /> Mover para…
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="icon" aria-label={`Mais ações para ${component.name}`}>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setMoveOpen(true)}>
+                <FolderInput className="mr-2 h-3.5 w-3.5" /> Mover para…
+              </DropdownMenuItem>
+              {component.type !== 'MATRIX' && (
+                <DropdownMenuItem onSelect={handleDuplicate}>
+                  <Copy className="mr-2 h-3.5 w-3.5" /> Duplicar
                 </DropdownMenuItem>
-                {component.type !== 'MATRIX' && (
-                  <DropdownMenuItem onSelect={handleDuplicate}>
-                    <Copy className="mr-2 h-3.5 w-3.5" /> Duplicar
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
-                  <Archive className="mr-2 h-3.5 w-3.5" /> Arquivar
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+              )}
+              <DropdownMenuItem onSelect={() => setArchiveOpen(true)}>
+                <Archive className="mr-2 h-3.5 w-3.5" /> Arquivar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
-
-      {readOnly && (
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Edição bloqueada enquanto a árvore mostra o passado.{' '}
-          <button
-            type="button"
-            className="underline hover:text-neutral-900 dark:hover:text-neutral-100"
-            onClick={() => setComponentTreeSnapshotDate(null)}
-          >
-            Voltar para hoje
-          </button>
-        </p>
-      )}
 
       {/* --- Identidade: tags, origem, revisão, filhos, em grade de 2 colunas --- */}
       <div className="grid grid-cols-1 gap-x-6 gap-y-3 rounded-md border border-neutral-200 p-4 sm:grid-cols-2 dark:border-neutral-800">
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Tags</Label>
-          {readOnly ? (
-            <p className="px-1 text-sm text-neutral-500 dark:text-neutral-400">
-              {component.tags === undefined || component.tags.length === 0 ? '—' : component.tags.join(', ')}
-            </p>
-          ) : (
-            <ComponentTagsEditor component={component} />
-          )}
+          <ComponentTagsEditor component={component} />
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -480,7 +448,6 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
           <div className="flex flex-col gap-1.5">
             <Input
               placeholder="Fonte (ex.: Filtros e Critérios B2C)"
-              disabled={readOnly}
               value={source}
               onChange={(e) => setSource(e.target.value)}
               onBlur={commitOrigin}
@@ -491,7 +458,6 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
             />
             <Input
               placeholder="Locator (ex.: p. 10, opcional)"
-              disabled={readOnly}
               value={locator}
               onChange={(e) => setLocator(e.target.value)}
               onBlur={commitOrigin}
@@ -509,7 +475,6 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
           </Label>
           <Select
             value={component.reviewStatus}
-            disabled={readOnly}
             onValueChange={(v) => handleReviewStatusChange(v as ComponentReviewStatus)}
           >
             <SelectTrigger id="component-review-status" aria-label="Revisão">
@@ -533,20 +498,9 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
         </div>
       </div>
 
-      {isSectionUndocumented && readOnly && (
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Seção sem texto próprio — estrutura, não conteúdo.
-        </p>
-      )}
-      {isSectionUndocumented && !readOnly && (
+      {isSectionUndocumented && (
         <p className="text-sm text-neutral-500 dark:text-neutral-400">
           Esta seção é uma pasta pura — sem texto, vigência nem histórico próprios.
-        </p>
-      )}
-
-      {!isSectionUndocumented && displayedVersion === null && readOnly && (
-        <p className="text-sm text-neutral-500 dark:text-neutral-400">
-          Sem política vigente em {formatDateInputBR(snapshotDate)}.
         </p>
       )}
 
@@ -559,7 +513,7 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
               {displayedVersion.effectiveFrom !== undefined
                 ? `vigente desde ${formatDateTimeBR(displayedVersion.effectiveFrom)}`
                 : ''}
-              {!readOnly && ' — crie um rascunho para editar.'}
+              {' — crie um rascunho para editar.'}
             </div>
           )}
 
@@ -613,17 +567,18 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
           {timeline.length > 0 && (
             <div className="flex flex-col gap-1.5">
               <Label className="text-sm font-semibold">Vigência e versões</Label>
-              {/* Clicar num segmento leva a árvore inteira para aquela data: a
-                  pergunta que vem depois de "quando esta regra mudou?" é sempre
-                  "e o que mais valia naquele dia?" (docs/07 §20, US-GOV-07). */}
+              {/* Clicar num segmento abre a **tela de Vigência** naquela data,
+                  sem mexer nesta página nem na árvore: a pergunta que vem
+                  depois de "quando esta regra mudou?" é sempre "e o que mais
+                  valia naquele dia?" (docs/07 §10/§20.2, US-GOV-07). */}
               <MatrixTimelineBar
                 segments={timeline}
                 now={new Date()}
-                selectedAt={snapshotDate === null ? new Date() : endOfDayInstant(snapshotDate)}
+                selectedAt={new Date()}
                 onSelectVersion={(versionId) => {
                   const segment = timeline.find((candidate) => candidate.versionId === versionId);
                   if (segment === undefined) return;
-                  setComponentTreeSnapshotDate(toDateInputValue(new Date(segment.effectiveFrom)));
+                  openPolicyAt(toDateInputValue(new Date(segment.effectiveFrom)));
                 }}
               />
               {displayedVersion.effectiveFrom !== undefined && (
@@ -632,9 +587,7 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
                   variant="ghost"
                   size="sm"
                   className="w-fit px-1 text-xs"
-                  onClick={() =>
-                    setComponentTreeSnapshotDate(toDateInputValue(new Date(displayedVersion.effectiveFrom!)))
-                  }
+                  onClick={() => openPolicyAt(toDateInputValue(new Date(displayedVersion.effectiveFrom!)))}
                 >
                   <CalendarClock className="mr-1.5 h-3.5 w-3.5" /> Ver a política inteira nesta data
                 </Button>

@@ -179,14 +179,6 @@ export type ComponentTreeState = {
   types: PolicyComponentType[];
   reviewStatuses: ComponentReviewStatus[];
   tags: string[];
-  /**
-   * Modo fotografia (docs/07 §20, S39): `yyyy-MM-dd` da data em que a árvore
-   * está sendo vista, ou `null` para "hoje". Como o filtro, é estado de
-   * interface — nunca do documento: a fotografia é uma leitura, e sair dela
-   * não desfaz nada. Enquanto tem valor, a árvore inteira fica somente
-   * leitura (edição em modo fotografia está fora do escopo da S39).
-   */
-  snapshotDate: string | null;
 };
 
 const EMPTY_COMPONENT_TREE_STATE: ComponentTreeState = {
@@ -196,7 +188,6 @@ const EMPTY_COMPONENT_TREE_STATE: ComponentTreeState = {
   types: [],
   reviewStatuses: [],
   tags: [],
-  snapshotDate: null,
 };
 
 interface UiState {
@@ -228,6 +219,17 @@ interface UiState {
   identityDialogOpen: boolean;
   matrixFilter: MatrixFilterState;
   componentTree: ComponentTreeState;
+  /**
+   * Data da tela de Vigência (docs/07 §10, DEC-UX-004): `yyyy-MM-dd` da
+   * fotografia que a consulta histórica está mostrando, ou `null` enquanto a
+   * tela ainda não escolheu uma (nasce em "hoje"). Mora na store, e não na
+   * tela, porque os saltos vêm de fora dela — a faixa de vigência da página do
+   * componente (§20.2) e os atalhos "Ver a política em…" da comparação
+   * (§20.3). É estado de interface: nunca entra no documento, e **nunca**
+   * bloqueia a edição em lugar nenhum — a árvore da barra lateral é sempre
+   * hoje.
+   */
+  policyAtDate: string | null;
   setView: (view: View) => void;
   toggleSidebar: () => void;
   /** Arrasta a borda da navegação; o valor entra no intervalo e é persistido. */
@@ -263,8 +265,11 @@ interface UiState {
   toggleComponentTreeReviewStatus: (status: ComponentReviewStatus) => void;
   toggleComponentTreeTag: (code: string) => void;
   clearComponentTreeFilter: () => void;
-  /** `null` volta a árvore para hoje (docs/07 §20). */
-  setComponentTreeSnapshotDate: (date: string | null) => void;
+
+  /** Troca a data da tela de Vigência sem navegar (a própria tela, ao mexer no seletor). */
+  setPolicyAtDate: (date: string) => void;
+  /** O salto: abre a tela de Vigência **na** data — é o que §20.2 e §20.3 usam. */
+  openPolicyAt: (date: string) => void;
 }
 
 const initialActor = readLocalStorage(ACTOR_STORAGE_KEY);
@@ -282,6 +287,7 @@ export const useUiStore = create<UiState>((set) => ({
   identityDialogOpen: initialActor === null && !hasServerTokenHint(),
   matrixFilter: { projectId: null, tags: [], search: '' },
   componentTree: EMPTY_COMPONENT_TREE_STATE,
+  policyAtDate: null,
 
   setView: (view) => set({ view }),
 
@@ -417,6 +423,7 @@ export const useUiStore = create<UiState>((set) => ({
       componentTree: { ...s.componentTree, search: '', types: [], reviewStatuses: [], tags: [] },
     })),
 
-  setComponentTreeSnapshotDate: (snapshotDate) =>
-    set((s) => ({ componentTree: { ...s.componentTree, snapshotDate } })),
+  setPolicyAtDate: (policyAtDate) => set({ policyAtDate }),
+
+  openPolicyAt: (policyAtDate) => set({ policyAtDate, view: 'timeline' }),
 }));

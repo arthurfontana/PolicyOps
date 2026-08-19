@@ -1232,6 +1232,7 @@ real.
 | **Por quê** | Consulta e edição são modos diferentes de trabalho e agora têm telas diferentes. Some o risco de o usuário achar que está editando hoje quando está olhando março, e o pedido original ("ver a estrutura inteira, inclusive regras e listas, numa data") ganha uma tela com espaço para responder. |
 | **Custo aceito** | Ver o passado passa a ser uma navegação de tela, não um seletor no lugar onde se está. `getPolicyAt` e o resto do núcleo da S39 não mudam — só quem os desenha. |
 | **Páginas afetadas** | `07-ux-e-editor.md` §10, §20.1–20.3; `14-governanca-de-alteracoes.md` §4 (US-GOV-07); `09-roadmap-de-entregas.md` (S43) |
+| **Implementação (S43)** | `ui-store.policyAtDate` + `openPolicyAt(date)` (a ação dos dois saltos); a tela de Vigência (`TimelineScreen`) preenche o slot da barra (§2.1) por `ToolbarPortal`, como a `PolicyTree` faz na política (DEC-UX-006). A **busca e os filtros da aba Estrutura são estado local da tela**, não o `componentTree` da árvore lateral: filtrar o passado não pode mexer no que a barra lateral mostra. A árvore de leitura reaproveita o nó da árvore editável (`TreeNodeRow`, extraído de `PolicyTree` nesta sessão) — uma linha de nó só, dois modos. |
 
 ---
 

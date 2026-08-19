@@ -1,17 +1,5 @@
 import { useRef } from 'react';
-import {
-  CalendarClock,
-  CheckCheck,
-  FileUp,
-  Filter,
-  GitCompare,
-  Grid3x3,
-  Plus,
-  Search,
-  Target,
-  X,
-} from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { CheckCheck, FileUp, Filter, Grid3x3, Plus, Search, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -32,7 +20,6 @@ import {
 } from '@/core/document/schema';
 import type { TagFacetGroup } from '@/core/queries';
 import { COMPONENT_REVIEW_STATUS_LABELS, COMPONENT_TYPE_LABELS } from '@/lib/component-labels';
-import { formatDateInputBR } from '@/lib/timeline-dates';
 import { cn } from '@/lib/utils';
 
 /**
@@ -42,15 +29,13 @@ import { cn } from '@/lib/utils';
  * ordem: criação, publicação, busca/filtro e o chip de alvo.
  *
  * Componente de apresentação: nenhum comando é despachado aqui.
+ *
+ * O seletor "ver como em…" e o atalho de comparar datas viveram aqui entre a
+ * S41 e a S43; saíram com o modo fotografia da árvore (DEC-UX-004) — ver o
+ * passado é a tela de Vigência (§10), que tem a própria barra.
  */
 
 export interface PolicyToolbarProps {
-  /** Modo fotografia (§20): a barra troca criação por "voltar para hoje". */
-  readOnly: boolean;
-  snapshotDate: string | null;
-  onSnapshotDateChange: (date: string | null) => void;
-  onCompareDates: () => void;
-
   pendingCount: number;
   onNewSection: () => void;
   onNewRule: () => void;
@@ -128,111 +113,64 @@ export function PolicyToolbar(props: PolicyToolbarProps) {
 
   return (
     <div ref={rootRef} data-testid="policy-toolbar" className="flex min-w-0 flex-1 items-center gap-1.5">
-      {props.readOnly ? (
-        <div className="flex min-w-0 items-center gap-2">
-          <Badge variant="secondary" className="whitespace-nowrap">
-            Fotografia de {formatDateInputBR(props.snapshotDate ?? '')} · somente leitura
-          </Badge>
-          <Button type="button" size="sm" variant="outline" onClick={() => props.onSnapshotDateChange(null)}>
-            <X className="mr-1 h-3.5 w-3.5" /> Voltar para hoje
-          </Button>
-        </div>
-      ) : (
-        <>
-          <div className="flex shrink-0 items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          title="Nova seção (Enter na árvore)"
+          onClick={props.onNewSection}
+        >
+          <Plus className="mr-1 h-3.5 w-3.5" /> Nova seção
+        </Button>
+
+        {compact ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" size="sm" variant="outline" title="Mais ações de criação">
+                ⋯ Mais
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {extraCreation.map((item) => (
+                <DropdownMenuItem key={item.label} onSelect={item.onSelect}>
+                  <item.icon className="mr-2 h-3.5 w-3.5" /> {item.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          extraCreation.map((item) => (
             <Button
+              key={item.label}
               type="button"
               size="sm"
               variant="outline"
-              title="Nova seção (Enter na árvore)"
-              onClick={props.onNewSection}
+              title={item.title}
+              onClick={item.onSelect}
             >
-              <Plus className="mr-1 h-3.5 w-3.5" /> Nova seção
+              <item.icon className="mr-1 h-3.5 w-3.5" /> {item.label}
             </Button>
-
-            {compact ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" size="sm" variant="outline" title="Mais ações de criação">
-                    ⋯ Mais
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {extraCreation.map((item) => (
-                    <DropdownMenuItem key={item.label} onSelect={item.onSelect}>
-                      <item.icon className="mr-2 h-3.5 w-3.5" /> {item.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              extraCreation.map((item) => (
-                <Button
-                  key={item.label}
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  title={item.title}
-                  onClick={item.onSelect}
-                >
-                  <item.icon className="mr-1 h-3.5 w-3.5" /> {item.label}
-                </Button>
-              ))
-            )}
-          </div>
-
-          <ToolbarSeparator />
-
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="shrink-0"
-            disabled={props.pendingCount === 0}
-            title={
-              props.pendingCount === 0
-                ? 'Nenhum componente com rascunho aberto neste projeto'
-                : 'Publicar pendentes (Ctrl+Shift+P)'
-            }
-            onClick={props.onPublishPending}
-          >
-            <CheckCheck className="mr-1 h-3.5 w-3.5" /> {publishLabel}
-          </Button>
-        </>
-      )}
+          ))
+        )}
+      </div>
 
       <ToolbarSeparator />
 
-      <label
-        htmlFor="tree-snapshot-date"
-        title="Ver a política como em uma data"
-        className="flex shrink-0 items-center gap-1 text-[11px] text-neutral-500 dark:text-neutral-400"
-      >
-        <CalendarClock className="h-3.5 w-3.5" />
-        {/* Na barra compacta sobra o ícone: o campo ao lado já diz que é data. */}
-        {compact ? <span className="sr-only">Ver como em…</span> : 'Ver como em…'}
-      </label>
-      {/* Contêiner de largura fixa: o `Input` do design system é `w-full`. */}
-      <div className="w-32 shrink-0">
-        <Input
-          id="tree-snapshot-date"
-          type="date"
-          aria-label="Ver a política como em"
-          value={props.snapshotDate ?? ''}
-          onChange={(e) => props.onSnapshotDateChange(e.target.value === '' ? null : e.target.value)}
-          className="h-7 text-xs"
-        />
-      </div>
       <Button
         type="button"
-        size="icon"
-        variant="ghost"
-        className="h-7 w-7 shrink-0"
-        aria-label="Comparar datas"
-        title="Comparar a política entre duas datas"
-        onClick={props.onCompareDates}
+        size="sm"
+        variant="outline"
+        className="shrink-0"
+        disabled={props.pendingCount === 0}
+        title={
+          props.pendingCount === 0
+            ? 'Nenhum componente com rascunho aberto neste projeto'
+            : 'Publicar pendentes (Ctrl+Shift+P)'
+        }
+        onClick={props.onPublishPending}
       >
-        <GitCompare className="h-3.5 w-3.5" />
+        <CheckCheck className="mr-1 h-3.5 w-3.5" /> {publishLabel}
       </Button>
 
       <div className="ml-auto flex shrink-0 items-center gap-1.5">

@@ -49,13 +49,16 @@ export function PolicyCompareScreen() {
   const setSelectedComponent = useEditorStore((s) => s.setSelectedComponent);
   const setSelectedProject = useEditorStore((s) => s.setSelectedProject);
   const setView = useUiStore((s) => s.setView);
-  const setComponentTreeSnapshotDate = useUiStore((s) => s.setComponentTreeSnapshotDate);
+  const openPolicyAt = useUiStore((s) => s.openPolicyAt);
+  const policyAtDate = useUiStore((s) => s.policyAtDate);
 
   const projects = useMemo(() => (document === null ? [] : listProjects(document)), [document]);
   const [projectId, setProjectId] = useState<string | null>(editorSelectedProjectId);
   const [mode, setMode] = useState<Mode>('dates');
   const [dateA, setDateA] = useState(() => toDateInputValue(startOfYear()));
-  const [dateB, setDateB] = useState(() => toDateInputValue(new Date()));
+  // "Comparar com outra data" (§10) chega da tela de Vigência: a data que se
+  // estava olhando já entra de um lado, e só a outra ponta fica a escolher.
+  const [dateB, setDateB] = useState(() => policyAtDate ?? toDateInputValue(new Date()));
   const [releaseA, setReleaseA] = useState<string | null>(null);
   const [releaseB, setReleaseB] = useState<string | null>(null);
 
@@ -148,10 +151,10 @@ export function PolicyCompareScreen() {
     setView('projects');
   }
 
+  /** §20.3: o atalho abre a **tela de Vigência** na data — não congela a árvore (DEC-UX-004). */
   function seePolicyAt(instant: Date): void {
-    setComponentTreeSnapshotDate(toDateInputValue(instant));
     setSelectedProject(projectId!);
-    setView('projects');
+    openPolicyAt(toDateInputValue(instant));
   }
 
   return (
