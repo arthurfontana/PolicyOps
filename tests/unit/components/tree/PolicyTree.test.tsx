@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { renderPolicyTree } from './policy-tree-harness';
 import type { Command } from '@/core/command';
-import { createComponent, listChildren } from '@/core/document/components';
+import { createComponent, listChildren, setComponentReviewStatus } from '@/core/document/components';
+import { createComponentDraft } from '@/core/versioning/component-lifecycle';
 import { createSampleDocument } from '@/core/document/create';
 import type { PolicyComponent } from '@/core/document/schema';
 import { useDocumentStore } from '@/store/document-store';
@@ -167,6 +168,21 @@ describe('PolicyTree — filtro preserva ancestrais (§17.1)', () => {
     expect(screen.getByTestId('tree-node-B').className).not.toContain('opacity-40');
     expect(screen.queryByTestId('tree-node-A')).not.toBeInTheDocument();
     expect(screen.queryByTestId('tree-node-C')).not.toBeInTheDocument();
+  });
+
+  it('filtro sem nenhum resultado tem estado próprio, com "Limpar filtros" (§12, S44)', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    await user.type(screen.getByLabelText('Buscar na árvore'), 'não existe nada assim');
+
+    expect(screen.getByText('Nenhum componente corresponde ao filtro.')).toBeInTheDocument();
+    expect(screen.queryByTestId('tree-node-CMA')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Limpar filtros' }));
+    expect(screen.getByTestId('tree-node-CMA')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum componente corresponde ao filtro.')).not.toBeInTheDocument();
   });
 });
 
@@ -374,5 +390,168 @@ describe('PolicyTree — a árvore é sempre hoje (DEC-UX-004)', () => {
     await user.click(screen.getByTestId('tree-node-CMA'));
     await user.keyboard('{F2}');
     expect(screen.getByLabelText('Renomear CMA')).toBeTruthy();
+  });
+});
+
+describe('PolicyTree — navegação por teclado (§17.1, S44)', () => {
+  it('↑/↓ movem o foco entre os nós visíveis, sem sair da lista nas pontas', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    // Ordem visível: CMA, A, B, C.
+    await user.click(screen.getByTestId('tree-node-A'));
+    expect(screen.getByTestId('tree-node-A')).toHaveFocus();
+
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    expect(screen.getByTestId('tree-node-C')).toHaveFocus();
+
+    // Já no último nó visível: mais um ArrowDown não sai da lista.
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByTestId('tree-node-C')).toHaveFocus();
+
+    await user.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}');
+    expect(screen.getByTestId('tree-node-CMA')).toHaveFocus();
+    // Já no primeiro nó visível: mais um ArrowUp não sai da lista.
+    await user.keyboard('{ArrowUp}');
+    expect(screen.getByTestId('tree-node-CMA')).toHaveFocus();
+  });
+
+  it('Home/End saltam para o primeiro/último nó visível', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    await user.click(screen.getByTestId('tree-node-B'));
+    await user.keyboard('{End}');
+    expect(screen.getByTestId('tree-node-C')).toHaveFocus();
+
+    await user.keyboard('{Home}');
+    expect(screen.getByTestId('tree-node-CMA')).toHaveFocus();
+  });
+
+  it('← no nó raiz já recolhido não quebra (sem pai para saltar)', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    // CMA recolhido (o padrão sem `expanded`).
+    renderTree(projectId);
+
+    await user.click(screen.getByTestId('tree-node-CMA'));
+    expect(screen.getByTestId('tree-node-CMA')).toHaveFocus();
+    await user.keyboard('{ArrowLeft}');
+    // Continua com o mesmo nó em foco — não existe pai para o qual saltar.
+    expect(screen.getByTestId('tree-node-CMA')).toHaveFocus();
+    expect(useUiStore.getState().componentTree.expanded[cma]).toBeFalsy();
+  });
+
+  it('← num nó filho sem filhos e já "recolhido" salta para o pai', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    await user.click(screen.getByTestId('tree-node-B'));
+    await user.keyboard('{ArrowLeft}');
+    expect(screen.getByTestId('tree-node-CMA')).toHaveFocus();
+  });
+
+  it('aria-level reflete a profundidade em 4 níveis', async () => {
+    const { projectId, cma, a } = setupTree();
+    dispatch(createComponent({ projectId, code: 'A1', name: 'A1', type: 'SECTION', parentId: a }));
+    const a1 = useDocumentStore.getState().document!.components.find((c) => c.code === 'A1')!.id;
+    dispatch(createComponent({ projectId, code: 'A1X', name: 'A1X', type: 'RULE', parentId: a1 }));
+    renderTree(projectId, { [cma]: true, [a]: true, [a1]: true });
+
+    expect(screen.getByTestId('tree-node-CMA')).toHaveAttribute('aria-level', '1');
+    expect(screen.getByTestId('tree-node-A')).toHaveAttribute('aria-level', '2');
+    expect(screen.getByTestId('tree-node-A1')).toHaveAttribute('aria-level', '3');
+    expect(screen.getByTestId('tree-node-A1X')).toHaveAttribute('aria-level', '4');
+  });
+
+  it('typeahead: digitar letras sem correspondência não move o foco', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    await user.click(screen.getByTestId('tree-node-CMA'));
+    await user.keyboard('zzz');
+    expect(screen.getByTestId('tree-node-CMA')).toHaveFocus();
+  });
+
+  it('typeahead: digitar a letra do nó salta para ele', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    await user.click(screen.getByTestId('tree-node-CMA'));
+    await user.keyboard('c');
+    expect(screen.getByTestId('tree-node-C')).toHaveFocus();
+  });
+
+  it('Delete pede confirmação antes de arquivar o nó em foco', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    await user.click(screen.getByTestId('tree-node-B'));
+    await user.keyboard('{Delete}');
+    expect(screen.getByText('Arquivar "B"?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Arquivar' }));
+
+    const b = useDocumentStore.getState().document!.components.find((c) => c.name === 'B')!;
+    expect(b.archivedAt).not.toBeUndefined();
+  });
+});
+
+describe('PolicyTree — pendentes: contador amplo e Ctrl+Shift+N (§2.1, S44)', () => {
+  it('o contador soma rascunho aberto e revisão pendente, e some com zero', async () => {
+    const { projectId, a } = setupTree();
+    renderTree(projectId);
+    expect(screen.getByTestId('policy-toolbar-pending-counter')).toHaveTextContent('0 pendentes');
+    expect(screen.getByTestId('policy-toolbar-pending-counter')).toBeDisabled();
+
+    act(() => {
+      dispatch(setComponentReviewStatus({ componentId: a, reviewStatus: 'PENDING_REVIEW' }));
+    });
+    expect(screen.getByTestId('policy-toolbar-pending-counter')).toHaveTextContent('1 pendente');
+    expect(screen.getByTestId('policy-toolbar-pending-counter')).not.toBeDisabled();
+  });
+
+  it('clicar no contador abre o diálogo "Publicar pendentes"', async () => {
+    const user = userEvent.setup();
+    const { projectId, a } = setupTree();
+    dispatch(
+      createComponentDraft({ componentId: a, payload: { kind: 'OTHER', businessDescription: 'A' } }),
+    );
+    renderTree(projectId);
+
+    await user.click(screen.getByTestId('policy-toolbar-pending-counter'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('Ctrl+Shift+N vai para o próximo pendente e dá a volta; sem pendentes, o atalho não faz nada', async () => {
+    const user = userEvent.setup();
+    const { projectId, a, b } = setupTree();
+    dispatch(setComponentReviewStatus({ componentId: a, reviewStatus: 'PENDING_REVIEW' }));
+    dispatch(setComponentReviewStatus({ componentId: b, reviewStatus: 'PENDING_REVIEW' }));
+    renderTree(projectId);
+
+    await user.keyboard('{Control>}{Shift>}N{/Shift}{/Control}');
+    expect(useEditorStore.getState().selectedComponentId).toBe(a);
+
+    await user.keyboard('{Control>}{Shift>}N{/Shift}{/Control}');
+    expect(useEditorStore.getState().selectedComponentId).toBe(b);
+
+    // Do último pendente, dá a volta para o primeiro — não trava, não avança para além.
+    await user.keyboard('{Control>}{Shift>}N{/Shift}{/Control}');
+    expect(useEditorStore.getState().selectedComponentId).toBe(a);
+  });
+
+  it('sem nenhum pendente, Ctrl+Shift+N não seleciona nada', async () => {
+    const user = userEvent.setup();
+    const { projectId } = setupTree();
+    renderTree(projectId);
+
+    await user.keyboard('{Control>}{Shift>}N{/Shift}{/Control}');
+    expect(useEditorStore.getState().selectedComponentId).toBeNull();
   });
 });

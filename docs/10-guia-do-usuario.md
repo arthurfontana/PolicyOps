@@ -214,9 +214,49 @@ qualquer coisa entrar na política**.
 5. Nada entra sem passar pela revisão do passo 3, e **desfazer** (`Ctrl+Z`, logo em seguida)
    remove a carga inteira de uma vez — os componentes, as versões, tudo.
 
+### 10.3 Cadastrando muitas regras direto na árvore, só de teclado
+
+Quando não há um Markdown pronto para carregar (seção 10 acima), a árvore da política também é
+feita para digitar em volume — ~50 seções e regras à mão sem abrir um diálogo para cada uma:
+
+1. Selecione o nó onde a primeira regra deve nascer (ou nenhum, para nascer na raiz) e aperte
+   `Shift+Enter` — nasce um irmão, do tipo Regra, já em edição de nome. `Enter` sozinho nasce um
+   irmão herdando o tipo do nó de origem (útil para seções).
+2. Digite o nome e aperte `Enter`: a regra é criada e a **próxima** caixa de criação já abre
+   encadeada, do mesmo tipo — repita para cada regra da lista. `Tab`/`Shift+Tab` antes de gravar
+   desce/sobe um nível, se alguma precisar entrar dentro da anterior em vez de ficar irmã dela.
+   `Esc` descarta a última caixa (vazia) quando a lista acabar.
+3. Navegue pela árvore só de teclado: `↑`/`↓` movem o foco entre os nós visíveis, `→`/`←`
+   expandem/recolhem (`←` num nó já recolhido salta para o pai), `Home`/`End` vão para o primeiro/
+   último nó visível, e digitar as primeiras letras do nome pula direto para o nó (typeahead).
+   `F2` renomeia, `Ctrl/Cmd+D` duplica como irmã logo abaixo, `Delete` arquiva (com confirmação).
+4. Abra cada regra (clique ou `Enter` para ir à página do componente), preencha a descrição de
+   negócio e o resto do conteúdo, e siga para a próxima com `Alt+↓` (ou `Alt+↑` para voltar) — sem
+   passar pela árvore de novo.
+5. Quando todas as regras da leva tiverem rascunho preenchido, publique de uma vez: o contador
+   **"n pendentes"** na barra de ferramentas soma tudo que ainda tem rascunho aberto ou está
+   marcado como "Aguardando revisão"; clique nele (ou em "Publicar pendentes") para abrir o
+   diálogo, escolha a vigência do lote e confirme — é tudo ou nada, não item a item.
+   `Ctrl+Shift+N` pula para o próximo item pendente da política a qualquer momento, dando a volta
+   quando chega no fim (e não faz nada se não houver nenhum pendente).
+
 ## 11. Atalhos úteis
 
-Aperte `?` a qualquer momento dentro da aplicação para ver a lista completa de atalhos de teclado.
+Aperte `?` a qualquer momento dentro da aplicação para ver a lista completa de atalhos de teclado,
+agora organizada por região da tela. Os mais usados no dia a dia da árvore:
+
+| Atalho | Ação |
+|---|---|
+| `Enter` / `Shift+Enter` | Nova seção / nova regra, irmã do nó selecionado |
+| `↑` `↓` `Home` `End` | Move o foco entre os nós visíveis da árvore |
+| `→` `←` | Expande / recolhe (`←` num nó recolhido salta para o pai) |
+| Digitar letras | Typeahead: pula para o nó cujo nome começa com o texto |
+| `F2` | Renomear o nó em foco |
+| `Ctrl/Cmd+D` | Duplicar o nó como irmão |
+| `Delete` | Arquivar o nó em foco (com confirmação) |
+| `Ctrl+Shift+P` | Publicar pendentes do projeto |
+| `Ctrl+Shift+N` | Ir para o próximo componente pendente, dando a volta |
+| `Alt+↑` `Alt+↓` | Na página do componente, vai para o irmão anterior/próximo |
 
 ## 12. Como gerar o Pacote para a Fábrica
 

@@ -27,6 +27,7 @@ import type {
   VariableType,
   VariableVersion,
 } from './document/schema';
+import { listChildren } from './document/components';
 import { changeRequestProjectIds } from './document/change-requests';
 import { changeRequestPublishedAt } from './document/cr-publish';
 import { getAxisStaleness, type AxisStaleness } from './reconcile/stale';
@@ -1280,6 +1281,140 @@ export function listPendingComponentVersions(
       }
       return pathA.length - pathB.length;
     });
+}
+
+/**
+ * Todo componente do projeto que ainda precisa de atenção antes de publicar
+ * — rascunho em aberto **ou** `reviewStatus = PENDING_REVIEW` (docs/07 §2.1,
+ * §17.1, S44). É o universo do contador "n pendentes" da barra de
+ * ferramentas e do salto `Ctrl+Shift+N`; "Publicar pendentes" continua
+ * restrito a quem tem rascunho (`listPendingComponentVersions`) — os dois
+ * conjuntos se sobrepõem, não são o mesmo.
+ */
+export function listPendingComponents(doc: PolicyOpsDocument, projectId: string): PolicyComponent[] {
+  const withOpenDraft = new Set(
+    listPendingComponentVersions(doc, projectId).map((entry) => entry.component.id),
+  );
+  const pending = doc.components.filter(
+    (component) =>
+      component.projectId === projectId &&
+      component.type !== 'MATRIX' &&
+      component.archivedAt === undefined &&
+      (withOpenDraft.has(component.id) || component.reviewStatus === 'PENDING_REVIEW'),
+  );
+  return pending.sort((a, b) => {
+    const pathA = componentPath(doc, a.id).map((c) => c.position);
+    const pathB = componentPath(doc, b.id).map((c) => c.position);
+    const length = Math.min(pathA.length, pathB.length);
+    for (let i = 0; i < length; i++) {
+      if (pathA[i] !== pathB[i]) return pathA[i]! - pathB[i]!;
+    }
+    return pathA.length - pathB.length;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Navegação por teclado da árvore da política — docs/07 §17.1/§17.3, S44
+// ---------------------------------------------------------------------------
+// #region: navegacao-por-teclado-da-arvore
+
+export type FlatTreeNode = {
+  id: string;
+  name: string;
+  depth: number;
+  hasChildren: boolean;
+  parentId: string | undefined;
+};
+
+/**
+ * A árvore, achatada na mesma ordem em que `PolicyTree` a desenha — o modelo
+ * puro por trás de `↑/↓`/`Home`/`End`/typeahead (roving tabindex, S44). Um nó
+ * entra se estiver fora de um filtro ativo, ou se estiver em `visibleIds`
+ * (ancestral esmaecido); ele expande os filhos só quando `expandedIds` o
+ * inclui — a mesma regra de `renderChildren`/`isExpanded` do componente, para
+ * as duas nunca discordarem de ordem.
+ */
+export function flattenComponentTree(
+  doc: PolicyOpsDocument,
+  projectId: string,
+  expandedIds: ReadonlySet<string>,
+  options: { filterActive?: boolean; visibleIds?: ReadonlySet<string> } = {},
+): FlatTreeNode[] {
+  const { filterActive = false, visibleIds } = options;
+  const result: FlatTreeNode[] = [];
+
+  function walk(parentId: string | undefined, depth: number) {
+    for (const child of listChildren(doc, projectId, parentId)) {
+      if (child.archivedAt !== undefined) continue;
+      if (filterActive && visibleIds !== undefined && !visibleIds.has(child.id)) continue;
+      const hasChildren = listChildren(doc, projectId, child.id).some((c) => c.archivedAt === undefined);
+      result.push({ id: child.id, name: child.name, depth, hasChildren, parentId: child.parentId });
+      const isExpanded = filterActive || expandedIds.has(child.id);
+      if (hasChildren && isExpanded) walk(child.id, depth + 1);
+    }
+  }
+
+  walk(undefined, 0);
+  return result;
+}
+
+/** Nó seguinte/anterior na ordem visível — `↑`/`↓`, com `null` se a árvore estiver vazia. */
+export function nextVisibleNodeId(nodes: FlatTreeNode[], currentId: string | null): string | null {
+  if (nodes.length === 0) return null;
+  if (currentId === null) return nodes[0]!.id;
+  const index = nodes.findIndex((n) => n.id === currentId);
+  if (index === -1) return nodes[0]!.id;
+  return nodes[Math.min(index + 1, nodes.length - 1)]!.id;
+}
+
+export function previousVisibleNodeId(nodes: FlatTreeNode[], currentId: string | null): string | null {
+  if (nodes.length === 0) return null;
+  if (currentId === null) return nodes[0]!.id;
+  const index = nodes.findIndex((n) => n.id === currentId);
+  if (index <= 0) return nodes[0]!.id;
+  return nodes[index - 1]!.id;
+}
+
+/**
+ * Typeahead: digitar letras seguidas salta para o próximo nó cujo nome
+ * começa com o texto acumulado, buscando a partir do nó em foco (inclusive
+ * ele mesmo, para repetir a letra ciclar entre homônimos) e dando a volta na
+ * lista. Sem correspondência, devolve `null` — o foco não se move.
+ */
+export function findTypeaheadMatch(
+  nodes: Pick<FlatTreeNode, 'id' | 'name'>[],
+  currentId: string | null,
+  query: string,
+): string | null {
+  const needle = query.trim().toLowerCase();
+  if (needle === '' || nodes.length === 0) return null;
+  const startIndex = currentId === null ? 0 : Math.max(nodes.findIndex((n) => n.id === currentId), 0);
+  for (let offset = 1; offset <= nodes.length; offset++) {
+    const node = nodes[(startIndex + offset) % nodes.length]!;
+    if (node.name.toLowerCase().startsWith(needle)) return node.id;
+  }
+  return null;
+}
+
+/**
+ * O próximo item pendente na ordem da árvore — `Ctrl+Shift+N` (§2.1, S44).
+ * `order` é a ordem de leitura completa (não só os pendentes); a função pula
+ * para a frente até achar o próximo id presente em `pendingIds`, dá a volta
+ * uma vez e devolve `null` sem pendente nenhum — nunca entra em loop.
+ */
+export function nextPendingComponentId(
+  order: string[],
+  pendingIds: ReadonlySet<string>,
+  currentId: string | null,
+): string | null {
+  if (pendingIds.size === 0) return null;
+  const startIndex = currentId === null ? -1 : order.findIndex((id) => id === currentId);
+  for (let offset = 1; offset <= order.length; offset++) {
+    const id = order[(startIndex + offset) % order.length]!;
+    if (pendingIds.has(id)) return id;
+  }
+  // `currentId` não está em `order` (ex.: nó de outro projeto) — primeiro pendente da lista.
+  return order.find((id) => pendingIds.has(id)) ?? null;
 }
 
 // ---------------------------------------------------------------------------

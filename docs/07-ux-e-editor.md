@@ -346,8 +346,14 @@ O aviso de Impacto continua valendo: mudar os agrupamentos de uma variável nunc
 - Toda lista vazia tem estado próprio com ação primária.
 - Erros de domínio viram toast com a mensagem pt-BR. Nenhum código cru na interface.
 - `UNSET_CELLS_REMAIN` na publicação: barra dedicada "12 combinações ainda não preenchidas" com "Ir para a primeira" e "Selecionar todas as pendentes".
-- Diálogo de atalhos com `?`.
+- Diálogo de atalhos com `?`, atualizado na S44 com a navegação da árvore, `Ctrl+Shift+N` e os
+  atalhos da página do componente, agrupados por região da tela (`ShortcutsDialog`).
 - Indicador permanente de alterações não salvas; `beforeunload` quando houver.
+- **Auditoria de estados vazios da S44**: projeto sem componente ("Nenhum componente ainda. Comece
+  pela primeira seção.", §17.1), filtro da árvore sem resultado ("Nenhum componente corresponde ao
+  filtro." + "Limpar filtros", §17.1) e consulta histórica sem nada naquela data, nas três abas da
+  tela de Vigência (Estrutura, Matrizes, Portfólio, §10/§20) — nenhuma tela nova ficou sem o
+  próprio estado vazio.
 
 ## 13. Paleta
 
@@ -425,7 +431,7 @@ condições, a rota mostra "Requer papel ADMIN — você é X" em vez do conteú
 - Zerar a lista de usuários e salvar volta o documento ao modo aberto (`meta.acl` removida, não
   uma ACL com `users: []` — mesmo efeito para `resolveRole`, mas mantém o arquivo limpo).
 
-## 17. Árvore da política (épico Governança — S33a ✅/S33b ✅; layout de §17.1 — S41 ✅, §17.5 — S42 ✅)
+## 17. Árvore da política (épico Governança — S33a ✅/S33b ✅; layout de §17.1 — S41 ✅, §17.5 — S42 ✅, teclado/volume — S44 ✅)
 
 > O modelo por trás está em [`14-governanca-de-alteracoes.md`](14-governanca-de-alteracoes.md)
 > §3.1 e §3.6. O comportamento de estrutura, cadastro e versionamento é o entregue nas S33a/S33b;
@@ -475,13 +481,28 @@ disputavam o mesmo trabalho e comiam metade da largura útil: o painel morreu e 
   **irmãs** do nó selecionado — a mesma semântica do `Enter`/`Shift+Enter` na árvore —, e sem
   seleção nascem na raiz da política.
 - **Abrir e fechar em bloco**: `Recolher tudo` / `Expandir tudo` no cabeçalho da árvore na sidebar;
-  `Alt+clique` no chevron abre/fecha a subárvore inteira daquele nó (o `*` com o nó em foco entra na
-  S44, com o resto do teclado da árvore). Estado de expansão e filtros continuam em
-  `ui-store.componentTree`, escopados por projeto — interface, não documento.
+  `Alt+clique` no chevron abre/fecha a subárvore inteira daquele nó. Estado de expansão e filtros
+  continuam em `ui-store.componentTree`, escopados por projeto — interface, não documento.
+- **Teclado da árvore — S44 ✅**: roving tabindex, `role="treeitem"`/`aria-level`/`aria-expanded`
+  corretos. `↑`/`↓` movem o foco entre os nós visíveis (`flattenComponentTree`); `→` expande;
+  `←` recolhe, ou salta para o pai se o nó já estiver recolhido (ou não tiver filhos); `Home`/`End`
+  saltam para o primeiro/último nó visível; digitar letras seguidas (typeahead) salta para o
+  próximo nó cujo nome começa com o texto acumulado, dando a volta. `Enter`, `F2`, `Ctrl/Cmd+D` e
+  agora `Delete` (arquivar, com a mesma confirmação do menu `⋯`) continuam agindo sobre o nó em
+  foco — o modelo puro por trás de tudo isso está em `flattenComponentTree`/`nextVisibleNodeId`/
+  `previousVisibleNodeId`/`findTypeaheadMatch` (`src/core/queries.ts`).
 - **Busca e filtros vivem na barra de ferramentas** (§2.1), não dentro da árvore: campo de busca +
   botão `Filtrar (n)` abrindo um popover com os chips de tipo, `reviewStatus` e tag (`TagFilterBar`
   do §15) e "Limpar filtros". A árvore ganha altura útil de volta quando ninguém está filtrando: o
-  primeiro nó aparece logo abaixo do cabeçalho do projeto, não a ~230px do topo.
+  primeiro nó aparece logo abaixo do cabeçalho do projeto, não a ~230px do topo. Filtro sem
+  nenhum resultado tem estado próprio ("Nenhum componente corresponde ao filtro." + "Limpar
+  filtros") — sem ele a árvore ficava em branco sem dizer o motivo (§12, S44).
+- **Pendentes — S44 ✅**: um contador amplo na barra (`n pendentes`, `listPendingComponents` —
+  rascunho aberto **ou** `reviewStatus = PENDING_REVIEW`, mais amplo que o `Publicar pendentes`
+  que só olha rascunho) fica ao lado de "Publicar pendentes"; clicar nele abre o mesmo diálogo.
+  `Ctrl+Shift+N` seleciona o próximo pendente na ordem de leitura da árvore, expandindo ancestrais
+  fechados se preciso, dá a volta ao chegar no fim, e fica desarmado (não faz nada) com zero
+  pendentes — nunca entra em loop (`nextPendingComponentId`).
 - **Filtro não achata a árvore**: ao filtrar, os ancestrais dos itens que sobraram permanecem
   visíveis, esmaecidos (`filterComponentTree` devolve `matchedIds` e `visibleIds` separados). Uma
   árvore filtrada que vira lista plana faz o usuário perder o lugar.
@@ -566,7 +587,7 @@ Política de Crédito B2C › CMA › Bloqueios por Dívida         ‹ anterior
 │ Rascunho v2 · desde 30/09/2025      [Publicar] [Descartar rascunho]    ⋯   │ ← grudenta
 ├────────────────────────────────────────────────────────────────────────────┤
 │ Tags [G1 ×][Digital ×] +      Origem  [Filtros…docx] [seção 4.2]           │
-│ Revisão [Validado ▾]          Itens filhos 0                               │
+│ Revisão [Validado ▾]                                                       │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ Descrição de negócio *                                                     │
 │ ┌────────────────────────────────────────────────────────────────────────┐ │
@@ -585,7 +606,7 @@ Política de Crédito B2C › CMA › Bloqueios por Dívida         ‹ anterior
 |---|---|
 | **Cabeçalho** | Breadcrumb clicável; ícone do tipo; **nome em edição inline** (clique ou `F2`, `Enter` confirma, `Esc` cancela); `code` em fonte mono (somente leitura, imutável); badges de tipo, revisão e estado da versão; `‹ anterior` / `próximo ›` navegam entre **irmãos** na ordem da árvore (`Alt+↑` / `Alt+↓`) |
 | **Barra de ações grudenta** | Fica colada abaixo do cabeçalho ao rolar. Estado do conteúdo à esquerda (`Sem conteúdo` · `Rascunho v2` · `Vigente v1 desde …`), ações de ciclo de vida no meio (**Criar rascunho** / **Publicar** / **Descartar rascunho**, ou **Documentar esta seção** numa `SECTION` pura) e `⋯` com Mover para…, Duplicar e Arquivar |
-| **Identidade** | Tags (`ComponentTagsEditor`), origem (fonte + locator), `reviewStatus` (`Select` com os 4 estados, incluindo promover a `VALIDATED`, sempre escolha explícita) e contagem de filhos — em grade de 2 colunas, largura total |
+| **Identidade** | Tags (`ComponentTagsEditor`), origem (fonte + locator) e `reviewStatus` (`Select` com os 4 estados, incluindo promover a `VALIDATED`, sempre escolha explícita) — em grade de 2 colunas, largura total. A contagem de filhos saiu daqui na S44: já aparece na árvore ao lado, e repeti-la aqui era o exemplo típico de contador que só ecoa a lista (§12) |
 | **Conteúdo da versão** | Os campos do payload por tipo (abaixo), em largura útil: campos longos ocupam a coluna inteira com no mínimo 6 linhas visíveis e crescem com o texto; campos curtos pareiam 2 por linha; campos de lista (`inputs`, `reasonCodes`, `dependencies`) são **chips** — digitar e `Enter` (ou vírgula) adiciona, `Backspace` no campo vazio remove o último, colar texto separado por vírgula vira N chips |
 | **Especificação** | O editor rico (§18) na mesma coluna, com "Comparar com a publicada" quando há rascunho sobre versão publicada |
 | **Vigência e versões** | `MatrixTimelineBar` sobre `getComponentTimeline`, um segmento por versão, tooltip com o período, e **"Ver a política inteira nesta data"**, que abre a tela de Vigência (§10) naquela data |
@@ -989,7 +1010,7 @@ dependem de estado e sequência, e por isso viram teste.
 |---|---|
 | **US-UX-01** | Como analista de política, quero navegar a hierarquia inteira numa lista só, para não decidir a cada clique qual das duas árvores da tela é a certa |
 | **US-UX-02** | Como analista, quero escrever a regra na largura da tela, para digitar definição técnica e especificação sem escrever dentro de uma coluna de 340px |
-| **US-UX-03** | Como analista cadastrando ~50 regras, quero criar, renomear e publicar sem tirar as mãos do teclado, para que o volume não vire duas semanas |
+| **US-UX-03** ✅ (S44) | Como analista cadastrando ~50 regras, quero criar, renomear e publicar sem tirar as mãos do teclado, para que o volume não vire duas semanas |
 | **US-UX-04** ✅ (S43) | Como gerente, quero ver a política inteira como estava numa data — regras, listas e matrizes — numa tela de consulta, sem congelar a tela em que eu edito |
 | **US-UX-05** | Como usuário em notebook de 1366px, quero ajustar a largura da navegação, porque os nomes das minhas seções não cabem em 248px |
 

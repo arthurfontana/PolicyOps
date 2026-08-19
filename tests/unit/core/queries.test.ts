@@ -5,6 +5,8 @@ import {
   componentPath,
   countPending,
   filterComponentTree,
+  findTypeaheadMatch,
+  flattenComponentTree,
   getAxisStaleness,
   getChangeRequestTimeline,
   getComponentEffectiveVersion,
@@ -26,10 +28,14 @@ import {
   listMatrixVersions,
   listOpenDrafts,
   listPendingComponentVersions,
+  listPendingComponents,
   listProjectMatrices,
   listProjects,
   listUnmirroredMatrices,
   listVariables,
+  nextPendingComponentId,
+  nextVisibleNodeId,
+  previousVisibleNodeId,
   resetEditorViewComputations,
   resolveOpenVersion,
 } from '@/core/queries';
@@ -1155,6 +1161,103 @@ describe('listPendingComponentVersions', () => {
     const publicado = apply(v1.document, ctx, publishComponentVersion({ versionId: v1.data.versionId, effectiveFrom: VIGENCIA_1 }));
 
     expect(listPendingComponentVersions(publicado.document, IDS.projectA)).toEqual([]);
+  });
+});
+
+describe('listPendingComponents (§2.1/§17.1, S44)', () => {
+  it('soma rascunho aberto e reviewStatus PENDING_REVIEW, sem duplicar quem tem os dois', () => {
+    const { ctx, document, regraA, regraB } = policyTreeDoc();
+    // regraA já nasce PENDING_REVIEW no fixture; dá um rascunho também a ela
+    // e só um rascunho (sem PENDING_REVIEW) a regraB.
+    const draftA = apply(
+      document,
+      ctx,
+      createComponentDraft({ componentId: regraA, payload: { kind: 'RULE', businessDescription: 'A' } }),
+    );
+    const draftB = apply(
+      draftA.document,
+      ctx,
+      createComponentDraft({ componentId: regraB, payload: { kind: 'RULE', businessDescription: 'B' } }),
+    );
+
+    const pending = listPendingComponents(draftB.document, IDS.projectA);
+    expect(pending.map((c) => c.id)).toEqual([regraA, regraB]);
+  });
+
+  it('vazio quando ninguém tem rascunho aberto nem revisão pendente', () => {
+    const { document, regraA } = policyTreeDoc();
+    const semRegraA = apply(document, testCtx(), archiveComponent({ componentId: regraA })).document;
+    expect(listPendingComponents(semRegraA, IDS.projectA)).toEqual([]);
+  });
+});
+
+describe('flattenComponentTree e navegação por teclado (§17.1, S44)', () => {
+  it('achata na ordem de leitura, respeitando expandedIds e profundidade', () => {
+    const { document, cma, fraude, regraA, regraB, grupos } = policyTreeDoc();
+    const collapsed = flattenComponentTree(document, IDS.projectA, new Set());
+    expect(collapsed.map((n) => n.id)).toEqual([cma, grupos]);
+    expect(collapsed.find((n) => n.id === cma)?.hasChildren).toBe(true);
+    expect(collapsed.find((n) => n.id === grupos)?.hasChildren).toBe(false);
+
+    const expanded = flattenComponentTree(document, IDS.projectA, new Set([cma, fraude]));
+    expect(expanded.map((n) => n.id)).toEqual([cma, fraude, regraA, regraB, grupos]);
+    expect(expanded.find((n) => n.id === regraA)?.depth).toBe(2);
+  });
+
+  it('nextVisibleNodeId/previousVisibleNodeId: primeiro e último nó visível não estouram a lista', () => {
+    const { document, cma, grupos } = policyTreeDoc();
+    const nodes = flattenComponentTree(document, IDS.projectA, new Set());
+    expect(nodes.map((n) => n.id)).toEqual([cma, grupos]);
+
+    // No último nó, "próximo" fica parado nele — não sai da lista.
+    expect(nextVisibleNodeId(nodes, grupos)).toBe(grupos);
+    // No primeiro nó, "anterior" fica parado nele.
+    expect(previousVisibleNodeId(nodes, cma)).toBe(cma);
+    // Sem nó em foco ainda, os dois começam no primeiro visível.
+    expect(nextVisibleNodeId(nodes, null)).toBe(cma);
+    expect(previousVisibleNodeId(nodes, null)).toBe(cma);
+    // Lista vazia não quebra.
+    expect(nextVisibleNodeId([], null)).toBeNull();
+  });
+
+  it('findTypeaheadMatch acha o próximo nó cujo nome começa com o texto digitado, dando a volta', () => {
+    const { document, cma, fraude, regraA, regraB, grupos } = policyTreeDoc();
+    const nodes = flattenComponentTree(document, IDS.projectA, new Set([cma, fraude]));
+
+    // A partir de CMA, "Regra" acha "Regra A" primeiro.
+    expect(findTypeaheadMatch(nodes, cma, 'regra')).toBe(regraA);
+    // A partir de Regra A, "Regra" dá a volta e continua achando Regra A de novo (só ela casa "regra a").
+    expect(findTypeaheadMatch(nodes, regraA, 'regra a')).toBe(regraA);
+    // A partir de Regra B, buscar "Grupos" dá a volta até o fim da lista.
+    expect(findTypeaheadMatch(nodes, regraB, 'grupos')).toBe(grupos);
+  });
+
+  it('findTypeaheadMatch sem correspondência devolve null e não move o foco', () => {
+    const { document, cma } = policyTreeDoc();
+    const nodes = flattenComponentTree(document, IDS.projectA, new Set());
+    expect(findTypeaheadMatch(nodes, cma, 'zzz')).toBeNull();
+    expect(findTypeaheadMatch([], cma, 'a')).toBeNull();
+    expect(findTypeaheadMatch(nodes, cma, '')).toBeNull();
+  });
+});
+
+describe('nextPendingComponentId — Ctrl+Shift+N (§2.1, S44)', () => {
+  it('sem nenhum pendente devolve null — não há para onde ir', () => {
+    expect(nextPendingComponentId(['a', 'b', 'c'], new Set(), 'a')).toBeNull();
+  });
+
+  it('do último pendente, dá a volta para o primeiro sem entrar em loop', () => {
+    const order = ['a', 'b', 'c', 'd'];
+    const pending = new Set(['b', 'd']);
+    expect(nextPendingComponentId(order, pending, 'd')).toBe('b');
+    expect(nextPendingComponentId(order, pending, 'b')).toBe('d');
+  });
+
+  it('sem nó atual (ou fora da ordem), começa no primeiro pendente', () => {
+    const order = ['a', 'b', 'c'];
+    const pending = new Set(['c']);
+    expect(nextPendingComponentId(order, pending, null)).toBe('c');
+    expect(nextPendingComponentId(order, pending, 'nao-existe')).toBe('c');
   });
 });
 
