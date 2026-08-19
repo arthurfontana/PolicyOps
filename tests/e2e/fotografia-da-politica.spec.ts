@@ -68,11 +68,11 @@ test('a política em duas datas: a árvore vira fotografia e a comparação list
   await expect(node).toContainText('v1');
   await expect(page.getByRole('button', { name: 'Nova seção' })).toHaveCount(0);
   await expect(page.getByText('Edição bloqueada enquanto a árvore mostra o passado.')).toBeVisible();
-  await expect(page.getByText('Mostrando a versão 1')).toBeVisible();
+  await expect(page.getByText(/Versão 1 vigente desde/)).toBeVisible();
 
   await verComoEm.fill('2026-03-15');
   await expect(node).toContainText('v2');
-  await expect(page.getByText('Mostrando a versão 2')).toBeVisible();
+  await expect(page.getByText(/Versão 2 vigente desde/)).toBeVisible();
 
   // O seletor "ver como em…" e o "Voltar para hoje" da política moraram na
   // barra do painel até a S41; agora vivem na barra de ferramentas (§2.1).

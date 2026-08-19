@@ -50,7 +50,7 @@ test('criar regra, publicar, criar v2 e publicar de novo — a timeline mostra a
   const businessDescription = page.getByLabel(/Descrição de negócio/);
   await businessDescription.fill('Bloqueia o cliente com dívida em aberto igual ou superior a R$ 5.000.');
   await page.getByLabel('Definição técnica').fill('Aging > 0 e Valor >= 5000');
-  await page.getByLabel('Reason codes (separados por vírgula)').fill('DV01');
+  await page.getByLabel('Reason codes').fill('DV01');
   await page.keyboard.press('Tab');
 
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
@@ -59,7 +59,7 @@ test('criar regra, publicar, criar v2 e publicar de novo — a timeline mostra a
   await page.getByRole('button', { name: 'Publicar versão 1' }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
 
-  await expect(page.getByText('Mostrando a versão 1')).toBeVisible();
+  await expect(page.getByText(/Versão 1 vigente desde/)).toBeVisible();
   await expect(page.getByTestId('timeline-segment-v1')).toBeVisible();
 
   // --- v2: novo rascunho a partir da vigente, conteúdo alterado, publicado depois ---
@@ -75,7 +75,7 @@ test('criar regra, publicar, criar v2 e publicar de novo — a timeline mostra a
   await expect(page.getByRole('dialog')).not.toBeVisible();
 
   // --- A timeline mostra as duas versões, com as vigências corretas -------
-  await expect(page.getByText('Mostrando a versão 2')).toBeVisible();
+  await expect(page.getByText(/Versão 2 vigente desde/)).toBeVisible();
   const v1Segment = page.getByTestId('timeline-segment-v1');
   const v2Segment = page.getByTestId('timeline-segment-v2');
   await expect(v1Segment).toBeVisible();
