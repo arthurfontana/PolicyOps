@@ -262,8 +262,15 @@ export function ComponentPage({ projectId, projectName, componentId }: Component
   }
 
   function handleCreateDraft() {
+    // Herda 100% do conteúdo da versão publicada vigente (payload e spec) — o
+    // comando só usa `seedPayload` quando não há nenhuma versão anterior para
+    // derivar, isto é, a primeira versão do componente.
     const result = dispatch(
-      createComponentDraft({ componentId: component!.id, payload: seedPayload(component!.type, component!.name) }),
+      createComponentDraft(
+        publishedVersion === null
+          ? { componentId: component!.id, payload: seedPayload(component!.type, component!.name) }
+          : { componentId: component!.id },
+      ),
     );
     if (!result.ok) {
       toast({ title: 'Não foi possível criar o rascunho', description: result.error.message });
