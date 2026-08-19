@@ -32,7 +32,6 @@ import {
   listVariables,
   resetEditorViewComputations,
   resolveOpenVersion,
-  sidebarTreeAnchors,
 } from '@/core/queries';
 import { archiveComponent, createComponent } from '@/core/document/components';
 import { setMatrixTags } from '@/core/document/commands';
@@ -1062,20 +1061,8 @@ describe('filterComponentTree', () => {
   });
 });
 
-describe('sidebarTreeAnchors', () => {
-  it('nível 1 são as raízes; nível 2, os filhos diretos de cada raiz', () => {
-    const { document, cma, fraude, grupos } = policyTreeDoc();
-    const anchors = sidebarTreeAnchors(document, IDS.projectA);
-    expect(anchors.level1.map((c) => c.id)).toEqual([cma, grupos]);
-    expect(anchors.level2ByParent.get(cma)!.map((c) => c.id)).toEqual([fraude]);
-    // RULE dentro de Fraude é nível 3 — não entra na âncora da sidebar.
-    expect(anchors.level2ByParent.get(fraude)).toBeUndefined();
-    expect(anchors.level2ByParent.get(grupos)).toEqual([]);
-  });
-});
-
 // ---------------------------------------------------------------------------
-// Vigência e timeline de componente — docs/14 §3.2/§6, I29, RN-GOV-09
+// Vigência e linha do tempo de componente
 // ---------------------------------------------------------------------------
 
 const VIGENCIA_1 = '2026-02-01T00:00:00.000Z';

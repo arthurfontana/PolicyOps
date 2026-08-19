@@ -9,7 +9,6 @@ import { CreateMatrixDialog } from '@/components/dialogs/CreateMatrixDialog';
 import { ConfirmDialog } from '@/components/library/ConfirmDialog';
 import { EvidenceSection } from '@/components/inspector/EvidenceSection';
 import { TagFilterBar } from '@/components/projects/TagFilterBar';
-import { PolicyTree } from '@/components/tree/PolicyTree';
 import { ComponentContentPanel } from '@/components/tree/ComponentContentPanel';
 import { archiveMatrix, archiveProject } from '@/core/document/commands';
 import { listMatrices, listProjectMatrices, resolveOpenVersion } from '@/core/queries';
@@ -129,7 +128,11 @@ export function ProjectDetail({ projectId }: ProjectDetailProps) {
 
   return (
     <div className="flex h-full min-h-0">
-      <PolicyTree projectId={projectId} />
+      {/*
+        A árvore mora na barra lateral (§17.1, DEC-UX-001) — aqui ficou só o
+        conteúdo, em dois modos: a lista de matrizes com facetas (a porta
+        default, §17.2) ou o componente selecionado na árvore.
+      */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {selectedComponentId !== null ? (
           <ComponentContentPanel projectId={projectId} projectName={project.name} componentId={selectedComponentId} />

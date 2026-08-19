@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { PolicyTree } from '@/components/tree/PolicyTree';
-import { Toaster } from '@/components/ui/toaster';
+import { renderPolicyTree } from './policy-tree-harness';
 import type { Command } from '@/core/command';
 import { createComponent, listChildren } from '@/core/document/components';
 import { createSampleDocument } from '@/core/document/create';
@@ -43,17 +42,7 @@ function setupTree(): { projectId: string; cma: string; a: string; b: string; c:
   return { projectId, cma, a, b, c };
 }
 
-function renderTree(projectId: string, expanded: Record<string, boolean> = {}) {
-  useUiStore.setState((s) => ({
-    componentTree: { ...s.componentTree, projectId, expanded },
-  }));
-  return render(
-    <>
-      <PolicyTree projectId={projectId} />
-      <Toaster />
-    </>,
-  );
-}
+const renderTree = renderPolicyTree;
 
 beforeEach(() => {
   useDocumentStore.getState().closeDocument();
@@ -182,6 +171,107 @@ describe('PolicyTree — filtro preserva ancestrais (§17.1)', () => {
   });
 });
 
+
+describe('PolicyTree — barra de ferramentas: alvo da criação (§2.1, CT-UX-03)', () => {
+  it('sem nó selecionado o chip diz "raiz da política" e "Nova seção" cria na raiz', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    expect(screen.getByTestId('policy-toolbar-target')).toHaveTextContent('em: raiz da política');
+
+    await user.click(screen.getByRole('button', { name: /Nova seção/ }));
+    await user.type(screen.getByLabelText('Nome do novo componente'), 'Capítulo novo');
+    await user.keyboard('{Enter}');
+    await user.keyboard('{Escape}');
+
+    const created = useDocumentStore.getState().document!.components.find((c) => c.name === 'Capítulo novo')!;
+    expect(created.parentId).toBeUndefined();
+    expect(created.type).toBe('SECTION');
+  });
+
+  it('com nó selecionado o chip mostra o caminho e a criação nasce irmã dele', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    await user.click(screen.getByTestId('tree-node-B'));
+    expect(screen.getByTestId('policy-toolbar-target')).toHaveTextContent('em: CMA › B');
+
+    await user.click(screen.getByRole('button', { name: /Nova seção/ }));
+    await user.type(screen.getByLabelText('Nome do novo componente'), 'Irmã de B');
+    await user.keyboard('{Enter}');
+    await user.keyboard('{Escape}');
+
+    // Mesma semântica do Enter na árvore: irmão logo abaixo do selecionado.
+    expect(namesOf(projectId, cma)).toEqual(['A', 'B', 'Irmã de B', 'C']);
+    const created = useDocumentStore.getState().document!.components.find((c) => c.name === 'Irmã de B')!;
+    expect(created.parentId).toBe(cma);
+  });
+
+  it('"Nova regra" cria irmão do tipo Regra, e Shift+Enter na árvore faz o mesmo', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma } = setupTree();
+    renderTree(projectId, { [cma]: true });
+
+    await user.click(screen.getByTestId('tree-node-B'));
+    await user.click(screen.getByRole('button', { name: /Nova regra/ }));
+    await user.type(screen.getByLabelText('Nome do novo componente'), 'Regra da barra');
+    await user.keyboard('{Enter}');
+    await user.keyboard('{Escape}');
+
+    const pelaBarra = useDocumentStore.getState().document!.components.find((c) => c.name === 'Regra da barra')!;
+    expect(pelaBarra.type).toBe('RULE');
+    expect(pelaBarra.parentId).toBe(cma);
+
+    await user.click(screen.getByTestId('tree-node-A'));
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    await user.type(screen.getByLabelText('Nome do novo componente'), 'Regra do teclado');
+    await user.keyboard('{Enter}');
+    await user.keyboard('{Escape}');
+
+    const peloTeclado = useDocumentStore.getState().document!.components.find(
+      (c) => c.name === 'Regra do teclado',
+    )!;
+    expect(peloTeclado.type).toBe('RULE');
+    expect(peloTeclado.parentId).toBe(cma);
+  });
+});
+
+describe('PolicyTree — recolher/expandir tudo e Alt+clique (§17.1)', () => {
+  it('"Expandir tudo" abre todos os níveis e "Recolher tudo" fecha', async () => {
+    const user = userEvent.setup();
+    const { projectId } = setupTree();
+    renderTree(projectId);
+
+    expect(screen.queryByTestId('tree-node-B')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Expandir tudo' }));
+    expect(screen.getByTestId('tree-node-B')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Recolher tudo' }));
+    expect(screen.queryByTestId('tree-node-B')).not.toBeInTheDocument();
+  });
+
+  it('Alt+clique no chevron abre a subárvore inteira do nó', async () => {
+    const user = userEvent.setup();
+    const { projectId, cma, a } = setupTree();
+    dispatch(createComponent({ projectId, code: 'A1', name: 'A1', type: 'SECTION', parentId: a }));
+    renderTree(projectId);
+
+    const chevron = within(screen.getByTestId('tree-node-CMA')).getByRole('button', { name: /Expandir/ });
+    await user.keyboard('{Alt>}');
+    await user.click(chevron);
+    await user.keyboard('{/Alt}');
+
+    // Não só o filho direto: o neto também, porque a subárvore inteira abriu.
+    expect(screen.getByTestId('tree-node-A')).toBeInTheDocument();
+    expect(screen.getByTestId('tree-node-A1')).toBeInTheDocument();
+    expect(useUiStore.getState().componentTree.expanded[cma]).toBe(true);
+    expect(useUiStore.getState().componentTree.expanded[a]).toBe(true);
+  });
+});
+
 /**
  * ~300 componentes em 4 níveis (docs/prompts/S33a, critério de aceite):
  * 10 seções raiz × 5 filhos × 4 netos = 260, mais 40 bisnetos (RULE) sob os
@@ -257,8 +347,10 @@ describe('PolicyTree — ~300 componentes em 4 níveis (docs/prompts/S33a)', () 
 
     // Limpar a busca e filtrar por tipo RULE: as 40 regras (sob ROOT_0 e
     // ROOT_1) aparecem; ROOT_0 continua visível como ancestral esmaecido;
-    // ROOT_9, sem nenhuma regra na subárvore, some.
+    // ROOT_9, sem nenhuma regra na subárvore, some. Os chips de tipo vivem no
+    // popover "Filtrar" da barra de ferramentas (§2.1).
     await user.clear(screen.getByLabelText('Buscar na árvore'));
+    await user.click(screen.getByRole('button', { name: /Filtrar/ }));
     await user.click(screen.getByRole('button', { name: 'Regra' }));
     expect(screen.getByTestId(`tree-node-${leafCode}`)).toBeInTheDocument();
     expect(screen.getByTestId(`tree-node-${rootCode}`).className).toContain('opacity-40');

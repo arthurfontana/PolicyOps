@@ -31,6 +31,41 @@ export type Theme = 'light' | 'dark';
 
 const THEME_STORAGE_KEY = 'policyops.theme';
 const ACTOR_STORAGE_KEY = 'policyops.actor';
+const SIDEBAR_WIDTH_STORAGE_KEY = 'policyops.sidebarWidth';
+
+/**
+ * Largura da barra lateral (docs/07-ux-e-editor.md §2, DEC-UX-005): a
+ * navegação agora carrega a árvore inteira da política, e nome de seção real
+ * não cabe em 248px. É preferência de interface — `localStorage`, como o tema
+ * —, nunca documento.
+ */
+export const SIDEBAR_MIN_WIDTH = 248;
+export const SIDEBAR_MAX_WIDTH = 480;
+export const SIDEBAR_DEFAULT_WIDTH = 288;
+/** Abaixo disto o `code` do nó não aparece na árvore (§17.1). */
+export const SIDEBAR_CODE_VISIBLE_WIDTH = 340;
+/** Passo das setas ←/→ com a alça de redimensionamento em foco (§2). */
+export const SIDEBAR_WIDTH_STEP = 16;
+
+/** Arrastar respeita os limites; o intervalo é a régua, não uma sugestão. */
+export function clampSidebarWidth(width: number): number {
+  if (!Number.isFinite(width)) return SIDEBAR_DEFAULT_WIDTH;
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
+}
+
+/**
+ * Leitura defensiva do `localStorage`: valor corrompido (ou de uma versão
+ * futura, fora do intervalo) cai no padrão em vez de deixar a navegação com
+ * 4px ou 4000px — DEC-UX-005, "custo aceito".
+ */
+export function parseSidebarWidth(raw: string | null): number {
+  if (raw === null) return SIDEBAR_DEFAULT_WIDTH;
+  const parsed = Number(raw.trim());
+  if (!Number.isFinite(parsed) || raw.trim() === '') return SIDEBAR_DEFAULT_WIDTH;
+  const rounded = Math.round(parsed);
+  if (rounded < SIDEBAR_MIN_WIDTH || rounded > SIDEBAR_MAX_WIDTH) return SIDEBAR_DEFAULT_WIDTH;
+  return rounded;
+}
 
 export const HASH_BY_VIEW: Record<View, string> = {
   home: '#/',
@@ -178,6 +213,8 @@ interface UiState {
   importRunFilter: string | null;
   reviewedVersionIds: string[];
   sidebarCollapsed: boolean;
+  /** Largura da navegação em px, dentro de `SIDEBAR_MIN_WIDTH`–`SIDEBAR_MAX_WIDTH`. */
+  sidebarWidth: number;
   inspectorCollapsed: boolean;
   /**
    * Modo apresentação do board de comparação (§9b): esconde todo o chrome do
@@ -193,6 +230,10 @@ interface UiState {
   componentTree: ComponentTreeState;
   setView: (view: View) => void;
   toggleSidebar: () => void;
+  /** Arrasta a borda da navegação; o valor entra no intervalo e é persistido. */
+  setSidebarWidth: (width: number) => void;
+  /** Duplo clique na alça — volta ao padrão (§2). */
+  resetSidebarWidth: () => void;
   toggleInspector: () => void;
   setPresentationMode: (value: boolean) => void;
   toggleTheme: () => void;
@@ -213,6 +254,10 @@ interface UiState {
   toggleComponentExpanded: (componentId: string) => void;
   /** Abre um conjunto de nós (não fecha os demais) — usado para revelar um nó recém-criado ou navegado. */
   expandComponents: (componentIds: string[]) => void;
+  /** Fecha um conjunto de nós — `Alt+clique` no chevron fecha a subárvore inteira (§17.1). */
+  collapseComponents: (componentIds: string[]) => void;
+  /** "Recolher tudo" no cabeçalho do projeto (§17.1). */
+  collapseAllComponents: () => void;
   setComponentTreeSearch: (search: string) => void;
   toggleComponentTreeType: (type: PolicyComponentType) => void;
   toggleComponentTreeReviewStatus: (status: ComponentReviewStatus) => void;
@@ -229,6 +274,7 @@ export const useUiStore = create<UiState>((set) => ({
   importRunFilter: null,
   reviewedVersionIds: [],
   sidebarCollapsed: false,
+  sidebarWidth: parseSidebarWidth(readLocalStorage(SIDEBAR_WIDTH_STORAGE_KEY)),
   inspectorCollapsed: false,
   presentationMode: false,
   theme: readInitialTheme(),
@@ -240,6 +286,17 @@ export const useUiStore = create<UiState>((set) => ({
   setView: (view) => set({ view }),
 
   toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+
+  setSidebarWidth: (width) => {
+    const next = clampSidebarWidth(width);
+    writeLocalStorage(SIDEBAR_WIDTH_STORAGE_KEY, String(next));
+    set({ sidebarWidth: next });
+  },
+
+  resetSidebarWidth: () => {
+    writeLocalStorage(SIDEBAR_WIDTH_STORAGE_KEY, String(SIDEBAR_DEFAULT_WIDTH));
+    set({ sidebarWidth: SIDEBAR_DEFAULT_WIDTH });
+  },
 
   toggleInspector: () => set((s) => ({ inspectorCollapsed: !s.inspectorCollapsed })),
 
@@ -318,6 +375,15 @@ export const useUiStore = create<UiState>((set) => ({
       for (const id of componentIds) expanded[id] = true;
       return { componentTree: { ...s.componentTree, expanded } };
     }),
+
+  collapseComponents: (componentIds) =>
+    set((s) => {
+      const expanded = { ...s.componentTree.expanded };
+      for (const id of componentIds) delete expanded[id];
+      return { componentTree: { ...s.componentTree, expanded } };
+    }),
+
+  collapseAllComponents: () => set((s) => ({ componentTree: { ...s.componentTree, expanded: {} } })),
 
   setComponentTreeSearch: (search) =>
     set((s) => ({ componentTree: { ...s.componentTree, search } })),
