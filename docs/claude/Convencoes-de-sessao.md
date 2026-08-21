@@ -17,6 +17,16 @@ pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build
   `dist/PolicyOps.html`) — normalmente coberto pelo CI, mas vale rodar local se a sessão mexeu em
   algo que poderia introduzir uma URL externa (fonte, ícone, script).
 - `pnpm test:e2e` roda contra `dist/PolicyOps.html` por `file://` — só depois de `pnpm build`.
+- **Mudou `src/components/grid/` ou adicionou um elemento posicionado por cima do grid** (alça de
+  redimensionamento, marquee, overlay de diff): `pnpm test:e2e` deixa de ser opcional. `test:unit`
+  roda em `jsdom`, que não tem geometria real — um `<div>` absoluto com `z-index` alto por cima de
+  um cabeçalho sticky com `rowspan`/`colspan` passa limpo no Vitest e só quebra no Playwright real
+  (`locator.click: ... intercepts pointer events`), como aconteceu com as alças de
+  redimensionamento de coluna/linha (S46) cobrindo cabeçalhos agrupados de `tests/e2e/selecao.spec.ts`
+  três vezes seguidas antes de virar regra. Ao desenhar um overlay assim: **nunca** deixe-o cobrir a
+  faixa de cabeçalho sticky (X) nem a coluna de cabeçalho sticky (Y) — restrinja `top`/`left` e
+  `width`/`height` à área de dados, e só depois rode o E2E para confirmar que nenhum
+  `role="columnheader"`/`role="rowheader"` ficou inacessível a clique.
 - `dist/PolicyOps.html` precisa estar atualizado **no mesmo commit** que gerou a mudança (regra 7).
 
 ## Suíte de contrato dos adapters
