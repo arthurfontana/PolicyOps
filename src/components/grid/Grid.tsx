@@ -1117,7 +1117,7 @@ export function Grid({
             de seleção daquele cabeçalho.
           */}
           {!thumbnail &&
-            colSizes.slice(0, -1).map((_, index) => (
+            colSizes.map((_, index) => (
               <ResizeHandle
                 key={`col-resize-${index}`}
                 orientation="column"
@@ -1129,7 +1129,7 @@ export function Grid({
               />
             ))}
           {!thumbnail &&
-            rowSizes.slice(0, -1).map((_, index) => (
+            rowSizes.map((_, index) => (
               <ResizeHandle
                 key={`row-resize-${index}`}
                 orientation="row"
