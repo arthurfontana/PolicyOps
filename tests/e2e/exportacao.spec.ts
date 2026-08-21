@@ -72,7 +72,9 @@ test.describe('Exportação — CSV e JSON', () => {
 
     expect(content.charCodeAt(0)).toBe(0xfeff);
     const [header, ...rows] = content.replace(/^\uFEFF/, '').trimEnd().split('\r\n');
-    expect(header).toBe('x_SCORE_HVI3;y_SEGMENTO;y_FAT;decisao;oferta;limite;limite_valor;cor;observacao');
+    expect(header).toBe(
+      'x_SCORE_HVI3;y_SEGMENTO;y_FAT;decisao;oferta;limite;limite_valor;limite_minimo;limite_maximo;cor;observacao',
+    );
     // Uma linha por combinação: 6 × 8 = 48.
     expect(rows).toHaveLength(48);
     // Toda combinação da matriz de exemplo nasce com decisão (docs/document/create.ts) —
