@@ -29,6 +29,9 @@ export type CanonicalCell = {
   limit?: string;
   /** Sempre string — decimal nunca vira `number` (docs/03 §1). */
   limitValue?: string;
+  /** Faixa — modo alternativo a `limit`/`limitValue`. */
+  limitMin?: string;
+  limitMax?: string;
   color?: string;
   note?: string;
 };
@@ -79,6 +82,8 @@ function canonicalCells(doc: PolicyOpsDocument, version: MatrixVersion): Canonic
       if (cell.limit !== undefined) canonical.limit = cell.limit;
       const limitValue = cell.limitOverride ?? limitByCode.get(cell.limit ?? '')?.numericValue;
       if (limitValue !== undefined) canonical.limitValue = limitValue;
+      if (cell.limitMin !== undefined) canonical.limitMin = cell.limitMin;
+      if (cell.limitMax !== undefined) canonical.limitMax = cell.limitMax;
       if (cell.color !== undefined) canonical.color = cell.color;
       if (cell.note !== undefined) canonical.note = cell.note;
       return canonical;

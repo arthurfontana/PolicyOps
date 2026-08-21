@@ -15,6 +15,8 @@ const FIELD_LABELS: Record<DiffedCellField, string> = {
   offer: 'oferta',
   limit: 'limite',
   limitOverride: 'limite_valor',
+  limitMin: 'limite_minimo',
+  limitMax: 'limite_maximo',
   color: 'cor',
   note: 'observacao',
   attrs: 'atributos',
@@ -31,6 +33,8 @@ const CELL_FIELD_ORDER: DiffedCellField[] = [
   'offer',
   'limit',
   'limitOverride',
+  'limitMin',
+  'limitMax',
   'color',
   'note',
   'attrs',
@@ -53,7 +57,9 @@ function formatFieldValue(
   if (value === undefined) return '';
   if (field === 'decision') return catalog.get('DECISION')?.get(value as string)?.label ?? String(value);
   if (field === 'offer') return catalog.get('OFFER')?.get(value as string)?.label ?? String(value);
-  if (field === 'limitOverride') return decimalToCommaString(value as string);
+  if (field === 'limitOverride' || field === 'limitMin' || field === 'limitMax') {
+    return decimalToCommaString(value as string);
+  }
   if (field === 'attrs') return JSON.stringify(value);
   return String(value);
 }

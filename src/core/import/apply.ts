@@ -90,7 +90,16 @@ export type ApplyImportData = {
 // Células → patches
 // ---------------------------------------------------------------------------
 
-const SCALAR_FIELDS = ['decision', 'offer', 'limit', 'limitOverride', 'color', 'note'] as const;
+const SCALAR_FIELDS = [
+  'decision',
+  'offer',
+  'limit',
+  'limitOverride',
+  'limitMin',
+  'limitMax',
+  'color',
+  'note',
+] as const;
 type ScalarField = (typeof SCALAR_FIELDS)[number];
 
 function setForAdded(after: Cell): CellPatchSet {

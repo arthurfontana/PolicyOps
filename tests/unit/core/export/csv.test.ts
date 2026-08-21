@@ -112,6 +112,8 @@ describe('exportVersionCsv', () => {
       'oferta',
       'limite',
       'limite_valor',
+      'limite_minimo',
+      'limite_maximo',
       'cor',
       'observacao',
     ]);
@@ -149,7 +151,7 @@ describe('exportVersionCsv', () => {
     const withOverride = rows.find((fields) => fields[0] === 'Rótulo R2' && fields[1] === 'Rótulo ALTO')!;
     expect(withOverride[5]).toBe('2500,50');
     // A observação tinha `;` — precisa ter sobrevivido ao parse com aspas.
-    expect(withOverride[7]).toBe('Caso especial; com ponto e vírgula.');
+    expect(withOverride[9]).toBe('Caso especial; com ponto e vírgula.');
   });
 
   it('combinação pendente vira linha com os campos de decisão vazios', () => {
@@ -158,7 +160,7 @@ describe('exportVersionCsv', () => {
     const version = matrix.versions.find((candidate) => candidate.id === versionId)!;
     const rows = parseCsv(exportVersionCsv(document, version));
     const pending = rows.find((fields) => fields[0] === 'Rótulo R3' && fields[1] === 'Rótulo ALTO')!;
-    expect(pending.slice(2)).toEqual(['', '', '', '', '', '']);
+    expect(pending.slice(2)).toEqual(['', '', '', '', '', '', '', '']);
   });
 });
 

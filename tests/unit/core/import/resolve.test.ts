@@ -311,6 +311,39 @@ describe('resolveImport — formato canônico, sem desdobramento', () => {
     expect(result.issues[0]!.message).toContain('limite');
   });
 
+  it('grava limitMin/limitMax direto na célula, sem tocar no catálogo', () => {
+    const header = `${HEADER};LIM_MIN;LIM_MAX`;
+    const parsed = parseDelimitedTable([header, `${row()};500;5000`].join('\n'));
+    const profile = canonicalProfile([
+      { column: 'LIM_MIN', role: 'VALUE', value: { field: 'limitMin' } },
+      { column: 'LIM_MAX', role: 'VALUE', value: { field: 'limitMax' } },
+    ]);
+    const result = resolveImport(
+      doc,
+      { header: parsed.header, rows: parsed.rows, lines: parsed.lines },
+      profile,
+    );
+    expect(result.issues).toEqual([]);
+    expect(result.rows[0]!.cell).toEqual({
+      offer: 'OFERTA_15',
+      decision: 'APROVADO',
+      limitMin: '500',
+      limitMax: '5000',
+    });
+  });
+
+  it('bloqueia limitMin/limitMax que não seja decimal não negativo', () => {
+    const header = `${HEADER};LIM_MIN`;
+    const parsed = parseDelimitedTable([header, `${row()};abc`].join('\n'));
+    const profile = canonicalProfile([{ column: 'LIM_MIN', role: 'VALUE', value: { field: 'limitMin' } }]);
+    const result = resolveImport(
+      doc,
+      { header: parsed.header, rows: parsed.rows, lines: parsed.lines },
+      profile,
+    );
+    expect(result.issues[0]!.message).toContain('limite mínimo');
+  });
+
   it('não produz célula alguma quando o perfil não tem coluna de valor', () => {
     const profile = cineminhaProfile({
       unpivot: undefined,

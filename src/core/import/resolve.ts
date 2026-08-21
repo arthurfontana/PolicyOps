@@ -1,6 +1,6 @@
 import { encodePath } from '../axes/paths';
 import { changedFields } from '../diff/cells';
-import { CODE_REGEX, type Cell, type CatalogItemKind, type PolicyOpsDocument } from '../document/schema';
+import { CODE_REGEX, DECIMAL_REGEX, type Cell, type CatalogItemKind, type PolicyOpsDocument } from '../document/schema';
 import { importIssue, type ImportIssue } from './issues';
 import { sourceLine, type ImportTable } from './parse-table';
 import {
@@ -359,6 +359,14 @@ function unmapped(column: string, raw: string, line: number, what: string): Impo
   );
 }
 
+function invalidDecimal(column: string, raw: string, line: number, what: string): ImportIssue {
+  return importIssue(
+    'IMPORT_UNMAPPED_VALUE',
+    `A coluna de ${what} "${column}" traz o valor "${raw}", que não é um decimal não negativo válido (primeira ocorrência: linha ${line}).`,
+    { line, column, details: { value: raw } },
+  );
+}
+
 type BuildContext = {
   line: number;
   log: IssueLog;
@@ -390,6 +398,20 @@ function buildCell(row: string[], targets: ValueTarget[], ctx: BuildContext): Ce
     }
     if (field.startsWith('attr:')) {
       cell.attrs = { ...cell.attrs, [field.slice(5)]: raw };
+      filled = true;
+      continue;
+    }
+    if (field === 'limitMin' || field === 'limitMax') {
+      const decimal = raw.replace(',', '.');
+      if (!DECIMAL_REGEX.test(decimal) || Number(decimal) < 0) {
+        ctx.log.add(
+          invalidDecimal(target.mapping.column, raw, ctx.line, field === 'limitMin' ? 'limite mínimo' : 'limite máximo'),
+          `IMPORT_UNMAPPED_VALUE|${target.mapping.column}|${raw}`,
+        );
+        continue;
+      }
+      if (field === 'limitMin') cell.limitMin = decimal;
+      else cell.limitMax = decimal;
       filled = true;
       continue;
     }

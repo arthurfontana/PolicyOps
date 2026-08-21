@@ -549,6 +549,9 @@ export type Cell = {
   offer?: string;
   limit?: string;
   limitOverride?: string;
+  /** Limite em faixa — modo alternativo a `limit`/`limitOverride` (docs/03 §6.2). */
+  limitMin?: string;
+  limitMax?: string;
   color?: string;
   note?: string;
   attrs?: Record<string, string | number | boolean>;
@@ -560,6 +563,8 @@ export const CellSchema: z.ZodType<Cell> = z
     offer: codeSchema.optional(),
     limit: codeSchema.optional(),
     limitOverride: decimalSchema.optional(),
+    limitMin: decimalSchema.optional(),
+    limitMax: decimalSchema.optional(),
     color: colorSchema.optional(),
     note: z.string().min(1).optional(),
     attrs: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),

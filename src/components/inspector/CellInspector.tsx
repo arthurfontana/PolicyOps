@@ -90,18 +90,27 @@ export function CellInspector({ selection }: { selection: ReadonlySet<string> })
 
   const [touched, setTouched] = useState<Set<TouchedFieldKey>>(new Set());
   const [values, setValues] = useState<CellFormValues>({});
+  const [limitMode, setLimitMode] = useState<'single' | 'range'>('single');
+
+  const view: EditorView | null = useMemo(
+    () => (document === null || currentVersionId === null ? null : getEditorView(document, currentVersionId)),
+    [document, currentVersionId],
+  );
 
   const selectionSignature = [...selection].sort().join(',');
   // Trocar a seleção esvazia o que o usuário tinha tocado — é um formulário novo.
   useEffect(() => {
     setTouched(new Set());
     setValues({});
+    if (view !== null) {
+      const cellsForMode = [...selection]
+        .map(decodeCellKey)
+        .map((coord) => view.cells[encodeCellKey(coord.xPath, coord.yPath)]);
+      const hasRange = cellsForMode.some((cell) => cell?.limitMin !== undefined || cell?.limitMax !== undefined);
+      setLimitMode(hasRange ? 'range' : 'single');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só a troca de seleção deve resetar o formulário
   }, [selectionSignature]);
-
-  const view: EditorView | null = useMemo(
-    () => (document === null || currentVersionId === null ? null : getEditorView(document, currentVersionId)),
-    [document, currentVersionId],
-  );
 
   if (view === null || currentVersionId === null || selection.size === 0) return null;
   const versionId = currentVersionId;
@@ -339,22 +348,79 @@ export function CellInspector({ selection }: { selection: ReadonlySet<string> })
         />
       </FieldRow>
 
-      <FieldRow label="Limite" touched={touched.has('limit')} onClear={() => clearField('limit')} disabled={disabled}>
+      <FieldRow
+        label="Limite"
+        touched={
+          limitMode === 'single'
+            ? touched.has('limit') || touched.has('limitOverride')
+            : touched.has('limitMin') || touched.has('limitMax')
+        }
+        onClear={() => {
+          if (limitMode === 'single') {
+            clearField('limit');
+            clearField('limitOverride');
+          } else {
+            clearField('limitMin');
+            clearField('limitMax');
+          }
+        }}
+        disabled={disabled}
+      >
         <div className="flex flex-col gap-1.5">
-          <Combobox
-            options={limitOptions}
-            value={displayValue('limit') || undefined}
-            onChange={(value) => markTouched('limit', value)}
-            placeholder={placeholderFor('limit') ?? 'Selecione…'}
+          <Select
+            value={limitMode}
+            onValueChange={(value) => setLimitMode(value as 'single' | 'range')}
             disabled={disabled}
-            aria-label="Limite"
-          />
-          <Input
-            placeholder={placeholderFor('limitOverride') ?? 'Valor específico (BRL)'}
-            value={displayValue('limitOverride')}
-            disabled={disabled}
-            onChange={(event) => markTouched('limitOverride', event.target.value || null)}
-          />
+          >
+            <SelectTrigger aria-label="Modo de limite">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single">Valor único</SelectItem>
+              <SelectItem value="range">Faixa (mín/máx)</SelectItem>
+            </SelectContent>
+          </Select>
+          {limitMode === 'single' ? (
+            <>
+              <Combobox
+                options={limitOptions}
+                value={displayValue('limit') || undefined}
+                onChange={(value) => markTouched('limit', value)}
+                placeholder={placeholderFor('limit') ?? 'Selecione…'}
+                disabled={disabled}
+                aria-label="Limite"
+              />
+              <Input
+                placeholder={placeholderFor('limitOverride') ?? 'Valor específico (BRL)'}
+                value={displayValue('limitOverride')}
+                disabled={disabled}
+                onChange={(event) => markTouched('limitOverride', event.target.value || null)}
+              />
+            </>
+          ) : (
+            <>
+              <Input
+                placeholder={placeholderFor('limitMin') ?? 'Mínimo (BRL)'}
+                value={displayValue('limitMin')}
+                disabled={disabled}
+                aria-label="Limite mínimo"
+                onChange={(event) => markTouched('limitMin', event.target.value || null)}
+              />
+              <Input
+                placeholder={placeholderFor('limitMax') ?? 'Máximo (BRL)'}
+                value={displayValue('limitMax')}
+                disabled={disabled}
+                aria-label="Limite máximo"
+                onChange={(event) => markTouched('limitMax', event.target.value || null)}
+              />
+            </>
+          )}
+          {(displayValue('limit') || displayValue('limitOverride')) &&
+            (displayValue('limitMin') || displayValue('limitMax')) && (
+              <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                Valor único e faixa preenchidos ao mesmo tempo — normalmente só um dos dois modos deveria valer.
+              </span>
+            )}
         </div>
       </FieldRow>
 
@@ -405,6 +471,8 @@ const FIELD_TITLE: Record<CellField, string> = {
   offer: 'oferta',
   limit: 'limite',
   limitOverride: 'valor específico',
+  limitMin: 'limite mínimo',
+  limitMax: 'limite máximo',
   color: 'cor',
   note: 'observação',
 };

@@ -34,9 +34,11 @@ const ROLE_LABEL: Record<RoleOption, string> = {
   IGNORE: 'Ignorar',
 };
 
-const VALUE_FIELD_LABEL: Record<'offer' | 'limit' | 'note' | 'attr', string> = {
+const VALUE_FIELD_LABEL: Record<'offer' | 'limit' | 'limitMin' | 'limitMax' | 'note' | 'attr', string> = {
   offer: 'Oferta',
   limit: 'Limite',
+  limitMin: 'Limite mínimo',
+  limitMax: 'Limite máximo',
   note: 'Nota',
   attr: 'Atributo…',
 };
