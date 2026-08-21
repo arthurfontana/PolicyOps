@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { decodePath } from '@/core/axes/paths';
 import { coordIndex, toKey, type Coord, type Direction } from '@/core/axes/selection';
 import type { HeaderRow } from '@/core/axes/header-layout';
@@ -45,6 +45,10 @@ const THUMBNAIL_CELL_SIZE = 12;
  */
 export const HEADER_ROW_HEIGHT = 32;
 export const Y_HEADER_COL_WIDTH = 120;
+
+/** Menor largura/altura a que uma coluna ou linha pode ser arrastada. */
+const MIN_COL_WIDTH = 32;
+const MIN_ROW_HEIGHT = 20;
 
 /** Modificadores do gesto, já normalizados (`Cmd` no macOS é `Ctrl` aqui). */
 export interface GridModifiers {
@@ -143,6 +147,24 @@ function clampZoom(zoom: number): number {
 
 function clampIndex(value: number, max: number): number {
   return Math.min(max, Math.max(0, value));
+}
+
+/**
+ * Índice (0-based, dentro da área de dados) sob um pixel, a partir dos
+ * deslocamentos acumulados das colunas/linhas — a busca binária substitui a
+ * divisão fixa por `cellWidth`/`cellHeight` agora que cada uma pode ter um
+ * tamanho diferente (redimensionamento por arrasto).
+ */
+function dataIndexAtOffset(offsets: number[], headerCount: number, count: number, pixel: number): number {
+  if (count === 0) return 0;
+  let low = 0;
+  let high = count - 1;
+  while (low < high) {
+    const mid = (low + high + 1) >> 1;
+    if (offsets[headerCount + mid]! <= pixel) low = mid;
+    else high = mid - 1;
+  }
+  return clampIndex(low, count - 1);
 }
 
 /** Índices (0-based) que fecham um grupo de nível 0 — fronteira de separador forte. */
@@ -396,6 +418,73 @@ const GridCell = memo(GridCellImpl, (prev, next) => {
 });
 
 // ---------------------------------------------------------------------------
+// Alça de redimensionamento — arrastar a borda entre colunas ou linhas
+// ---------------------------------------------------------------------------
+// #region: redimensionamento
+
+interface ResizeHandleProps {
+  orientation: 'column' | 'row';
+  /** Posição (em px) da borda, no eixo do arrasto — vira o `left`/`top` da alça. */
+  offset: number;
+  /** Comprimento total da alça no eixo perpendicular ao arrasto. */
+  length: number;
+  onResize: (delta: number) => void;
+  label: string;
+}
+
+/**
+ * Faixa fina e invisível sobre a borda, que vira o cursor `col-resize`/`row-resize`
+ * no hover e arrasta a coluna/linha à esquerda (ou linha acima) da borda.
+ * `pointer-events` só existe na faixa — o resto da célula continua clicável normalmente.
+ */
+function ResizeHandle({ orientation, offset, length, onResize, label }: ResizeHandleProps) {
+  const isColumn = orientation === 'column';
+
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const start = isColumn ? event.clientX : event.clientY;
+
+      // O total do arrasto é medido a partir do ponto inicial, não passo a
+      // passo — assim uma re-renderização no meio do gesto (o próprio
+      // `setState` do redimensionamento) nunca perde nem acumula delta.
+      function onPointerMove(moveEvent: PointerEvent) {
+        const current = isColumn ? moveEvent.clientX : moveEvent.clientY;
+        onResize(current - start);
+      }
+
+      function onPointerUp() {
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+      }
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+    },
+    [isColumn, onResize],
+  );
+
+  return (
+    <div
+      role="separator"
+      aria-label={label}
+      aria-orientation={isColumn ? 'vertical' : 'horizontal'}
+      data-testid={isColumn ? 'grid-col-resize-handle' : 'grid-row-resize-handle'}
+      onPointerDown={handlePointerDown}
+      style={{
+        position: 'absolute',
+        zIndex: 40,
+        ...(isColumn
+          ? { left: offset - 3, top: 0, width: 6, height: length, cursor: 'col-resize' }
+          : { top: offset - 3, left: 0, height: 6, width: length, cursor: 'row-resize' }),
+      }}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Grid
 // ---------------------------------------------------------------------------
 // #region: grid
@@ -442,6 +531,76 @@ export function Grid({
   const cellHeight = thumbnail ? THUMBNAIL_CELL_SIZE : BASE_CELL_HEIGHT * zoom;
   const xTuples = x.axis.tuples;
   const yTuples = y.axis.tuples;
+
+  // --- Redimensionamento de colunas e linhas ---------------------------------
+  //
+  // Cada coluna do grid (as `y.levelCount` colunas de cabeçalho de Y + uma por
+  // combinação de X) e cada linha (as `x.levelCount` faixas de cabeçalho de X +
+  // uma por combinação de Y) tem um tamanho, em px, que por padrão segue o zoom
+  // e pode ser sobrescrito arrastando a alça na borda. A miniatura nunca é
+  // redimensionável — ela nem desenha cabeçalho.
+  const totalCols = y.levelCount + xTuples.length;
+  const totalRows = x.levelCount + yTuples.length;
+  const [colOverrides, setColOverrides] = useState<Map<number, number>>(new Map());
+  const [rowOverrides, setRowOverrides] = useState<Map<number, number>>(new Map());
+
+  // Trocar de matriz esquece os tamanhos arrastados da anterior — colunas e
+  // linhas não correspondem às mesmas posições.
+  const matrixId = view.matrix.id;
+  useEffect(() => {
+    setColOverrides(new Map());
+    setRowOverrides(new Map());
+  }, [matrixId]);
+
+  const defaultColSize = useCallback(
+    (index: number) => (index < y.levelCount ? Y_HEADER_COL_WIDTH : cellWidth),
+    [y.levelCount, cellWidth],
+  );
+  const defaultRowSize = useCallback(
+    (index: number) => (index < x.levelCount ? HEADER_ROW_HEIGHT : cellHeight),
+    [x.levelCount, cellHeight],
+  );
+
+  const colSizes = useMemo(() => {
+    if (thumbnail) return [];
+    return Array.from({ length: totalCols }, (_, index) => colOverrides.get(index) ?? defaultColSize(index));
+  }, [thumbnail, totalCols, colOverrides, defaultColSize]);
+  const rowSizes = useMemo(() => {
+    if (thumbnail) return [];
+    return Array.from({ length: totalRows }, (_, index) => rowOverrides.get(index) ?? defaultRowSize(index));
+  }, [thumbnail, totalRows, rowOverrides, defaultRowSize]);
+
+  const colOffsets = useMemo(() => {
+    const offsets: number[] = [0];
+    for (const size of colSizes) offsets.push(offsets[offsets.length - 1]! + size);
+    return offsets;
+  }, [colSizes]);
+  const rowOffsets = useMemo(() => {
+    const offsets: number[] = [0];
+    for (const size of rowSizes) offsets.push(offsets[offsets.length - 1]! + size);
+    return offsets;
+  }, [rowSizes]);
+
+  const resizeColumn = useCallback(
+    (index: number, baseSize: number) => (totalDelta: number) => {
+      setColOverrides((prev) => {
+        const next = new Map(prev);
+        next.set(index, Math.max(MIN_COL_WIDTH, Math.round(baseSize + totalDelta)));
+        return next;
+      });
+    },
+    [],
+  );
+  const resizeRow = useCallback(
+    (index: number, baseSize: number) => (totalDelta: number) => {
+      setRowOverrides((prev) => {
+        const next = new Map(prev);
+        next.set(index, Math.max(MIN_ROW_HEIGHT, Math.round(baseSize + totalDelta)));
+        return next;
+      });
+    },
+    [],
+  );
 
   const xBoundaries = useMemo(
     () => topLevelBoundaries(x.headerRows, x.levelCount),
@@ -564,14 +723,8 @@ export function Grid({
       if (content === null) return;
       const rect = content.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
-      const xIndex = clampIndex(
-        Math.floor((event.clientX - rect.left - y.levelCount * Y_HEADER_COL_WIDTH) / cellWidth),
-        xTuples.length - 1,
-      );
-      const yIndex = clampIndex(
-        Math.floor((event.clientY - rect.top - x.levelCount * HEADER_ROW_HEIGHT) / cellHeight),
-        yTuples.length - 1,
-      );
+      const xIndex = dataIndexAtOffset(colOffsets, y.levelCount, xTuples.length, event.clientX - rect.left);
+      const yIndex = dataIndexAtOffset(rowOffsets, x.levelCount, yTuples.length, event.clientY - rect.top);
       const xPath = xTuples[xIndex];
       const yPath = yTuples[yIndex];
       if (xPath === undefined || yPath === undefined) return;
@@ -588,7 +741,7 @@ export function Grid({
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [dragging, cellWidth, cellHeight, x.levelCount, y.levelCount, xTuples, yTuples]);
+  }, [dragging, colOffsets, rowOffsets, x.levelCount, y.levelCount, xTuples, yTuples]);
 
   // --- Teclado --------------------------------------------------------------
   //
@@ -721,10 +874,10 @@ export function Grid({
 
   const columnsTemplate = thumbnail
     ? `repeat(${xTuples.length}, ${cellWidth}px)`
-    : `repeat(${y.levelCount}, ${Y_HEADER_COL_WIDTH}px) repeat(${xTuples.length}, ${cellWidth}px)`;
+    : colSizes.map((size) => `${size}px`).join(' ');
   const rowsTemplate = thumbnail
     ? `repeat(${yTuples.length}, ${cellHeight}px)`
-    : `repeat(${x.levelCount}, ${HEADER_ROW_HEIGHT}px) repeat(${yTuples.length}, ${cellHeight}px)`;
+    : rowSizes.map((size) => `${size}px`).join(' ');
   /** Deslocamento das células de dados: sem faixa de cabeçalho na miniatura. */
   const columnOffset = thumbnail ? 0 : y.levelCount;
   const rowOffset = thumbnail ? 0 : x.levelCount;
@@ -749,6 +902,7 @@ export function Grid({
           style={{
             display: 'grid',
             width: 'max-content',
+            position: 'relative',
             gridTemplateColumns: columnsTemplate,
             gridTemplateRows: rowsTemplate,
             userSelect: dragging ? 'none' : undefined,
@@ -809,7 +963,7 @@ export function Grid({
                     gridColumn: `${y.levelCount + cell.startIndex + 1} / span ${cell.span}`,
                     gridRow: row.level + 1,
                     position: 'sticky',
-                    top: row.level * HEADER_ROW_HEIGHT,
+                    top: rowOffsets[row.level],
                     zIndex: 20,
                     backgroundColor: headerSelected ? HEADER_SELECTED_FILL_COLOR : (cell.color ?? undefined),
                     boxShadow: headerSelected ? `inset 0 0 0 2px ${SELECTION_COLOR}` : undefined,
@@ -851,7 +1005,7 @@ export function Grid({
                     gridRow: `${x.levelCount + cell.startIndex + 1} / span ${cell.span}`,
                     gridColumn: row.level + 1,
                     position: 'sticky',
-                    left: row.level * Y_HEADER_COL_WIDTH,
+                    left: colOffsets[row.level],
                     zIndex: 20,
                     backgroundColor: headerSelected ? HEADER_SELECTED_FILL_COLOR : (cell.color ?? undefined),
                     boxShadow: headerSelected ? `inset 0 0 0 2px ${SELECTION_COLOR}` : undefined,
@@ -947,6 +1101,30 @@ export function Grid({
               }}
             />
           )}
+
+          {/* Alças de redimensionamento — uma por fronteira entre colunas/linhas. */}
+          {!thumbnail &&
+            colSizes.slice(0, -1).map((_, index) => (
+              <ResizeHandle
+                key={`col-resize-${index}`}
+                orientation="column"
+                offset={colOffsets[index + 1]!}
+                length={rowOffsets[totalRows]!}
+                onResize={resizeColumn(index, colSizes[index]!)}
+                label={`Redimensionar coluna ${index + 1}`}
+              />
+            ))}
+          {!thumbnail &&
+            rowSizes.slice(0, -1).map((_, index) => (
+              <ResizeHandle
+                key={`row-resize-${index}`}
+                orientation="row"
+                offset={rowOffsets[index + 1]!}
+                length={colOffsets[totalCols]!}
+                onResize={resizeRow(index, rowSizes[index]!)}
+                label={`Redimensionar linha ${index + 1}`}
+              />
+            ))}
         </div>
       </div>
 
