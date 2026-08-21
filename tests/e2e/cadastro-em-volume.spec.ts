@@ -39,9 +39,20 @@ test('cinco regras irmãs criadas e nomeadas só de teclado, com descrição, pu
   // regra na raiz. Dali em diante, o Enter que encadeia herda o mesmo tipo
   // (RULE) do rascunho anterior — as cinco saem de um só clique inicial,
   // sem tocar o mouse de novo (US-UX-03). ------------------------------------
-  await page.getByRole('button', { name: 'Nova regra' }).click();
+  // A barra de ferramentas colapsa a criação além da primeira abaixo de
+  // ~1100px (§2.1) — nessa largura "Nova regra" mora dentro de "⋯ Mais".
+  const novaRegraButton = page.getByRole('button', { name: 'Nova regra' });
+  const maisButton = page.getByRole('button', { name: '⋯ Mais' });
+  if (await maisButton.isVisible()) {
+    await maisButton.click();
+    await page.getByRole('menuitem', { name: 'Nova regra' }).click();
+  } else {
+    await novaRegraButton.click();
+  }
   for (const name of names) {
-    await expect(page.getByLabel('Nome do novo componente')).toBeVisible();
+    const nameInput = page.getByLabel('Nome do novo componente');
+    await expect(nameInput).toBeVisible();
+    await nameInput.click();
     await page.keyboard.type(name);
     await page.keyboard.press('Enter');
   }
