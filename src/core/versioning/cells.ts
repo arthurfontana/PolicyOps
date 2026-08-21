@@ -38,7 +38,15 @@ import { assertEditable, locateVersion, versionScope } from './lifecycle';
 // §2.1 Patch
 // ---------------------------------------------------------------------------
 
-export type CellField = 'decision' | 'offer' | 'limit' | 'limitOverride' | 'color' | 'note';
+export type CellField =
+  | 'decision'
+  | 'offer'
+  | 'limit'
+  | 'limitOverride'
+  | 'limitMin'
+  | 'limitMax'
+  | 'color'
+  | 'note';
 
 /** Ordem canônica dos campos — é o que faz dois `set` iguais gerarem a mesma assinatura. */
 export const CELL_FIELDS: readonly CellField[] = [
@@ -46,6 +54,8 @@ export const CELL_FIELDS: readonly CellField[] = [
   'offer',
   'limit',
   'limitOverride',
+  'limitMin',
+  'limitMax',
   'color',
   'note',
 ];
@@ -57,6 +67,8 @@ export type CellPatchSet = {
   offer?: string | null;
   limit?: string | null;
   limitOverride?: string | null;
+  limitMin?: string | null;
+  limitMax?: string | null;
   color?: string | null;
   note?: string | null;
   /** Merge raso; chave com `null` remove a chave. */
@@ -103,6 +115,8 @@ const FIELD_LABEL: Record<CellField | 'attrs', string> = {
   offer: 'a oferta',
   limit: 'o limite',
   limitOverride: 'o valor de limite',
+  limitMin: 'o limite mínimo',
+  limitMax: 'o limite máximo',
   color: 'a cor',
   note: 'a observação',
   attrs: 'os atributos',
@@ -146,6 +160,16 @@ function assertFieldValue(catalog: CatalogItem[], field: CellField, value: strin
       throw new DomainError(
         'INVALID_INPUT',
         `"${value}" não é um valor de limite válido: informe um decimal positivo.`,
+        { field, value },
+      );
+    }
+    return;
+  }
+  if (field === 'limitMin' || field === 'limitMax') {
+    if (!DECIMAL_REGEX.test(value) || new Decimal(value).lt(0)) {
+      throw new DomainError(
+        'INVALID_INPUT',
+        `"${value}" não é um valor de limite válido: informe um decimal não negativo.`,
         { field, value },
       );
     }

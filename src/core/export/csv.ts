@@ -50,6 +50,8 @@ export function exportVersionCsv(doc: PolicyOpsDocument, version: MatrixVersion)
     'oferta',
     'limite',
     'limite_valor',
+    'limite_minimo',
+    'limite_maximo',
     'cor',
     'observacao',
   ];
@@ -67,6 +69,8 @@ export function exportVersionCsv(doc: PolicyOpsDocument, version: MatrixVersion)
       offer,
       cell?.limit ?? '',
       limitValue !== undefined ? decimalToCommaString(limitValue) : '',
+      cell?.limitMin !== undefined ? decimalToCommaString(cell.limitMin) : '',
+      cell?.limitMax !== undefined ? decimalToCommaString(cell.limitMax) : '',
       cell?.color ?? '',
       cell?.note ?? '',
     ];

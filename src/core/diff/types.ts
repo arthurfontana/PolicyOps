@@ -63,6 +63,8 @@ export const DIFFED_CELL_FIELDS = [
   'offer',
   'limit',
   'limitOverride',
+  'limitMin',
+  'limitMax',
   'color',
   'note',
   'attrs',

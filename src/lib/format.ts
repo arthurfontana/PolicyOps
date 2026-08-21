@@ -62,6 +62,14 @@ export function formatBRL(value: string | undefined): string {
   return Number.isFinite(parsed) ? currencyFormatter.format(parsed) : value;
 }
 
+/** Faixa de limite (mín/máx) em BRL, pt-BR — modo alternativo ao valor único de catálogo. */
+export function formatBRLRange(min: string | undefined, max: string | undefined): string {
+  if (min === undefined && max === undefined) return '—';
+  if (min !== undefined && max !== undefined) return `${formatBRL(min)} – ${formatBRL(max)}`;
+  if (min !== undefined) return `a partir de ${formatBRL(min)}`;
+  return `até ${formatBRL(max)}`;
+}
+
 /** Milhar com separador pt-BR, sem casas decimais — contadores e estatísticas. */
 export function formatThousands(value: number): string {
   return new Intl.NumberFormat('pt-BR').format(value);

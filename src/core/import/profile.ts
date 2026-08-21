@@ -24,7 +24,7 @@ import { DELIMITERS } from './parse-table';
 // #region: tipos-5-4
 
 export type ColumnRole = 'PARTITION' | 'AXIS' | 'VALUE' | 'CHECK' | 'IGNORE';
-export type ValueField = 'offer' | 'limit' | 'note' | `attr:${string}`;
+export type ValueField = 'offer' | 'limit' | 'note' | 'limitMin' | 'limitMax' | `attr:${string}`;
 export type MissingRowPolicy = 'KEEP' | 'CLEAR';
 
 export type ColumnMapping = {
@@ -109,7 +109,9 @@ const ValueFieldSchema: z.ZodType<ValueField> = z.union([
   z.literal('offer'),
   z.literal('limit'),
   z.literal('note'),
-  z.string().regex(/^attr:.+$/, 'campo de valor deve ser offer, limit, note ou attr:<nome>.'),
+  z.literal('limitMin'),
+  z.literal('limitMax'),
+  z.string().regex(/^attr:.+$/, 'campo de valor deve ser offer, limit, note, limitMin, limitMax ou attr:<nome>.'),
 ]) as z.ZodType<ValueField>;
 
 export const ColumnMappingSchema: z.ZodType<ColumnMapping> = z

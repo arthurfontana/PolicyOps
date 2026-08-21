@@ -43,6 +43,8 @@ export const CELL_FIELD_LABEL: Record<DiffedCellField, string> = {
   offer: 'Oferta',
   limit: 'Limite',
   limitOverride: 'Limite específico',
+  limitMin: 'Limite mínimo',
+  limitMax: 'Limite máximo',
   color: 'Cor',
   note: 'Observação',
   attrs: 'Atributos',
@@ -111,6 +113,10 @@ export function formatCellField(
       return cell.limit === undefined ? '—' : (catalog.byCode.LIMIT[cell.limit]?.label ?? cell.limit);
     case 'limitOverride':
       return cell.limitOverride === undefined ? '—' : formatBRL(cell.limitOverride);
+    case 'limitMin':
+      return cell.limitMin === undefined ? '—' : formatBRL(cell.limitMin);
+    case 'limitMax':
+      return cell.limitMax === undefined ? '—' : formatBRL(cell.limitMax);
     case 'color':
       return cell.color ?? '—';
     case 'note':

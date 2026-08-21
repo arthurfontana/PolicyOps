@@ -8,6 +8,8 @@ const FIELD_LABEL: Record<(typeof DIFFED_CELL_FIELDS)[number], string> = {
   offer: 'Oferta',
   limit: 'Limite',
   limitOverride: 'Limite (override)',
+  limitMin: 'Limite mínimo',
+  limitMax: 'Limite máximo',
   color: 'Cor',
   note: 'Nota',
   attrs: 'Atributos',

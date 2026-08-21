@@ -352,11 +352,15 @@ type Cell = {
   offer?: string;                  // code de kind OFFER
   limit?: string;                  // code de kind LIMIT
   limitOverride?: string;          // decimal; sobrepõe numericValue do catálogo
+  limitMin?: string;                // decimal; faixa — modo alternativo a limit/limitOverride
+  limitMax?: string;                // decimal; faixa — modo alternativo a limit/limitOverride
   color?: string;                  // #RRGGBB; sobrepõe a cor da decisão
   note?: string;
   attrs?: Record<string, string | number | boolean>;
 };
 ```
+
+`limitMin`/`limitMax` são um modo de limite alternativo a `limit`/`limitOverride` — a célula guarda seu próprio mínimo e máximo em vez de apontar para um catálogo compartilhado. Coexistem no schema (nenhuma regra de banco os torna mutuamente exclusivos), mas a UI trata os dois modos como alternativos e avisa, sem bloquear, se ambos estiverem preenchidos ao mesmo tempo.
 
 **Células vazias não são gravadas.** Uma chave ausente de `cells` significa "não preenchida" (`isUnset`). O conjunto de células possíveis é sempre derivado de `axes.x.tuples × axes.y.tuples` — nunca materializado no arquivo.
 

@@ -168,4 +168,12 @@ describe('CellSchema — células vazias não existem', () => {
   it('rejeita null em campo opcional da célula', () => {
     expect(CellSchema.safeParse({ decision: 'APROVADO', note: null }).success).toBe(false);
   });
+
+  it('aceita limitMin/limitMax como decimais opcionais', () => {
+    expect(CellSchema.safeParse({ limitMin: '500', limitMax: '5000' }).success).toBe(true);
+  });
+
+  it('rejeita limitMin/limitMax que não sejam decimais', () => {
+    expect(CellSchema.safeParse({ limitMin: '500,00' }).success).toBe(false);
+  });
 });

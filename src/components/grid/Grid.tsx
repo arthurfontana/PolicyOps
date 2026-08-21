@@ -16,7 +16,7 @@ import {
   resolveCellColor,
   SELECTION_COLOR,
 } from '@/lib/colors';
-import { formatBRL, formatThousands } from '@/lib/format';
+import { formatBRL, formatBRLRange, formatThousands } from '@/lib/format';
 
 /**
  * O grid com cabeçalhos aninhados — docs/07-ux-e-editor.md §4 e §5,
@@ -880,11 +880,13 @@ export function Grid({
               const limitDisplay =
                 thumbnail
                   ? undefined
-                  : cell?.limitOverride !== undefined
-                    ? formatBRL(cell.limitOverride)
-                    : limitItem?.numericValue !== undefined
-                      ? formatBRL(limitItem.numericValue)
-                      : undefined;
+                  : cell?.limitMin !== undefined || cell?.limitMax !== undefined
+                    ? formatBRLRange(cell.limitMin, cell.limitMax)
+                    : cell?.limitOverride !== undefined
+                      ? formatBRL(cell.limitOverride)
+                      : limitItem?.numericValue !== undefined
+                        ? formatBRL(limitItem.numericValue)
+                        : undefined;
               const selected = interactive && isSelectedAt(xIndex, yIndex, key);
               const anchor = api?.anchor ?? null;
               const isAnchor = anchor !== null && anchor.xPath === xPath && anchor.yPath === yPath;

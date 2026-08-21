@@ -219,7 +219,17 @@ function canonicalAxis(axis: Axis): Axis {
   };
 }
 
-const CELL_KEYS = ['decision', 'offer', 'limit', 'limitOverride', 'color', 'note', 'attrs'] as const;
+const CELL_KEYS = [
+  'decision',
+  'offer',
+  'limit',
+  'limitOverride',
+  'limitMin',
+  'limitMax',
+  'color',
+  'note',
+  'attrs',
+] as const;
 function canonicalCell(cell: Cell): Cell {
   const picked = pick(cell, CELL_KEYS);
   if (picked.attrs) picked.attrs = sortedRecord(picked.attrs);
