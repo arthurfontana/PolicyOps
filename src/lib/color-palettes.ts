@@ -49,11 +49,11 @@ const RISCO_R01_R20_HEX: Record<string, string> = {
 
 // docs/05-regras-de-negocio.md §5.6.4.2
 const RISCO_SIMPLIFICADO_HEX: Array<[string, string, string]> = [
-  ['BAIXISSIMO', 'Baixíssimo', '#00FF2A'],
-  ['BAIXO', 'Baixo', '#F0FFF6'],
-  ['MEDIO', 'Médio', '#FFA200'],
-  ['ALTO', 'Alto', '#FF8080'],
-  ['ALTISSIMO', 'Altíssimo', '#FF0000'],
+  ['BAIXISSIMO', 'Baixíssimo', '#2ECC71'],
+  ['BAIXO', 'Baixo', '#8BC34A'],
+  ['MEDIO', 'Médio', '#FFC107'],
+  ['ALTO', 'Alto', '#FF7043'],
+  ['ALTISSIMO', 'Altíssimo', '#D32F2F'],
 ];
 
 export const COLOR_PALETTES: ColorPalette[] = [
