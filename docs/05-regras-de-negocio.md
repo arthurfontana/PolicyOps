@@ -419,13 +419,13 @@ Paletas customizadas e salvas pelo usuário (além das duas oficiais) ficam **fo
 
 ##### 5.6.4.2 Paleta oficial `RISCO_SIMPLIFICADO`
 
-| Classificação | RGB |
-|---|---|
-| Baixíssimo | `0,255,42` |
-| Baixo | `240,255,246` |
-| Médio | `255,162,0` |
-| Alto | `255,128,128` |
-| Altíssimo | `255,0,0` |
+| Classificação | RGB | Hex |
+|---|---|---|
+| Baixíssimo | `46,204,113` | `#2ECC71` |
+| Baixo | `139,195,74` | `#8BC34A` |
+| Médio | `255,193,7` | `#FFC107` |
+| Alto | `255,112,67` | `#FF7043` |
+| Altíssimo | `211,47,47` | `#D32F2F` |
 
 #### 5.6.5 Duplicar variável
 

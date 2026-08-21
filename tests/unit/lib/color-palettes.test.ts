@@ -32,8 +32,8 @@ describe('suggestPaletteColors', () => {
   it('"baixíssimo"/"Baixíssimo" casam com a paleta simplificada, sem diferenciar caixa/acento', () => {
     const domains = [domain('BX', 'baixíssimo'), domain('BAIXISSIMO', 'Qualquer rótulo')];
     const result = suggestPaletteColors(domains, 'RISCO_SIMPLIFICADO');
-    expect(result[0]!.color).toBe('#00FF2A');
-    expect(result[1]!.color).toBe('#00FF2A');
+    expect(result[0]!.color).toBe('#2ECC71');
+    expect(result[1]!.color).toBe('#2ECC71');
   });
 
   it('domínio sem correspondência sai intocado', () => {
