@@ -426,7 +426,14 @@ interface ResizeHandleProps {
   orientation: 'column' | 'row';
   /** Posição (em px) da borda, no eixo do arrasto — vira o `left`/`top` da alça. */
   offset: number;
-  /** Comprimento total da alça no eixo perpendicular ao arrasto. */
+  /**
+   * Onde a alça começa no eixo perpendicular — a área de dados, nunca a faixa
+   * de cabeçalho sticky: uma alça de linha que cobrisse as colunas de
+   * cabeçalho de Y cruzaria por cima de uma célula de cabeçalho com rowspan
+   * (ex.: "Corporate" ocupando 2 linhas) e roubaria o clique de seleção dela.
+   */
+  crossStart: number;
+  /** Comprimento da alça no eixo perpendicular ao arrasto, a partir de `crossStart`. */
   length: number;
   onResize: (delta: number) => void;
   label: string;
@@ -437,7 +444,7 @@ interface ResizeHandleProps {
  * no hover e arrasta a coluna/linha à esquerda (ou linha acima) da borda.
  * `pointer-events` só existe na faixa — o resto da célula continua clicável normalmente.
  */
-function ResizeHandle({ orientation, offset, length, onResize, label }: ResizeHandleProps) {
+function ResizeHandle({ orientation, offset, crossStart, length, onResize, label }: ResizeHandleProps) {
   const isColumn = orientation === 'column';
 
   const handlePointerDown = useCallback(
@@ -477,8 +484,8 @@ function ResizeHandle({ orientation, offset, length, onResize, label }: ResizeHa
         position: 'absolute',
         zIndex: 40,
         ...(isColumn
-          ? { left: offset - 3, top: 0, width: 6, height: length, cursor: 'col-resize' }
-          : { top: offset - 3, left: 0, height: 6, width: length, cursor: 'row-resize' }),
+          ? { left: offset - 3, top: crossStart, width: 6, height: length, cursor: 'col-resize' }
+          : { top: offset - 3, left: crossStart, height: 6, width: length, cursor: 'row-resize' }),
       }}
     />
   );
@@ -1102,14 +1109,21 @@ export function Grid({
             />
           )}
 
-          {/* Alças de redimensionamento — uma por fronteira entre colunas/linhas. */}
+          {/*
+            Alças de redimensionamento — uma por fronteira entre colunas/linhas.
+            Restritas à área de dados (nunca cruzam a faixa/coluna de cabeçalho
+            sticky): senão uma alça sobre a borda interna de um cabeçalho com
+            rowspan/colspan (ex.: "Corporate" ocupando 2 linhas) rouba o clique
+            de seleção daquele cabeçalho.
+          */}
           {!thumbnail &&
             colSizes.slice(0, -1).map((_, index) => (
               <ResizeHandle
                 key={`col-resize-${index}`}
                 orientation="column"
                 offset={colOffsets[index + 1]!}
-                length={rowOffsets[totalRows]!}
+                crossStart={rowOffsets[x.levelCount]!}
+                length={rowOffsets[totalRows]! - rowOffsets[x.levelCount]!}
                 onResize={resizeColumn(index, colSizes[index]!)}
                 label={`Redimensionar coluna ${index + 1}`}
               />
@@ -1120,7 +1134,8 @@ export function Grid({
                 key={`row-resize-${index}`}
                 orientation="row"
                 offset={rowOffsets[index + 1]!}
-                length={colOffsets[totalCols]!}
+                crossStart={colOffsets[y.levelCount]!}
+                length={colOffsets[totalCols]! - colOffsets[y.levelCount]!}
                 onResize={resizeRow(index, rowSizes[index]!)}
                 label={`Redimensionar linha ${index + 1}`}
               />

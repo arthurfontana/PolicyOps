@@ -59,7 +59,7 @@ de fechamento): `docs/claude/Convencoes-de-sessao.md`.
 4. **`src/core/` é TypeScript puro**: sem React, sem Zustand, sem DOM, sem `window`.
 5. **Zero requisições de rede externas** em tempo de execução. Sem CDN, sem fontes web, sem `eval`. Só o servidor local same-origin (`/api/*`).
 6. Escopo é escopo: não implementar sessões futuras "já que estou aqui".
-7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes (e `python -m pytest server/tests` quando tocar `server/`), e **`dist/PolicyOps.html` atualizado no commit**.
+7. Terminar com `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build` verdes (e `python -m pytest server/tests` quando tocar `server/`), e **`dist/PolicyOps.html` atualizado no commit**. Tocou `src/components/grid/` ou qualquer overlay/elemento posicionado por cima do grid (drag, resize, marquee): rodar **`pnpm test:e2e`** também — `jsdom` não pega intercepção de clique por elemento sobreposto (`docs/claude/Convencoes-de-sessao.md` § Comandos de verificação).
 8. Commitar na branch de trabalho e fazer push.
 
 ## Estrutura de pastas (resumida)
